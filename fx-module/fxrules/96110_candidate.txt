@@ -1,0 +1,5 @@
+# 96110-related community candidate only; not part of the verified National Anti-Fraud Center source.
+# Community source: https://github.com/sultan1sa/rules/blob/3b61496e63841db2e607921ad17b993a689c8c83/QuantumultX/ADblock.list
+# Caution: other public profiles route this hostname DIRECT, so the purpose/action is disputed.
+# Keep this exact-host REJECT rule separately switchable; never widen to 96110 keyword or *.cn.com.
+DOMAIN,prpr.96110.cn.com,REJECT

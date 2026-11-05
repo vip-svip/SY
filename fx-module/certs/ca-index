@@ -1,0 +1,11 @@
+# PrivacyGuard 内置 CA 索引（构建时生成，certmgr.sh builtin 依赖此文件）
+# 格式: 显示名|子模块目录名|SHA256指纹前16|Subject|MD5旧哈希|SHA1新哈希
+# 说明: 字段5 = subject_hash_old (MD5)  —— Android 4.2 ~ 6 的查找名
+#       字段6 = subject_hash     (SHA1)  —— Android 7+ 的查找名(含 A14+ Conscrypt)
+#       cacerts 目录下必须同时存在 <字段5>.0 与 <字段6>.0，否则对应版本不信任该 CA
+#       改动证书后必须同步更新字段5/6，否则 ca_sync 的信任判定会失效
+#       历史说明曾误判 SHA1 subject hash；当前值以随包证书的 openssl subject_hash 计算结果为准
+#       正确值可用 `openssl x509 -in certs/pg-*.pem -noout -subject_hash` 复算
+#       (实际值应由当前 PEM 重新计算，不能沿用其他版本证书的哈希)
+pg-mitm-ca|pg_mitm_ca|3cd7fe0549eaae30|C=CN, O=PrivacyGuard Project, CN=PrivacyGuard MITM Detection CA|67bddb03|6d4b9443
+pg-https-ca|pg_https_ca|1a9960b9339b31a5|C=CN, O=PrivacyGuard Project, CN=PrivacyGuard HTTPS Root CA|b6d831c3|2fef94b4

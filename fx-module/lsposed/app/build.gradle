@@ -1,0 +1,35 @@
+// PrivacyGuard LSPosed Hook 模块
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'de.privacyguard.hook'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'de.privacyguard.hook'
+        minSdk 27
+        targetSdk 34
+        versionCode 19
+        versionName '1.8.1'
+    }
+
+    buildTypes {
+        release {
+            // MainHook 仅经 assets/xposed_init 反射加载，
+            // R8 混淆会剔除/改名入口类 —— Xposed 模块禁用混淆
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+}
+
+// Xposed API 以 compileOnly 方式引入（不打包进 APK）
+dependencies {
+    compileOnly 'de.robv.android.xposed:api:82'
+}

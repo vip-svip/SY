@@ -1,0 +1,290 @@
+status	test	exit	duration_sec	message
+PASS	scripts/tests/adhook-app-installer-regression.sh	0	0	PASS: Hook APKs install as ordinary apps, idempotently update, and clean up without network mutations 
+PASS	scripts/tests/v1.0.0-ad-dns-backend-contract-regression.sh	0	0	PASS: Ad/DNS UI-to-backend contract and fail-safe defaults 
+PASS	scripts/tests/v1.0.0-ad-master-early-hosts-regression.sh	0	0	PASS: early boot uses the Hosts child switch directly and preserves foreign mounts 
+PASS	scripts/tests/v1.0.0-ad-master-rule-control-regression.sh	0	0	Blacklist child-switch / rules persistence / cache invalidation regression: PASS 
+PASS	scripts/tests/v1.0.0-ad-protection-master-gates-engines-regression.sh	0	0	Ad page-wide master removed; child switches remain authoritative: PASS 
+PASS	scripts/tests/v1.0.0-ad-rule-live-sync-regression.sh	0	0	Ad ↔ Rules live overview sync regression: PASS 
+PASS	scripts/tests/v1.0.0-ad-rule-overview-boundary-regression.sh	0	1	Ad rule overview boundary regression: PASS 
+PASS	scripts/tests/v1.0.0-ad-rule-overview-regression.sh	0	0	Ad rule overview regression: PASS 
+PASS	scripts/tests/v1.0.0-ad-ui-master-removal-and-overview-top-regression.sh	0	0	Ad UI master-removal / overview-at-top regression: PASS 
+PASS	scripts/tests/v1.0.0-adguardhome-manager-runtime-regression.sh	0	4	PASS: chained local Unbound -> AdGuard Home start/status/stop, recursive upstream wiring, failed-probe cleanup and checksum fail-closed simulation 
+PASS	scripts/tests/v1.0.0-adguardhome-optin-lifecycle-regression.sh	0	0	PASS: opt-in local DNS engine, six scoped anti-fraud/96110 candidate domain rules, checksums, recursive health gate, dual-stack redirect and uninstall lifecycle 
+PASS	scripts/tests/v1.0.0-adult-content-domain-list-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-adult-site-ad-cosmetic-safety-regression.sh	0	0	PASS: adult popup rules are scoped to safe selectors; content hosts are never blocked; FX rules stay separate 
+PASS	scripts/tests/v1.0.0-adult-site-ad-domain-regression.sh	0	0	PASS: focused adult ad networks enabled separately; adult content roots and user blacklist remain unblocked 
+PASS	scripts/tests/v1.0.0-applist-no-fake-fallback-regression.sh	0	0	PASS: app picker fails closed instead of fabricating a target package 
+PASS	scripts/tests/v1.0.0-apply-task-lifecycle-all-exits-regression.sh	0	1	apply task lifecycle all-exits regression: PASS 
+PASS	scripts/tests/v1.0.0-blocklist-quality-regression.sh	0	0	PASS: empty blacklist and preserved optional blocklist syntax/quality 
+PASS	scripts/tests/v1.0.0-bottom-nav-persistence-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-builtin-host-rules-vpnroute-regression.sh	0	2	PASS: built-in ad-host domains feed the VPN route compiler; cosmetic selectors stay in MITM layer 
+PASS	scripts/tests/v1.0.0-builtin-privacy-blocklist-regression.sh	0	0	PASS: blacklist is empty; legacy domains are preserved in a disabled standalone ruleset 
+PASS	scripts/tests/v1.0.0-ca-mitm-lifecycle-integration-regression.sh	0	0	PASS: CA upgrade persistence, post-boot trust restoration, and MITM UI/backend lifecycle are connected 
+PASS	scripts/tests/v1.0.0-cache-sha256-regression.sh	0	0	PrivacyGuard 1.0.0 cache SHA-256 regression: PASS 
+PASS	scripts/tests/v1.0.0-cert-apex-namespace-ui-truth-regression.sh	0	0	PASS: Conscrypt namespace verification, collision-safe CA overlays, boot-time sync ordering, and truthful UI state 
+PASS	scripts/tests/v1.0.0-cert-collision-no-openssl-regression.sh	0	1	PASS: collision-safe CA slots, idempotent add/remove, and certmgr fingerprint fallback without openssl 
+PASS	scripts/tests/v1.0.0-cert-full-fingerprint-regression.sh	0	1	PASS: full 256-bit CA fingerprints gate system/APEX/zygote trust decisions 
+PASS	scripts/tests/v1.0.0-cert-legacy-mount-migration-reboot-guard-regression.sh	0	0	PASS: legacy active CA migration blocks trust mutations until reboot; post-reboot marker clears only after verified sync; same-boot retries remain blocked; disabled children are safely migrated 
+PASS	scripts/tests/v1.0.0-cert-selinux-label-fail-closed-regression.sh	0	0	PASS: certificate trust publication fails closed when SELinux labels cannot be applied and verified 
+PASS	scripts/tests/v1.0.0-compat-profile-regression.sh	0	0	FX compatibility profile regression: PASS 
+PASS	scripts/tests/v1.0.0-core-config-transaction-regression.sh	0	0	PASS: core config transaction regression 
+PASS	scripts/tests/v1.0.0-cosmetic-upstream-subscription-regression.sh	0	1	PASS: upstream cosmetic lists are cataloged, checksum-verified, parsed, capped, and kept separate from FX anti-fraud rules 
+PASS	scripts/tests/v1.0.0-custom-dns-tcp-fallback-regression.sh	0	0	PASS: custom DNS branch redirects UDP and TCP port 53 
+PASS	scripts/tests/v1.0.0-customize-preserves-rulesets-regression.sh	0	0	PASS: installer no longer deletes built-in rules or prior rule subscriptions after migration 
+PASS	scripts/tests/v1.0.0-dns-custom-disabled-exception-regression.sh	0	0	FX DNS disabled-custom exception regression: PASS 
+PASS	scripts/tests/v1.0.0-dns-exception-address-validation-regression.sh	0	0	FX DNS exception address validation regression: PASS 
+PASS	scripts/tests/v1.0.0-dns-firewall-transaction-regression.sh	0	0	FX DNS/firewall transaction regression: PASS 
+PASS	scripts/tests/v1.0.0-dns-ipv6-failopen-with-ipv4-resolver-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-dns-ipv6-literal-validation-regression.sh	0	0	FX DNS IPv6 literal validation regression: PASS 
+PASS	scripts/tests/v1.0.0-dns-ipv6-status-diagnostic-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-dns-lifecycle-failopen-uninstall-regression.sh	0	0	FX DNS lifecycle fail-open/uninstall regression: PASS 
+PASS	scripts/tests/v1.0.0-dns-pid-marker-ownership-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-dns-pid-tempfile-cleanup-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-dns-probe-hostname-validation-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-dns-probe-negative-result-regression.sh	0	0	FX DNS negative-result classification regression: PASS 
+PASS	scripts/tests/v1.0.0-dns-redirect-precedence-regression.sh	0	1	FX DNS redirect precedence regression: PASS 
+PASS	scripts/tests/v1.0.0-dns-resolver-ipv4-validation-regression.sh	0	0	FX DNS resolver IPv4 validation regression: PASS 
+PASS	scripts/tests/v1.0.0-dns-status-requires-output-hook-regression.sh	0	0	PASS: DNS status requires live OUTPUT hook 
+PASS	scripts/tests/v1.0.0-dns-udp-redirect-no-breakage-regression.sh	0	0	PASS: UDP/53 is not sent to TCP redirect inbound; TCP/53 behavior remains explicit 
+PASS	scripts/tests/v1.0.0-dns-watchdog-failure-keeps-engines-until-detached-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-download-status-not-applied-regression.sh	0	1	PASS: download/parse status is not mislabeled as applied/effective 
+PASS	scripts/tests/v1.0.0-editor-large-content-memory-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-engine-install-permissions-regression.sh	0	0	FX engine install permissions regression: PASS 
+PASS	scripts/tests/v1.0.0-external-vpn-dns-failopen-regression.sh	0	1	PASS: external VPN + configured DNS cannot leave a filter-only plaintext DNS lockdown 
+PASS	scripts/tests/v1.0.0-external-vpn-hide-transaction-regression.sh	0	1	FX external VPN hide transaction regression: PASS 
+PASS	scripts/tests/v1.0.0-external-vpn-probe-owner-ui-consistency-regression.sh	0	1	PASS: UI and backend share the authoritative VPN owner UID; spacing variants do not cause false UID-missing diagnostics 
+PASS	scripts/tests/v1.0.0-external-vpn-probe-ui-fail-safe-regression.sh	0	0	PASS: UI VPN probe distinguishes unknown, vpn0, and no tunnel 
+PASS	scripts/tests/v1.0.0-fileedit-apply-and-readonly-cache-integration-regression.sh	0	1	FX editor integration regression: PASS (auto-apply, queued apply, isolated temp files, read-only caches/live view) 
+PASS	scripts/tests/v1.0.0-fileedit-backup-atomicity-regression.sh	0	0	FX file editor backup atomicity regression: PASS 
+PASS	scripts/tests/v1.0.0-fileedit-bounds-regression.sh	0	0	FX file editor bounds regression: PASS 
+PASS	scripts/tests/v1.0.0-fileedit-external-editor-sync-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-fileedit-find-error-regression.sh	0	0	FX file editor find error reporting regression: PASS 
+PASS	scripts/tests/v1.0.0-fileedit-find-hit-bound-regression.sh	0	0	FX file editor find hit bound regression: PASS 
+PASS	scripts/tests/v1.0.0-fileedit-find-total-bound-regression.sh	0	0	FX file editor find total response bound regression: PASS 
+PASS	scripts/tests/v1.0.0-fileedit-insert-regression.sh	0	0	FX file editor insert regression: PASS 
+PASS	scripts/tests/v1.0.0-fileedit-no-side-effect-regression.sh	0	0	FX file editor no-side-effect regression: PASS 
+PASS	scripts/tests/v1.0.0-fileedit-page-byte-truncation-regression.sh	0	0	FX file editor page byte-truncation regression: PASS 
+PASS	scripts/tests/v1.0.0-fileedit-transform-failure-regression.sh	0	0	FX file editor transform failure regression: PASS 
+PASS	scripts/tests/v1.0.0-fileedit-transform-no-override-regression.sh	0	0	FX transform failure does not create override regression: PASS 
+PASS	scripts/tests/v1.0.0-firewall-fallback-and-vpn-leak-regression.sh	0	1	PASS: firewall fallback transaction and VPN leak condition checks 
+PASS	scripts/tests/v1.0.0-firewall-partial-batch-rollback-regression.sh	0	0	PASS: filter and NAT partial fallback batches attempt reverse-order rollback 
+PASS	scripts/tests/v1.0.0-firewall-queue-activation-regression.sh	0	1	PASS: firewall append queue, OUTPUT activation order, and commit-failure handling 
+PASS	scripts/tests/v1.0.0-firewall-queue-write-failure-regression.sh	0	0	PASS: firewall queue write failure blocks filter and NAT commits 
+PASS	scripts/tests/v1.0.0-firewall-queue-write-status-regression.sh	0	0	PASS: fw4/fw6/nat4/nat6 propagate firewall queue write status 
+PASS	scripts/tests/v1.0.0-fx-action-semantics-regression.sh	0	0	PASS: FX rule actions are preserved; explicit DIRECT/PASS do not become host/IP blocks; bundle scope stays narrow 
+PASS	scripts/tests/v1.0.0-fx-branding-regression.sh	0	0	FX branding regression: PASS 
+PASS	scripts/tests/v1.0.0-fx-bundled-source-lifecycle-regression.sh	0	0	PASS: bundled FX source migration, explicit domain/IP expansion and independent FX-only hosts path 
+PASS	scripts/tests/v1.0.0-fx-firewall-rule-diagnostics-regression.sh	0	0	PASS: FX firewall diagnostics distinguish queued rules, add failures, and final activation 
+PASS	scripts/tests/v1.0.0-fx-host-domain-syntax-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-fx-hosts-mount-ownership-regression.sh	0	0	PASS: FX hosts mount ownership is three-state; foreign hosts mounts are preserved 
+PASS	scripts/tests/v1.0.0-fx-master-gates-vpn-routes-regression.sh	0	2	PASS: FX master gates proxy route rules; bundled anti-fraud domains are compiled to VPN routes 
+PASS	scripts/tests/v1.0.0-fx-missing-builtin-source-regression.sh	0	0	FX missing bundled source regression: PASS 
+PASS	scripts/tests/v1.0.0-fx-missing-source-editable-override-regression.sh	0	0	FX missing source editable override integration regression: PASS 
+PASS	scripts/tests/v1.0.0-fx-purpose-source-boundary-regression.sh	0	0	PASS: verified FX anti-fraud source stays narrow; disputed 96110 candidate is isolated as a separate exact-host toggle 
+PASS	scripts/tests/v1.0.0-fx-rule-application-diagnostics-regression.sh	0	0	PASS: FX diagnostics count domain/IP/package/process rules and disclose direct-mode limitations 
+PASS	scripts/tests/v1.0.0-fx-rule-bootstrap-persistence-regression.sh	0	1	PASS: FX bundled source and startup config migration wiring 
+PASS	scripts/tests/v1.0.0-fx-rule-section-separation-regression.sh	0	0	FX/general-rule section separation regression: PASS 
+PASS	scripts/tests/v1.0.0-fx-safe-default-whitelist-regression.sh	0	0	PASS: narrow connectivity/time whitelist defaults, no broad provider roots, hosts and VPN whitelist integration present 
+PASS	scripts/tests/v1.0.0-fxhook-migration-baseline-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-global-final-reject-regression.sh	0	4	PASS: global MATCH/FINAL reject functional policy regression 
+PASS	scripts/tests/v1.0.0-hook-waf-claims-regression.sh	0	1	PASS: hook/WAF labels match implemented UID and IP/CIDR filtering 
+PASS	scripts/tests/v1.0.0-hosts-baseline-backup-recovery-regression.sh	0	0	PASS: original hosts baseline recovered from backup; generated baseline rejected 
+PASS	scripts/tests/v1.0.0-hosts-bindmount-fail-safe-regression.sh	0	0	FX hosts bind-mount/transaction fail-safe regression: PASS 
+PASS	scripts/tests/v1.0.0-hosts-cache-concurrency-regression.sh	0	0	FX hosts cache concurrency regression: PASS 
+PASS	scripts/tests/v1.0.0-hosts-fast-apply-source-fingerprint-regression.sh	0	0	FX fast-apply hosts input fingerprint regression: PASS (local file, user rules, bundled rules, config) 
+PASS	scripts/tests/v1.0.0-hosts-ipv6-local-mapping-regression.sh	0	0	PASS: full and FX-only local hosts builders retain valid IPv4/IPv6 mappings 
+PASS	scripts/tests/v1.0.0-hosts-sidecar-recovery-runtime.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-hosts-sidecar-transaction-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-hosts-subscription-separation-regression.sh	0	0	FX hosts/subscription separation regression: PASS 
+PASS	scripts/tests/v1.0.0-hosts-transactional-commit-regression.sh	0	0	FX hosts transactional commit regression: PASS (failure rollback + successful commit) 
+PASS	scripts/tests/v1.0.0-hosts-whitelist-priority-regression.sh	0	0	PASS: hosts whitelist wins on exact/suffix boundaries, case-insensitively, without overmatching neighboring domains 
+PASS	scripts/tests/v1.0.0-http-fetch-integrity-regression.sh	0	0	PrivacyGuard 1.0.0 HTTP fetch integrity regression: PASS 
+PASS	scripts/tests/v1.0.0-ipv6-firewall-jump-cleanup-regression.sh	0	1	FX IPv6 firewall jump cleanup regression: PASS 
+PASS	scripts/tests/v1.0.0-ipv6-pghide-rollback-regression.sh	0	1	FX IPv6 leak-guard and PGHIDE rollback regression: PASS 
+PASS	scripts/tests/v1.0.0-js-mitm-runtime-controls-regression.sh	0	1	JS MITM runtime status and explicit-opt-in regression: PASS 
+PASS	scripts/tests/v1.0.0-js-subscription-lifecycle-regression.sh	0	0	FX JS subscription lifecycle regression: PASS 
+PASS	scripts/tests/v1.0.0-js-subscription-sync-regression.sh	0	2	FX script subscription sync regression (atomic install + concurrency): PASS 
+PASS	scripts/tests/v1.0.0-jsruntime-argv-regression.sh	0	0	FX QuickJS runtime argv regression: PASS 
+PASS	scripts/tests/v1.0.0-jsruntime-diagnostics-regression.sh	0	0	FX JS runtime diagnostics regression: PASS 
+PASS	scripts/tests/v1.0.0-jsruntime-http-no-wget-downgrade-regression.sh	0	0	FX JS HTTP bridge blocks unsafe wget fallback: PASS 
+PASS	scripts/tests/v1.0.0-jsruntime-isolated-result-regression.sh	0	0	FX JS runtime isolated-result regression: PASS 
+PASS	scripts/tests/v1.0.0-jsruntime-no-done-fails-regression.sh	0	0	FX JS script missing-$done fail-state regression: PASS 
+PASS	scripts/tests/v1.0.0-jsruntime-privileged-import-block-regression.sh	0	0	FX QuickJS privileged/native module import regression: PASS (static checks; runtime only on Android arm64) 
+PASS	scripts/tests/v1.0.0-jsruntime-utils-regression.sh	0	0	jsruntime utils regression: PASS 
+PASS	scripts/tests/v1.0.0-k-task-toggle-backend-consistency-regression.sh	0	0	FX k_task toggle/backend consistency regression: PASS 
+PASS	scripts/tests/v1.0.0-kernel-editor-template-truthfulness-regression.sh	0	0	FX kernel editor template truthfulness: PASS 
+PASS	scripts/tests/v1.0.0-kernelsu-package-completeness-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-large-ruleset-safety-regression.sh	0	1	PASS: large rule sets use streaming dedup, hard size guard, and explicit CIDR cap/failure diagnostics 
+PASS	scripts/tests/v1.0.0-list-section-merge-regression.sh	0	0	FX list duplicate-section merge and BOM regression: PASS 
+PASS	scripts/tests/v1.0.0-local-hosts-file-source-regression.sh	0	1	FX local hosts migration and source-separation regression: PASS 
+PASS	scripts/tests/v1.0.0-local-hosts-legacy-migration-regression.sh	0	1	FX legacy local hosts migration regression: PASS (incl. failed-write retry) 
+PASS	scripts/tests/v1.0.0-local-hosts-streaming-regression.sh	0	0	FX local hosts streaming regression: PASS 
+PASS	scripts/tests/v1.0.0-local-recursive-dns-config-regression.sh	0	0	PASS: local AGH cache/filter -> loopback Unbound recursion; no fixed public forwarding DNS; anti-fraud-only rules; DNSSEC/root hints; fail-open lifecycle 
+PASS	scripts/tests/v1.0.0-local-upstream-rules-regression.sh	0	0	PASS: Chinese-labeled local upstream rules exist, request rules load separately, and adult content roots are not DNS-blocked 
+PASS	scripts/tests/v1.0.0-localdns-watchdog-chain-health-regression.sh	0	1	PASS: watchdog verifies full DNS chain; failed monitor start detaches IPv4/IPv6 hooks before NAT cleanup and stops DNS engines 
+PASS	scripts/tests/v1.0.0-localdns-watchdog-health-failure-lock-retry-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-localdns-watchdog-missing-engine-marker-recovery-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-localdns-watchdog-regression.sh	0	0	PASS: watchdog start/stop, healthy-chain gates, PID publication, disabled-mode guard, firewall-transaction ownership 
+PASS	scripts/tests/v1.0.0-lsposed-ad-hook-apk-regression.sh	0	0	PASS: refreshed CI-built API-101 APK; entrypoint, DEX markers, checksum, and ordinary-app deployment verified
+PASS	scripts/tests/v1.0.0-lsposed-ad-hook-target-scope-regression.sh	0	0	PASS: FX target list is separated, sanitized, and gated for LSPosed Hook 
+PASS	scripts/tests/v1.0.0-lsposed-remote-file-config-regression.sh	0	0	PASS: LSPosed Remote Files config is per-user, minimal, atomic, and fail-closed 
+PASS	scripts/tests/v1.0.0-lsposed-remote-status-ui-regression.sh	0	0	PASS: remote publication status and target scope caveat are surfaced truthfully 
+PASS	scripts/tests/v1.0.0-lsposed-sensor-config-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-lsposed-ui-single-apply-pipeline-regression.sh	0	0	PASS: per-app Hook actions use a single persistence/apply pipeline 
+PASS	scripts/tests/v1.0.0-managed-core-ensure-failure-disables-redirection-regression.sh	0	0	managed-core ensure failure disables interception: PASS 
+PASS	scripts/tests/v1.0.0-migration-missing-block-section-regression.sh	0	0	Missing block-section migration regression: PASS (missing section is recreated empty; legacy domains stay outside it) 
+PASS	scripts/tests/v1.0.0-mitm-host-allowlist-regression.sh	0	0	FX MITM hostname allowlist import/sync/rollback regression: PASS 
+PASS	scripts/tests/v1.0.0-mitm-listener-readiness-regression.sh	0	0	MITM listener readiness regression: PASS 
+PASS	scripts/tests/v1.0.0-mitm-runtime-ca-child-sync-regression.sh	0	1	MITM runtime CA child-module synchronization regression: PASS 
+PASS	scripts/tests/v1.0.0-mitm-sni-mismatch-single-response-regression.sh	0	0	mitm SNI mismatch emits a single 421 response: ok 
+PASS	scripts/tests/v1.0.0-mitm-status-collision-slot-apex-namespace-regression.sh	0	0	PASS: MITM status scans collision slots and refuses APEX trust without verified zygote namespace 
+PASS	scripts/tests/v1.0.0-mitm-trust-preflight-regression.sh	0	0	MITM trust preflight regression: PASS 
+PASS	scripts/tests/v1.0.0-module-urlrewrite-action-safety-regression.sh	0	0	PASS: reject/reject-dict/reject-array/reject-200/302 URL rewrites are preserved for runtime and not widened to domain blocks 
+PASS	scripts/tests/v1.0.0-module-urlrewrite-scope-and-script-dedupe-regression.sh	0	0	PASS: URL Rewrite entries preserved; repeated triggers retained; Aloha module and comma regex imported 
+PASS	scripts/tests/v1.0.0-nat-commit-failure-no-hook-regression.sh	0	0	FX NAT commit failure/no-hook regression: PASS 
+PASS	scripts/tests/v1.0.0-paginated-text-editor-regression.sh	0	0	PASS: traditional paginated text editor regression 
+PASS	scripts/tests/v1.0.0-persist-log-tag-snapshot-restore-regression.sh	0	0	FX persist.log.tag snapshot/restore regression: PASS 
+PASS	scripts/tests/v1.0.0-pg-set-atomic-failure-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-pghks-commit-idempotency-regression.sh	0	1	FX PGHKS commit failure and idempotency regression: PASS 
+PASS	scripts/tests/v1.0.0-pghks-firewall-query-failure-safe-regression.sh	0	1	PGHKS firewall-query failure safe regression: PASS 
+PASS	scripts/tests/v1.0.0-pghks-referenced-chain-safety-regression.sh	0	0	PGHKS referenced-chain safety regression: PASS 
+PASS	scripts/tests/v1.0.0-pgnat-failed-commit-cleanup-regression.sh	0	0	FX PGNAT failed-commit cleanup regression: PASS 
+PASS	scripts/tests/v1.0.0-pguard-dualstack-activation-regression.sh	0	1	PASS: PGUARD dual-stack activation and rollback checks 
+PASS	scripts/tests/v1.0.0-privacy-editor-consumer-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-privacy-editor-persistence-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-privacy-feature-claims-regression.sh	0	0	PASS: privacy feature claims match implemented mechanisms 
+PASS	scripts/tests/v1.0.0-privacy-runtime-gating-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-privacy-startup-properties-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-property-spoof-snapshot-failure-skips-mutation-regression.sh	0	0	PASS: property spoofing is gated on an atomically published original-value snapshot 
+PASS	scripts/tests/v1.0.0-quickjs-runtime-regression.sh	0	0	FX QuickJS runtime static regression: PASS 
+PASS	scripts/tests/v1.0.0-raw-netfilter-flush-before-hook-regression.sh	0	0	PASS: PGNF rules flush before hook activation; flush failure blocks hooks; both families verified 
+PASS	scripts/tests/v1.0.0-raw-netfilter-rebuild-reference-safety-regression.sh	0	0	PASS: raw netfilter rebuild reference-safety regression 
+PASS	scripts/tests/v1.0.0-rule-catalog-migration-recovery-regression.sh	0	0	PASS: missing user rule sources are recovered once from the pre-migration backup without overwriting current states 
+PASS	scripts/tests/v1.0.0-rule-compat-regression.sh	0	0	PASS: static ecosystem import, supported script declarations, Clash/Mihomo YAML rules subset, whitelist precedence, conservative skips 
+PASS	scripts/tests/v1.0.0-rule-import-block-action-regression.sh	0	1	PASS: imported exact/suffix domain and IPv4/IPv6 CIDR actions persist; generic rules never enter FX 
+PASS	scripts/tests/v1.0.0-rule-list-migration-runtime-regression.sh	0	0	PASS: migration preserves user state, adds targeted upstream rules enabled, keeps broader sources opt-in and anti-fraud sources separate 
+PASS	scripts/tests/v1.0.0-rule-source-catalog-regression.sh	0	0	PASS: expanded upstream catalog, targeted compatible sources default-on, broad optional sources default-off, FX anti-fraud stays separate 
+PASS	scripts/tests/v1.0.0-rule-status-after-parse-regression.sh	0	1	PASS: rule status follows parser stage and distinguishes final application 
+PASS	scripts/tests/v1.0.0-rule-toggle-auto-apply-regression.sh	0	0	PASS: per-rule auto-apply queue coalesces changes, runs full apply, and drains changes queued during an in-flight apply
+PASS	scripts/tests/v1.0.0-ruleset-cache-route-integration-regression.sh	0	0	PASS: remote text RULE-SET cache reaches route compiler as active reject routes 
+PASS	scripts/tests/v1.0.0-runtime-entrypoint-permissions-regression.sh	0	0	FX runtime entrypoint permissions regression: PASS 
+PASS	scripts/tests/v1.0.0-runtime-manifest-refresh-regression.sh	0	1	FX runtime manifests refresh after final apply state and before repeated-start early return: PASS 
+PASS	scripts/tests/v1.0.0-splash-watermark-engine-regression.sh	0	0	General rule-list splash/watermark cosmetic engine regression: PASS 
+PASS	scripts/tests/v1.0.0-subfetch-atomic-metadata-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-subfetch-concurrency-regression.sh	0	3	FX subscription cache concurrency regression: PASS 
+PASS	scripts/tests/v1.0.0-subfetch-content-validation-regression.sh	0	0	FX subscription response validation regression: PASS 
+PASS	scripts/tests/v1.0.0-subfetch-generic-text-view-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-subfetch-redirect-protocol-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-subfetch-stale-lock-ownership-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-subfetch-stale-lock-reclaim-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-subfetch-transfer-byte-cap-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-subfetch-url-scheme-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-subscription-cache-regression.sh	0	0	PrivacyGuard 1.0.0 subscription cache regression: PASS 
+PASS	scripts/tests/v1.0.0-subscription-cache-status-regression.sh	0	1	PASS: cached status avoids claiming fresh download 
+PASS	scripts/tests/v1.0.0-subscription-source-size-guard-regression.sh	0	0	PASS: subscription source size guard rejects oversized downloads before cache promotion without truncation 
+PASS	scripts/tests/v1.0.0-substatus-summary-regression.sh	0	3	PASS: substatus summary aggregates latest per-source status and filters by type 
+PASS	scripts/tests/v1.0.0-third-party-api-compat-regression.sh	0	0	FX third-party API compatibility static regression: PASS 
+PASS	scripts/tests/v1.0.0-third-party-rule-pipeline-regression.sh	0	0	FX third-party module import → separate route list → compiler/runtime pipeline: PASS 
+PASS	scripts/tests/v1.0.0-third-party-runtime-sync-regression.sh	0	0	FX third-party import -> persisted config -> runtime sync regression: PASS 
+PASS	scripts/tests/v1.0.0-third-party-vpn-hide-regression.sh	0	1	FX v1.0.0 third-party VPN hide regression: PASS 
+PASS	scripts/tests/v1.0.0-third-party-vpn-uid-unknown-safe-regression.sh	0	0	FX third-party VPN unknown UID safe-fail regression: PASS 
+PASS	scripts/tests/v1.0.0-third-party-vpn-uid-unknown-stale-cleanup-regression.sh	0	1	FX third-party VPN unknown UID stale-hook cleanup regression: PASS 
+PASS	scripts/tests/v1.0.0-third-party-vpn-unknown-cleanup-verification-regression.sh	0	0	FX third-party VPN unknown-UID cleanup verification regression: PASS 
+PASS	scripts/tests/v1.0.0-ui-config-save-queue-runtime-regression.sh	0	0	PASS: concurrent config saves are serialized; FX switch and FX rules persist without false “not saved” rollback 
+PASS	scripts/tests/v1.0.0-ui-config-write-transaction-regression.sh	0	0	PASS: UI config writes validate temp before commit, preserve a verified backup, and roll back post-commit failure 
+PASS	scripts/tests/v1.0.0-ui-config-write-transaction-runtime-regression.sh	0	1	PASS: UI config transaction runtime simulation (normal write, preflight failure, post-rename rollback, interrupted recovery) 
+PASS	scripts/tests/v1.0.0-ui-fx-rule-scope-separation-regression.sh	0	0	FX vs generic rules UI scope regression: PASS 
+PASS	scripts/tests/v1.0.0-ui-no-fake-success-regression.sh	0	0	FX UI no-fake-success regression: PASS 
+PASS	scripts/tests/v1.0.0-ui-performance-regression.sh	0	0	PASS: progressive rule/Hook rendering, idle scheduling, offscreen paint containment, mobile compositing reduction, VPN-search debounce and coalesced preference writes verified 
+PASS	scripts/tests/v1.0.0-ui-shell-navigation-recovery-regression.sh	0	0	FX UI shell/navigation recovery regression: PASS 
+PASS	scripts/tests/v1.0.0-ui-startup-layout-integration-regression.sh	0	0	FX UI startup/layout integration regression: PASS 
+PASS	scripts/tests/v1.0.0-ui-vpn-mode-auto-apply-regression.sh	0	0	FX VPN mode auto-apply runtime regression: PASS (6 scenarios) 
+PASS	scripts/tests/v1.0.0-ui-vpn-responsive-controls-regression.sh	0	0	VPN responsive UI regression: PASS (32 inline scripts parse) 
+PASS	scripts/tests/v1.0.0-unbound-manager-runtime-regression.sh	0	1	PASS: Unbound config, hash-gated startup, unique recursive-DNS health probe, status, clean stop, unhealthy fail-closed and checksum failure 
+PASS	scripts/tests/v1.0.0-uninstall-chain-absence-verification-regression.sh	0	0	FX uninstall chain-absence verification regression: PASS 
+PASS	scripts/tests/v1.0.0-uninstall-cleanup-status-regression.sh	0	0	FX uninstall cleanup status regression: PASS 
+PASS	scripts/tests/v1.0.0-uninstall-firewall-incomplete-preserves-retry-state-regression.sh	0	1	FX uninstall firewall-incomplete retry-state preservation regression: PASS 
+PASS	scripts/tests/v1.0.0-uninstall-firewall-query-failure-regression.sh	0	0	FX uninstall firewall-query-failure verification regression: PASS 
+PASS	scripts/tests/v1.0.0-uninstall-incomplete-preserves-certificate-overlay-sources-regression.sh	0	1	FX uninstall incomplete certificate-overlay source preservation regression: PASS 
+PASS	scripts/tests/v1.0.0-uninstall-magisk-resetprop-subcommand-fallback-regression.sh	0	0	FX uninstall Magisk resetprop subcommand fallback regression: PASS 
+PASS	scripts/tests/v1.0.0-uninstall-missing-firewall-tool-regression.sh	0	0	FX uninstall missing-firewall-tool verification regression: PASS 
+PASS	scripts/tests/v1.0.0-uninstall-no-pkill-fallback-regression.sh	0	0	FX uninstall no weak process-kill fallback regression: PASS 
+PASS	scripts/tests/v1.0.0-uninstall-preserves-referenced-firewall-chain-regression.sh	0	0	FX uninstall preserves referenced firewall chains regression: PASS 
+PASS	scripts/tests/v1.0.0-uninstall-property-restore-failure-preserves-snapshot-regression.sh	0	0	FX uninstall property restore failure snapshot preservation regression: PASS 
+PASS	scripts/tests/v1.0.0-uninstall-scheduler-pid-reuse-regression.sh	0	0	FX uninstall scheduler PID-reuse regression: PASS 
+PASS	scripts/tests/v1.0.0-uninstall-settings-restore-failure-preserves-snapshot-regression.sh	0	0	FX uninstall settings restore failure snapshot preservation regression: PASS 
+PASS	scripts/tests/v1.0.0-uninstall-single-vpncore-stop-path-regression.sh	0	0	FX uninstall single VPN-core stop path regression: PASS 
+PASS	scripts/tests/v1.0.0-uninstall-stops-localdns-watchdog-before-firewall-regression.sh	0	0	PASS: uninstall stops and verifies watchdog before removing FX-owned OUTPUT hooks 
+PASS	scripts/tests/v1.0.0-uninstall-stops-owned-vpn-core-regression.sh	0	0	FX uninstall stops owned VPN core regression: PASS 
+PASS	scripts/tests/v1.0.0-uninstall-stops-unbound-after-adguard-failure-regression.sh	0	0	PASS: uninstall independently stops Unbound even if AdGuard Home wrapper fails; preserves recovery state on either failure 
+PASS	scripts/tests/v1.0.0-upgrade-preserves-user-network-config-regression.sh	0	0	PASS: upgrades preserve existing network settings and add only missing defaults; installer identifies FX 1.0.0 
+PASS	scripts/tests/v1.0.0-urlrewrite-import-runtime-bridge-regression.sh	0	16	PASS: URL Rewrite module entries round-trip into the runtime manifest without domain widening 
+PASS	scripts/tests/v1.0.0-vless-tls-default-regression.sh	0	0	PASS: VLESS omitted/true/false TLS mapping 
+PASS	scripts/tests/v1.0.0-vmess-json-escaping-regression.sh	0	0	PASS: VMess JSON escaping, IPv6 authority, and VLESS TLS-off semantics 
+PASS	scripts/tests/v1.0.0-vpn-auto-update-success-stamp-regression.sh	0	1	PASS: service uses tested updater; failed VPN subscription updates do not advance success stamp; retries are not delayed; leading-zero interval is safe 
+PASS	scripts/tests/v1.0.0-vpn-coexistence-auto-route-guard-regression.sh	0	0	PASS: VPN coexistence is automatic when outer interface, UID and explicit node/direct/DNS binding are confirmed; diagnostic avoids shell DNS and public-IP probes 
+PASS	scripts/tests/v1.0.0-vpn-coexistence-regression.sh	0	0	PrivacyGuard 1.0.0 VPN coexistence regression: PASS 
+PASS	scripts/tests/v1.0.0-vpn-core-health-watchdog-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-vpn-core-listener-required-regression.sh	0	0	FX VPN core listener-required regression: PASS 
+PASS	scripts/tests/v1.0.0-vpn-core-pid-ownership-regression.sh	0	0	FX VPN core PID ownership regression: PASS 
+PASS	scripts/tests/v1.0.0-vpn-core-pid-reuse-ensure-regression.sh	0	0	FX VPN core PID-reuse ensure regression: PASS 
+PASS	scripts/tests/v1.0.0-vpn-direct-firewall-verification-failure-regression.sh	0	0	FX VPN direct firewall verification failure regression: PASS 
+PASS	scripts/tests/v1.0.0-vpn-direct-ipv6-residual-regression.sh	0	0	FX VPN direct IPv6 residual/duplicate-jump regression: PASS 
+PASS	scripts/tests/v1.0.0-vpn-direct-no-node-regression.sh	0	0	FX VPN direct mode no-node regression: PASS 
+PASS	scripts/tests/v1.0.0-vpn-dns-whitelist-runtime.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-vpn-external-state-regression.sh	0	0	FX 1.0.0 external VPN state / DNS guard regression: PASS 
+PASS	scripts/tests/v1.0.0-vpn-external-watchdog-regression.sh	0	0	PASS: boot lifecycle, change-triggered serialized reconciliation, retry semantics, and uninstall ordering are wired 
+PASS	scripts/tests/v1.0.0-vpn-external-watchdog-runtime-regression.sh	0	6	PASS: simulated late VPN start and disconnect each trigger exactly one fast apply; stable states do not loop 
+PASS	scripts/tests/v1.0.0-vpn-hide-dot-priority-regression.sh	0	1	FX VPN hide DoT priority regression: PASS 
+PASS	scripts/tests/v1.0.0-vpn-hide-level-choice-ui-regression.sh	0	0	FX VPN hide-level choice UI regression: PASS 
+PASS	scripts/tests/v1.0.0-vpn-hide-level-inline-choice-regression.sh	0	0	FX VPN hide-level inline choice regression: PASS 
+PASS	scripts/tests/v1.0.0-vpn-hide-udp-block-regression.sh	0	1	FX VPN hide UDP block regression: PASS 
+PASS	scripts/tests/v1.0.0-vpn-interface-probe-failure-safe-regression.sh	0	0	PASS: overlay diagnostic reports empty/error interface listings as unknown 
+PASS	scripts/tests/v1.0.0-vpn-interval-inline-choice-regression.sh	0	0	FX VPN interval inline choice regression: PASS 
+PASS	scripts/tests/v1.0.0-vpn-local-port-validation-regression.sh	0	0	PASS: local port numeric input hints, 1..65535 validation, normalized persistence, and editor cleanup 
+PASS	scripts/tests/v1.0.0-vpn-mode-ad-hosts-independent-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-vpn-mode-switch-no-node-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-vpn-nat-hook-commit-failure-regression.sh	0	0	FX VPN NAT hook commit-failure regression: PASS 
+PASS	scripts/tests/v1.0.0-vpn-node-endpoint-route-guard-regression.sh	0	0	PASS: FX overlays bind node/direct/DNS sockets to the outer tunnel; diagnostics avoid root-route and public-egress probes 
+PASS	scripts/tests/v1.0.0-vpn-overlay-regression.sh	0	1	PrivacyGuard 1.0.0 external VPN overlay regression: PASS 
+PASS	scripts/tests/v1.0.0-vpn-owned-pid-no-listener-restart-regression.sh	0	0	FX VPN owned PID without listener restart regression: PASS 
+PASS	scripts/tests/v1.0.0-vpn-pickparams-select-controls-regression.sh	0	0	PASS: VPN pickparams use select controls with allow-listed persistence and cleanup 
+PASS	scripts/tests/v1.0.0-vpn-port-probe-fail-closed-regression.sh	0	0	PASS: VPN port probe fails closed on curl errors and missing probes 
+PASS	scripts/tests/v1.0.0-vpn-repair-custom-section-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-vpn-status-requires-output-hook-and-redirect-regression.sh	0	0	PASS: VPN status requires OUTPUT hook and TCP redirect; simple jump and redirect forms recognized 
+PASS	scripts/tests/v1.0.0-vpn-status-runtime-live-state-regression.sh	0	4	PASS: status.sh accurately distinguishes active and partial VPN/DNS firewall state 
+PASS	scripts/tests/v1.0.0-vpn-sub-commit-marker-rollback-regression.sh	0	1	PASS: commit-marker failure rollback guards present 
+PASS	scripts/tests/v1.0.0-vpn-subscription-concurrency-lock-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-vpn-subscription-crash-recovery-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-vpn-subscription-import-regression.sh	0	0	FX VPN subscription import regression: PASS 
+PASS	scripts/tests/v1.0.0-vpn-subscription-transaction-regression.sh	0	0	FX subscription transaction static guards: PASS 
+PASS	scripts/tests/v1.0.0-vpn-testurl-inline-presets-regression.sh	0	0	PASS: VPN test URL presets, persistence, selected-state sync, and custom editor path 
+PASS	scripts/tests/v1.0.0-vpn-toggle-ui-regression.sh	0	0	FX 1.0.0 VPN mode toggle / external VPN warning regression: PASS 
+PASS	scripts/tests/v1.0.0-vpncore-binary-integrity-regression.sh	0	0	FX VPN core binary integrity regression: PASS 
+PASS	scripts/tests/v1.0.0-vpncore-bind-interface-config-generation-regression.sh	0	0	PASS: unsupported legacy core fails closed and preserves the prior config 
+PASS	scripts/tests/v1.0.0-vpncore-dns-block-rule-generation-regression.sh	0	0	PASS: host-side regression completed in continuation batch
+PASS	scripts/tests/v1.0.0-vpncore-stop-failure-preserves-pid-regression.sh	0	0	FX VPN-core stop failure static guard: PASS 
+PASS	scripts/tests/v1.0.0-vpninfo-authoritative-interface-regression.sh	0	0	PASS: active outer interface and owner UID require unique VpnInfo plus a live UP tunnel; no stale/down interface fallback 
+PASS	scripts/tests/v1.0.0-webui-editor-keyboard-regression.sh	0	0	FX 1.0.0 editor loading / keyboard-nav regression: PASS 
+PASS	scripts/tests/v1.0.0-whitelist-apply-rollback-regression.sh	0	1	PASS: failed apply restores baseline config and retries apply with restored settings 
+PASS	scripts/tests/v1.0.0-whitelist-domain-validation-regression.sh	0	0	PASS: strict whitelist domain validation, suffix normalization, duplicate suppression, invalid entries rejected 
+PASS	scripts/tests/v1.0.0-whitelist-manager-regression.sh	0	0	PASS: whitelist CLI add/list/remove, strict validation, canonical dedup, unrelated sections preserved 
+PASS	scripts/tests/v1.0.0-whitelist-transaction-regression.sh	0	0	PASS: whitelist transaction, backup, lock and validation regression 
+PASS	scripts/tests/v1.0.0-yaml-uri-escaping-regression.sh	0	0	PASS: YAML URI IPv6 authority and reserved-character encoding 
+PASS	scripts/tests/v1.10.77-host-regression.sh	0	0	PASS: certificate copy success/empty-source/cp-failure injection and transaction trap assertions 
+PASS	scripts/tests/v1.10.78-host-regression.sh	0	1	PASS: cert copy failure injection, mount-marker publication/unmount failure injection, transaction recovery assertions 
+PASS	scripts/tests/v1.10.79-host-regression.sh	0	1	PASS: lock-owner safety, strict recovery-marker validation, restored-config check ordering, orphan-backup handling, independent cert submodules 
+PASS	scripts/tests/v1.10.80-host-regression.sh	0	0	PASS: transaction checksum/phase assertions, checksum corruption injection, lock policy, cert failure paths, independent certificate submodules 
+PASS	scripts/tests/v1.10.81-host-regression.sh	0	1	PASS: 7 real URI parser cases emit valid JSON with IPv6; invalid ports 0/65536/non-numeric/empty rejected 
+PASS	scripts/tests/v1.10.82-host-regression.sh	0	1	PASS: missing-PID stale-lock fault injection fails closed; live PID preserved; backup tamper detected; cert submodules present 
+PASS	scripts/tests/v1.10.83-host-regression.sh	0	1	PASS: mocked core-stop/start-failure retry is idempotent; no duplicate stop on retry; historical regressions and cert submodules pass 
+PASS	scripts/tests/v1.10.84-host-regression.sh	0	0	PASS: commit ordering, checksum tamper, cleanup interruption, retained recovery evidence, core retry contract, cert submodules 
+PASS	scripts/tests/v1.10.85-host-regression.sh	0	1	PASS: recovery evidence cleanup ordering/logging, historical v1.10.77-v1.10.84 regression suite, shell syntax, independent cert submodules 
+PASS	scripts/tests/v1.10.86-host-regression.sh	0	1	PASS: certificate enable staging/publish/rollback source contracts, certificate source contracts, shell syntax, independent certificate submodules 
+PASS	scripts/tests/v1.10.87-host-regression.sh	0	1	PASS: interrupted certificate enable recovery fault injection, idempotence, invalid-snapshot fail-closed, shell syntax, independent cert submodules 
+PASS	scripts/tests/v1.10.89-host-regression.sh	0	0	v1.10.89 host regression: PASS 
+PASS	scripts/tests/v1.10.90-host-regression.sh	0	1	v1.10.90 host regression: PASS 
+PASS	scripts/tests/v1.10.91-host-regression.sh	0	0	v1.10.91 host regression: PASS 
+PASS	scripts/tests/v1.10.92-host-regression.sh	0	0	v1.10.92 host regression: PASS 
+PASS	scripts/tests/v1.10.93-rule-coverage-regression.sh	0	0	PASS: ad/tracking coverage is retained in the opt-in ruleset while blacklist remains empty 
+SUMMARY	2026-10-30 FX 1.0.0 continuation	0	0	271/271 v1.0.0 shell regression scripts PASS across batches and successful retries; API-101 Gradle/unit-test/signature/DEX CI PASS; 10 targeted LSPosed/UI/installer regressions PASS. Host-side only; no OnePlus 12 runtime test.
