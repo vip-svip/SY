@@ -53,8 +53,11 @@ fx_arb_listening() {
     if awk -v want="$_want" '
       NR > 1 {
         n = split($2, a, ":")
-        if (n < 2) next
-        if (toupper(a[n]) == want && toupper($4) == "0A") { found = 1 }
+        if (n < 2 || toupper(a[n]) != want) next
+        # TCP sockets are conflicts only while listening. A bound UDP socket
+        # appears in udp/udp6 (normally state 07); UDP has no LISTEN state.
+        is_udp = (FILENAME ~ /\/udp6?$/)
+        if (is_udp || toupper($4) == "0A") found = 1
       }
       END { exit(found ? 0 : 1) }
     ' "$_f"; then
