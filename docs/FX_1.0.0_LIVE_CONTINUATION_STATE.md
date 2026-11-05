@@ -6728,3 +6728,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 按用户当前要求，本批未运行静态检查、Shell 检查、构建、回归或真机测试。
 
 - 后续补充提交：`839667648f6a140106c7d9b718fe69888cf0337e` — 当 VPN 出口标记存在时，跳过独立的 `unbound-anchor` 一次性联网刷新。该辅助程序不读取 Unbound 的 `outgoing-interface` 配置，直接运行可能绕过已绑定的 VPN 出口；改由已启动的 Unbound RFC5011 维护信任锚，避免启动阶段的 DNS/HTTPS 更新请求走普通默认路由。
+
+## 2026-11-06 — VPN 递归 DNS 双栈泄漏收口与出口路由证明扩展
+
+- 代码提交：
+  - `1fd3617a73cf14530f1adcf59c1de48528888474` — `fx-module/scripts/unbound.sh`：Root Proxy 当前只发布经过验证的 VPN IPv4 源地址，因此当 VPN 出口标记存在时，Unbound 配置关闭 IPv6 上游 socket（`do-ip6: no`）并绑定 `outgoing-interface` 到该 IPv4。DNS AAAA 记录仍可通过 IPv4 递归传输获取；不再让 IPv6 递归查询有机会走未验证的系统默认 IPv6 路由。未启用外部 VPN 标记时仍保留原生 IPv6 递归。
+  - `062048f6f3efcf4601d7e1d217b9368fc9dd6763` — `fx-module/scripts/yulong-root-proxy.sh`：VPN 出口路由证明从 2 个根服务器地址扩展为 6 个不同根服务器 IPv4 目的地址；每条 `ip route get` 结果必须同时唯一匹配预期 tunnel interface 和预期源 IPv4，不能只凭接口名相同就通过。
+- 这两项合并收紧了外部 VPN DNS 的 IPv4/IPv6 出站边界：只在已验证 IPv4 出口下允许 Unbound 递归上游流量，避免未验证 IPv6 旁路；并加强 VPN 路由/源地址的多目的地证明。
+- 当前限制：该 Root Proxy 出口证明仍是 IPv4 模式；不宣称支持 IPv6-only VPN 隧道，也未将 IPv6 根服务器路由纳入已验证范围。若未来实现 IPv6 tunnel source，需要独立的 IPv6 地址解析、路由验证、Unbound 多地址绑定和回滚流程。
+- 按用户要求，本批未执行 Shell 静态检查、构建、回归、真机网络验证或 Actions。
