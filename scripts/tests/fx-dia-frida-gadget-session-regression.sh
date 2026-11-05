@@ -224,6 +224,7 @@ echo "GADGET_SESSION_TEST_STAGE: local UID/process fixture"
 # claim Android-device Frida compatibility.
 T=$(mktemp -d "/tmp/fx-dia-gadget-session.XXXXXX")
 cleanup(){
+  if [ -n "${zombie_parent:-}" ]; then kill "$zombie_parent" 2>/dev/null || :; wait "$zombie_parent" 2>/dev/null || :; fi
   if [ -s "$T/logs/gadget-27043.pid" ]; then
     cli_pid=$(sed -n '1p' "$T/logs/gadget-27043.pid")
     feed_pid=$(sed -n '2p' "$T/logs/gadget-27043.pid")
@@ -484,8 +485,15 @@ if "$T/start.sh" "$T/frida" "com.example.debuggable" "$T/logs" "com.example.debu
 fi
 grep -Fq FX_GADGET_TARGET_PROCESS_NOT_RUNNING "$T/foreign-uid-process.result"
 # A real zombie child must be treated as exited by the feeder itself.
-sh -c 'exit 0' &
-zombie_cli=$!
+python3 -c 'import os,time; p=os.fork(); (os._exit(0) if p == 0 else None); print(p, flush=True); time.sleep(10)' > "$T/zombie-child.pid" &
+zombie_parent=$!
+_zombie_wait=0
+while [ ! -s "$T/zombie-child.pid" ]; do
+  [ "$_zombie_wait" -lt 20 ] || { echo "FAIL: zombie parent did not publish child PID" >&2; exit 1; }
+  sleep 0.05
+  _zombie_wait=$((_zombie_wait+1))
+done
+zombie_cli=$(cat "$T/zombie-child.pid")
 _zombie_wait=0
 while :; do
   zombie_record=$(cat "/proc/$zombie_cli/stat" 2>/dev/null)
@@ -506,7 +514,10 @@ while kill -0 "$zombie_feeder" 2>/dev/null; do
   _zombie_wait=$((_zombie_wait+1))
 done
 wait "$zombie_feeder" 2>/dev/null || :
-wait "$zombie_cli" 2>/dev/null || :
+kill "$zombie_parent" 2>/dev/null || :
+wait "$zombie_parent" 2>/dev/null || :
+zombie_parent=
+
 rm -f "$T/zombie-feeder.stdin"
 
 "$T/start.sh" "$T/frida-ignore-term" "com.example.debuggable" "$T/logs" "com.example.debuggable:remote" > "$T/start.result"

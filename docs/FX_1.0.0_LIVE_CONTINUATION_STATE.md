@@ -5205,3 +5205,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 - 将生产 feeder、Host 行为夹具及 zombie 状态轮询统一为 POSIX 参数展开解析 /proc/<pid>/stat，移除嵌套单引号；此前失败的 Host run `42056347974` 已定位为该引用错误。
 - 本次提交以 Host Regression 的真实执行结果作为验收；Android Root Shell 与真机仍未验证。
+
+
+## 2026-11-05 — 使用未回收子进程验证 feeder 僵尸退出
+
+- 普通后台 shell 子进程会被测试 shell 主动回收，无法稳定观察 Z 状态；行为夹具改为 Python fork 出子进程并让父进程暂不 wait，稳定制造 /proc 中的僵尸状态。
+- feeder 必须在 1 秒轮询周期内自行退出；测试结束后显式终止并回收测试父进程，避免泄漏。
