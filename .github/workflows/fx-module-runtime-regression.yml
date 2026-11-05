@@ -75,6 +75,20 @@ jobs:
           sed -n '100,175p' "$module/uninstall.sh"
           python3 fx-patches/patch_localdns_uninstall_shutdown.py "$module"
           python3 fx-patches/patch_yulong_dns_upstreams.py "$module"
+      - name: Stage integration-branch VPN lifecycle overrides
+        shell: bash
+        run: |
+          set -euo pipefail
+          module="$FX_MODULE_RUNTIME"
+          install -D -m 0755 fx-module/scripts/vpn-external-watchdog.sh "$module/scripts/vpn-external-watchdog.sh"
+          install -m 0755 fx-module/service.sh "$module/service.sh"
+          install -m 0755 fx-module/uninstall.sh "$module/uninstall.sh"
+          grep -Fq 'vpn-external-watchdog.sh' "$module/service.sh"
+          grep -Fq 'vpn-external-watchdog.sh' "$module/uninstall.sh"
+          sh -n "$module/scripts/vpn-external-watchdog.sh"
+          sh -n "$module/service.sh"
+          sh -n "$module/uninstall.sh"
+          sh scripts/tests/fx-vpn-external-watchdog-regression.sh
           python3 fx-patches/patch_yulong_ad_master.py "$module"
           python3 fx-patches/patch_yulong_ad_dns_logs.py "$module"
           for file in "$module/scripts/apply.sh" "$module/scripts/status.sh" "$module/scripts/vpncore.sh" "$module/scripts/vpn-external-watchdog.sh" "$module/scripts/localdns-watchdog.sh"; do
