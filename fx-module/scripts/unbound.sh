@@ -221,6 +221,15 @@ _maybe_refresh_anchor() {
   # DNSKEY seed remains valid and the resolver's health probe decides activation.
   _old_anchor=$(find "$STATE/root.key" -mtime +14 -print -quit 2>/dev/null)
   [ -n "$_old_anchor" ] || return 0
+  # unbound-anchor is a one-shot helper and does not consume Unbound's
+  # outgoing-interface setting. Running it while Root Proxy has pinned the
+  # resolver to a third-party VPN could therefore leak the refresh request
+  # over the device's ordinary default route. Defer refresh to Unbound's own
+  # RFC5011 maintenance after its VPN-bound listener is online.
+  if [ -f "$EGRESS" ]; then
+    _log 'deferring one-shot trust-anchor refresh: VPN-bound Unbound will maintain RFC5011 state'
+    return 0
+  fi
   if command -v timeout >/dev/null 2>&1; then
     _tmp_anchor=$(_new_private_temp "$STATE/root.key.before-refresh.XXXXXX") || return 0
     cp "$STATE/root.key" "$_tmp_anchor" 2>/dev/null || { rm -f "$_tmp_anchor"; return 0; }
