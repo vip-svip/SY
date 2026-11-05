@@ -6564,3 +6564,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 新增行为回归：APK 叶节点符号链接指向外部文件、system/app/FX 父目录符号链接指向外部目录；断言安装失败关闭、外部内容/权限不变、不会写入部署成功 marker。
 - GitHub Actions：FX System App Install Stage run `42108697668` 已在提交 `9f73c5d6ee6568dba7b1735f9817ad92d556de9b` 成功，patcher 幂等/shell 检查、真实注入安装阶段行为、安装器执行、早期开机 overlay 验证和打包集成检查全部通过。
 - 仍需真机确认：KernelSU/Magisk 的 systemless overlay 被 PackageManager 识别为 system app、SELinux 实际标签与应用更新/卸载行为，不能由 Host regression 代替。
+
+
+## 2026-11-06 — System-app overlay boot template aligned with packaged module
+
+- Commits: template `fe72b2b81b0d3c72e97178fe2bca403cd32a17d9`; patcher contract `4cf101f62c1ad041ab40acadcda0ebd0f406ebcb`; patcher regression `dfbd35af17ea2f1ee907212465124522d1aa893b`; boot regression `a8c31e50788fbc6a407bc4728d220c56eea2cc20`.
+- Defect: `fx-patches/fx_system_app_post_fs_data.sh` silently exited when `/system/app/FX` or `FX.apk` was absent, while the checked-in `fx-module/post-fs-data.sh` correctly wrote a private retry marker. Running the patcher could replace the stronger boot behavior with the weaker template.
+- Fix: canonicalize the patch template from the module's managed block; update patcher-required anchors to require `retry` for absent/unsafe overlay directory, APK and checksum; extend patcher regression to reject silent skip and assert the emitted block matches the template; extend early-boot behavior regression to assert missing overlay creates a mode-0600 retry marker.
+- CI: `FX System App Install Stage` run `42108423643` at commit `a8c31e50788fbc6a407bc4728d220c56eea2cc20` SUCCESS. Logs confirm patcher idempotence, install-stage behavior, and absent-overlay retry case passed.
+- Limits: Host test validates the retry and packaged shell behavior only; KernelSU/Magisk mount timing, PackageManager system-app classification and live SELinux label remain device-level checks.
