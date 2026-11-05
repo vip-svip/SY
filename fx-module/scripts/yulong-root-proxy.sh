@@ -525,6 +525,15 @@ _whitelist_set_locked() {
     echo "active=0"
   fi
 }
+_status_fail_open() {
+  _reason=$1
+  # Status runs under the Root Proxy lock. Reconcile every failed proof to a
+  # clean fail-open state, removing only FX-owned NAT chains and markers.
+  # _stop_engines preserves Unbound/AdGuard when independently enabled.
+  _stop_locked
+  echo "active=0"
+  echo "reason=$_reason"
+}
 _status_locked() {
   echo "enabled=$(pg_get vpn_external_dns_proxy 1)"
   echo "dns_forward=$(pg_get dns_forward 1)"
@@ -543,14 +552,16 @@ _status_locked() {
     *) echo "dns_filter_coverage=unknown" ;;
   esac
   if ! _is_enabled; then
-    echo "active=0"; echo "reason=disabled"; return 0
+    _status_fail_open disabled
+    return 0
   fi
   if [ ! -e "$ACTIVE_META" ] && [ ! -e "$ACTIVE" ] && [ ! -e "$EGRESS" ]; then
-    echo "active=0"; echo "reason=not_active"; return 0
+    _status_fail_open not_active
+    return 0
   fi
   for _state_file in "$ACTIVE_META" "$ACTIVE" "$EGRESS"; do
     [ -f "$_state_file" ] && [ ! -L "$_state_file" ] || {
-      echo "active=0"; echo "reason=invalid_or_missing_state"; return 0
+      _status_fail_open invalid_or_missing_state; return 0
     }
   done
   _iface=$(sed -n '1p' "$ACTIVE_META" 2>/dev/null || :)
@@ -559,31 +570,31 @@ _status_locked() {
   _activated_at=$(sed -n '4p' "$ACTIVE_META" 2>/dev/null || :)
   _active4=$(sed -n '1p' "$ACTIVE" 2>/dev/null || :)
   _active6=$(sed -n '2p' "$ACTIVE" 2>/dev/null || :)
-  case "$_active4" in FXYRP4_A|FXYRP4_B) : ;; *) echo "active=0"; echo "reason=invalid_ipv4_chain"; return 0 ;; esac
-  case "$_active6" in FXYRP6_A|FXYRP6_B) : ;; *) echo "active=0"; echo "reason=invalid_ipv6_chain"; return 0 ;; esac
+  case "$_active4" in FXYRP4_A|FXYRP4_B) : ;; *) _status_fail_open invalid_ipv4_chain; return 0 ;; esac
+  case "$_active6" in FXYRP6_A|FXYRP6_B) : ;; *) _status_fail_open invalid_ipv6_chain; return 0 ;; esac
   _valid_if "$_iface" && _valid_uid "$_uid" && _valid_ipv4 "$_meta_egress" || {
-    echo "active=0"; echo "reason=invalid_active_metadata"; return 0
+    _status_fail_open invalid_active_metadata; return 0
   }
   _stored_egress=$(tr -d '\r\n' < "$EGRESS" 2>/dev/null || :)
   if [ "$_stored_egress" != "$_meta_egress" ]; then
-    echo "active=0"; echo "reason=egress_marker_mismatch"; return 0
+    _status_fail_open egress_marker_mismatch; return 0
   fi
   _current_egress=$(_resolve_vpn_egress "$_iface" 2>/dev/null) || {
-    echo "active=0"; echo "reason=vpn_route_unavailable"; return 0
+    _status_fail_open vpn_route_unavailable; return 0
   }
   if [ "$_current_egress" != "$_meta_egress" ]; then
-    echo "active=0"; echo "reason=vpn_egress_changed"; return 0
+    _status_fail_open vpn_egress_changed; return 0
   fi
   if ! iptables -t nat -C OUTPUT -j "$_active4" >/dev/null 2>&1; then
-    echo "active=0"; echo "reason=ipv4_redirect_missing"; return 0
+    _status_fail_open ipv4_redirect_missing; return 0
   fi
   if ! ip6tables -t nat -C OUTPUT -j "$_active6" >/dev/null 2>&1; then
-    echo "active=0"; echo "reason=ipv6_redirect_missing"; return 0
+    _status_fail_open ipv6_redirect_missing; return 0
   fi
   if ! command -v nslookup >/dev/null 2>&1 || ! command -v timeout >/dev/null 2>&1 \
       || ! timeout 5 nslookup example.com 127.0.0.1 2>&1 \
              | grep -Eq 'Address[[:space:]]+[0-9]+:[[:space:]]*[0-9]{1,3}(\.[0-9]{1,3}){3}|[0-9]{1,3}(\.[0-9]{1,3}){3}'; then
-    echo "active=0"; echo "reason=local_dns_probe_failed"; return 0
+    _status_fail_open local_dns_probe_failed; return 0
   fi
   echo "interface=$_iface"
   echo "vpn_uid=$_uid"
