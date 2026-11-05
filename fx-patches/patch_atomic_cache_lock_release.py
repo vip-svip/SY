@@ -121,20 +121,41 @@ new_hf_unlock = '''  _hf_unlock() {
     _hf_lock_held=0
     return 0
   }'''
-replace_once(apply_file, old_hf_unlock, new_hf_unlock, "Hosts lock must release by atomic rename")
+apply_source = apply_file.read_text(encoding="utf-8")
+if "FX_HOSTS_FILE_LOCK_V3" in apply_source:
+    # The staged Release may already contain the repository-owned V3 atomic
+    # regular-file lock. Validate its safety contract instead of demanding
+    # obsolete directory/PID lock anchors.
+    required_hosts_v3 = (
+        'mv "$_hf_lock" "$_hf_release"',
+        '_hf_read_lock_owner "$_hf_lock"',
+        '_hf_read_lock_owner "$_hf_release"',
+        '_hf_remove_lock_path "$_hf_release"',
+        '( umask 077; set -C; printf ',
+        '[ ! -L "$_hf_lock" ] && [ ! -e "$_hf_lock" ]',
+    )
+    missing_hosts_v3 = [token for token in required_hosts_v3 if token not in apply_source]
+    if missing_hosts_v3:
+        raise SystemExit(
+            f"{apply_file}: V3 Hosts lock is incomplete: " + ", ".join(missing_hosts_v3)
+        )
+    if 'rm -f "$_hf_lock/pid"' in apply_source or 'rmdir "$_hf_lock"' in apply_source:
+        raise SystemExit(f"{apply_file}: V3 Hosts lock retains legacy PID-first cleanup")
+else:
+    replace_once(apply_file, old_hf_unlock, new_hf_unlock, "Hosts lock must release by atomic rename")
+    replace_once(
+        apply_file,
+        '_hf_owner=$(cat "$_hf_lock/pid" 2>/dev/null)\\n',
+        '_hf_owner=$(cat "$_hf_lock/pid" 2>/dev/null || :)\\n',
+        "Hosts lock owner read must tolerate atomic release",
+    )
+    replace_once(
+        apply_file,
+        '_hf_owner2=$(cat "$_hf_lock/pid" 2>/dev/null)\\n',
+        '_hf_owner2=$(cat "$_hf_lock/pid" 2>/dev/null || :)\\n',
+        "Hosts stale-owner recheck must tolerate concurrent release",
+    )
 
-replace_once(
-    apply_file,
-    '_hf_owner=$(cat "$_hf_lock/pid" 2>/dev/null)\n',
-    '_hf_owner=$(cat "$_hf_lock/pid" 2>/dev/null || :)\n',
-    "Hosts lock owner read must tolerate atomic release",
-)
-replace_once(
-    apply_file,
-    '_hf_owner2=$(cat "$_hf_lock/pid" 2>/dev/null)\n',
-    '_hf_owner2=$(cat "$_hf_lock/pid" 2>/dev/null || :)\n',
-    "Hosts stale-owner recheck must tolerate concurrent release",
-)
 old_sub_unlock = '''subfetch_unlock() {
   [ "$LOCK_HELD" = 1 ] || return 0
   _sl_owner=$(cat "$LOCK/pid" 2>/dev/null)
