@@ -50,6 +50,8 @@ for f in "$MOD/scripts/vpncore.sh" "$MOD/scripts/apply.sh" "$MOD/scripts/status.
   sh -n "$f" || fail "patched shell syntax invalid: $f"
 done
 grep -Fq 'case "${PG_VPN_MODE_OVERRIDE:-}" in' "$MOD/scripts/vpncore.sh" || fail "vpncore ignores the effective mode override"
+[ "$(grep -Fc '$(vpncore_effective_mode)' "$MOD/scripts/vpncore.sh")" -eq 6 ] || fail "not all six vpncore mode reads use the effective mode helper"
+! grep -Fq '$(vpncore_effective_mode())' "$MOD/scripts/vpncore.sh" || fail "vpncore invokes a POSIX shell function with invalid parentheses"
 grep -Fq 'PG_VPN_MODE_OVERRIDE=$VPN_MODE' "$MOD/scripts/apply.sh" || fail "apply does not pass the effective mode to vpncore"
 grep -Fq 'external_android_vpn_tun_to_redirect' "$MOD/scripts/apply.sh" || fail "fallback reason is not recorded"
 grep -Fq '"vpn_effective_mode":"%s"' "$MOD/scripts/status.sh" || fail "status JSON omits effective VPN mode"
