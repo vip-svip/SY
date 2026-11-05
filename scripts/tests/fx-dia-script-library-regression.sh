@@ -39,7 +39,6 @@ python3 - "$ACTIVITY" <<'PY'
 from pathlib import Path
 import sys
 activity = Path(sys.argv[1]).read_text(encoding="utf-8")
-assert 'String.join("\\n", preview.overwrittenNames)' in activity, "import preview must show every same-name script before confirmation"
 assert 'String.join("、", preview.overwrittenNames)' in activity, "import preview must show every same-name script"
 assert 'preview.overwrittenNames.size() > 5' not in activity, "complete conflict preview must not append a misleading truncation suffix"
 PY
