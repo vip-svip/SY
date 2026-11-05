@@ -8,8 +8,31 @@ if [ -z "$MODDIR" ] || [ ! -f "$MODDIR/module.prop" ]; then
   [ -f "$_au_d/module.prop" ] && MODDIR=$_au_d
 fi
 [ -n "$MODDIR" ] && [ -f "$MODDIR/module.prop" ] || { echo "vpn-auto-update: module directory unresolved; skipped"; exit 0; }
+# The boot updater runs as root. Never read settings or write timestamps
+# through a symlinked state path (including an intermediate parent).
+_au_safe_absolute_path() {
+  _au_path=$1
+  case "$_au_path" in /*) : ;; *) return 1 ;; esac
+  case "$_au_path" in *//*|*/|*'/../'*|*/..|*'/./'*|*/.) return 1 ;; esac
+  _au_walk=
+  _au_rest=${_au_path#/}
+  while [ -n "$_au_rest" ]; do
+    case "$_au_rest" in
+      */*) _au_part=${_au_rest%%/*}; _au_rest=${_au_rest#*/} ;;
+      *) _au_part=$_au_rest; _au_rest= ;;
+    esac
+    [ -n "$_au_part" ] || return 1
+    _au_walk="$_au_walk/$_au_part"
+    [ ! -L "$_au_walk" ] || return 1
+  done
+  return 0
+}
+_au_safe_absolute_path "$PG" && [ -d "$PG" ] && [ ! -L "$PG" ] || {
+  echo "vpn-auto-update: unsafe state directory; skipped" >&2
+  exit 0
+}
 CONF="$PG/settings.conf"
-[ -s "$CONF" ] || exit 0
+[ -f "$CONF" ] && [ ! -L "$CONF" ] && [ -s "$CONF" ] || exit 0
 awk '/^\[/ { sections=1 } sections == 0 && $0 == "vpn_auto_update=1" { found=1 } END { exit(found ? 0 : 1) }' "$CONF" || exit 0
 _interval=$(sed -n '/^\[conf:vpn\]/,/^\[/p' "$CONF" | grep -m1 '^auto_update_h=' | cut -d= -f2- | tr -d '[:space:]')
 case "$_interval" in ''|*[!0-9]*) _interval=24 ;; esac
@@ -23,6 +46,10 @@ case "$_now" in ''|*[!0-9]*) echo "vpn-auto-update: clock unavailable; skipped";
 _now=$(printf '%s' "$_now" | sed 's/^0*//'); [ -n "$_now" ] || _now=0
 [ "${#_now}" -gt 11 ] && { echo "vpn-auto-update: clock out of range; skipped"; exit 0; }
 _stamp="$PG/vpn-sub-last"; _prev=0
+if [ -L "$_stamp" ] || { [ -e "$_stamp" ] && [ ! -f "$_stamp" ]; }; then
+  echo "vpn-auto-update: unsafe success timestamp path; skipped" >&2
+  exit 0
+fi
 if [ -f "$_stamp" ]; then
   _prev=$(cat "$_stamp" 2>/dev/null | tr -d '[:space:]')
   case "$_prev" in ''|*[!0-9]*) _prev=0 ;; esac
@@ -31,12 +58,16 @@ if [ -f "$_stamp" ]; then
 fi
 [ $((_now - _prev)) -lt $((_interval * 3600)) ] && exit 0
 if sh "$MODDIR/scripts/apply.sh" vpn-sub; then
-  _tmp="$_stamp.tmp.$$"
-  if printf '%s\n' "$_now" > "$_tmp" 2>/dev/null && mv -f "$_tmp" "$_stamp" 2>/dev/null; then
+  _tmp=$(mktemp "$PG/.vpn-sub-last.XXXXXX" 2>/dev/null) || _tmp=
+  if [ -n "$_tmp" ] && printf '%s\\n' "$_now" > "$_tmp" 2>/dev/null \\
+      && chmod 600 "$_tmp" 2>/dev/null && mv -f "$_tmp" "$_stamp" 2>/dev/null; then
     echo "vpn-auto-update: subscription transaction succeeded; success stamp advanced"
-  else rm -f "$_tmp" 2>/dev/null; echo "vpn-auto-update: succeeded but stamp commit failed; next boot may retry"; fi
+  else
+    [ -z "$_tmp" ] || rm -f "$_tmp" 2>/dev/null
+    echo "vpn-auto-update: succeeded but stamp commit failed; next boot may retry"
+  fi
 else
-  _rc=$?; rm -f "$_stamp.tmp.$$" 2>/dev/null
+  _rc=$?
   echo "vpn-auto-update: update failed (rc=$_rc); previous success stamp preserved"
 fi
 exit 0
