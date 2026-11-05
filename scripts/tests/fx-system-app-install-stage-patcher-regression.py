@@ -50,7 +50,7 @@ with tempfile.TemporaryDirectory(prefix="fx-system-app-stage-") as tmp:
         '[ ! -L "$fx_system_app_marker" ]',
         '[ ! -L "$fx_system_app_retry" ]',
         'fx_system_app_path_is_safe "$fx_system_app_state_dir"',
-        '_fx_marker_tmp="$fx_system_app_marker.tmp.$"',
+        '_fx_marker_tmp="$fx_system_app_marker.tmp.$$"',
         'fx_system_app_mark_retry() {',
         'set -C; printf',
     ):
