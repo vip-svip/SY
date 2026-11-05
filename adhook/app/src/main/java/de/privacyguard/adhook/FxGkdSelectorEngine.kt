@@ -43,7 +43,7 @@ internal class FxGkdNode(
         get() = viewId?.substringAfter(":id/", viewId.substringAfterLast('/'))
 }
 
-internal data class FxGkdSelectorCompilation(
+data class FxGkdSelectorCompilation(
     val selector: Selector?,
     val error: String?
 ) {
@@ -54,7 +54,7 @@ internal data class FxGkdSelectorCompilation(
  * Adapter around the exact GKD-XA v1.4.8 selector/parser source compiled in
  * :gkd-selector-adapter. This does not substitute a simplified regex matcher.
  */
-internal object FxGkdSelectorEngine {
+object FxGkdSelectorEngine {
     private val typeModel by lazy(LazyThreadSafetyMode.PUBLICATION) {
         createDefaultSelectorTypeModel(false)
     }
