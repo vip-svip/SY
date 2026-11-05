@@ -17,7 +17,7 @@ printf 'root-proxy:%s\n' "$*" >> "$ORDER_LOG"
 PROXY
 cat > "$MOD/scripts/vpn-external-watchdog.sh" <<'WATCHDOG'
 #!/bin/sh
-printf 'vpn-watchdog:%s\\n' "$*" >> "$ORDER_LOG"
+printf 'vpn-watchdog:%s\n' "$*" >> "$ORDER_LOG"
 [ "${MOCK_WATCHDOG_FAIL:-0}" = 0 ]
 WATCHDOG
 mkdir -p "$MOD/scripts/jsruntime"
@@ -103,7 +103,7 @@ grep -Fq '[ ! -L "$_FX_SCHEDULER_STATE_DIR/jsruntime/scheduler.log" ]' "$SOURCE"
 # helper runs; the external target must remain untouched.
 cat > "$MOD/scripts/vpn-external-watchdog.sh" <<'WATCHDOG'
 #!/bin/sh
-printf 'vpn-watchdog:%s\\n' "$*" >> "$ORDER_LOG"
+printf 'vpn-watchdog:%s\n' "$*" >> "$ORDER_LOG"
 WATCHDOG
 chmod 0755 "$MOD/scripts/vpn-external-watchdog.sh"
 echo outside > "$T/outside-network.log"
