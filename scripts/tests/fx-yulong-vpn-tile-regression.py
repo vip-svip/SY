@@ -91,6 +91,6 @@ print("PASS: VPN tile, home widget, main dashboard and release restore patcher s
 
 assert 'nativeVpnRootCommand("start", "")' in main
 assert 'nativeVpnRootCommand("stop", "")' in main
-assert "已通过第三方 VPN / FX Root DNS 启用网络保护" in main
+assert "已启动 FX Root Proxy DNS 保护（不代表第三方 VPN 已连接）" in main
 assert "stopCurrentRouteWithController" in main
 print("PASS: legacy home shortcut uses common VPN/Root Proxy start/stop when required")
