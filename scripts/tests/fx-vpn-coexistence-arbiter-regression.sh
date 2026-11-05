@@ -221,6 +221,21 @@ rc=${r%%|*}; out=${r#*|}
 [ "$(field "$out" "['verdict']")" = "partial" ] || fail "missing owner UID must not certify chained routing: $(field "$out" "['verdict']")"
 pass "outer-tunnel binding remains unverified"
 
+echo "== case 3b: multiple injected VPN ownership rows are ambiguous =="
+r=$(run_arb "$LINKS_TUN" "$(printf 'tun0|10123\\ntun0|10124')" "$TMP/net_free" "$TMP/mod_clean")
+rc=${r%%|*}; out=${r#*|}
+[ "$rc" -eq 2 ] || fail "multiple injected ownership rows must return rc=2, got $rc: $out"
+[ "$(field "$out" "['verdict']")" = "unknown" ] || fail "multiple injected rows must be unknown: $out"
+[ "$(field "$out" "['probe']")" = "ambiguous" ] || fail "multiple injected rows must be marked ambiguous"
+pass "multiple injected ownership rows fail closed"
+
+echo "== case 3c: malformed injected VPN owner UID is ambiguous =="
+r=$(run_arb "$LINKS_TUN" "tun0|10123x" "$TMP/net_free" "$TMP/mod_clean")
+rc=${r%%|*}; out=${r#*|}
+[ "$rc" -eq 2 ] || fail "malformed injected owner UID must return rc=2, got $rc: $out"
+[ "$(field "$out" "['probe']")" = "ambiguous" ] || fail "malformed injected owner UID was accepted: $out"
+pass "malformed injected ownership record fails closed"
+
 echo "== case 4: external VPN + local DNS port occupied -> partial =="
 r=$(run_arb "$LINKS_TUN" "tun0|10123" "$TMP/net_dns_busy" "$TMP/mod_clean")
 rc=${r%%|*}; out=${r#*|}
