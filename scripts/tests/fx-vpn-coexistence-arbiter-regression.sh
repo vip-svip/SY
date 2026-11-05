@@ -560,7 +560,7 @@ pass "symlinked scripts directory cannot hide unscanned shell helpers"
 echo "== case 8h: failed source inventory command cannot certify slot-free =="
 mkdir -p "$TMP/fakebin"
 cat > "$TMP/fakebin/find" <<'EOF'
-#!/system/bin/sh
+#!/bin/sh
 exit 1
 EOF
 chmod 0755 "$TMP/fakebin/find"
