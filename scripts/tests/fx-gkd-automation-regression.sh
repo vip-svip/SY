@@ -66,7 +66,7 @@ for forbidden in ("dispatchGesture(", "takeScreenshot(", "HttpURLConnection", "O
     assert forbidden not in runtime, f"unexpected unscoped GKD capability: {forbidden}"
 
 # Hook page, per-rule UI and six-tab entry.
-assert 'addNativeActionCard("GKD 选择器自动化"' in main
+assert 'addNativeActionCard("GKD 辅助自动化"' in main
 assert "FxGkdAutomationActivity.class" in main
 for token in ("FxGkdRuleStore.isEnabled(this)", "FxGkdRuleStore.setEnabled(this, checked)",
               "FxGkdRuleStore.addRule(", "isInstalledUserApplication(pkg)",
