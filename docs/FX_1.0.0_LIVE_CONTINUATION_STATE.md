@@ -5460,3 +5460,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Tasker 并发回归的旧断言错误地要求 `target` 三元表达式直接写在 Intent extra 中；修正为分别匹配实际的 `String target = ...` 和 `.putExtra("target", target)`，保持对广告过滤与 VPN 两条控制面的语义检查。
 - LSPosed 管理器提示补丁器回归再补充 Hub 定位锚点缺失用例，确认在 Hub / 发布按钮锚点缺失时都不会将部分改动写回源文件。
 - 此提交仅完善 Host 回归与文档，Android 构建/设备验证仍未执行。
+
+
+## 2026-11-06 — Ad 总结页 Root 模块解析路径加固
+
+- 检查 `FxYulongAdSummaryActivity.moduleShell()` 时发现，Summary 页的 Root 读取 resolver 只检查 `module.prop` 内容，可能跟随被替换为符号链接的模块目录、元数据文件或脚本目录。
+- 现对 `/data`、`/data/adb`、`modules`、`modules_update` 以及候选模块目录、`module.prop`、`scripts` 目录和 `yulong-ad-control.sh` 本体逐层拒绝符号链接；同时要求模块 ID 与 `version=1.0.0` 精确匹配。
+- 扩展 DNS summary Host regression，覆盖这些 Root 命令解析前置条件。此前 Summary 队列容量已收紧为 1，刷新代次仍保证新结果优先。
+- 本批未声称 Android Gradle 构建或设备端验证；等待当前提交 Targeted Host、六套 UI 与模块 Runtime workflow 结果。

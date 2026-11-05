@@ -51,6 +51,20 @@ python3 - "$CONTROL" "$PATCHER" "$ROOT/adhook/app/src/main/java/de/privacyguard/
 from pathlib import Path
 import sys
 control, patcher, activity, documented_config = (Path(x).read_text(encoding="utf-8") for x in sys.argv[1:])
+for token in (
+    "[ -d '/data' ] && [ ! -L '/data' ]",
+    "[ -d '/data/adb' ] && [ ! -L '/data/adb' ]",
+    "[ ! -L '/data/adb/modules' ]",
+    "[ ! -L '/data/adb/modules_update' ]",
+    r'if [ -d \"$d\" ] && [ ! -L \"$d\" ]',
+    r'&& [ -f \"$d/module.prop\" ] && [ ! -L \"$d/module.prop\" ]',
+    "grep -qx 'id=privacyguard'",
+    "grep -qx 'version=1.0.0'",
+    r'&& [ -d \"$d/scripts\" ] && [ ! -L \"$d/scripts\" ]',
+    r'&& [ -f \"$d/scripts/yulong-ad-control.sh\" ]',
+    r'&& [ ! -L \"$d/scripts/yulong-ad-control.sh\" ]',
+):
+    assert token in activity, "Root summary module resolver must reject symlinked or malformed module paths: " + token
 assert '  dns-log-summary)' in control, "control command missing"
 assert 'pg_get dns_querylog_enabled 0' in control, "statistics command does not honor opt-in"
 assert 'yulong-ad-dns-summary.sh' in control, "control command does not invoke numeric summary helper"
