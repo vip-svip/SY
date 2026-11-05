@@ -73,26 +73,26 @@ printf '%s\n   0: 0100007F:0035 00000000:0000 07 00000000:00000000 00:00000000 0
 # net_filter_dns_tcp6_busy: client-facing DNS port 53 is bound on IPv6 TCP.
 mkdir -p "$TMP/net_filter_dns_tcp6_busy"
 for f in tcp tcp6 udp udp6; do printf '%s\n' "$HDR" > "$TMP/net_filter_dns_tcp6_busy/$f"; done
-printf '%s\n' '  0: 00000000000000000000000001000000:0035 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 7 1' \
-  "$HDR" > "$TMP/net_filter_dns_tcp6_busy/tcp6"
+printf '%s\n' "$HDR" '  0: 00000000000000000000000001000000:0035 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 7 1' \
+  > "$TMP/net_filter_dns_tcp6_busy/tcp6"
 
 # net_proxy_udp6_busy: proxy port 7890 is bound on IPv6 UDP.
 mkdir -p "$TMP/net_proxy_udp6_busy"
 for f in tcp tcp6 udp udp6; do printf '%s\n' "$HDR" > "$TMP/net_proxy_udp6_busy/$f"; done
-printf '%s\n' '  0: 00000000000000000000000001000000:1ED2 00000000000000000000000000000000:0000 07 00000000:00000000 00:00000000 00000000  1000        0 8 1' \
-  "$HDR" > "$TMP/net_proxy_udp6_busy/udp6"
+printf '%s\n' "$HDR" '  0: 00000000000000000000000001000000:1ED2 00000000000000000000000000000000:0000 07 00000000:00000000 00:00000000 00000000  1000        0 8 1' \
+  > "$TMP/net_proxy_udp6_busy/udp6"
 
 # net_filter_dns_udp6_busy: client-facing DNS port 53 is bound on IPv6 UDP.
 mkdir -p "$TMP/net_filter_dns_udp6_busy"
 for f in tcp tcp6 udp udp6; do printf '%s\n' "$HDR" > "$TMP/net_filter_dns_udp6_busy/$f"; done
-printf '%s\n' '  0: 00000000000000000000000001000000:0035 00000000000000000000000000000000:0000 07 00000000:00000000 00:00000000 00000000  1000        0 9 1' \
-  "$HDR" > "$TMP/net_filter_dns_udp6_busy/udp6"
+printf '%s\n' "$HDR" '  0: 00000000000000000000000001000000:0035 00000000000000000000000000000000:0000 07 00000000:00000000 00:00000000 00000000  1000        0 9 1' \
+  > "$TMP/net_filter_dns_udp6_busy/udp6"
 
 # net_proxy_tcp6_busy: proxy port 7890 is listening on IPv6 TCP.
 mkdir -p "$TMP/net_proxy_tcp6_busy"
 for f in tcp tcp6 udp udp6; do printf '%s\n' "$HDR" > "$TMP/net_proxy_tcp6_busy/$f"; done
-printf '%s\n' '  0: 00000000000000000000000001000000:1ED2 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 10 1' \
-  "$HDR" > "$TMP/net_proxy_tcp6_busy/tcp6"
+printf '%s\n' "$HDR" '  0: 00000000000000000000000001000000:1ED2 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 10 1' \
+  > "$TMP/net_proxy_tcp6_busy/tcp6"
 
 # net_partial: TCP and UDP6 readable, but UDP4 inventory missing.
 mkdir -p "$TMP/net_partial"
