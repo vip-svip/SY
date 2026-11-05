@@ -928,7 +928,7 @@ public final class MainActivity extends ComponentActivity {
                 TextView text = (TextView) view;
                 text.setTextColor(uiPrimaryTextColor());
                 text.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, sizeSp);
-                text.setTypeface(Typeface.DEFAULT, Typeface.MEDIUM);
+                text.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
                 text.setPadding(dp(12), dp(8), dp(12), dp(8));
                 text.setMaxLines(1);
             }
