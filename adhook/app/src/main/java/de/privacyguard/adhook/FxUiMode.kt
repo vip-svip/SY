@@ -2,6 +2,8 @@ package de.privacyguard.adhook
 
 import android.content.Context
 
+import java.util.Locale
+
 /**
  * The independent default renderer and five app-wide visual skins. These are presentation modes only:
  * changing a skin must never start/stop VPN, DNS, proxy, Hook or script services.
@@ -58,14 +60,14 @@ enum class FxUiMode(
         private const val KEY_MODE = "mode"
 
         @JvmStatic
-        fun fromStorageId(value: String?): FxUiMode = when (value) {
-            "default", "FXDefault", "fx_default" -> DEFAULT_STANDARD
-            "glass", "FXLiquidNative", "fx_liquid_native" -> FX_LIQUID_NATIVE
-            "miuix", "MiuixStyle", "miuix_style" -> MIUIX_STYLE
-            "huawei", "HarmonyStyle", "HUAWEI HarmonyStyle", "harmony", "harmony_style" -> HUAWEI_HARMONY_STYLE
-            "ios", "CupertinoStyle", "iOS CupertinoStyle", "cupertino", "cupertino_style" -> IOS_CUPERTINO_STYLE
+        fun fromStorageId(value: String?): FxUiMode = when (value?.trim()?.lowercase(Locale.ROOT)) {
+            "default", "fxdefault", "fx_default" -> DEFAULT_STANDARD
+            "glass", "fxliquidnative", "fx_liquid_native" -> FX_LIQUID_NATIVE
+            "miuix", "miuixstyle", "miuix_style" -> MIUIX_STYLE
+            "huawei", "harmonystyle", "huawei harmonystyle", "harmony", "harmony_style" -> HUAWEI_HARMONY_STYLE
+            "ios", "cupertinostyle", "ios cupertinostyle", "cupertino", "cupertino_style" -> IOS_CUPERTINO_STYLE
             // "web" was an experimental alias; map it to the explicit compatibility mode.
-            "classic", "web", "ClassicWebCompat", "classic_web_compat" -> CLASSIC_WEB_COMPAT
+            "classic", "web", "classicwebcompat", "classic_web_compat" -> CLASSIC_WEB_COMPAT
             null -> DEFAULT_STANDARD
             else -> DEFAULT_STANDARD
         }
