@@ -8,6 +8,10 @@ final class CupertinoSkinTokens {
     private CupertinoSkinTokens() { }
 
     static final class CupertinoColorTokens {
+        static final int TOP_BAR_BACKGROUND = 0xf9ffffff;
+        static final int CARD_SURFACE = 0xeaffffff;
+        static final int CARD_STROKE = 0x1f8e8e93;
+        static final int ROW_RIPPLE = 0x1f007aff;
         static final int BACKGROUND = 0xfff2f2f7;
         static final int WALLPAPER_TINT = 0xffffffff;
         static final int NAV_SURFACE = 0xf9ffffff;
