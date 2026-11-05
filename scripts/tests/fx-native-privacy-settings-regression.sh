@@ -12,7 +12,7 @@ from pathlib import Path
 import sys
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
 start = source.index("private void refreshNativePrivacyStatus(TextView target)")
-end = source.index("\\n    private ", start + 1)
+end = source.index("\n    private ", start + 1)
 method = source[start:end]
 for required in (
     'json.has("root")',
