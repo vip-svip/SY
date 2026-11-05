@@ -503,7 +503,7 @@ r=$(run_arb "$LINKS_NO_TUN" "" "$TMP/net_free" "$TMP/mod_dollar_builder")
 rc=${r%%|*}; out=${r#*|}
 [ "$rc" -eq 3 ] || fail "VpnService\\$Builder helper must return rc=3, got $rc: $out"
 [ "$(field "$out" "['vpn_service_slot_used']")" = "True" ] || fail "VpnService$Builder signature was not detected"
-pass "VpnService$Builder signature is detected"
+pass "VpnService\$Builder signature is detected"
 
 echo "== case 9: unreadable port state -> never claimed as free =="
 mkdir -p "$TMP/net_missing"
