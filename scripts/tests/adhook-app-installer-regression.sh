@@ -76,6 +76,20 @@ grep -Fq 'not a privileged app; no platform signature or privileged permission g
 ! grep -Fq 'fx-module/system/priv-app/FX' "$WORKFLOW" || fail "unsigned APK must not be staged as a privileged app"
 [ -s "$SERVICE" ] || fail "KernelSU boot service missing"
 grep -Fq 'sh "$MODDIR/scripts/install_adhook_app.sh" "$MODDIR"' "$SERVICE" || fail "boot service does not deploy the FX APK"
+
+# KernelSU must mount and label the systemless /system/app overlay before
+# PackageManager's boot scan. Only verify/install through pm after boot completes.
+python3 - "$SERVICE" "$POST_FS_DATA" <<'PY'
+from pathlib import Path
+import sys
+service, post_fs_data = (Path(p).read_text(encoding="utf-8") for p in sys.argv[1:])
+boot_wait = service.index('while [ "$(getprop sys.boot_completed)" != "1" ]')
+apk_deploy = service.index('sh "$MODDIR/scripts/install_adhook_app.sh" "$MODDIR"')
+assert boot_wait < apk_deploy, "Hook PackageManager verification must wait until Android boot completes"
+assert "restorecon -RF \"$APP_DIR\"" in post_fs_data, "post-fs-data must label the mounted system-app overlay before zygote"
+assert "pm install" not in post_fs_data and "pm path" not in post_fs_data, \
+    "post-fs-data must not race PackageManager before its system-app scan"
+PY
 grep -Fq 'cmp -s scripts/install_adhook_app.sh fx-module/scripts/install_adhook_app.sh' "$KSU_WORKFLOW" || fail "KernelSU package does not verify canonical installer sync"
 grep -Fq 'cmp -s scripts/remove_adhook_app.sh fx-module/scripts/remove_adhook_app.sh' "$KSU_WORKFLOW" || fail "KernelSU package does not verify canonical remover sync"
 python3 - "$KSU_WORKFLOW" <<'PY'
