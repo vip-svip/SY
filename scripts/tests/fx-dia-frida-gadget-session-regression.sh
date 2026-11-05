@@ -76,6 +76,8 @@ required = {
 for label, needle in required.items():
     if needle not in source:
         raise SystemExit(f"FAIL: {label}: missing {needle!r}")
+assert "if (code == 0) code = 5;" in root_access, "Root stdin writer failure must prevent a false-success result"
+assert "cat >/dev/null; echo FX_GADGET_SESSION_ALREADY_RUNNING" in source, "already-running Gadget path must drain streamed input before returning success"
 attach = source[source.index("private void attachToGadgetAndResume()"):
                  source.index("private void stopGadgetSession()")]
 check = source[source.index("private void checkGadgetSession()"):source.index("private void stopGadgetSession()")]
