@@ -5775,3 +5775,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 现要求 `/data`、`/data/adb`、modules 根目录为真实目录，`modules_update` 若存在必须为真实目录；候选模块目录、`module.prop`、`scripts` 与 `yulong-ad-control.sh` 均必须是非符号链接的正确文件类型，并精确匹配 `id=privacyguard`、`version=1.0.0`。
 - 更新 `fx-yulong-ad-activity-state-regression.sh` 锁定 Root 模块解析约束。该修复只收紧 Root 命令入口，不改变 Ad 控制参数、页面行为或后台服务状态。
 - 待当前提交 Host/Module Runtime 回归；未进行 Android 构建、Root 真机或 ROM 安装测试。
+
+
+### 每日安全总结回归契约对齐（2026-11-06）
+
+- `fx-yulong-ad-activity-state-regression.sh` 旧断言要求每日安全总结 Activity 具备 Root worker 队列；核对 `FxYulongDailySummaryActivity` 后确认该页只读取本地 `SharedPreferences` 计数及 `ActivityManager` 的服务运行状态，没有 Root/网络操作。
+- 保留 Ad 备份、DNS 日志两个确有后台 I/O 的页面有界线程池、拒绝过载及销毁关闭断言；每日总结改验本地持久化计数和真实服务状态，并确认没有引入不必要的 Root/线程池工作。
+- 对应先前 HEAD `c5dec2e882f217d53004a5063c77cb0967e21667` 的 Host run `42098375614`：前 12 项 Ad snapshot policy 测试通过，失败仅为该过时的 worker queue 断言。当前修订提交待新 CI 验证。
