@@ -6253,3 +6253,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Verification: FX Targeted Host Regression #1304 SUCCESS on commit 4b7c816005273dbc79c45356dcb8aa900ee376c3; FX VPN shell regression #34 SUCCESS on the same commit. The Root Proxy runtime regression reported PASS for dual-stack rules, route/UID proofs, symlink guards, independent DNS ownership and fail-open rollback.
 - The test is a host-side mocked resolver test; actual Android IPv6 routing, device resolver binding and carrier-specific IPv6 behavior still require device validation.
 
+
+
+### Ad 总结页 Host 回归契约补强（2026-11-06）
+
+- `FxYulongAdSummaryActivity` 的有界 `enqueueLatest()` 已由并行提交恢复；本批不重复修改该方法，而是增强 DNS summary regression，明确验证 null task 拒绝、Activity teardown 拒绝、旧 waiter 淘汰和最新任务重新入队。
+- targeted workflow 的 DNS summary 与共享 Root resolver 触发条件均加入 `FxYulongAdSummaryActivity`，确保后续 Summary 代码变更实际执行两项 Host 回归。
+- 上次 Host run `42104599004` 的具体失败是 summary enqueueLatest 定义缺失；该实现已在后续并行提交进入当前 HEAD。本提交之后将以当前 commit 的 Host 结果确认回归。

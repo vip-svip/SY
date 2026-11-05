@@ -73,6 +73,13 @@ assert "else {\n                return null;" in parser, "unknown config protoco
 assert "if (summary == null)" in activity and "为避免误报，本次不展示汇总" in activity, "invalid config protocol must not render default-zero summary"
 assert "new ArrayBlockingQueue<>(1)" in activity, "summary Root read queue must be bounded to one waiter"
 assert "private void enqueueLatest(Runnable task)" in activity, "summary refresh must replace a stale queued request"
+enqueue_start = activity.index("private void enqueueLatest(Runnable task)")
+enqueue_end = activity.index("private void root(", enqueue_start)
+enqueue = activity[enqueue_start:enqueue_end]
+assert "if (task == null)" in enqueue, "summary worker must reject null tasks"
+assert "isFinishing() || isDestroyed()" in enqueue, "summary worker must reject work after Activity teardown"
+assert "worker.getQueue().poll();" in enqueue, "summary worker must supersede its stale queued read"
+assert "worker.execute(task);" in enqueue, "summary worker must enqueue the newest refresh"
 assert "worker.getQueue().poll();" in activity, "stale summary Root reads are not discarded"
 assert "if (isFinishing() || isDestroyed())" in activity, "summary queue accepts work after Activity teardown"
 assert "worker.execute(task);" in activity, "latest summary request is not submitted after stale queue eviction"

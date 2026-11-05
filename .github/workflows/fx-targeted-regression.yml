@@ -140,7 +140,7 @@ jobs:
             run_sh scripts/tests/fx-hook-config-stream-publish-regression.sh
           fi
 
-          if [[ "$changed" == "ALL" || "$changed" =~ (yulong-ad-dns-summary|fx-yulong-ad-dns-summary-regression) ]]; then
+          if [[ "$changed" == "ALL" || "$changed" =~ (FxYulongAdSummaryActivity|yulong-ad-dns-summary|fx-yulong-ad-dns-summary-regression) ]]; then
             run_sh scripts/tests/fx-yulong-ad-dns-summary-regression.sh
           fi
 
@@ -181,7 +181,7 @@ jobs:
             run_sh scripts/tests/fx-yulong-tasker-receiver-concurrency-regression.sh
             run_sh scripts/tests/fx-yulong-ad-widget-regression.sh
           fi
-          if [[ "$changed" == "ALL" || "$changed" =~ (FxYulongRootModuleCommand|FxYulongAdActivity|FxYulongAdGeneralActivity|FxYulongAppWhitelistActivity|FxYulongDnsActivity|FxYulongFirewallActivity|fx-yulong-root-module-command-regression) ]]; then
+          if [[ "$changed" == "ALL" || "$changed" =~ (FxYulongRootModuleCommand|FxYulongAdActivity|FxYulongAdGeneralActivity|FxYulongAppWhitelistActivity|FxYulongDnsActivity|FxYulongFirewallActivity|FxYulongAdSummaryActivity|fx-yulong-root-module-command-regression) ]]; then
             run_sh scripts/tests/fx-yulong-root-module-command-regression.sh
           fi
 
