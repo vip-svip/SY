@@ -81,7 +81,7 @@ print("PASS: Harmony/Cupertino tagged renderers dedupe layout redraws by mode an
 PY
 grep -Fq 'FxNativeSkin.shouldPreserveSemanticAction(action)' "$harmony_renderer" || { echo "FAIL: Harmony renderer may recolor semantic actions"; exit 1; }
 grep -Fq 'FxNativeSkin.shouldPreserveSemanticAction(action)' "$cupertino_renderer" || { echo "FAIL: Cupertino renderer may recolor semantic actions"; exit 1; }
-for role in 't.setTag("fx-title:" + size)' 'button.setTag("fx-action-row")' 'card.setTag("fx-card")' 'card.setTag("fx-setting-card")' 'group.setTag("fx-card-group")' 't.setTag("fx-section:" + s)'; do
+for role in 't.setTag("fx-title:" + size)' 'button.setTag("fx-action-row")' 'card.setTag("fx-card")' 'card.setTag("fx-setting-card")' 'group.setTag("fx-card-group")' 'h.setTag("fx-card-title")' 'd.setTag("fx-card-detail")' 't.setTag("fx-section:" + s)'; do
   grep -Fq "$role" "$activity" || { echo "FAIL: shared native component role missing: $role"; exit 1; }
 done
 for token in \
@@ -162,7 +162,7 @@ for path in sys.argv[1:]:
     source = Path(path).read_text(encoding="utf-8")
     assert source.count('if ("fx-card-title".equals(role)') == 1, f"{path}: duplicate/unreachable card title renderer"
     assert '("fx-card-detail".equals(role) || "fx-card-body".equals(role))' in source, f"{path}: description roles are not unified"
-    assert '("fx-card".equals(role) || "fx-setting-card".equals(role))' in source
+    assert '("fx-card".equals(role) || "fx-card-group".equals(role) || "fx-setting-card".equals(role))' in source
 print("PASS: Harmony/Cupertino component renderers process card title/detail tags once.")
 PY
 
