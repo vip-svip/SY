@@ -196,7 +196,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
 
   private void renderTrustedNetworks() {
     trustedPauseSwitch = new Switch(this);
-    trustedPauseSwitch.setText("连接可信 Wi-Fi 时自动暂停游龙广告过滤");
+    trustedPauseSwitch.setText("连接可信 Wi-Fi 时自动暂停FX 广告过滤");
     trustedPauseSwitch.setTextSize(14);
     trustedPauseSwitch.setOnCheckedChangeListener((button, enabled) -> {
       if (trustedNetworkSyncing) return;
@@ -305,7 +305,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
 
   private void removeTrustedSsid(String ssid) {
     new AlertDialog.Builder(this).setTitle("移除可信 Wi-Fi")
-            .setMessage("移除后，连接此 SSID 将不再自动暂停游龙广告过滤。")
+            .setMessage("移除后，连接此 SSID 将不再自动暂停FX 广告过滤。")
             .setNegativeButton("取消",null)
             .setPositiveButton("移除",(dialog,which) -> root("trusted-ssid-remove " + q(ssid), result -> {
               if (!isTrustedNetworkPageCurrent(trustedNetworkStatus)) return;
@@ -743,7 +743,7 @@ private void saveVpnDns(String key,EditText input){
   for(int i=0;i<7;i++){days[i]=new android.widget.CheckBox(this);days[i].setText(labels[i]);days[i].setChecked(true);daysBox.addView(days[i]);}
   TextView state=txt("正在读取计划任务…",12,0xff526170,false);
   card("每周自动计划",
-       "按设备本地时间自动启用/暂停游龙广告过滤列表。开始时间晚于结束时间时按跨午夜区间计算；开始时间等于结束时间表示空时间段，不会触发切换。",
+       "按设备本地时间自动启用/暂停FX 广告过滤列表。开始时间晚于结束时间时按跨午夜区间计算；开始时间等于结束时间表示空时间段，不会触发切换。",
        enabled,start,end,daysBox,
        btn("保存计划",()->{
          StringBuilder selected=new StringBuilder();
@@ -761,7 +761,7 @@ private void saveVpnDns(String key,EditText input){
        }),
        btn("重新读取计划",()->loadSchedule(enabled,start,end,days,state)));
   card("当前计划状态",
-       "星期编号与原版一致：周日=0、周一=1、周二=2、周三=3、周四=4、周五=5、周六=6。计划只控制游龙广告过滤列表；FX 96110 反诈规则、Hosts 白/黑名单、DNS 上游和 VPN 节点不受影响。",
+       "星期编号与原版一致：周日=0、周一=1、周二=2、周三=3、周四=4、周五=5、周六=6。计划只控制FX 广告过滤列表；FX 96110 反诈规则、Hosts 白/黑名单、DNS 上游和 VPN 节点不受影响。",
        state);
   loadSchedule(enabled,start,end,days,state);
  }
@@ -951,7 +951,7 @@ private String dnsValue(String key){for(String line:snapshot.split("\\r?\\n")){S
 
   private void renderTrustedNetworks() {
     trustedPauseSwitch = new Switch(this);
-    trustedPauseSwitch.setText("连接可信 Wi-Fi 时自动暂停游龙广告过滤");
+    trustedPauseSwitch.setText("连接可信 Wi-Fi 时自动暂停FX 广告过滤");
     trustedPauseSwitch.setTextSize(14);
     trustedPauseSwitch.setOnCheckedChangeListener((button, enabled) -> {
       if (trustedNetworkSyncing) return;
@@ -1060,7 +1060,7 @@ private String dnsValue(String key){for(String line:snapshot.split("\\r?\\n")){S
 
   private void removeTrustedSsid(String ssid) {
     new AlertDialog.Builder(this).setTitle("移除可信 Wi-Fi")
-            .setMessage("移除后，连接此 SSID 将不再自动暂停游龙广告过滤。")
+            .setMessage("移除后，连接此 SSID 将不再自动暂停FX 广告过滤。")
             .setNegativeButton("取消",null)
             .setPositiveButton("移除",(dialog,which) -> root("trusted-ssid-remove " + q(ssid), result -> {
               if (!isTrustedNetworkPageCurrent(trustedNetworkStatus)) return;
@@ -1498,7 +1498,7 @@ private void saveVpnDns(String key,EditText input){
   for(int i=0;i<7;i++){days[i]=new android.widget.CheckBox(this);days[i].setText(labels[i]);days[i].setChecked(true);daysBox.addView(days[i]);}
   TextView state=txt("正在读取计划任务…",12,0xff526170,false);
   card("每周自动计划",
-       "按设备本地时间自动启用/暂停游龙广告过滤列表。开始时间晚于结束时间时按跨午夜区间计算；开始时间等于结束时间表示空时间段，不会触发切换。",
+       "按设备本地时间自动启用/暂停FX 广告过滤列表。开始时间晚于结束时间时按跨午夜区间计算；开始时间等于结束时间表示空时间段，不会触发切换。",
        enabled,start,end,daysBox,
        btn("保存计划",()->{
          StringBuilder selected=new StringBuilder();
@@ -1516,7 +1516,7 @@ private void saveVpnDns(String key,EditText input){
        }),
        btn("重新读取计划",()->loadSchedule(enabled,start,end,days,state)));
   card("当前计划状态",
-       "星期编号与原版一致：周日=0、周一=1、周二=2、周三=3、周四=4、周五=5、周六=6。计划只控制游龙广告过滤列表；FX 96110 反诈规则、Hosts 白/黑名单、DNS 上游和 VPN 节点不受影响。",
+       "星期编号与原版一致：周日=0、周一=1、周二=2、周三=3、周四=4、周五=5、周六=6。计划只控制FX 广告过滤列表；FX 96110 反诈规则、Hosts 白/黑名单、DNS 上游和 VPN 节点不受影响。",
        state);
   loadSchedule(enabled,start,end,days,state);
  }
