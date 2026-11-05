@@ -64,6 +64,7 @@ if PG="$PG" MODDIR="$MOD" sh "$MOD/uninstall.sh" > "$T/symlink.out" 2>&1; then
 fi
 grep -Fq 'PID record is a symlink' "$T/symlink.out" || fail "symlink refusal was not explained"
 ! grep -Fq 'FIREWALL_CLEANUP' "$T/symlink.out" || fail "firewall teardown continued with a symlinked PID record"
+grep -Fxq "$" "$T/pid-target" || fail "symlinked PID target was modified during refusal"
 
 # The cooperative helper path also aborts cleanup when shutdown is unconfirmed.
 rm -f "$PG/localdns-watchdog.pid"
