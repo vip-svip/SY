@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+"""Enable user-opt-in, local-only AdGuard Home DNS query logging in restored FX release source."""
+from pathlib import Path
+import shutil
+import sys
+
+module = Path(sys.argv[1] if len(sys.argv) > 1 else "fx-module").resolve()
+script = module / "scripts/adguardhome.sh"
+if not script.is_file() or script.stat().st_size < 8000:
+    raise SystemExit("AdGuard Home lifecycle script missing or unexpectedly small")
+
+source = script.read_text(encoding="utf-8")
+anchor = "  _rules_file=\"$MODDIR/fxrules/anti_fraud_96110.txt\"\n"
+if anchor not in source:
+    raise SystemExit("AdGuard Home rule render anchor missing")
+insert = """  # DNS query logging is off by default. When explicitly enabled, AdGuard
+  # retains its local query log for thirty days; no external upload path
+  # is configured. settings.conf is root-owned and atomically updated by FX.
+  _dns_querylog_enabled=$(awk -F= '
+    $1==\"dns_querylog_enabled\" {v=$2}
+    END {if(v==\"1\") print "true"; else print "false"}
+  ' \"$PG/settings.conf\" 2>/dev/null)
+  case \"$_dns_querylog_enabled\" in true) : ;; *) _dns_querylog_enabled=false ;; esac
+"""
+if "_dns_querylog_enabled=$(awk -F=" not in source:
+    source = source.replace(anchor, insert + anchor, 1)
+
+old = """querylog:
+  enabled: false
+  file_enabled: false
+  interval: 30d
+  size_memory: 1000
+  ignored: []
+  ignored_enabled: false"""
+new = """querylog:
+  enabled: $_dns_querylog_enabled
+  file_enabled: $_dns_querylog_enabled
+  interval: 30d
+  size_memory: 1000
+  ignored: []
+  ignored_enabled: false"""
+if old not in source:
+    if new not in source:
+        raise SystemExit("AdGuard Home querylog YAML block not found")
+else:
+    source = source.replace(old, new, 1)
+
+script.write_text(source, encoding="utf-8")
+script.chmod(0o755)
+
+repo = Path(__file__).resolve().parent.parent
+helper_source = repo / "scripts/yulong-ad-dns-summary.sh"
+helper_target = module / "scripts/yulong-ad-dns-summary.sh"
+if not helper_source.is_file() or helper_source.stat().st_size < 500:
+    raise SystemExit("privacy-preserving DNS summary helper is missing or unexpectedly small")
+helper_target.parent.mkdir(parents=True, exist_ok=True)
+shutil.copy2(helper_source, helper_target)
+helper_target.chmod(0o755)
+print("Applied user-opt-in local AdGuard Home query log and staged numeric-only DNS summary helper.")
