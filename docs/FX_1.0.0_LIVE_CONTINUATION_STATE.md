@@ -6058,3 +6058,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 新增 DNS 65536 越界、代理 00000 零端口的 fail-closed 检查：JSON 端口必须为 null、owner 必须为 unknown、共存等级必须降为 partial。
 - GitHub Actions：`FX VPN Coexistence Arbiter` run `42102461771` 在提交 `01634762fd292781a5a4002470d732b740fb13bf` 上通过；Shell 语法、Python 编译、共存裁决回归、只读性检查和 runner 网络 smoke test 均成功。
 - 本批仅增加自动化边界测试，没有修改运行时网络配置；未运行 Gradle/Android 构建、模拟器或真机 VPN/DNS 共存测试。
+
+
+## 2026-11-06 — 六种界面模式名称与选择器无障碍回归
+
+- 功能代码提交：`c0072e157e5c8deef8a594dca3e6fbfea803ef76`。
+- 回归映射修复提交：`3a5085858f255ad53656aa33c66cb1e34bcdca10`。
+- 六种模式显示名称已改为产品可读名称，保留稳定存储 ID 和既有旧值迁移；选择卡片使用 Compose `selectable` + `Role.RadioButton`，并将实际当前模式暴露为选中状态。
+- `scripts/tests/fx-global-ui-modes-regression.sh` 新增六种显示名称、RadioButton 角色、selected 状态和旧 clickable 退役断言；`.github/workflows/fx-targeted-regression.yml` 将 `FxUiMode` / `FxDesignModePanel` 纳入 UI Host regression 映射。
+- GitHub CI：`FX Six UI Modes` 对功能提交 `c0072e1` 成功（run `42102008681`）；`FX Targeted Host Regression` 同提交首次失败（run `42102008707`），失败原因是工作流未把这两个源文件映射到任何 Host 回归，并非 Kotlin 编译或测试断言失败。已补齐映射与回归断言，修复提交 `3a50858` 的新 CI 结果待回报。
+- GitHub 源码回读确认功能文件、回归脚本与工作流路径映射已写入目标分支。尚未运行 Android Gradle 构建、模拟器、安装或真机测试。
+- 本批仅涉及 UI 模式选择器展示与无障碍语义，不改变 VPN、DNS、Hook、脚本服务生命周期或 FX 1.0.0 版本号。
+- 下一批：检查六种模式在各主 Tab/二级页的 renderer 覆盖；同时跟进 `3a50858` 对应 Targeted Host CI，修复任何真实回归失败。
