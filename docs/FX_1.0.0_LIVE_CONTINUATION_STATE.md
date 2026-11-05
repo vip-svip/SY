@@ -6648,3 +6648,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 - Tightened scheduler owner recognition: parse `/proc/PID/cmdline` as NUL-delimited argv entries and require an exact `SCRIPT_PATH` argument match instead of substring matching across the flattened command line. This avoids false ownership when another process merely includes the path inside a longer argument.
 - Added a regression assertion. Host CI remains the verification gate; no device test is claimed.
+
+
+## 2026-11-06 — GKD 选择器解析栈溢出保护
+
+- 随机选择的独立修复：GKD-XA 选择器编译边界；本批避开其他 AI 正在修改的 VPN、Hosts 缓存锁、防火墙和系统应用安装文件。
+- 问题：`FxGkdSelectorEngine.compile()` 只捕获 `Exception`。上游解析器遇到畸形、深层嵌套的用户选择器时若抛出 `StackOverflowError`，该错误不会被捕获，可能直接终止 FX 进程。
+- 修复：新增专门的 `StackOverflowError` 捕获，返回明确的“选择器嵌套过深”校验错误；其他解析异常仍保留原有错误反馈。
+- 回归：`FxGkdSelectorEngineTest` 新增低于既有输入长度检查的深层未闭合括号用例，要求编译结果为校验失败而不是进程崩溃。
+- 提交：实现 `d02443ff952a662712302fd64e5913d730e4ab28`；测试 `2b0c3abee2a058b7a11dca9ced66eea8f7ed955f`。
+- GitHub 回读：实现包含 `catch (overflow: StackOverflowError)`；单元测试包含 `rejectsDeeplyNestedMalformedSelectorWithoutCrashing`。GKD Selector workflow 已配置监听这两个文件。
+- 验证边界：本批完成 GitHub 写入与回读；尚未获得本次提交对应的 Gradle/JVM 测试或 CI 结果。没有进行 Android 真机测试。
