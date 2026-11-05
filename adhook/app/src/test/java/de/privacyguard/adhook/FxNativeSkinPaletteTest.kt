@@ -16,7 +16,7 @@ class FxNativeSkinPaletteTest {
 
         assertEquals(0xfff7f8fc.toInt(), defaultPalette.background)
         assertEquals(0xff315b9a.toInt(), defaultPalette.accent)
-        assertEquals(18, defaultPalette.cornerRadiusDp)
+        assertEquals(16, defaultPalette.cornerRadiusDp)
         assertEquals(0xfff4f6f8.toInt(), classicPalette.background)
         assertEquals(0xff1769aa.toInt(), classicPalette.accent)
         assertEquals(8, classicPalette.cornerRadiusDp)
