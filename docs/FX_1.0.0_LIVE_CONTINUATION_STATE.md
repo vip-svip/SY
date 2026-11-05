@@ -5036,3 +5036,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 提交：`e47ebd78f2e9dc1be9a1be2c4ec8e99d60d3a1ac`（首次断言草稿，CI 暴露断言字符串构造错误）；`c4f399d3af20f5c12901327ad1f556a8c95534d3`（修复首轮字符串但 Python token 列表仍错误）；`80a3b88a03f9fd2b644344c8d2f547eb720c324e`（Host 通过的中间版本）；`60f113a2ec65faae34e83eca5408422ce1eaa199`（简化并修正最终断言）。
 - 最终版本 FX Targeted Host Regression run `42030169436` 已 completed/success；日志明确输出两条 PASS：生命周期/边界保护，以及目标包名 shell quoting 与精确日志筛选。FX Module Runtime Regression run `42030169200` 已 completed/success（vpn-dns-runtime job）。该 workflow 验证的是既有 VPN/DNS Host 运行时回归，不代表本次 Hook 查询在设备上的行为。
 - 未执行 Android Gradle 完整构建或真机 LSPosed/Hook 注入验证。
+
+
+## 2026-11-05 — System-app overlay verification and Hook hub navigation regression
+
+- Current branch HEAD before this state update: b4d0808d1e7d6ec934145d193363cc91969d32dc.
+- Commit f0a80b988163d8c99bf4dd518f97149548aa3d52 hardens both canonical and packaged FX Hook installers: the system/app/FX/FX.apk overlay requires a present SHA-256 sidecar, a 64-character hexadecimal digest and an exact APK digest match. Older optional-payload archives retain their legacy compatibility behavior.
+- The installer Host regression now covers missing, malformed and mismatched sidecars and confirms that PackageManager install and FX ownership markers are not touched on rejection. FX Targeted Host Regression run 42031415187 completed SUCCESS on the follow-up branch tree; its installer test printed PASS.
+- A full Host run initially exposed a stale SystemExpand assertion that expected the removed application/module migration menu. The current native MainActivity already places SystemExpand as an action card in the unified Hook hub. Commit 32f5a615d089337285bf918ed1a2204aca42efc5 aligns the regression with the actual Hook-tab route. FX Targeted Host Regression run 42031389055 completed SUCCESS; log confirms: “PASS: Dia SystemExpand native screen is reachable from the unified Hook hub and restores its scroll position safely”.
+- Commit b4d0808d1e7d6ec934145d193363cc91969d32dc adds malformed checksum coverage. The subsequent Targeted Host run 42031415187 completed SUCCESS.
+- FX Module Runtime Regression run 42030977447 completed SUCCESS on the installer change: 18/18 VPN/DNS runtime regressions passed, followed by restored-module tests for TUN-to-REDIRECT external-VPN proof, Unbound VPN-bound egress, Root Proxy dual-stack state/rollback, native VPN transactions and atomic Hosts/subscription locks. The latest branch run 42031415700 is still in progress at this snapshot.
+- The earlier Targeted Host run 42030977468 failed only at the stale SystemExpand navigation assertion after the installer test itself passed; the corrected regression subsequently passed as recorded above.
+- No Android Gradle build, APK installation, KernelSU/Magisk device deployment, PackageManager visibility on a physical ROM, SELinux device behavior, or real-device VPN coexistence/power test is claimed.
