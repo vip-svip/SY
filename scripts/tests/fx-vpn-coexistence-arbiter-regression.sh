@@ -265,13 +265,13 @@ echo "== case 5b: partial stdout from failed ip command -> unknown =="
 mkdir -p "$TMP/fakebin"
 cat > "$TMP/fakebin/ip" <<'EOF'
 #!/bin/sh
-printf '%s\\n' '1: lo: <LOOPBACK,UP> mtu 65536'
+printf '%s\n' '1: lo: <LOOPBACK,UP> mtu 65536'
 exit 7
 EOF
 chmod 0755 "$TMP/fakebin/ip"
 : > "$TMP/info.txt"
-_out=$(PATH="$TMP/fakebin:$PATH" FX_ARB_VPNINFO_FILE="$TMP/info.txt" \\
-  FX_ARB_LINK_FILE= FX_ARB_PROC_NET_DIR="$TMP/net_free" FX_ARB_MODULE_ROOT="$TMP/mod_clean" \\
+_out=$(PATH="$TMP/fakebin:$PATH" FX_ARB_VPNINFO_FILE="$TMP/info.txt" \
+  FX_ARB_LINK_FILE= FX_ARB_PROC_NET_DIR="$TMP/net_free" FX_ARB_MODULE_ROOT="$TMP/mod_clean" \
   sh "$ARB" 2>&1)
 rc=$?
 [ "$rc" -eq 2 ] || fail "failed ip command with partial stdout must return rc=2, got $rc: $_out"
