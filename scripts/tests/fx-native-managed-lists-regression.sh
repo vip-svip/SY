@@ -226,16 +226,18 @@ activity = Path(sys.argv[1]).read_text(encoding="utf-8")
 start = activity.index("private void writeHostsPage(")
 end = activity.index("private void applyNativeHosts()", start)
 writer = activity[start:end]
-# MainActivity embeds the shell program inside a Java string; normalize Java's escaped quotes before checking the command contract.
+# MainActivity embeds the shell program inside Java string literals. Decode
+# Java's escaped double quotes before checking the actual shell command.
+writer = writer.replace(r'\\"', '"')
 for token in (
     "for path in /data /data/local /data/local/tmp; do",
-    r'[ -d "$path" ] && [ ! -L "$path" ]',
+    '[ -d "$path" ] && [ ! -L "$path" ]',
     "umask 077;",
     "mktemp /data/local/tmp/fx-hosts.XXXXXXXX",
-    r"trap 'rm -f \"$tmp\"' EXIT;",
-    r'if [ ! -f "$tmp" ] || [ -L "$tmp" ]; then',
+    """trap 'rm -f "$tmp"' EXIT;""",
+    'if [ ! -f "$tmp" ] || [ -L "$tmp" ]; then',
     "shellQuote(encoded)",
-    r"base64 -d > \"$tmp\" || exit 42;",
+    'base64 -d > "$tmp" || exit 42;',
     "fileedit.sh",
     "replacepage",
 ):
@@ -244,8 +246,8 @@ ordered = (
     writer.index("for path in /data /data/local /data/local/tmp; do"),
     writer.index("umask 077;"),
     writer.index("mktemp /data/local/tmp/fx-hosts.XXXXXXXX"),
-    writer.index(r"trap 'rm -f \"$tmp\"' EXIT;"),
-    writer.index(r"base64 -d > \"$tmp\""),
+    writer.index("""trap 'rm -f "$tmp"' EXIT;"""),
+    writer.index('base64 -d > "$tmp"'),
     writer.index("replacepage"),
 )
 assert ordered == tuple(sorted(ordered)), \
