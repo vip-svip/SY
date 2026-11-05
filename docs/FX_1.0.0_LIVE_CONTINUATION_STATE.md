@@ -6042,3 +6042,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 定向回归新增前导零十进制端口与带 JSON 注入字符的非法端口场景，验证端口 53 仍按十进制检测、非法值不会破坏 JSON，也不会被报告为无冲突。
 - 代码提交：`f992eab17ae4301c243c7a64fa8f423e96c99237`；回归提交：`1ee6d3bd271ce4a9bf842689454d8b0176f5e759`。
 - 验证等级：GitHub 源码写入成功；本执行环境未运行 Shell/Host/Gradle 测试，须回读对应 Actions run 后才能报告测试结果。未进行 Android 真机第三方 VPN、DNS 或 TUN 测试。
+
+## 2026-11-06 — Hook APK payload路径防符号链接验证回执
+
+- 本批功能提交：`2bf17ff18d6fff2665cc7060c42cf7144c78081e`；回归用例提交：`10ad058a6b1ea3800e807d9886ccc3f129bcab64`；随后修正测试对 overlay 专用拒绝消息的断言：`4ab0ccee14cfe6aa7e655d62a5c2e5b68a5a1a25`。
+- GitHub Actions Targeted Host Regression：run `42102278095`，对应 `4ab0ccee`，结论 SUCCESS；测试步骤已完成，覆盖 APK 与摘要 sidecar 符号链接拒绝且不触达 PackageManager。
+- GitHub Actions Module Runtime Regression：run `42102278033`，对应 `4ab0ccee`，读取时仍在运行；VPN/DNS/Root Proxy 集成回归尚未出最终结论。
+- 本批最新读取时分支 HEAD：`7297aca5a243bb5965f61f5d8a83820997706da9`（其后有独立 VPN 文档提交；不得将其归为本批功能代码）。
+- 仍未进行 Android 真机安装、SELinux 标签、PackageManager system classification、OTA/模块升级和卸载设备验收。
