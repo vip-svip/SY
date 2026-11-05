@@ -183,6 +183,19 @@ for name, page in (("Frida", dia_frida), ("DEX browser", dia_dex), ("Hook settin
     assert "new AlertDialog.Builder(this)" not in page, f"{name} retains unskinned platform dialogs"
 assert "showFxDialog(dialog);" in dia_frida, "Frida custom OnShow dialogs must preserve their callback and use the shared renderer"
 assert "showFxDialog(pickerDialog);" in dia_frida, "Frida picker dialog bypasses shared FX Skin"
+# Remaining Dia tools retain their Android platform AlertDialog theme but use
+# the FX-owned builder so all modal content receives the current global Skin.
+for name, page in (
+    ("Activity browser", dia_browser),
+    ("Inspector", dia_inspector),
+    ("Signature", dia_signature),
+    ("File manager", dia_file),
+    ("Crash report", dia_crash),
+    ("Wi-Fi proxy", dia_wifi),
+):
+    assert "fxDialogBuilder()" in page, f"{name} dialogs bypass the shared FX Skin builder"
+    assert "new AlertDialog.Builder(this)" not in page, f"{name} retains unskinned platform dialogs"
+assert "showFxDialog(dialog);" in dia_browser, "Activity browser custom detail dialog bypasses shared renderer"
 settings_start = activity.index("private void showSettings()")
 settings_end = activity.index("private void showNativeWallpaperDialog()", settings_start)
 assert 'section("备份与恢复")' in activity[settings_start:settings_end]
