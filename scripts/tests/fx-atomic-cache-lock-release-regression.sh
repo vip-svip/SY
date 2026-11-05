@@ -21,7 +21,8 @@ if [ ! -s "$APPLY" ] || [ ! -s "$SUBFETCH" ]; then
   echo "SKIP: full Hosts/subscription cache-lock regression requires a restored FX Release module (apply.sh + subfetch.sh); testing the tracked Root Proxy lock independently."
   [ -s "$MODULE/scripts/tests/v1.0.0-yulong-root-proxy-lock-regression.sh" ] || fail "tracked Root Proxy lock regression missing"
   sh "$MODULE/scripts/tests/v1.0.0-yulong-root-proxy-lock-regression.sh" || fail "tracked Root Proxy atomic lock regression failed"
-  echo "PASS: tracked Root Proxy lock regression; Release-only Hosts/subscription checks deferred to module-backed build lane"
+  sh "$ROOT/scripts/tests/fx-vpn-tun-external-fallback-regression.sh" || fail "tracked VPN TUN external-fallback regression failed"
+  echo "PASS: tracked Root Proxy and VPN coexistence regressions; Release-only Hosts/subscription checks deferred to module-backed build lane"
   exit 0
 fi
 
