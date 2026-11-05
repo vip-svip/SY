@@ -11,7 +11,8 @@ public final class FxYulongRootModuleCommand {
         return "yulong-ad-control.sh".equals(name)
                 || "yulong-profiles.sh".equals(name)
                 || "yulong-app-whitelist.sh".equals(name)
-                || "yulong-vpn-control.sh".equals(name);
+                || "yulong-vpn-control.sh".equals(name)
+                || "yulong-app-firewall.sh".equals(name);
     }
 
     public static String prefix(String requiredScript) {

@@ -6,8 +6,10 @@ HOST_TEST="$ROOT/scripts/tests/FxYulongRootModuleCommandHostTest.java"
 AD="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java"
 GENERAL="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdGeneralActivity.java"
 WHITELIST="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAppWhitelistActivity.java"
+DNS="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongDnsActivity.java"
+FIREWALL="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongFirewallActivity.java"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
-for file in "$HELPER" "$HOST_TEST" "$AD" "$GENERAL" "$WHITELIST" \
+for file in "$HELPER" "$HOST_TEST" "$AD" "$GENERAL" "$WHITELIST" "$DNS" "$FIREWALL" \
   "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdWidgetProvider.java" \
   "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdTileService.java" \
   "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongVpnTileService.java" \
@@ -15,10 +17,10 @@ for file in "$HELPER" "$HOST_TEST" "$AD" "$GENERAL" "$WHITELIST" \
   "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdSummaryActivity.java"; do
   [ -s "$file" ] || fail "Root module command integration file missing: $file"
 done
-python3 - "$HELPER" "$AD" "$GENERAL" "$WHITELIST" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdWidgetProvider.java" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdTileService.java" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongVpnTileService.java" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdTaskerReceiver.java" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdSummaryActivity.java" <<'PY'
+python3 - "$HELPER" "$AD" "$GENERAL" "$WHITELIST" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdWidgetProvider.java" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdTileService.java" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongVpnTileService.java" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdTaskerReceiver.java" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdSummaryActivity.java" "$DNS" "$FIREWALL" <<'PY'
 from pathlib import Path
 import sys
-helper, ad, general, whitelist, widget, ad_tile, vpn_tile, tasker, ad_summary = [
+helper, ad, general, whitelist, widget, ad_tile, vpn_tile, tasker, ad_summary, dns, firewall = [
     Path(p).read_text(encoding="utf-8") for p in sys.argv[1:]
 ]
 for token in (
@@ -26,6 +28,7 @@ for token in (
     '"yulong-profiles.sh".equals(name)',
     '"yulong-app-whitelist.sh".equals(name)',
     '"yulong-vpn-control.sh".equals(name)',
+    '"yulong-app-firewall.sh".equals(name)',
     "[ -d '/data' ]", "[ ! -L '/data' ]",
     "[ -d '/data/adb' ]", "[ ! -L '/data/adb' ]",
     "[ -d '/data/adb/modules' ]", "[ ! -L '/data/adb/modules' ]",
@@ -70,7 +73,18 @@ assert "FxYulongRootModuleCommand.prefix(requiredScript)" in tasker_prefix and "
 assert 'modulePrefix(adFilterAction ? "yulong-ad-control.sh" : "yulong-vpn-control.sh")' in tasker
 summary_module = method(ad_summary, "private String moduleShell(String scriptArgs)", "private void root(")
 assert 'FxYulongRootModuleCommand.command("yulong-ad-control.sh", scriptArgs)' in summary_module and "MP='';" not in summary_module
-print("PASS: Ad profiles, General/import, whitelist, summary, widget, both tiles and Tasker use the shared Root module resolver")
+
+ad_command = method(ad, "private String cmd(String args)", "private void root(")
+assert 'FxYulongRootModuleCommand.command("yulong-ad-control.sh", args)' in ad_command and "MP='';" not in ad_command
+
+dns_command = method(dns, "private String shell(String args)", "private void root(")
+assert 'FxYulongRootModuleCommand.command("yulong-ad-control.sh", args)' in dns_command and "MP='';" not in dns_command
+for operation in ('"dns-log-tail"', '"cache-flush"', '"dns-log-clear"'):
+    assert operation in dns_command
+
+firewall_command = method(firewall, "private String scriptCommand(String args)", "private String quote(")
+assert 'FxYulongRootModuleCommand.command("yulong-app-firewall.sh", args)' in firewall_command and "MP='';" not in firewall_command
+print("PASS: every Yulong Ad Root screen and automation entry uses the shared allowlisted resolver")
 PY
 
 if command -v javac >/dev/null 2>&1 && command -v java >/dev/null 2>&1; then

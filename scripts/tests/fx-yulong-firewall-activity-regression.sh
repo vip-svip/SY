@@ -39,30 +39,8 @@ if source.count("if (!parseList(result.output))") != 2:
     raise SystemExit("FAIL: initial and refresh list reads must both fail closed")
 require("private void card(String title, String detail, View... children)", "firewall cards must support multiple child controls")
 require("for (View child : children) if (child != null) card.addView(child);", "all card child controls must be attached")
-require("private String scriptCommand(String args)", "firewall Root script resolver is missing")
-module_start = source.index("private String scriptCommand(String args)")
-module_end = source.index("private String quote(", module_start)
-module_lookup = source[module_start:module_end]
-for token in (
-    "[ -d '/data' ]", "[ ! -L '/data' ]",
-    "[ -d '/data/adb' ]", "[ ! -L '/data/adb' ]",
-    "[ -d '/data/adb/modules' ]", "[ ! -L '/data/adb/modules' ]",
-    "[ ! -L '/data/adb/modules_update' ]",
-    "grep -qx 'id=privacyguard'",
-    "grep -qx 'version=1.0.0'",
-    "yulong-app-firewall.sh",
-):
-    if token not in module_lookup:
-        raise SystemExit("FAIL: Firewall Root module discovery must enforce: " + token)
-for token in (
-    r'if [ -d \"$d\" ] && [ ! -L \"$d\" ]',
-    r'&& [ -f \"$d/module.prop\" ] && [ ! -L \"$d/module.prop\" ]',
-    r'&& [ -d \"$d/scripts\" ] && [ ! -L \"$d/scripts\" ]',
-    r'&& [ -f \"$d/scripts/yulong-app-firewall.sh\" ]',
-    r'&& [ ! -L \"$d/scripts/yulong-app-firewall.sh\" ]',
-):
-    if token not in module_lookup:
-        raise SystemExit("FAIL: Firewall Root resolver must reject symlinked module payloads: " + token)
+require('return FxYulongRootModuleCommand.command("yulong-app-firewall.sh", args);',
+        "firewall must delegate module lookup to the shared allowlisted resolver")
 require("private final ThreadPoolExecutor appWorker =", "bounded app inventory worker is missing")
 require("new ArrayBlockingQueue<>(1)", "app inventory queue must be bounded")
 require("private final ThreadPoolExecutor worker =", "bounded Root operation worker is missing")

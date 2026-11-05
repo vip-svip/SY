@@ -6201,3 +6201,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Live runner correctly reported unknown because the GitHub runner did not contain a complete installed FX module root; this is an expected fail-closed result, not evidence that no VPN was active.
 - No Android device test or real VPN traffic-path proof is claimed. The arbiter continues to report route/data-plane proof as unverified until a device-level end-to-end test exists.
 
+
+
+## 2026-11-06 — Yulong Ad Root 模块发现集中化（续）
+
+- 在保留并行提交已加入的 `yulong-vpn-control.sh` allowlist 和小组件/磁贴/Tasker 统一入口基础上，新增固定 allowlist 项 `yulong-app-firewall.sh`。
+- Ad 主配置页、DNS 日志页和防火墙页现统一调用 `FxYulongRootModuleCommand`，不再各自拼接 `MP=''` 模块查找命令；Ad 总结页、General/import、profiles、白名单、小组件、两种磁贴和 Tasker 已在前序/并行提交接入共享构造器。
+- DNS 页面仍将操作限制为 `dns-log-tail`、`cache-flush`、`dns-log-clear` 三种固定值；防火墙固定绑定 `yulong-app-firewall.sh`，不会接受可替换脚本路径。
+- 扩展 JDK Host allowlist 与共享 Root resolver 回归，覆盖新增 Ad 主页、DNS、防火墙消费方；同步更新原有 Ad/DNS/Firewall 测试和 targeted workflow 路径映射。
+- 本批等待提交后的 Targeted Host Actions；没有声称 Android 构建、设备 Root 执行或真实流量拦截验收通过。
