@@ -199,4 +199,27 @@ elif '"$VPN_EFFECTIVE_MODE"' not in s:
 status_path.write_text(s, encoding="utf-8")
 status_path.chmod(0o755)
 
+# The Release ZIP carries an older assertion for the pre-fallback TUN guard.
+# Update that assertion to verify the effective-mode selector installed above.
+legacy_tun_test = module / "scripts/tests/v1.0.0-vpncore-bind-interface-config-generation-regression.sh"
+if legacy_tun_test.is_file():
+    test_source = legacy_tun_test.read_text(encoding="utf-8")
+    old_test = '''# TUN mode must fail safe when an external VPN is active or its state is uncertain.
+grep -Fq 'if [ "$VPN_MODE" = "tun" ] && { [ "$_PG_VPN_INTERCEPTION_BLOCKED" = "1" ] || [ -n "$_PG_EXT_VPN_IF" ]; }; then' "$ROOT/scripts/apply.sh" || {
+  echo 'FAIL: TUN external-VPN conflict guard missing' >&2; exit 1;
+}
+'''
+    new_test = '''# TUN mode must select a verified effective dataplane and fail closed otherwise.
+grep -Fq 'fx_select_vpn_effective_mode() {' "$ROOT/scripts/apply.sh" &&
+grep -Fq 'external_android_vpn_tun_to_redirect' "$ROOT/scripts/apply.sh" &&
+grep -Fq 'TUN fallback refused because external VPN state or ownership is not fully verified' "$ROOT/scripts/apply.sh" || {
+  echo 'FAIL: TUN external-VPN effective-mode guard missing' >&2; exit 1;
+}
+'''
+    if old_test in test_source:
+        test_source = test_source.replace(old_test, new_test, 1)
+    elif new_test not in test_source:
+        raise SystemExit("legacy TUN regression has an unknown external-VPN guard assertion")
+    legacy_tun_test.write_text(test_source, encoding="utf-8")
+
 print("Applied guarded TUN-to-REDIRECT coexistence fallback and effective-mode status.")
