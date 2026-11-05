@@ -238,7 +238,7 @@ rc=${r%%|*}; out=${r#*|}
 pass "duplicate internal listeners fail to partial even when host ports are free"
 
 echo "== case 1g: all pairwise duplicate listener combinations are detected =="
-for spec in "5353:7890:7890:dns=proxy" "5353:53:5353:dns=proxy" "53:53:53:dns=dns_filter,dns=proxy,dns_filter=proxy"; do
+for spec in "5353:7890:7890:dns_filter=proxy" "5353:53:5353:dns=proxy" "53:53:53:dns=dns_filter,dns=proxy,dns_filter=proxy"; do
   dns=${spec%%:*}; rest=${spec#*:}; filter=${rest%%:*}; rest=${rest#*:}; proxy=${rest%%:*}; expected=${rest#*:}
   r=$(run_arb_config "$dns" "$filter" "$proxy"); rc=${r%%|*}; out=${r#*|}
   [ "$rc" -eq 0 ] || fail "pairwise duplicate port check failed: $out"
