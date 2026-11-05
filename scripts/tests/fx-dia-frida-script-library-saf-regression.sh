@@ -6,6 +6,7 @@ LIBRARY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDi
 STORE="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaScriptLibraryStore.java"
 POLICY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaScriptLibraryPolicy.java"
 [ -s "$ACTIVITY" ] || { echo "FAIL: Dia Frida Activity source missing" >&2; exit 1; }
+[ -s "$LIBRARY" ] || { echo "FAIL: Dia Frida script-library Activity source missing" >&2; exit 1; }
 [ -s "$STORE" ] || { echo "FAIL: Dia Frida script-library store missing" >&2; exit 1; }
 [ -s "$POLICY" ] || { echo "FAIL: Dia Frida script-library policy missing" >&2; exit 1; }
 python3 - "$ACTIVITY" "$LIBRARY" "$STORE" "$POLICY" <<'PY'
@@ -14,6 +15,57 @@ import sys
 
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
 library = Path(sys.argv[2]).read_text(encoding="utf-8")
+
+# Reject duplicate method tails accidentally emitted after the Activity class
+# closes. This catches Java syntax errors that otherwise cascade hundreds of
+# "class, interface, enum, or record expected" diagnostics.
+def assert_single_java_class_body(source):
+    depth = 0
+    state = "code"
+    escaped = False
+    class_closed_at = None
+    i = 0
+    while i < len(source):
+        ch = source[i]
+        nxt = source[i + 1] if i + 1 < len(source) else ""
+        if state == "line_comment":
+            if ch == "\n":
+                state = "code"
+        elif state == "block_comment":
+            if ch == "*" and nxt == "/":
+                state = "code"
+                i += 1
+        elif state in ("string", "char"):
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif (state == "string" and ch == '"') or (state == "char" and ch == "'"):
+                state = "code"
+        else:
+            if ch == "/" and nxt == "/":
+                state = "line_comment"
+                i += 1
+            elif ch == "/" and nxt == "*":
+                state = "block_comment"
+                i += 1
+            elif ch == '"':
+                state = "string"
+            elif ch == "'":
+                state = "char"
+            elif ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                assert depth >= 0, "script library has an unmatched closing brace"
+                if depth == 0:
+                    class_closed_at = i
+                    trailing = source[i + 1:].strip()
+                    assert not trailing, "script library contains code after its Activity class closes"
+        i += 1
+    assert depth == 0 and class_closed_at is not None, "script library Activity braces are unbalanced"
+assert_single_java_class_body(library)
+
 store = Path(sys.argv[3]).read_text(encoding="utf-8")
 policy = Path(sys.argv[4]).read_text(encoding="utf-8")
 required = {
