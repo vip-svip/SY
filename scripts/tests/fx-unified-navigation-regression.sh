@@ -129,6 +129,15 @@ for filename, tokens in ad_pages.items():
         assert token in page, f"{filename} is not integrated as an Ad subpage: {token}"
     assert "游龙广告插件" not in page, f"{filename} still exposes the source app identity"
 
+# Ad control center, DNS log and firewall dialogs must use the shared five-Skin modal renderer.
+assert "fxDialogBuilder()" in ad_main, "Ad control center still creates unskinned AlertDialogs"
+assert "new AlertDialog.Builder(this)" not in ad_main
+assert "fxDialogBuilder()" in ad_dns, "DNS log dialogs must use the FX modal builder"
+assert "new AlertDialog.Builder(this)" not in ad_dns
+assert "fxDialogBuilder()" in ad_firewall, "Firewall rule editor must use the FX modal builder"
+assert "new AlertDialog.Builder(this)" not in ad_firewall
+assert "showFxDialog(dialog)" in ad_firewall, "Firewall's custom OnShowListener dialog must use the shared renderer"
+
 dia_json = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaJsonActivity.java")
 for token in ("‹ 返回 Hook", "Hook · JSON 操作", "FX Hook JSON", "fx-hook-json.json", "setContentViewWithNativeTabs(root, 4)"):
     assert token in dia_json, f"JSON editor is not integrated as a Hook tool: {token}"
