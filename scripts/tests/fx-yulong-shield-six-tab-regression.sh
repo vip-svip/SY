@@ -3,25 +3,36 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 APP="$ROOT/adhook/app/src/main"
 JAVA="$APP/java/de/privacyguard/adhook/imported/shield"
-python3 - "$APP/AndroidManifest.xml" "$JAVA" "$APP/java/de/privacyguard/adhook/MainActivity.java" "$APP/java/de/privacyguard/adhook/FxNativeTabActivity.java" "$APP/java/de/privacyguard/adhook/FxNativeAppShell.kt" <<'PY'
+python3 - "$APP/AndroidManifest.xml" "$JAVA" "$APP/java/de/privacyguard/adhook/MainActivity.java" "$APP/java/de/privacyguard/adhook/FxNativeTabActivity.java" "$APP/java/de/privacyguard/adhook/FxNativeAppShell.kt" "$APP/java/de/privacyguard/adhook/FxComposeSkinTokens.kt" "$APP/java/de/privacyguard/adhook/HarmonySkinTokens.java" "$APP/java/de/privacyguard/adhook/CupertinoSkinTokens.java" <<'PY'
 from pathlib import Path
 import sys
 import xml.etree.ElementTree as ET
 
-manifest_path, shield_dir, main_path, tab_host_path, shell_path = map(Path, sys.argv[1:])
+manifest_path, shield_dir, main_path, tab_host_path, shell_path, tokens_path, harmony_tokens_path, cupertino_tokens_path = map(Path, sys.argv[1:])
 main = main_path.read_text(encoding="utf-8")
 tab_host = tab_host_path.read_text(encoding="utf-8")
 shell = shell_path.read_text(encoding="utf-8")
+tokens = tokens_path.read_text(encoding="utf-8")
+harmony_tokens = harmony_tokens_path.read_text(encoding="utf-8")
+cupertino_tokens = cupertino_tokens_path.read_text(encoding="utf-8")
 manifest = ET.parse(manifest_path).getroot()
 android = "{http://schemas.android.com/apk/res/android}"
 # The six primary destinations are fixed and index-compatible across Web/native pages.
 labels = 'listOf("VPN", "Ad", "隐私", "脚本", "Hook", "设置")'
 assert labels in shell, "Native app shell must expose exactly the six fixed FX tabs in order"
 assert "tabsCount = labels.size" in shell, "Glass navigation must use the same six-tab model"
-assert ".height(72.dp)" in shell, "Native six-tab bar height contract changed unexpectedly"
+assert ".height(tokens.tabBarHeightDp.dp)" in shell, "Native six-tab bars must use the active Skin geometry token"
+assert ".padding(bottom = tokens.tabBarHeightDp.dp)" in shell, "Native page viewport must reserve the active Skin tab-bar height"
+assert "tabBarHeightDp = 60" in tokens, "ClassicWebCompat 60dp tab-bar token missing"
+assert "tabBarHeightDp = 72" in tokens, "FXLiquidNative 72dp tab-bar token missing"
+assert "tabBarHeightDp = 68" in tokens, "MiuixStyle 68dp tab-bar token missing"
+assert "tabBarHeightDp = HarmonySkinTokens.HarmonySpacingTokens.NAV_HEIGHT_DP" in tokens
+assert "NAV_HEIGHT_DP = 72" in harmony_tokens, "HarmonyStyle 72dp tab-bar token missing"
+assert "tabBarHeightDp = CupertinoSkinTokens.CupertinoSpacingTokens.NAV_HEIGHT_DP" in tokens
+assert "NAV_HEIGHT_DP = 76" in cupertino_tokens, "CupertinoStyle 76dp tab-bar token missing"
 assert "index < 0 || index > 5" in tab_host, "Native tab host must reject indices outside 0..5"
 assert "Math.max(0, Math.min(5, selectedIndex))" in tab_host, "Native tab host must clamp selected index to six destinations"
-assert "handleImportedNativeTabIntent" in main and "tab >= 0 && tab <= 5" in main, "Native pages must route back to the fixed six-tab MainActivity"
+assert "handleNativeTabIntent" in main and "tab >= 0 && tab <= 5" in main, "Native pages must route back to the fixed six-tab MainActivity"
 for token in ("if (index == 5)", "else if (index == 4)", "else if (index >= 0 && index <= 3)"):
     assert token in main, f"MainActivity top-level tab route missing: {token}"
 declared = {
