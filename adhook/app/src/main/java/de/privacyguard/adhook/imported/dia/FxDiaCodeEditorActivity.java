@@ -29,8 +29,8 @@ public final class FxDiaCodeEditorActivity extends de.privacyguard.adhook.FxNati
     public static final int RESULT_CODE_EDITOR = 0x3039;
     public static final String EXTRA_CODE = "code";
     public static final String EXTRA_LANGUAGE = "language";
-
-    private static final int MAX_SOURCE_BYTES = 48 * 1024;
+    public static final String EXTRA_SOURCE_FILE = "source_file";
+    private static final String STATE_DRAFT_SAVED = "fx_dia_code_editor_draft_saved";
     private static final int EDITOR_VIEW_ID = 0x00f3039;
     private static final String STATE_SOURCE = "fx_dia_code_editor_source";
     private static final String STATE_BASELINE = "fx_dia_code_editor_baseline";
@@ -73,17 +73,24 @@ public final class FxDiaCodeEditorActivity extends de.privacyguard.adhook.FxNati
         super.onCreate(state);
 
         String intentSource = getIntent() == null ? null : getIntent().getStringExtra(EXTRA_CODE);
-        String source = state == null ? intentSource : state.getString(STATE_SOURCE, intentSource);
-        if (source == null) source = "";
-        if (utf8Length(source) > MAX_SOURCE_BYTES) {
-            Toast.makeText(this, "代码超过 48 KiB，当前编辑器拒绝载入以避免 Activity 状态和内存异常。", Toast.LENGTH_LONG).show();
-            setResult(RESULT_CANCELED);
-            finish();
-            return;
+        String sourceFile = getIntent() == null ? null : getIntent().getStringExtra(EXTRA_SOURCE_FILE);
+        String source;
+        try {
+            if (sourceFile != null) {
+                String draftFile = FxDiaCodeEditorTransfer.sibling(this, sourceFile, ".draft");
+                String original = FxDiaCodeEditorTransfer.read(this, sourceFile, ".source");
+                source = state != null && state.getBoolean(STATE_DRAFT_SAVED, false)
+                        ? FxDiaCodeEditorTransfer.read(this, draftFile, ".draft") : original;
+                initialCode = original;
+            } else {
+                source = intentSource == null ? "" : intentSource;
+                if (state != null) source = state.getString(STATE_SOURCE, source);
+                initialCode = state == null ? source : state.getString(STATE_BASELINE, source);
+            }
+        } catch (Exception error) {
+            Toast.makeText(this, "读取编辑器源码失败：" + error.getClass().getSimpleName(), Toast.LENGTH_LONG).show();
+            setResult(RESULT_CANCELED); finish(); return;
         }
-        initialCode = state == null
-                ? source
-                : state.getString(STATE_BASELINE, intentSource == null ? source : intentSource);
         if (initialCode == null) initialCode = source;
 
         LinearLayout root = new LinearLayout(this);
@@ -127,14 +134,18 @@ public final class FxDiaCodeEditorActivity extends de.privacyguard.adhook.FxNati
 
     private void saveAndReturn() {
         String source = currentSource();
-        if (utf8Length(source) > MAX_SOURCE_BYTES) {
-            Toast.makeText(this, "代码超过 48 KiB，不能回传到 Frida 页面。", Toast.LENGTH_LONG).show();
-            return;
-        }
         Intent result = new Intent();
-        result.putExtra(EXTRA_CODE, source);
-        setResult(RESULT_CODE_EDITOR, result);
-        finish();
+        String sourceFile = getIntent() == null ? null : getIntent().getStringExtra(EXTRA_SOURCE_FILE);
+        try {
+            if (sourceFile != null) {
+                String resultFile = FxDiaCodeEditorTransfer.sibling(this, sourceFile, ".result");
+                FxDiaCodeEditorTransfer.write(this, resultFile, source);
+                result.putExtra(EXTRA_SOURCE_FILE, resultFile);
+            } else result.putExtra(EXTRA_CODE, source);
+            setResult(RESULT_CODE_EDITOR, result); finish();
+        } catch (Exception error) {
+            Toast.makeText(this, "保存编辑源码失败：" + error.getClass().getSimpleName(), Toast.LENGTH_LONG).show();
+        }
     }
 
     @Override public void onBackPressed() {
@@ -158,10 +169,27 @@ public final class FxDiaCodeEditorActivity extends de.privacyguard.adhook.FxNati
 
     @Override protected void onSaveInstanceState(Bundle outState) {
         String source = currentSource();
-        if (utf8Length(source) <= MAX_SOURCE_BYTES) {
+        String sourceFile = getIntent() == null ? null : getIntent().getStringExtra(EXTRA_SOURCE_FILE);
+        if (sourceFile != null) {
+            try {
+                String draftFile = FxDiaCodeEditorTransfer.sibling(this, sourceFile, ".draft");
+                FxDiaCodeEditorTransfer.write(this, draftFile, source);
+                outState.putBoolean(STATE_DRAFT_SAVED, true);
+            } catch (Exception error) { outState.putBoolean(STATE_DRAFT_SAVED, false); }
+        } else {
             outState.putString(STATE_SOURCE, source);
             outState.putString(STATE_BASELINE, initialCode);
         }
         super.onSaveInstanceState(outState);
+    }
+
+    @Override protected void onDestroy() {
+        String sourceFile = getIntent() == null ? null : getIntent().getStringExtra(EXTRA_SOURCE_FILE);
+        if (isFinishing() && !isChangingConfigurations() && sourceFile != null) {
+            FxDiaCodeEditorTransfer.delete(this, sourceFile);
+            try { FxDiaCodeEditorTransfer.delete(this, FxDiaCodeEditorTransfer.sibling(this, sourceFile, ".draft")); }
+            catch (Exception ignored) { }
+        }
+        super.onDestroy();
     }
 }

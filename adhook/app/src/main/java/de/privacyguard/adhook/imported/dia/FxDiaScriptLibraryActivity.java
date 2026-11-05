@@ -37,6 +37,7 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
     private static final int REQUEST_IMPORT = 0x3a12;
     private static final int REQUEST_EXPORT = 0x3a13;
     private static final String STATE_EDITING_NAME = "fx_dia_script_library_editing_name";
+    private static final String STATE_EDITOR_SOURCE_FILE = "fx_dia_script_library_editor_source_file";
     private static final String STATE_EDITOR_REQUEST_PENDING = "fx_dia_script_library_editor_request_pending";
     private static final String STATE_IMPORT_REQUEST_PENDING = "fx_dia_script_library_import_request_pending";
     private static final String STATE_EXPORT_REQUEST_PENDING = "fx_dia_script_library_export_request_pending";
@@ -61,6 +62,7 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
     private boolean restoreScrollPending;
     private JSONObject scripts = new JSONObject();
     private String editingName;
+    private String editorSourceFile;
     private boolean editorRequestPending;
     private boolean importRequestPending;
     private boolean exportRequestPending;
@@ -124,6 +126,7 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
         super.onCreate(state);
         if (state != null) {
             editingName = state.getString(STATE_EDITING_NAME);
+            editorSourceFile = state.getString(STATE_EDITOR_SOURCE_FILE);
             editorRequestPending = state.getBoolean(STATE_EDITOR_REQUEST_PENDING, false);
             importRequestPending = state.getBoolean(STATE_IMPORT_REQUEST_PENDING, false);
             exportRequestPending = state.getBoolean(STATE_EXPORT_REQUEST_PENDING, false);
@@ -322,13 +325,16 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
 
     private void openEditor(String name, String source) {
         Intent intent = new Intent(this, FxDiaCodeEditorActivity.class);
-        intent.putExtra(FxDiaCodeEditorActivity.EXTRA_CODE, source);
         intent.putExtra(FxDiaCodeEditorActivity.EXTRA_LANGUAGE, "javascript");
         editingName = name;
         editorRequestPending = true;
         try {
+            editorSourceFile = FxDiaCodeEditorTransfer.create(this, source);
+            intent.putExtra(FxDiaCodeEditorActivity.EXTRA_SOURCE_FILE, editorSourceFile);
             startActivityForResult(intent, REQUEST_EDITOR);
-        } catch (RuntimeException error) {
+        } catch (Exception error) {
+            FxDiaCodeEditorTransfer.delete(this, editorSourceFile);
+            editorSourceFile = null;
             editorRequestPending = false;
             editingName = null;
             setStatus("无法打开 JavaScript 编辑器：" + detail(error));
@@ -394,35 +400,38 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
                 return;
             }
             editorRequestPending = false;
-            if (resultCode != FxDiaCodeEditorActivity.RESULT_CODE_EDITOR || data == null) {
-                editingName = null;
-                setStatus("编辑器未保存，脚本库保持不变。");
-                return;
-            }
             final String name = editingName;
+            final String sourceFile = editorSourceFile;
+            editorSourceFile = null;
             editingName = null;
-            final String source = data.getStringExtra(FxDiaCodeEditorActivity.EXTRA_CODE);
-            if (name == null || name.trim().isEmpty()) {
-                setStatus("编辑器返回时没有有效的脚本名称，未保存。");
-                return;
+            if (resultCode != FxDiaCodeEditorActivity.RESULT_CODE_EDITOR || data == null) {
+                FxDiaCodeEditorTransfer.delete(this, sourceFile);
+                setStatus("编辑器未保存，脚本库保持不变。"); return;
             }
-            String validation = FxDiaScriptLibraryPolicy.validateSource(source);
-            if (validation != null) {
-                setStatus(validation + " 脚本库保持不变。");
-                return;
+            final String resultFile = data.getStringExtra(FxDiaCodeEditorActivity.EXTRA_SOURCE_FILE);
+            if (name == null || name.trim().isEmpty()) {
+                FxDiaCodeEditorTransfer.delete(this, sourceFile);
+                FxDiaCodeEditorTransfer.delete(this, resultFile);
+                setStatus("编辑器返回时没有有效的脚本名称，未保存。"); return;
             }
             submitIo(() -> {
                 try {
+                    String source = resultFile == null ? data.getStringExtra(FxDiaCodeEditorActivity.EXTRA_CODE)
+                            : FxDiaCodeEditorTransfer.read(this, resultFile, ".result");
+                    String validation = FxDiaScriptLibraryPolicy.validateSource(source);
+                    if (validation != null) throw new IllegalArgumentException(validation);
                     FxDiaScriptLibraryStore.save(this, name, source);
                     JSONObject loaded = FxDiaScriptLibraryStore.read(this);
                     runOnUiThread(() -> {
                         if (isFinishing() || isDestroyed()) return;
-                        scripts = loaded;
-                        renderRows();
+                        scripts = loaded; renderRows();
                         setStatus("已保存脚本：“" + name + "”。尚未执行或注入。");
                     });
                 } catch (Throwable error) {
                     runOnUiThread(() -> setStatus("保存脚本失败：" + detail(error)));
+                } finally {
+                    FxDiaCodeEditorTransfer.delete(this, sourceFile);
+                    FxDiaCodeEditorTransfer.delete(this, resultFile);
                 }
             });
             return;
@@ -561,6 +570,7 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
 
     @Override protected void onSaveInstanceState(Bundle out) {
         if (editingName != null) out.putString(STATE_EDITING_NAME, editingName);
+        if (editorSourceFile != null) out.putString(STATE_EDITOR_SOURCE_FILE, editorSourceFile);
         out.putBoolean(STATE_EDITOR_REQUEST_PENDING, editorRequestPending);
         out.putBoolean(STATE_IMPORT_REQUEST_PENDING, importRequestPending);
         out.putBoolean(STATE_EXPORT_REQUEST_PENDING, exportRequestPending);
@@ -580,7 +590,10 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
     }
 
     @Override protected void onDestroy() {
-        if (isFinishing() && !isChangingConfigurations()) clearPendingImportUri();
+        if (isFinishing() && !isChangingConfigurations()) {
+            clearPendingImportUri();
+            FxDiaCodeEditorTransfer.delete(this, editorSourceFile);
+        }
         worker.shutdownNow();
         super.onDestroy();
     }
