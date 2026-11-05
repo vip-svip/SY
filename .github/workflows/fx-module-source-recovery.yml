@@ -96,24 +96,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # If the recovery PR branch already exists, merge the newest shared
-          # integration HEAD into it. This refreshes the PR's merge base without
-          # force-pushing or discarding commits made by parallel agents.
-          if git ls-remote --exit-code --heads origin fx-module-source-recovery >/dev/null 2>&1; then
-            git fetch origin \
-              "+refs/heads/$GITHUB_REF_NAME:refs/remotes/origin/$GITHUB_REF_NAME" \
-              "+refs/heads/fx-module-source-recovery:refs/remotes/origin/fx-module-source-recovery"
-            source_sha="$(git rev-parse origin/fx-module-source-recovery)"
-            # Use the latest integration tree as the first parent and prefer it
-            # for any same-path conflict. The recovered branch contributes only
-            # files absent from the current source tree, preventing stale release
-            # copies from overwriting newer work already merged by other agents.
-            git checkout -B fx-module-source-recovery "origin/$GITHUB_REF_NAME"
-            git merge --allow-unrelated-histories -X ours --no-edit origin/fx-module-source-recovery
-            git push --force-with-lease="refs/heads/fx-module-source-recovery:$source_sha" \
-              origin "HEAD:refs/heads/fx-module-source-recovery"
-            echo "::notice::Merged the latest shared integration HEAD into fx-module-source-recovery."
-            exit 0
+          # Keep the historical recovery branch untouched: it predates the
+          # integration branch and has unrelated Git history. Publish the
+          # recovered source on a dedicated PR branch rooted at the current
+          # integration HEAD, preserving normal fast-forward ancestry.
+          recovery_branch=fx-module-source-recovery-integration
+          git fetch origin "+refs/heads/$GITHUB_REF_NAME:refs/remotes/origin/$GITHUB_REF_NAME"
+          if git ls-remote --exit-code --heads origin "$recovery_branch" >/dev/null 2>&1; then
+            git fetch origin "+refs/heads/$recovery_branch:refs/remotes/origin/$recovery_branch"
+            git checkout -B "$recovery_branch" "origin/$recovery_branch"
+            git merge --no-edit "origin/$GITHUB_REF_NAME"
+          else
+            git checkout -B "$recovery_branch" "origin/$GITHUB_REF_NAME"
           fi
           mkdir -p docs/fx-module-recovery
           for file in BIN-MANIFEST.txt RELEASE-ARCHIVE-SHA256.txt SOURCE-SHA256SUMS.txt SOURCE-ORIGIN.txt; do
@@ -126,12 +120,11 @@ jobs:
           cp -a recovered-fx-module/. fx-module/
           git add fx-module docs/fx-module-recovery
           if git diff --cached --quiet; then
-            echo "Recovered module source already matches the branch."
+            echo "Recovered module source already matches the integration PR branch."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "chore(module): restore canonical FX 1.0.0 runtime sources"
-          # Isolate the large source import from concurrent commits to the shared target.
-          git push origin "HEAD:refs/heads/fx-module-source-recovery"
-          echo "::notice::Source branch published. Open/review the integration PR separately."
+          git push origin "HEAD:refs/heads/$recovery_branch"
+          echo "::notice::Recovered source published to $recovery_branch for review."
