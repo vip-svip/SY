@@ -4970,3 +4970,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 源码提交：`d94938201a6851e04c0747577eccf73ac856232f`；回归提交：`22f1872345a64356293f0a0c90bfa0c411d06c9e`。
 - 验证状态：GitHub 写入 API 已成功提交两项源码变更；对应 Host regression 等待 GitHub Actions 执行。尚未声称 Android Gradle 构建、设备运行或真机 Hook 验证通过。
 - 下一批：复核 Frida 8 MiB runtime transport 的真实命令/内存边界，采用文件流/分块方案替代纯粹删除保护；继续补齐 VPN 内核数据面和本地 DNS 的设备级验收路径。
+
+## 2026-11-05 — Frida Root 源码传输改为文件流，移除 8 MiB 硬上限
+
+- `RootAccess` 新增 `InputStream` 输入重载，Root stdin writer 按 64 KiB 块读取并转发，不再将完整脚本复制成第二个 byte[]；旧 byte[] API 保留为兼容重载。Root shell 命令自身的 128 KiB 命令长度校验保留，避免把脚本正文嵌入 shell 命令。
+- Dia Frida Gadget attach 与 frida-inject 改为先将源码以 UTF-8 分块写入 FX 应用私有 cache 临时文件，再通过 `FileInputStream` 传给 RootAccess；文件名随机、父目录校验、输入文件身份校验、队列拒绝/执行完成/Activity 销毁均清理暂存文件。
+- 移除运行时 8 MiB 脚本上限，以及弹窗移除模板生成路径复用该常量形成的隐藏上限。保留空脚本/NUL 拒绝、目标包/UID/debuggable 验证、固定 Root 命令、原子目标文件替换和用户手动执行确认。
+- 代码提交：RootAccess `986b58e289ceafb06c6bbe343d5bdf7693e5d4b3`；Frida Activity `6bb4ddb50142131dc7e9e828c99a833eefd2af42`。测试提交：Gadget `b890edcde27e65d1e825522d7f73d92fe48bc524`；进程身份 `c2f6aeaac7d1e86bab6bcbae6d62a7d9c96ae357`。
+- 验证状态：GitHub 源码提交成功；对应 Targeted Host Regression 由最后一个测试提交触发，尚待读取执行结果。没有声称 Android Gradle 构建、Frida 真注入或真机测试通过。
+- 说明：不设人为脚本字节上限不代表设备存储/内存无限；编辑器仍持有当前文本，磁盘空间、Android 进程内存、Root 超时和目标 Frida CLI 能力是实际资源约束，UI 不应再将 8 MiB 宣称为产品限制。
