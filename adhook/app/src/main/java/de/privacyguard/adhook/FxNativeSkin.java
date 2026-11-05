@@ -45,6 +45,7 @@ public final class FxNativeSkin {
     private static final WeakHashMap<View, FxUiMode> BUTTON_SKINS = new WeakHashMap<>();
     private static final WeakHashMap<View, FxUiMode> SWITCH_SKINS = new WeakHashMap<>();
     private static final WeakHashMap<View, FxUiMode> FORM_SKINS = new WeakHashMap<>();
+    private static final WeakHashMap<View, FxUiMode> SEEK_BAR_SKINS = new WeakHashMap<>();
     // Tagged component renderers run from the debounced global-layout walker.
     // Cache the last (mode, role) to avoid replacing Drawables on every layout.
     private static final WeakHashMap<View, String> TAGGED_COMPONENT_SKINS = new WeakHashMap<>();
@@ -349,6 +350,10 @@ public final class FxNativeSkin {
             applySpinnerSkin(activity, (Spinner) view, mode, palette);
         }
 
+        if (view instanceof android.widget.SeekBar) {
+            applySeekBarSkin((android.widget.SeekBar) view, mode, palette);
+        }
+
         // Switch, CheckBox and RadioButton can also match the generic Button
         // inheritance check. Dispatch the specialized controls first so their
         // thumb/track or button tint adapters are actually reached.
@@ -468,6 +473,24 @@ public final class FxNativeSkin {
         control.setMinimumHeight(Math.max(control.getMinimumHeight(),
                 Math.round(palette.inputMinHeightDp * density)));
         tintKnownFormBackground(control, palette);
+    }
+
+    private static void applySeekBarSkin(android.widget.SeekBar control,
+                                         FxUiMode mode, Palette palette) {
+        synchronized (SEEK_BAR_SKINS) {
+            if (SEEK_BAR_SKINS.get(control) == mode) return;
+            SEEK_BAR_SKINS.put(control, mode);
+        }
+        int[][] states = new int[][] {
+                new int[] { android.R.attr.state_enabled },
+                new int[] {}
+        };
+        control.setProgressTintList(new ColorStateList(
+                states, new int[] { palette.accent, palette.switchOffTrack }));
+        control.setProgressBackgroundTintList(new ColorStateList(
+                states, new int[] { palette.inputBorder, palette.switchOffTrack }));
+        control.setThumbTintList(new ColorStateList(
+                states, new int[] { palette.accent, palette.switchOffTrack }));
     }
 
     private static void tintKnownFormBackground(View control, Palette palette) {
