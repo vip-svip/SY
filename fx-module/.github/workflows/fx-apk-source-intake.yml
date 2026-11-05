@@ -1,0 +1,88 @@
+name: FX APK source intake
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type EXTRACT to download and inspect all five Release ZIPs"
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: write
+jobs:
+  intake:
+    if: ${{ inputs.confirm == 'EXTRACT' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout FX branch
+        uses: actions/checkout@v4
+        with:
+          ref: fx-v1.0.0-unified-hook-integration
+      - name: Download, verify and safely extract all five archives
+        env:
+          APK_ACCESS_TOKEN: ${{ secrets.APK_ACCESS_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$APK_ACCESS_TOKEN" || { echo "APK_ACCESS_TOKEN secret is missing"; exit 1; }
+          mkdir -p intake
+          download_asset() {
+            local id="$1" name="$2" expected="$3"
+            curl --fail --silent --show-error --location \
+              -H "Accept: application/octet-stream" \
+              -H "Authorization: Bearer ${APK_ACCESS_TOKEN}" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/vip-svip/APK/releases/assets/${id}" \
+              -o "intake/${name}"
+            echo "${expected}  intake/${name}" | sha256sum --check -
+          }
+          download_asset 703364725 Dia_23.11_src.zip c6bd92b62ee0cd197f6cef86227c3f644450ab04b1f7b00654b97a29a71e07e7
+          download_asset 703362245 _7.0.1_src.zip 836288c4278aaceda8fc40237539c65a8f8fef0e746fa336c3c263940ce89f02
+          download_asset 703363287 _9.9.60_src.zip c92853041383bb420472e97da9e3e35b33de24faf29be39d04f2312ce673512a
+          download_asset 711054121 _10.10.62_src.zip f21eeccfa00084c7295ee3682aa4048d1d3c0ec0f3057caf7dbbe504be675026
+          download_asset 711053284 GKD-XA_1.4.8_src.zip 9e9881cf8e5895a13e147888671ff0f550946ddde44c06852163e6e294cc5757
+          python3 - <<'PY'
+          import pathlib, zipfile
+          base = pathlib.Path("intake")
+          for archive in base.glob("*.zip"):
+              dest = base / (archive.stem + "_extracted")
+              dest.mkdir(exist_ok=True)
+              with zipfile.ZipFile(archive) as z:
+                  for item in z.infolist():
+                      target = (dest / item.filename).resolve()
+                      if not target.is_relative_to(dest.resolve()):
+                          raise SystemExit(f"Unsafe ZIP path rejected: {item.filename}")
+                  z.extractall(dest)
+              print(f"EXTRACTED: {archive.name} -> {dest}")
+          PY
+      - name: Build source inventory and UI audit hints
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import pathlib, re
+          root = pathlib.Path("intake")
+          out = ["# FX APK source intake report", "", "All five release archives were downloaded and SHA-256 verified before extraction.", ""]
+          markers = {"settings.gradle", "settings.gradle.kts", "build.gradle", "build.gradle.kts", "AndroidManifest.xml", "gradlew", "pom.xml", "package.json"}
+          for folder in sorted(p for p in root.iterdir() if p.is_dir() and p.name.endswith("_extracted")):
+              files = [p for p in folder.rglob("*") if p.is_file()]
+              out += [f"## {folder.name}", f"- Files: {len(files)}", f"- Total bytes: {sum(p.stat().st_size for p in files):,}", ""]
+              out.append("### Project/build/manifest markers")
+              hits = [p for p in files if p.name in markers or p.suffix.lower() in {".kt", ".java", ".xml", ".gradle", ".kts"} and p.name == "AndroidManifest.xml"]
+              out += [f"- `{p.relative_to(folder)}`" for p in hits[:500]] or ["- No common Android project markers found."]
+              out += ["", "### Likely UI source files"]
+              ui = [p for p in files if p.suffix.lower() in {".kt", ".java", ".xml", ".dart", ".tsx", ".jsx"} and re.search(r"(activity|fragment|screen|page|setting|preference|dialog|view|navigation|main)", p.name, re.I)]
+              out += [f"- `{p.relative_to(folder)}`" for p in ui[:500]] or ["- No filename-based UI hints found."]
+              out.append("")
+          pathlib.Path("intake-report.md").write_text("\n".join(out), encoding="utf-8")
+          PY
+          cat intake-report.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload extracted sources for follow-up processing
+        uses: actions/upload-artifact@v4
+        with:
+          name: fx-apk-source-intake
+          path: |
+            intake/*_extracted/
+            intake-report.md
+          if-no-files-found: error
+          retention-days: 14
