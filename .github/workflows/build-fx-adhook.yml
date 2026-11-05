@@ -1,6 +1,9 @@
 name: Validate FX APP migration and build Hook APK
 
 on:
+  push:
+    branches:
+      - fx-v1.0.0-unified-hook-integration
   workflow_dispatch:
     inputs:
       migration_complete:
