@@ -32,6 +32,14 @@ if [ "$VPN_MODE" = "tun" ] && { [ "$_PG_VPN_INTERCEPTION_BLOCKED" = "1" ] || [ -
 fi
 VPN_ON=0
 VPN_LP=""
+# ---------- 2c. VPN 透明代理（nat PGVPN + filter PGKS/PGBLK6）----------
+if [ "$VPN_ON" = "1" ]; then
+  : # PGVPN REDIRECT fixture
+fi
+if [ "$VPN_ON" = "1" ]; then
+  : # PGVPN6 REDIRECT fixture
+fi
+# ---------- 2c-2. 直连模式零接管收尾 ----------
 # ---------- 独立第三方 VPN 隐藏（FX 直连模式也可用） ----------
 APPLY
 cat > "$MOD/scripts/status.sh" <<'STATUS'
@@ -53,6 +61,8 @@ grep -Fq 'case "${PG_VPN_MODE_OVERRIDE:-}" in' "$MOD/scripts/vpncore.sh" || fail
 [ "$(grep -Fc '$(vpncore_effective_mode)' "$MOD/scripts/vpncore.sh")" -eq 6 ] || fail "not all six vpncore mode reads use the effective mode helper"
 ! grep -Fq '$(vpncore_effective_mode())' "$MOD/scripts/vpncore.sh" || fail "vpncore invokes a POSIX shell function with invalid parentheses"
 grep -Fq 'PG_VPN_MODE_OVERRIDE=$VPN_MODE' "$MOD/scripts/apply.sh" || fail "apply does not pass the effective mode to vpncore"
+grep -Fq 'if [ "$VPN_ON" = "1" ] && [ "$VPN_MODE" != "tun" ]; then' "$MOD/scripts/apply.sh" || fail "legacy PGVPN REDIRECT chain remains enabled in TUN mode"
+[ "$(grep -Fc 'if [ "$VPN_ON" = "1" ] && [ "$VPN_MODE" != "tun" ]; then' "$MOD/scripts/apply.sh")" -eq 2 ] || fail "both IPv4 and IPv6 REDIRECT chains must be excluded in TUN mode"
 grep -Fq 'external_android_vpn_tun_to_redirect' "$MOD/scripts/apply.sh" || fail "fallback reason is not recorded"
 grep -Fq '"vpn_effective_mode":"%s"' "$MOD/scripts/status.sh" || fail "status JSON omits effective VPN mode"
 grep -Fq '"vpn_mode_fallback_reason":"%s"' "$MOD/scripts/status.sh" || fail "status JSON omits fallback reason"
