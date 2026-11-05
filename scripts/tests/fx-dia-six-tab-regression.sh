@@ -56,9 +56,9 @@ for filename, component in pages.items():
     assert "extends de.privacyguard.adhook.FxNativeTabActivity {" in source, (
         f"{filename}: page must use shared six-tab Activity host"
     )
-    expected_tab = 4 if filename == "FxDiaGlobalSettingsActivity.java" else 5
+    expected_tab = 4
     assert f"setContentViewWithNativeTabs(root, {expected_tab});" in source, (
-        f"{filename}: page must install shared native tab shell for its FX business destination"
+        f"{filename}: page must install shared native tab shell for its Hook business destination"
     )
     assert "setContentView(root);" not in source, (
         f"{filename}: page bypasses shared native tab shell"
