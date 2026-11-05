@@ -146,12 +146,13 @@ for token in (
     "sourceRules.length() > MAX_RULES",
     "isInstalledUserApplication(context, packageName)",
     "FxGkdSelectorEngine.compile(selector).isValid",
-    "known.add(packageName +" in store and r"\u0000" in store, "package-selector deduplication must use an unambiguous separator",
+    "known.add(packageName +",
     "enabled = false",
     "writeRules(context, merged)",
     "规则写入失败，原有规则保持不变。",
 ):
     assert token in store, f"safe GKD JSON transfer contract missing: {token}"
+assert r"\u0000" in store, "package-selector deduplication must use an unambiguous separator"
 import_start = store.index("fun importJson(context: Context, raw: String)")
 import_end = store.index("private fun isInstalledUserApplication", import_start)
 import_body = store[import_start:import_end]
