@@ -235,8 +235,50 @@ fi
 '''
 
 
+INSTALLER_ANCHORS = (
+    '_overlay_apk="$MODDIR/system/app/FX/FX.apk"',
+    "refusing ordinary-app fallback",
+    "pm list packages -s",
+)
+
+
+def sync_packaged_installer(root: Path) -> None:
+    """Keep the packaged module scripts identical to the tracked sources.
+
+    The KernelSU payload is restored from a previously published archive whose
+    installer predates install-time system-app deployment. Shipping that copy
+    silently drops the system-app overlay preference on the device, so the
+    packaged copies are re-synced from the tracked canonical scripts before the
+    stage is applied.
+    """
+    repo_root = root.parent if root.name == "fx-module" else root
+    canonical_dir = repo_root / "scripts"
+    target_dir = root / "scripts"
+    if target_dir.resolve() == canonical_dir.resolve():
+        return
+    if not canonical_dir.is_dir():
+        raise SystemExit("canonical scripts directory is missing; refusing to package a stale installer")
+    target_dir.mkdir(parents=True, exist_ok=True)
+    for name in ("install_adhook_app.sh", "remove_adhook_app.sh"):
+        canonical = canonical_dir / name
+        if not canonical.is_file() or canonical.stat().st_size == 0:
+            raise SystemExit(f"canonical {name} is missing; refusing to package a stale copy")
+        payload = canonical.read_text(encoding="utf-8")
+        if name == "install_adhook_app.sh":
+            for anchor in INSTALLER_ANCHORS:
+                if anchor not in payload:
+                    raise SystemExit(
+                        f"canonical installer lost the system-app overlay contract: {anchor!r}"
+                    )
+        target = target_dir / name
+        if target.is_file() and target.read_text(encoding="utf-8") == payload:
+            continue
+        target.write_text(payload, encoding="utf-8")
+
+
 def main() -> None:
     root = Path(sys.argv[1] if len(sys.argv) > 1 else "fx-module")
+    sync_packaged_installer(root)
     customize = root / "customize.sh"
     if not customize.is_file():
         raise SystemExit("FX customize.sh is missing")
