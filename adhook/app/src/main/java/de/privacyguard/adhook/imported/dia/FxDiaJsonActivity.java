@@ -76,7 +76,7 @@ public final class FxDiaJsonActivity extends de.privacyguard.adhook.FxNativeTabA
         LinearLayout header = new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(10), dp(6), dp(12), dp(6));
         header.addView(button("‹ 返回", this::finish));
-        header.addView(text("Dia 23.11 · JSON 操作", 18, 0xff17212b, true), new LinearLayout.LayoutParams(0, -2, 1));
+        header.addView(text("Hook · JSON 操作", 18, 0xff17212b, true), new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
         ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
         LinearLayout body = new LinearLayout(this); body.setOrientation(1); body.setPadding(0, dp(4), 0, dp(18));
