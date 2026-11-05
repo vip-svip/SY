@@ -12,6 +12,8 @@ on:
       - 'adhook/fx-gkd-selector/**'
       - 'adhook/app/build.gradle'
       - 'adhook/app/src/test/**'
+      - 'adhook/fx-gkd-selector/**'
+      - 'adhook/fx-gkd-selector/**'
       - '.github/workflows/fx-gkd-selector-compile.yml'
   pull_request:
     branches:
@@ -60,10 +62,23 @@ jobs:
           test -s vendor/GKD-XA/LICENSE
           grep -qi 'GNU GENERAL PUBLIC LICENSE' vendor/GKD-XA/LICENSE
           echo "GKD-XA source pinned: $actual (GPL-3.0)"
-      - name: Compile and test only the selector JVM adapter
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-37.0 build-tools;36.0.0
+      - name: Normalize Android 17 platform path for Android Gradle Plugin
         shell: bash
         run: |
           set -euo pipefail
-          gradle --no-daemon -p adhook \
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          if [[ -d "$sdk_root/platforms/android-37.0" && ! -e "$sdk_root/platforms/android-37" ]]; then
+            ln -s android-37.0 "$sdk_root/platforms/android-37"
+          fi
+          test -s "$sdk_root/platforms/android-37/android.jar"
+      - name: Compile selector, run upstream tests, and compile FX APK Kotlin
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon -Pandroid.useAndroidX=true -p adhook \
             :fx-gkd-selector:compileKotlinJvm \
-            :fx-gkd-selector:jvmTest
+            :fx-gkd-selector:jvmTest \
+            :app:compileDebugKotlin
