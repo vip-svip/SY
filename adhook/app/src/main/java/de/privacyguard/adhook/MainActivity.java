@@ -191,7 +191,7 @@ public final class MainActivity extends ComponentActivity {
     private volatile Thread hookRootCheckThread;
     private int hookRootCheckGeneration;
     // Legacy migration navigation state is ignored; Settings is no longer a source-app hub.
-    private String uiMode = "classic";
+    private String uiMode = "default";
     private int selectedBottomTab = 0;
     private int lastWebTabIndex = 0;
     private boolean nativeVpnAppManagerVisible;
@@ -3057,7 +3057,7 @@ public final class MainActivity extends ComponentActivity {
 
     private void styleBottomItem(TextView item, int index) {
         boolean selected = index == selectedBottomTab;
-        int accent = "glass".equals(uiMode) ? 0xff276b9a : "miuix".equals(uiMode) ? 0xff3478f6 : 0xff1769aa;
+        int accent = "default".equals(uiMode) ? 0xff315b9a : "glass".equals(uiMode) ? 0xff276b9a : "miuix".equals(uiMode) ? 0xff3478f6 : 0xff1769aa;
         item.setTextColor(selected ? accent : 0xff526170);
         item.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
     }
@@ -4574,6 +4574,7 @@ public final class MainActivity extends ComponentActivity {
         // Keep native page containers transparent so the shared Compose shell can
         // show the user's wallpaper beneath every primary tab and imported page.
         if (FxWallpaperStore.currentPath(this) != null) return 0x00000000;
+        if ("default".equals(uiMode)) return 0xfff7f8fc;
         if ("miuix".equals(uiMode)) return 0xfff3f5fa;
         if ("glass".equals(uiMode)) return 0xffe8eef4;
         if ("huawei".equals(uiMode)) return HarmonySkinTokens.HarmonyColorTokens.BACKGROUND;
@@ -4581,6 +4582,7 @@ public final class MainActivity extends ComponentActivity {
         return 0xfff4f6f8;
     }
     private int uiSurfaceColor() {
+        if ("default".equals(uiMode)) return 0xffffffff;
         if ("miuix".equals(uiMode)) return 0xffeaf0fb;
         if ("glass".equals(uiMode)) return 0xddefffff;
         if ("huawei".equals(uiMode)) return HarmonySkinTokens.HarmonyColorTokens.SURFACE;
@@ -4588,6 +4590,7 @@ public final class MainActivity extends ComponentActivity {
         return 0xffffffff;
     }
     private int uiPrimaryTextColor() {
+        if ("default".equals(uiMode)) return 0xff1c2938;
         if ("glass".equals(uiMode)) return 0xff24394c;
         if ("miuix".equals(uiMode)) return 0xff202b3c;
         if ("huawei".equals(uiMode)) return HarmonySkinTokens.HarmonyColorTokens.PRIMARY_TEXT;
@@ -4598,10 +4601,12 @@ public final class MainActivity extends ComponentActivity {
         if ("huawei".equals(uiMode)) return HarmonySkinTokens.HarmonyColorTokens.SECONDARY_TEXT;
         if ("ios".equals(uiMode)) return CupertinoSkinTokens.CupertinoColorTokens.SECONDARY_TEXT;
         if ("miuix".equals(uiMode) || "glass".equals(uiMode)) return 0xff718091;
+        if ("default".equals(uiMode)) return 0xff647386;
         return 0xff66727e;
     }
     private GradientDrawable roundedDrawable(int color, int strokeColor) {
-        int radius = "glass".equals(uiMode) ? 24
+        int radius = "default".equals(uiMode) ? 18
+                : "glass".equals(uiMode) ? 24
                 : "miuix".equals(uiMode) ? 20
                 : "huawei".equals(uiMode) ? HarmonySkinTokens.HarmonyShapeTokens.CARD_RADIUS_DP
                 : "ios".equals(uiMode) ? CupertinoSkinTokens.CupertinoShapeTokens.CARD_RADIUS_DP : 8;
