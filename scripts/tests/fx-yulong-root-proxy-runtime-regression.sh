@@ -99,7 +99,9 @@ case "${3:-}" in
     printf '%s\n' "${7:-}" >> "$MOCK_HOOKS4"; exit 0 ;;
   -D)
     [ "${4:-}" = OUTPUT ] && [ "${5:-}" = -j ] || exit 64
-    chain=${6:-}; grep -Fxq "$chain" "$MOCK_HOOKS4" || exit 1
+    chain=${6:-}
+    [ "${MOCK_FAIL_IPV4_DETACH:-0}" = 1 ] && [ "$chain" = FXYRP4_A ] && exit 1
+    grep -Fxq "$chain" "$MOCK_HOOKS4" || exit 1
     tmp="$MOCK_HOOKS4.tmp.$$"; grep -Fxv "$chain" "$MOCK_HOOKS4" > "$tmp" || :; mv -f "$tmp" "$MOCK_HOOKS4"; exit 0 ;;
   *) echo "unexpected iptables invocation: $*" >&2; exit 64 ;;
 esac
@@ -307,6 +309,19 @@ status_out=$(run_status "$CASE_DIR")
 printf '%s\n' "$status_out" | grep -Fqx dns_filter_coverage=port53_redirect_active || fail "Private DNS off coverage was not reported"
 
 
+# If iptables refuses to detach an active OUTPUT jump, retain metadata and
+# keep its local DNS target alive; a later stop must be able to retry safely.
+prepare_case cleanup-detach-retry
+run_proxy "$CASE_DIR" >/dev/null || fail "detach retry setup failed"
+if run_stop "$CASE_DIR" MOCK_FAIL_IPV4_DETACH=1 >/dev/null 2>&1; then
+  fail "stop reported success while an FX-owned IPv4 OUTPUT hook remained attached"
+fi
+grep -Fqx FXYRP4_A "$CASE_DIR/hooks4" || fail "failed detach did not retain the IPv4 hook for retry"
+[ -s "$CASE_DIR/state/yulong-root-proxy-active.meta" ] || fail "failed detach discarded active metadata"
+[ -s "$CASE_DIR/state/unbound-vpn-egress-ip" ] || fail "failed detach discarded resolver egress binding"
+! grep -Fq unbound-stop "$CASE_DIR/engines.log" || fail "failed detach stopped Unbound while redirect may remain"
+run_stop "$CASE_DIR" >/dev/null || fail "cleanup retry did not recover after iptables detach"
+assert_stopped "$CASE_DIR" "cleanup detach retry"
 # Reconcile must remove redirects if the metadata commit was lost after activation.
 prepare_case reconcile-missing-metadata
 run_proxy "$CASE_DIR" >/dev/null || fail "reconcile metadata case setup failed"

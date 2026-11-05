@@ -5320,3 +5320,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Reconcile now detects active/egress markers and any attached FX-owned IPv4/IPv6 OUTPUT hook; if found without metadata it runs the existing fail-open cleanup, which removes only FX-owned chains and preserves independently enabled local DNS engines.
 - Added runtime regression scenarios for lost metadata after activation and orphan hooks without marker files.
 - CI execution is required for the new scenarios; no Android device test is implied.
+
+## 2026-11-06 — Root Proxy preserves recovery state when firewall detach fails
+
+- Baseline HEAD: a737ae7ec3f07c37040c66ec4265e42cd36ae867.
+- Fixed a fail-open cleanup flaw: the hook removal loop previously treated any failed iptables delete as proof that a hook was gone, while global cleanup deleted active/egress markers regardless. A transient firewall failure could leave a live OUTPUT redirect with no recovery metadata, and stopping could take down the local resolver still targeted by that redirect.
+- Cleanup now verifies each FX-owned OUTPUT jump is absent. If any remains, it returns failure, retains state markers, and does not stop shared DNS engines. A subsequent stop/status/reconcile can retry after the firewall recovers. Orphaned private chains remain harmless once their OUTPUT jump is detached.
+- Added a runtime regression that injects an IPv4 detach failure, checks marker/resolver preservation, then retries cleanup successfully.
+- CI is pending for this change; no Android device validation is implied.

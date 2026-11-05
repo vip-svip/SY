@@ -202,19 +202,34 @@ EOF
 _remove_hook() {
   _bin="$1"; _chain="$2"
   while "$_bin" -t nat -D OUTPUT -j "$_chain" >/dev/null 2>&1; do :; done
+  if "$_bin" -t nat -C OUTPUT -j "$_chain" >/dev/null 2>&1; then
+    _log "ERROR: FX-owned OUTPUT hook remains attached: $_chain"
+    return 1
+  fi
   return 0
 }
 _clear_chain() {
   _bin="$1"; _chain="$2"
-  _remove_hook "$_bin" "$_chain" || :
+  # Removing the OUTPUT jump is the safety-critical operation. An orphaned
+  # private chain is inert; a surviving jump is not, so propagate that failure.
+  _remove_hook "$_bin" "$_chain" || return 1
   "$_bin" -t nat -F "$_chain" >/dev/null 2>&1 || :
   "$_bin" -t nat -X "$_chain" >/dev/null 2>&1 || :
   return 0
 }
 _clear_all() {
-  for c in FXYRP4_A FXYRP4_B; do _clear_chain iptables "$c"; done
-  for c in FXYRP6_A FXYRP6_B; do _clear_chain ip6tables "$c"; done
-  rm -f "$ACTIVE" "$ACTIVE_META" "$EGRESS" "$EGRESS.tmp."* 2>/dev/null || :
+  _clear_failed=0
+  for c in FXYRP4_A FXYRP4_B; do _clear_chain iptables "$c" || _clear_failed=1; done
+  for c in FXYRP6_A FXYRP6_B; do _clear_chain ip6tables "$c" || _clear_failed=1; done
+  if [ "$_clear_failed" = 1 ]; then
+    _log "ERROR: one or more FX-owned DNS OUTPUT hooks could not be detached; preserving state markers for retry"
+    return 1
+  fi
+  rm -f "$ACTIVE" "$ACTIVE_META" "$EGRESS" "$EGRESS.tmp."* 2>/dev/null || {
+    _log "ERROR: unable to remove Root Proxy state markers after redirect cleanup"
+    return 1
+  }
+  return 0
 }
 _stop_engines() {
   # These resolver daemons are shared with the independent local-DNS feature.
@@ -247,7 +262,12 @@ _stop_engines() {
   fi
 }
 _stop_locked() {
-  _clear_all
+  if ! _clear_all; then
+    # Keep local resolvers alive while any OUTPUT redirect may still target them.
+    # Retained markers let the next status/reconcile/stop attempt retry cleanup.
+    _log "ERROR: Root Proxy cleanup incomplete; DNS engines left running for safety"
+    return 1
+  fi
   _stop_engines
   _log "stopped; removed only FX-owned DNS redirection chains"
 }
