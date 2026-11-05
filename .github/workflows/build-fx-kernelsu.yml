@@ -322,6 +322,7 @@ jobs:
           python3 fx-patches/patch_vpnsub_clash_reality.py fx-module
           python3 fx-patches/patch_vpnsub_clash_transports.py fx-module
           python3 fx-patches/patch_vpnsub_clash_socks_auth.py fx-module
+          python3 fx-patches/unify_hook_ui.py fx-module
           python3 fx-patches/merge_hook_single_apk.py fx-module .
           sh scripts/tests/fx-dia-hook-tab-navigation-regression.sh
           sh scripts/tests/fx-dia-frida-gadget-deploy-regression.sh
