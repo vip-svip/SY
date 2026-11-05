@@ -159,6 +159,19 @@ for token in (
     'toggle("隐藏通知权限提示", "notification_permission_hide", false);',
 ):
     assert token in main, f"per-app policy route is missing: {token}"
+
+# Dialog is owned by Hook, while Toast and notification filtering stay under Privacy.
+dialog_start = main.index("private void showDiaDialogTarget(")
+dialog_end = main.index("\n    private void showDiaToastTarget(", dialog_start)
+dialog_page = main[dialog_start:dialog_end]
+for token in ('selectedBottomTab = 4;', 'base("Hook · Dialog 处理 · " + selectedLabel)',
+              '返回 Hook 应用列表', 'restoreHookTargetScrollAfterBuild();'):
+    assert token in dialog_page, f"Dialog target page must remain inside Hook: {token}"
+toast_start = main.index("private void showDiaToastTarget(")
+toast_end = main.index("\n    private void showDiaKeyControlTarget(", toast_start)
+toast_page = main[toast_start:toast_end]
+assert 'selectedBottomTab = 2;' in toast_page, "Toast target page must remain inside Privacy"
+assert 'restoreHookTargetScrollAfterBuild();' in toast_page, "Toast target scroll must restore"
 route_start = main.index("private void handleNativeTabSelection(int index)")
 route_end = main.index("private void styleBottomItem", route_start)
 route = main[route_start:route_end]
