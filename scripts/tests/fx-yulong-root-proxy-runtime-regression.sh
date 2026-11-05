@@ -221,7 +221,10 @@ case "$1" in
     else echo unbound-ensure-unpinned >> "$MOCK_ENGINE_LOG"; fi
     [ "${MOCK_UNBOUND_FAIL:-0}" = 0 ] || exit 1
     ;;
-  stop) echo unbound-stop >> "$MOCK_ENGINE_LOG" ;;
+  stop)
+    echo unbound-stop >> "$MOCK_ENGINE_LOG"
+    [ "${MOCK_UNBOUND_STOP_FAIL:-0}" = 0 ] || exit 1
+    ;;
   *) exit 64 ;;
 esac
 UNBOUND
@@ -550,6 +553,22 @@ run_stop "$CASE_DIR" MOCK_ADGUARD_INDEPENDENT=1 MOCK_UNBOUND_INDEPENDENT=1 MOCK_
 grep -Fq unbound-ensure-unpinned "$CASE_DIR/engines.log" || fail "failed-refresh case did not attempt unpinned Unbound refresh"
 grep -Fq unbound-stop "$CASE_DIR/engines.log" || fail "failed-refresh case left Unbound running with stale VPN binding"
 grep -Fq "stopped Unbound after failed VPN-binding refresh" "$CASE_DIR/state/yulong-root-proxy.log" || fail "failed-refresh fallback was not logged"
+
+# If both unpin/reload and stop fail, cleanup must report failure and restore
+# the old egress marker so a later status/reconcile/stop can retry safely.
+prepare_case independent-unbound-stop-failure
+run_proxy "$CASE_DIR" >/dev/null || fail "Root Proxy setup failed for Unbound stop failure case"
+if run_stop "$CASE_DIR" MOCK_ADGUARD_INDEPENDENT=1 MOCK_UNBOUND_INDEPENDENT=1 MOCK_UNBOUND_FAIL=1 MOCK_UNBOUND_STOP_FAIL=1 >/dev/null 2>&1; then
+  fail "Root Proxy stop reported success while stale-bound Unbound could not be stopped"
+fi
+[ ! -e "$CASE_DIR/state/yulong-root-proxy-active" ] || fail "failed Unbound stop left active redirect marker"
+[ ! -e "$CASE_DIR/state/yulong-root-proxy-active.meta" ] || fail "failed Unbound stop left active metadata"
+[ ! -s "$CASE_DIR/hooks4" ] && [ ! -s "$CASE_DIR/hooks6" ] || fail "failed Unbound stop left DNS redirect hooks"
+[ "$(cat "$CASE_DIR/state/unbound-vpn-egress-ip")" = "10.23.4.5" ] || fail "failed Unbound stop did not restore egress recovery marker"
+grep -Fq "cleanup remains retryable" "$CASE_DIR/state/yulong-root-proxy.log" || fail "failed Unbound stop was not surfaced as incomplete cleanup"
+# A subsequent stop can confirm the resolver is gone; only then may the marker disappear.
+run_stop "$CASE_DIR" MOCK_ADGUARD_INDEPENDENT=1 MOCK_UNBOUND_INDEPENDENT=1 MOCK_UNBOUND_FAIL=1 >/dev/null || fail "Unbound stop retry did not complete"
+[ ! -e "$CASE_DIR/state/unbound-vpn-egress-ip" ] || fail "successful Unbound stop retry retained stale egress marker"
 
 # When neither local DNS engine is independently enabled, stop releases both daemons.
 prepare_case disabled-local-dns
