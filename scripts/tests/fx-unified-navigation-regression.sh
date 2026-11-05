@@ -159,6 +159,20 @@ assert "FxUiMode.read(this).getStorageId()" in host
 # Activity pages are implementation details, not separate source-app navigation.
 shield = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongShieldActivity.java")
 dia_settings = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaGlobalSettingsActivity.java")
+# Privacy Shield modal confirmations use the same global Skin renderer.
+shield_modal_pages = {
+    "Shield center": shield,
+    "Blacklist": source("adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/BlacklistActivity.java"),
+    "Scan": source("adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongScanActivity.java"),
+    "Batch cleanup": source("adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongBatchCleanupActivity.java"),
+    "Warning": source("adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongWarningActivity.java"),
+    "Rescue": source("adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongRescueActivity.java"),
+}
+for name, page in shield_modal_pages.items():
+    assert "fxDialogBuilder()" in page, f"{name} dialogs bypass the shared FX Skin builder"
+    assert "new AlertDialog.Builder(this)" not in page
+    assert "new android.app.AlertDialog.Builder(this)" not in page
+assert "showFxDialog(dialog);" in shield_modal_pages["Blacklist"], "Blacklist custom OnShow dialog bypasses shared renderer"
 ad_main = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java")
 ad_general = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdGeneralActivity.java")
 ad_summary = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdSummaryActivity.java")
