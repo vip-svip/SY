@@ -5700,3 +5700,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Ad 首页收到未知状态时不再默认显示“已启用”，开关文案改为“状态未知（暂不可切换）”并禁用。Root 读取失败时清空旧快照并禁用该开关，避免旧状态残留造成误导。
 - 新增独立 JDK Host 测试覆盖 true/false、缺失/空快照、头缺失、master 缺失、非法值、重复字段与协议噪声；接入 `fx-yulong-ad-activity-state-regression.sh`。
 - 本批提交后核对 Targeted Host Regression 与 Six UI Modes；未做 Android Gradle 构建或设备 UI 验收。
+
+
+### 系统应用安装阶段行为测试夹具同步（2026-11-06）
+
+- `3db79048` 的安装阶段行为回归失败在 `patch_system_app_install_stage.py`：新补丁会从仓库 canonical `scripts/` 同步 installer/remover，但旧的独立行为夹具只创建 `tmp/fx-module/customize.sh`，没有创建对应的 `tmp/scripts/` 源目录。
+- 修正夹具为复制真实 canonical installer/remover 到临时仓库根目录，再执行生产 patcher；同时断言两份脚本已逐字节同步。测试仍从真实注入的 `customize.sh` 提取并执行安装阶段代码，不重写业务逻辑。
+- 本修订仅修复测试夹具布局，等待 System App Install Stage、Host 与 KernelSU package lane 重新验证。

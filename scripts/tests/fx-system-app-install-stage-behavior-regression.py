@@ -49,6 +49,15 @@ def sha256_of(path: Path) -> str:
 
 
 def build_patched_module(tmp: Path) -> Path:
+    # The production patcher re-syncs the packaged installer/remover from the
+    # canonical repository scripts. Give this isolated fixture the same layout.
+    canonical_dir = tmp / "scripts"
+    canonical_dir.mkdir(parents=True)
+    for name in ("install_adhook_app.sh", "remove_adhook_app.sh"):
+        canonical = ROOT / "scripts" / name
+        assert canonical.is_file(), f"canonical {name} fixture is missing"
+        (canonical_dir / name).write_text(canonical.read_text(encoding="utf-8"), encoding="utf-8")
+
     module = tmp / "fx-module"
     module.mkdir(parents=True)
     customize = module / "customize.sh"
@@ -57,6 +66,11 @@ def build_patched_module(tmp: Path) -> Path:
     # Apply twice: the installer may patch an already-patched tree.
     for _ in range(2):
         subprocess.run([sys.executable, str(PATCHER), str(module)], check=True)
+
+    for name in ("install_adhook_app.sh", "remove_adhook_app.sh"):
+        assert (module / "scripts" / name).read_bytes() == (canonical_dir / name).read_bytes(), (
+            f"patcher must synchronize canonical {name} into the module fixture"
+        )
 
     patched = customize.read_text(encoding="utf-8")
     assert patched.count(BEGIN) == 1, "install stage must appear exactly once after a double patch"
