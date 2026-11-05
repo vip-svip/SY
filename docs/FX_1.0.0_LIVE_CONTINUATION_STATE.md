@@ -6360,3 +6360,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - CI：目标 Host Regression 工作流配置了该分支 push 触发，且 `scripts/tests/**` 属于触发路径；当前 GitHub 工具不能查询 push runs，故 CI 结果未确认。
 - 本轮未执行本地 shell 回归、Gradle、Android 构建或真机流量测试。
 - 并发协作：状态文件与回归文件均遇到并发 409；均重新读取最新 blob 后再提交/恢复，未强制覆盖其他 AI 的修改。
+
+
+## 2026-11-06 — 修复 VpnService 静态检测正则漏报
+
+- 生产修复提交：`227f589d318372578d3f8857e3e9321b9066f497`。
+- 回归测试提交：`f9755e72ba037664538279f542a7bb3f9488f4ba`。
+- 问题：现有检测正则把点号和美元符号写成了双反斜杠形式，导致 `VpnService.prepare()`、`VpnService.Builder` 等实际 API 签名无法可靠匹配；同时原有注释过滤方式会漏掉带缩进注释。
+- 修复：先过滤以任意空白开头的整行注释，再使用字符类 `[.]` 和 `[$]` 匹配 API 分隔符，不再依赖易错的反斜杠转义。
+- 新增/强化回归：保留 `VpnService.prepare()`、`VpnService.Builder` 两种调用覆盖；增加 `VpnService$Builder` 覆盖；将注释夹具改为带缩进形式，验证注释不造成误报。
+- GitHub 回读：生产脚本 blob `e72cacc0e242e4866a929685b76c39100c16e3b7`；回归脚本 blob `0f6b7c9e72e70533899b0e353b3b3fe1d6e0e3b5`。两者均从目标分支回读，确认修复与测试用例存在。
+- 验证等级：在独立 shell/grep 夹具中验证三种签名匹配、整行缩进注释过滤；未执行完整 arbiter regression。新提交 combined status 为空，当前 GitHub Actions 读取接口不能列出 push-triggered runs，故 CI 状态未确认；未运行 Android 构建或真机测试。
+- 影响：修复前的静态扫描结果不能作为 FX 不占 Android VPN 槽的证据。修复后仍仅覆盖模块 shell 源码静态特征，不替代 APK/二进制扫描、运行时观测和设备级流量验证。
