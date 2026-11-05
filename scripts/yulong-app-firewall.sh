@@ -89,17 +89,34 @@ time_is_active() {
 }
 read_master() {
   awk '
-    $0=="[conf:yulong_app_firewall]" {insec=1; next}
+    $0=="[conf:yulong_app_firewall]" {
+      sections++
+      if (sections>1) bad=1
+      insec=1
+      next
+    }
     /^\[/ {insec=0}
-    insec && /^enabled=/ {v=substr($0,9)}
-    END {if(v=="1") print 1; else print 0}
+    insec && /^enabled=/ {
+      values++
+      value=substr($0,9)
+      if (value!="0" && value!="1") bad=1
+    }
+    END {
+      if (sections!=1 || values!=1 || bad) exit 2
+      print value
+    }
   ' "$CONF"
 }
 list_rows() {
   awk -F'|' '
     function bit(v) { return v=="0" || v=="1" }
     function validtime(v) { return v ~ /^([01][0-9]|2[0-3]):[0-5][0-9]$/ }
-    $0=="[list:yulong_app_firewall]" {inlist=1; next}
+    $0=="[list:yulong_app_firewall]" {
+      sections++
+      if (sections>1) bad=1
+      inlist=1
+      next
+    }
     /^\[/ {inlist=0}
     inlist && $0 !~ /^[[:space:]]*$/ && $0 !~ /^[[:space:]]*#/ {
       if ($1 !~ /^[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+$/ ||
@@ -113,7 +130,7 @@ list_rows() {
         print $1 "|" $2 "|" $3 "|" $4 "|" $5 "|" $6 "|" $7 "|" $8
       else bad=1
     }
-    END {if (bad) exit 2}
+    END {if (bad || sections>1) exit 2}
   ' "$CONF"
 }
 set_master_value() {
@@ -905,9 +922,15 @@ reconcile_watch_lifecycle() {
 cmd="${1:-list}"
 case "$cmd" in
   list)
-    echo "FXYULONGFW2"
-    echo "master=$(read_master)"
-    list_rows
+    _master=$(read_master) || {
+      echo "firewall master configuration is missing, duplicated or invalid" >&2
+      exit 2
+    }
+    printf 'FXYULONGFW2\nmaster=%s\n' "$_master"
+    list_rows || {
+      echo "firewall rule configuration is malformed or duplicated" >&2
+      exit 2
+    }
     ;;
   master)
     [ "$#" -eq 2 ] && valid_state "$2" || { echo "usage: $0 master 0|1" >&2; exit 2; }

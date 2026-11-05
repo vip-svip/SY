@@ -192,12 +192,47 @@ if run list >/dev/null 2>&1; then fail "firewall accepted a symlinked settings.c
 rm -f "$CONF"
 mv "$TMP/settings.saved" "$CONF"
 
-# Malformed saved records must fail the full list query instead of disappearing.
+# Master configuration must contain exactly one valid enabled bit.
 cp "$CONF" "$TMP/settings.valid"
-printf '%s\n' 'not-a-valid-firewall-record' >> "$CONF"
-if run list > "$TMP/malformed-list" 2>&1; then
-  fail "firewall list silently skipped a malformed persisted row"
-fi
+cat > "$CONF" <<'BAD_NO_MASTER'
+[list:yulong_app_firewall]
+BAD_NO_MASTER
+if run list > "$TMP/missing-master" 2>&1; then fail "firewall list accepted a missing master section"; fi
+cat > "$CONF" <<'BAD_DUP_MASTER'
+[conf:yulong_app_firewall]
+enabled=0
+[conf:yulong_app_firewall]
+enabled=1
+BAD_DUP_MASTER
+if run list > "$TMP/duplicate-master" 2>&1; then fail "firewall list accepted duplicate master sections"; fi
+cat > "$CONF" <<'BAD_INVALID_MASTER'
+[conf:yulong_app_firewall]
+enabled=maybe
+BAD_INVALID_MASTER
+if run list > "$TMP/invalid-master" 2>&1; then fail "firewall list accepted an invalid master value"; fi
+cat > "$CONF" <<'BAD_DUP_VALUE'
+[conf:yulong_app_firewall]
+enabled=0
+enabled=1
+BAD_DUP_VALUE
+if run list > "$TMP/duplicate-master-value" 2>&1; then fail "firewall list accepted duplicate master keys"; fi
+
+# An absent list section is a valid empty selection, but duplicate sections are not.
+cat > "$CONF" <<'EMPTY_RULES'
+[conf:yulong_app_firewall]
+enabled=0
+EMPTY_RULES
+run list > "$TMP/no-rule-section"
+grep -qx 'FXYULONGFW2' "$TMP/no-rule-section" || fail "empty rule set lost protocol header"
+grep -qx 'master=0' "$TMP/no-rule-section" || fail "empty rule set lost valid master state"
+[ "$(wc -l < "$TMP/no-rule-section" | tr -d ' ')" = 2 ] || fail "missing rule-list section must represent an empty rule set"
+cat > "$CONF" <<'DUP_RULES'
+[conf:yulong_app_firewall]
+enabled=0
+[list:yulong_app_firewall]
+[list:yulong_app_firewall]
+DUP_RULES
+if run list > "$TMP/duplicate-rule-section" 2>&1; then fail "firewall list accepted duplicate rule-list sections"; fi
 mv "$TMP/settings.valid" "$CONF"
 
 run list > "$TMP/list"

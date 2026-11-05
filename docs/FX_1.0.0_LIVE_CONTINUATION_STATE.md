@@ -5782,3 +5782,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `fx-yulong-ad-activity-state-regression.sh` 旧断言要求每日安全总结 Activity 具备 Root worker 队列；核对 `FxYulongDailySummaryActivity` 后确认该页只读取本地 `SharedPreferences` 计数及 `ActivityManager` 的服务运行状态，没有 Root/网络操作。
 - 保留 Ad 备份、DNS 日志两个确有后台 I/O 的页面有界线程池、拒绝过载及销毁关闭断言；每日总结改验本地持久化计数和真实服务状态，并确认没有引入不必要的 Root/线程池工作。
 - 对应先前 HEAD `c5dec2e882f217d53004a5063c77cb0967e21667` 的 Host run `42098375614`：前 12 项 Ad snapshot policy 测试通过，失败仅为该过时的 worker queue 断言。当前修订提交待新 CI 验证。
+
+
+### Ad 防火墙主状态与列表 section 完整性补齐（2026-11-06）
+
+- 复核严格列表查询后发现，read_master() 仍把缺失、重复或非法的 enabled 状态默认折叠为 0；这会绕过 Java 端严格解析器，因为 Shell 仍可能生成表面有效的 master=0。
+- read_master() 现在要求配置段唯一、enabled key 恰好一个、值严格为 0/1；列表命令显式检查读取失败再输出协议头。
+- list_rows() 对重复的 [list:yulong_app_firewall] section 拒绝；缺失列表 section 仍是合法的空规则集合，保留新安装无规则状态。
+- Shell 回归新增缺失/重复/非法主状态、重复 master key、空列表 section 和重复列表 section 场景。本提交等待 Targeted Host/Module Runtime CI。
