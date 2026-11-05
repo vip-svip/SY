@@ -6032,3 +6032,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 本批修改：`scripts/install_adhook_app.sh` 在 APK 哈希计算与 PackageManager 调用前，验证模块根目录、所选 APK 和 checksum sidecar 的完整路径链；拒绝任何符号链接祖先、APK 末端符号链接、checksum 末端符号链接及不规则文件。即使 symlink 指向字节完全匹配的 APK/摘要，也不会进入安装流程。
 - 回归扩展：`scripts/tests/adhook-app-installer-regression.sh` 增加 system-app APK 与 SHA-256 sidecar 符号链接用例，并断言拒绝发生在 PackageManager 之前；保留现有 overlay、legacy fallback、签名迁移和卸载所有权测试。
 - 验证边界：代码与回归用例已推送；等待当前分支 GitHub Actions 定向 Host Regression 结果。Android 真机安装、SELinux、系统包识别与设备升级/卸载流程仍需设备验证，不在此处声称已通过。
+
+
+## 2026-11-06 — VPN coexistence arbiter 严格校验端口配置与 JSON 输出
+
+- 在当前协作分支最新 HEAD `4ab0ccee14cfe6aa7e655d62a5c2e5b68a5a1a25` 上续接；保留其他协作者此前对 AdGuard DNS TCP/UDP 53 端口 fixture 的修复。
+- 修复共存裁决器把 `FX_ARB_DNS_PORT`、`FX_ARB_FILTER_DNS_PORT`、`FX_ARB_PROXY_PORT` 原样插入 JSON 数字字段的问题：异常环境值可能造成无效 JSON或注入额外字段，使 UI/状态消费者无法可靠解析。
+- 新增统一十进制端口归一化：只接受 1–65535 的纯数字，先去除前导零并在算术比较前限制位数，避免 shell 八进制解释和超长整数溢出；非法值在 JSON 中输出 `null`、占用状态为 `unknown`，文本模式显示 `invalid`，现有 fail-closed 裁决会降级为 partial。
+- 定向回归新增前导零十进制端口与带 JSON 注入字符的非法端口场景，验证端口 53 仍按十进制检测、非法值不会破坏 JSON，也不会被报告为无冲突。
+- 代码提交：`f992eab17ae4301c243c7a64fa8f423e96c99237`；回归提交：`1ee6d3bd271ce4a9bf842689454d8b0176f5e759`。
+- 验证等级：GitHub 源码写入成功；本执行环境未运行 Shell/Host/Gradle 测试，须回读对应 Actions run 后才能报告测试结果。未进行 Android 真机第三方 VPN、DNS 或 TUN 测试。
