@@ -4,7 +4,7 @@ import android.content.Intent;
 import android.view.View;
 
 import androidx.activity.ComponentActivity;
-import androidx.appcompat.app.AlertDialog;
+import android.app.AlertDialog;
 import androidx.compose.ui.platform.ComposeView;
 
 /**
