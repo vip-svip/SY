@@ -222,12 +222,7 @@ renderRootProxyWhitelist();
 refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();else if("保护配置档".equals(page))renderProfiles();else if("日志与诊断".equals(page))renderLogs();else renderHome();}
 
   private String profileCmd(String args) {
-    return "MP=''; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard /data/adb/modules/privacy_guard /data/adb/modules/pg; do "
-        + "if [ -d \"$d\" ] && [ ! -L \"$d\" ] && [ -f \"$d/module.prop\" ] && [ ! -L \"$d/module.prop\" ] "
-        + "&& grep -qx 'id=privacyguard' \"$d/module.prop\"; then MP=\"$d\"; break; fi; done; "
-        + "[ -n \"$MP\" ] || exit 20; "
-        + "if [ ! -f \"$MP/scripts/yulong-profiles.sh\" ] || [ -L \"$MP/scripts/yulong-profiles.sh\" ]; then exit 21; fi; "
-        + "sh \"$MP/scripts/yulong-profiles.sh\" " + args;
+    return FxYulongRootModuleCommand.command("yulong-profiles.sh", args);
   }
 
   private boolean isTrustedNetworkPageCurrent(TextView target) {

@@ -6005,3 +6005,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 当前扫描结束后，经主线程 Handler 重新取得活动窗口根节点并再次校验包名；过期窗口请求被安全丢弃。服务销毁时清空待处理包名、移除回调并关闭执行器。
 - 新增 4 个 JVM 单测；同步更新 GKD Host 契约、workflow 文件触发路径和 Gradle 测试选择器。
 - 本批源码先在离线 commit tree 创建，随后将同一变更集移植到最新分支 HEAD；本提交之后的 CI 结论待 Actions 回报。
+
+
+## 2026-11-06 — Yulong Ad 多页面 Root 模块命令统一
+
+- 将 Ad 保护配置档、通用设置（含导入事务）和应用白名单三个仍使用旧式模块发现的 Root 入口，切换到新的 `FxYulongRootModuleCommand`。
+- 公共构造器只允许 `yulong-ad-control.sh`、`yulong-profiles.sh`、`yulong-app-whitelist.sh` 三个固定脚本名；统一验证 `/data`、`/data/adb`、modules 根、可选 modules_update 根、候选模块真实目录、`module.prop` 精确 FX id/version、scripts 目录、util.sh 与目标脚本均非符号链接/文件类型正确。
+- General 页面单独构建的批量导入事务也使用同一个 prefix，避免从普通 Root 入口绕过校验。
+- 新增 standalone JDK Host test 和 `fx-yulong-root-module-command-regression.sh`，检查 allowlist 拒绝任意脚本名及三页所有 Root 调用点均接入 helper；workflow 加入路径触发。
+- 本批提交后需检查 Host、六 UI 与 Module Runtime 结果。未声称 Android Gradle build、Root 设备执行或应用白名单真机流量验收已完成。

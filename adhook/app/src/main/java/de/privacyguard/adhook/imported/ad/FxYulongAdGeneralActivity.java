@@ -604,11 +604,7 @@ public final class FxYulongAdGeneralActivity extends de.privacyguard.adhook.FxNa
     }
 
     private String rootCommand(String args) {
-        return "MP=''; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard "
-                + "/data/adb/modules/privacy_guard /data/adb/modules/pg; do "
-                + "if [ -s \"$d/module.prop\" ] && grep -q '^id=privacyguard$' \"$d/module.prop\"; "
-                + "then MP=\"$d\"; break; fi; done; "
-                + "[ -n \"$MP\" ] || exit 20; sh \"$MP/scripts/yulong-ad-control.sh\" " + args;
+        return FxYulongRootModuleCommand.command("yulong-ad-control.sh", args);
     }
 
     private RootAccess.Result root(String args) {
@@ -940,9 +936,8 @@ public final class FxYulongAdGeneralActivity extends de.privacyguard.adhook.FxNa
                 RootAccess.Result current=root("list");
                 if(current.exitCode!=0)throw new IllegalStateException("读取现有设置失败："+safe(current.output));
                 StringBuilder command=new StringBuilder("set -eu; ");
-                command.append("MP=''; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard /data/adb/modules/privacy_guard /data/adb/modules/pg; do ")
-                        .append("if [ -s \"$d/module.prop\" ] && grep -q '^id=privacyguard$' \"$d/module.prop\"; then MP=\"$d\"; break; fi; done; ")
-                        .append("[ -n \"$MP\" ] || exit 20; PG=/data/adb/privacyguard; CONF=$PG/settings.conf; PLAN=$PG/yulong-ad-schedule.conf; ")
+                command.append(FxYulongRootModuleCommand.prefix("yulong-ad-control.sh"))
+                        .append("PG=/data/adb/privacyguard; CONF=$PG/settings.conf; PLAN=$PG/yulong-ad-schedule.conf; ")
                         .append("test -d \"$PG\" && test ! -L \"$PG\" && test -f \"$CONF\" && test ! -L \"$CONF\" || exit 21; ")
                         .append("B1=$(mktemp \"$PG/yulong-ad-import-settings.rollback.XXXXXX\") || exit 22; B2=''; ")
                         .append("cp -p \"$CONF\" \"$B1\" || { rm -f \"$B1\"; exit 23; }; ")

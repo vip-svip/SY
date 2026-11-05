@@ -176,6 +176,10 @@ jobs:
             run_sh scripts/tests/fx-yulong-tasker-receiver-concurrency-regression.sh
             run_sh scripts/tests/fx-yulong-ad-widget-regression.sh
           fi
+          if [[ "$changed" == "ALL" || "$changed" =~ (FxYulongRootModuleCommand|FxYulongAdActivity|FxYulongAdGeneralActivity|FxYulongAppWhitelistActivity|fx-yulong-root-module-command-regression) ]]; then
+            run_sh scripts/tests/fx-yulong-root-module-command-regression.sh
+          fi
+
           if [[ "$changed" == "ALL" || "$changed" =~ (FxYulongFirewallActivity|FxYulongFirewallListParser|FxYulongFirewallListParserHostTest|FxYulongAdActivity|FxYulongFirewallAppFilterPolicy|FxYulongFirewallAppFilterPolicyTest|yulong-app-firewall.sh|fx-yulong-app-firewall-regression|fx-yulong-firewall-activity-regression) ]]; then
             run_sh scripts/tests/fx-yulong-app-firewall-regression.sh
             run_sh scripts/tests/fx-yulong-firewall-activity-regression.sh
