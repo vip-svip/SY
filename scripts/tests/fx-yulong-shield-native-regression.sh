@@ -100,6 +100,12 @@ for token in ("Intent.ACTION_UNINSTALL_PACKAGE", "Intent.EXTRA_RETURN_RESULT",
               "PackageManager.NameNotFoundException", "FLAG_SYSTEM",
               "FLAG_UPDATED_SYSTEM_APP", "Settings.ACTION_APPLICATION_DETAILS_SETTINGS"):
     assert token in uninstall_source, f"User-confirmed uninstall receiver missing safety behavior: {token}"
+assert "POLL_FALLBACK_MS = 5000L" in protection_service, "Shield fallback polling must not wake every 2.5 seconds"
+assert "POLL_ACCESSIBILITY_BACKUP_MS = 15000L" in protection_service, "Accessibility-backed polling must use the low-power backup interval"
+assert "lastForegroundSignalAt = SystemClock.elapsedRealtime();" in protection_service
+assert "private long nextPollDelay()" in protection_service
+assert "handler.postDelayed(this, nextPollDelay());" in protection_service
+assert "lastForegroundSignalAt > 0L" in protection_service and "POLL_ACCESSIBILITY_BACKUP_MS" in protection_service
 assert "FxYulongUninstallReceiver.class" in protection_service
 assert '"系统卸载确认"' in protection_service and ".addAction(" in protection_service
 assert "pm uninstall" not in uninstall_source and "su -c" not in uninstall_source

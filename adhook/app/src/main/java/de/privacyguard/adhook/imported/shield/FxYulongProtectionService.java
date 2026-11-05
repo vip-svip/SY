@@ -47,7 +47,8 @@ public final class FxYulongProtectionService extends Service implements SensorEv
     private static final String CHANNEL = "fx_yulong_protection";
     private static final String ALERT_CHANNEL = "fx_yulong_protection_alert";
     private static final int ONGOING_ID = 0x594d;
-    private static final long POLL_MS = 2500L;
+    private static final long POLL_FALLBACK_MS = 5000L;
+    private static final long POLL_ACCESSIBILITY_BACKUP_MS = 15000L;
     private static final long ALERT_COOLDOWN_MS = 120000L;
 
     private HandlerThread thread;
@@ -58,6 +59,7 @@ public final class FxYulongProtectionService extends Service implements SensorEv
     private long lastShakeAlert;
     private boolean shakeRegistered;
     private volatile boolean running;
+    private volatile long lastForegroundSignalAt;
 
     private boolean foregroundReceiverRegistered;
     private final BroadcastReceiver foregroundChangeReceiver = new BroadcastReceiver() {
@@ -65,6 +67,7 @@ public final class FxYulongProtectionService extends Service implements SensorEv
             if (intent == null || !running) return;
             String packageName = intent.getStringExtra("package_name");
             if (packageName == null || packageName.isEmpty() || handler == null) return;
+            lastForegroundSignalAt = SystemClock.elapsedRealtime();
             handler.post(() -> {
                 if (!running) return;
                 SharedPreferences current = getSharedPreferences(PREFS, MODE_PRIVATE);
@@ -100,7 +103,7 @@ public final class FxYulongProtectionService extends Service implements SensorEv
                 // One Usage Access/PackageManager failure must not crash the service.
             }
             syncShakeSensor();
-            if (running && handler != null) handler.postDelayed(this, POLL_MS);
+            if (running && handler != null) handler.postDelayed(this, nextPollDelay());
         }
     };
 
@@ -185,6 +188,14 @@ public final class FxYulongProtectionService extends Service implements SensorEv
         // User opt-in is persisted in shield_prefs; sticky restart is allowed only
         // while protect_on and Usage Access remain valid in onStartCommand().
         return START_STICKY;
+    }
+
+    private long nextPollDelay() {
+        // Accessibility foreground-change broadcasts are immediate. Once the
+        // bridge has delivered a signal, retain only a slower UsageStats
+        // fallback; without the bridge, keep a bounded 5-second fallback.
+        return lastForegroundSignalAt > 0L
+                ? POLL_ACCESSIBILITY_BACKUP_MS : POLL_FALLBACK_MS;
     }
 
     private void syncShakeSensor() {
