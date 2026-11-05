@@ -69,15 +69,50 @@ new = '''elif [ -s "$PG/localdns-watchdog.pid" ]; then
 fi
 '''
 if source.count(old) == 0:
-    if new in source:
+    if new in source or "FX_LOCALDNS_WATCHDOG_FAIL_CLOSED_BEGIN" in source:
         print("Local DNS watchdog uninstall fallback already hardened.")
     elif "localdns-watchdog.pid" not in source and "localdns-watchdog.sh" not in source:
-        # Some published FX module revisions do not own the local-DNS
-        # watchdog lifecycle in uninstall.sh at all. There is no legacy PID
-        # fallback to harden in those archives; keep the patch idempotent.
+        # Some published FX module revisions do not own this lifecycle.
         print("Published uninstall has no local-DNS watchdog hook; no fallback patch required.")
     else:
-        raise SystemExit("local DNS watchdog fallback anchor changed; refusing unsafe patch")
+        # Older published ZIPs have a formatting variant of the PID fallback.
+        # Rather than guessing which process their legacy block might signal,
+        # insert a conservative guard before firewall teardown: a dead PID can
+        # be discarded, but any live/ambiguous owner aborts uninstall and
+        # preserves module state. This intentionally prefers a manual retry
+        # over killing an unrelated process or tearing down active DNS rules.
+        guard = r\'''# FX_LOCALDNS_WATCHDOG_FAIL_CLOSED_BEGIN
+_PG_LOCALDNS=${PG:-${STATE_DIR:-/data/adb/privacyguard}}
+_WD_FILE="$_PG_LOCALDNS/localdns-watchdog.pid"
+if [ -L "$_WD_FILE" ]; then
+  PG_KEEP_DATA=1
+  _mitm_warn "local DNS watchdog PID record is a symlink; aborting uninstall before firewall cleanup and preserving $_PG_LOCALDNS"
+  exit 1
+elif [ -s "$_WD_FILE" ]; then
+  _wd_pid=$(cat "$_WD_FILE" 2>/dev/null || :)
+  case "$_wd_pid" in
+    ''|*[!0-9]*|0|1)
+      PG_KEEP_DATA=1
+      _mitm_warn "local DNS watchdog PID record is invalid; aborting uninstall before firewall cleanup and preserving $_PG_LOCALDNS"
+      exit 1
+      ;;
+    *)
+      if kill -0 "$_wd_pid" 2>/dev/null; then
+        PG_KEEP_DATA=1
+        _mitm_warn "local DNS watchdog PID $_wd_pid is still live but this release has an unknown shutdown layout; aborting uninstall before firewall cleanup and preserving $_PG_LOCALDNS"
+        exit 1
+      fi
+      rm -f "$_WD_FILE"
+      _mitm_warn "cleared stale local DNS watchdog PID record for exited PID $_wd_pid"
+      ;;
+  esac
+fi
+# FX_LOCALDNS_WATCHDOG_FAIL_CLOSED_END
+\'''
+        firewall_anchor = 'if [ -f "$MODDIR/scripts/yulong-app-firewall.sh" ]; then'
+        if firewall_anchor not in source:
+            raise SystemExit("local DNS watchdog fallback anchor changed and no safe pre-firewall insertion point exists")
+        source = source.replace(firewall_anchor, guard + "\\n" + firewall_anchor, 1)
 else:
     if source.count(old) != 1:
         raise SystemExit("local DNS watchdog fallback is ambiguous")
