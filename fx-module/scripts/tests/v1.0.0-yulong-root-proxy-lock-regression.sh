@@ -14,12 +14,21 @@ cat > "$PG/settings.conf" <<'CONF'
 [list:yulong_root_proxy_whitelist]
 CONF
 chmod 600 "$PG/settings.conf"
-printf "%s\n" "# test utility stub" > "$MOD/scripts/util.sh"
+cat > "$MOD/scripts/util.sh" <<'UTIL'
+pg_get() {
+  key=$1
+  default=\${2:-}
+  value=$(awk -F= -v key="$key" '$1==key {value=substr($0,index($0,"=")+1)} END {print value}' "$PG/settings.conf")
+  [ -n "$value" ] || value=$default
+  printf '%s\n' "$value"
+}
+UTIL
 for script in adguardhome.sh unbound.sh; do
   cat > "$MOD/scripts/$script" <<'SH'
 #!/system/bin/sh
 case "$1" in
   stop)
+    printf '%s\n' "\${0##*/}:stop" >> "$TMP/engine-actions"
     if ! (umask 077; set -C; printf 'locked\n' > "$TMP/engine.lock") 2>/dev/null; then
       printf 'overlap\n' >> "$TMP/engine-overlap"
     fi
@@ -156,4 +165,36 @@ wait "$p2" || { rc=$?; cat "$TMP/concurrent-a.log" "$TMP/concurrent-b.log" >&2; 
   exit 1
 }
 [ ! -e "$LOCK" ] || { echo "FAIL: concurrent Root Proxy stops leaked lock file" >&2; exit 1; }
-echo "PASS: Root Proxy atomic file lock, stale/live owners, legacy directory migration and concurrent serialization"
+
+# Stopping the external-VPN DNS fallback must not stop independently enabled
+# local-DNS engines that share the same AdGuard Home / Unbound daemons.
+: > "$TMP/engine-actions"
+printf '[list:yulong_root_proxy_whitelist]\ndns_engine_adguardhome=1\ndns_forward=1\n' > "$PG/settings.conf"
+sh "$SOURCE" stop >/dev/null
+[ ! -s "$TMP/engine-actions" ] || {
+  echo "FAIL: Root Proxy stop terminated independently enabled local-DNS engines" >&2
+  cat "$TMP/engine-actions" >&2
+  exit 1
+}
+
+# Each disabled standalone engine may be stopped without affecting the other.
+: > "$TMP/engine-actions"
+printf 'dns_engine_adguardhome=1\ndns_forward=0\n' > "$PG/settings.conf"
+sh "$SOURCE" stop >/dev/null
+printf 'unbound.sh:stop\n' > "$TMP/engine-actions.expected"
+cmp -s "$TMP/engine-actions.expected" "$TMP/engine-actions" || {
+  echo "FAIL: Root Proxy stop did not preserve AdGuard Home independently" >&2
+  cat "$TMP/engine-actions" >&2
+  exit 1
+}
+: > "$TMP/engine-actions"
+printf 'dns_engine_adguardhome=0\ndns_forward=1\n' > "$PG/settings.conf"
+sh "$SOURCE" stop >/dev/null
+printf 'adguardhome.sh:stop\n' > "$TMP/engine-actions.expected"
+cmp -s "$TMP/engine-actions.expected" "$TMP/engine-actions" || {
+  echo "FAIL: Root Proxy stop did not preserve Unbound independently" >&2
+  cat "$TMP/engine-actions" >&2
+  exit 1
+}
+
+echo "PASS: Root Proxy atomic file lock, legacy migration, concurrent serialization and independent local-DNS engine ownership"
