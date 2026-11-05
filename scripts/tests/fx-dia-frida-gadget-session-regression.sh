@@ -485,8 +485,8 @@ if "$T/start.sh" "$T/frida" "com.example.debuggable" "$T/logs" "com.example.debu
   exit 1
 fi
 grep -Fq FX_GADGET_TARGET_PROCESS_NOT_RUNNING "$T/foreign-uid-process.result"
-# A real zombie child must be treated as exited by the feeder itself.
-python3 -c 'import os,time; p=os.fork(); (os._exit(0) if p == 0 else None); print(p, flush=True); time.sleep(10)' > "$T/zombie-child.pid" &
+# A real zombie child with ')' in its comm field must be treated as exited by the feeder itself.
+python3 -c 'import ctypes,os,time; p=os.fork(); (ctypes.CDLL(None).prctl(15,ctypes.c_char_p(b"zombie ) fixture"),0,0,0), os._exit(0)) if p == 0 else None; print(p, flush=True); time.sleep(10)' > "$T/zombie-child.pid" &
 zombie_parent=$!
 _zombie_wait=0
 while [ ! -s "$T/zombie-child.pid" ]; do

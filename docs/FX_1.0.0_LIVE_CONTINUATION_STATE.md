@@ -5224,3 +5224,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 最终提交 `0be02c0293cb70a7eaed348abdf23e87f8be4e8b` 的 FX Targeted Host Regression（`42057994175`）与 FX Module Runtime Regression（`42057994169`）均通过。
 - Host 回归覆盖真实 Linux 僵尸子进程：测试用未 wait 的 fork 子进程维持 Z 状态，并打开配对 FIFO reader，确认 feeder 进入循环后在一个轮询周期内退出。
 - 早期 Host 失败分别来自 shell 嵌套引号、测试父进程提前回收子进程、以及 FIFO 无 reader 导致 feeder 阻塞；均已按日志修正。Android Root Shell、真实 Frida Gadget 连接与真机生命周期仍未验证。
+
+
+## 2026-11-05 — Gadget feeder /proc stat 复杂 comm 字段回归
+
+- 扩展真实 Linux 僵尸子进程夹具：通过 PR_SET_NAME 将进程名设为包含右括号和空格的 `zombie ) fixture`，验证 feeder 仍能从 `/proc/<pid>/stat` 正确提取状态字段并退出。
+- 该用例防止未来把 stat 的进程名字段误当作不含空格/括号的简单 token；生产实现使用最长匹配去除最后一个 `) ` 分隔符。
+- 本提交待 Host 与 Module Runtime Regression 实际运行验收；仍不代表 Android Root Shell 或真机验证。
