@@ -128,7 +128,7 @@ for label, needle in (
     ("Gadget log path is built from the validated port", 'LOG_DIR + "/gadget-" + gadgetPort + ".log"'),
     ("Gadget log port excludes invalid values and frida-server default", "gadgetPort >= 1024 && gadgetPort <= 65535 && gadgetPort != 27042"),
     ("Gadget log reads remain bounded", "tail -n 500"),
-    ("Gadget log reads reject symlink files", '[ ! -L " + quote(logPath)'),
+    ("Gadget log reads reject symlink files", '&& [ ! -L " + quote(logPath)'),
     ("Gadget log clear remains confirmation gated", 'setTitle("清空 Frida 会话日志")'),
 ):
     if needle not in session_log:
