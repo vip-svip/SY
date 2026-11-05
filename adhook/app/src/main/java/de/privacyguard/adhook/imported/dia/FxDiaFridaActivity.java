@@ -850,7 +850,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
             }
             @Override public void afterTextChanged(android.text.Editable value) { }
         });
-        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("保存 Frida 脚本")
+        AlertDialog dialog = fxDialogBuilder().setTitle("保存 Frida 脚本")
                 .setMessage("脚本保存在 FX 本机应用偏好中，不会自动注入目标应用。")
                 .setView(name)
                 .setNegativeButton("取消", (d, which) -> clearSaveScriptDialogState())
@@ -871,7 +871,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         dialog.setOnCancelListener(ignored -> {
             if (!isChangingConfigurations()) clearSaveScriptDialogState();
         });
-        dialog.show();
+        showFxDialog(dialog);
     }
 
 
@@ -943,13 +943,13 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         while (iterator.hasNext()) names.add(iterator.next());
         java.util.Collections.sort(names, String.CASE_INSENSITIVE_ORDER);
         if (names.isEmpty()) {
-            new AlertDialog.Builder(this).setTitle("Frida 脚本库")
+            fxDialogBuilder().setTitle("Frida 脚本库")
                     .setMessage("本机还没有保存 Frida 脚本。可从 Dia 示例载入后保存，或批量导入 JSON。")
                     .setPositiveButton("关闭", null).show();
             return;
         }
         final int[] selected = {0};
-        new AlertDialog.Builder(this).setTitle("Frida 脚本库 · " + names.size() + " 个")
+        fxDialogBuilder().setTitle("Frida 脚本库 · " + names.size() + " 个")
                 .setSingleChoiceItems(names.toArray(new String[0]), 0,
                         (dialog, which) -> selected[0] = which)
                 .setPositiveButton("载入", (dialog, which) -> {
@@ -959,7 +959,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 })
                 .setNeutralButton("删除所选", (dialog, which) -> {
                     String name = names.get(selected[0]);
-                    new AlertDialog.Builder(this).setTitle("删除本地 Frida 脚本")
+                    fxDialogBuilder().setTitle("删除本地 Frida 脚本")
                             .setMessage("确认删除“" + name + "”？")
                             .setNegativeButton("取消", null)
                             .setPositiveButton("删除", (d, w) -> {
@@ -1040,7 +1040,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         input.setGravity(Gravity.TOP | Gravity.START);
         input.setMinLines(8);
         input.setHint("{\"schema\":\"FX-DIA-FRIDA-SCRIPTS-1\",\"scripts\":{\"demo\":\"console.log('hello')\"}}");
-        new AlertDialog.Builder(this).setTitle("从剪贴板 JSON 导入 Frida 脚本库")
+        fxDialogBuilder().setTitle("从剪贴板 JSON 导入 Frida 脚本库")
                 .setMessage("只导入 JSON 中的脚本源码，不会自动执行。验证后会列出同名脚本；只有再次确认才会覆盖。")
                 .setView(input)
                 .setNegativeButton("取消", null)
@@ -1095,7 +1095,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                     message.append("\\n另有 ").append(preview.overwrittenNames.size() - shown).append(" 个同名脚本。");
             }
             String positive = preview.overwrittenNames.isEmpty() ? "确认导入" : "确认覆盖并导入";
-            new AlertDialog.Builder(this)
+            fxDialogBuilder()
                     .setTitle("确认导入 Frida 脚本库")
                     .setMessage(message.toString())
                     .setNegativeButton("取消", null)
@@ -1732,7 +1732,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
             @Override public void afterTextChanged(Editable value) { }
         });
         search.setText(targetPickerQuery);
-        AlertDialog pickerDialog = new AlertDialog.Builder(this).setTitle("选择 debuggable 目标")
+        AlertDialog pickerDialog = fxDialogBuilder().setTitle("选择 debuggable 目标")
                 .setView(picker)
                 .setNegativeButton("取消", (dialog, which) -> {
                     targetPickerOpen = false;
@@ -1766,7 +1766,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
             targetPickerOpen = false;
             targetPickerSearch = null;
         });
-        pickerDialog.show();
+        showFxDialog(pickerDialog);
     }
 
     private void clearPendingProcessPickerState() {
@@ -1960,7 +1960,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         search.setText(processPickerQuery);
         applyFilter.run();
 
-        AlertDialog dialog = new AlertDialog.Builder(this)
+        AlertDialog dialog = fxDialogBuilder()
                 .setTitle("选择目标进程（可多选）")
                 .setView(picker)
                 .setNeutralButton("自动附加全部进程", (d, which) -> {
@@ -2000,7 +2000,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
             processPickerQuery = "";
             clearPendingProcessPickerState();
         });
-        dialog.show();
+        showFxDialog(dialog);
     }
 
     private void loadOriginalExamples() {
@@ -2029,7 +2029,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 setStatus("原版 Frida 示例包为空或资源损坏。");
                 return;
             }
-            new AlertDialog.Builder(this).setTitle("选择 Dia 原版 Frida 示例")
+            fxDialogBuilder().setTitle("选择 Dia 原版 Frida 示例")
                     .setItems(labels.toArray(new String[0]), (dialog, which) -> {
                         script.setText(sources.get(which));
                         setStatus("示例已载入编辑器；尚未对目标应用执行注入。");
@@ -2063,7 +2063,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
             content.setTextSize(13);
             content.setTextColor(0xff334155);
             content.setPadding(dp(18), dp(12), dp(18), dp(12));
-            new AlertDialog.Builder(this).setTitle(title).setView(content)
+            fxDialogBuilder().setTitle(title).setView(content)
                     .setPositiveButton("关闭", null).show();
         } catch (Exception error) {
             setStatus("读取帮助文档失败：" + error.getMessage());
@@ -2150,7 +2150,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         broadScope.setOnCheckedChangeListener((button, checked) ->
                 prefs.edit().putBoolean("dialog_remove_any_parent_draft", checked).apply());
 
-        AlertDialog dialog = new AlertDialog.Builder(this)
+        AlertDialog dialog = fxDialogBuilder()
                 .setTitle("Hook · 配置匹配弹窗移除")
                 .setView(form)
                 .setNegativeButton("取消", null)
@@ -2236,7 +2236,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                         }
                     };
                     if (broadScope.isChecked()) {
-                        new AlertDialog.Builder(this)
+                        fxDialogBuilder()
                                 .setTitle("扩大弹窗移除范围？")
                                 .setMessage("允许任意 ViewGroup 父容器会增加误删普通 UI 的风险。只允许在隔离的自有 debuggable 测试应用中使用。确认继续？")
                                 .setNegativeButton("返回修改", null)
@@ -2246,7 +2246,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                         applyRules.run();
                     }
                 }));
-        dialog.show();
+        showFxDialog(dialog);
     }
 
     private String replaceExactlyOnce(String source, String placeholder, String replacement) {
@@ -2684,7 +2684,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
             return;
         }
         String name = targetName == null ? targetPackage : targetName;
-        new AlertDialog.Builder(this)
+        fxDialogBuilder()
                 .setTitle("部署 Frida Gadget")
                 .setMessage("即将在目标应用的 nativeLibraryDir 中部署官方 Gadget、回环监听配置和哈希标记：\n\n"
                         + name + "\n" + targetPackage + "\n进程：" + processName + "\n" + destination
@@ -2729,7 +2729,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
             return;
         }
         String name = targetName == null ? targetPackage : targetName;
-        new AlertDialog.Builder(this)
+        fxDialogBuilder()
                 .setTitle("移除 FX Gadget 部署")
                 .setMessage("仅删除目标目录中带有 FX 标记且 SHA-256 仍与标记一致的 Gadget 文件，不触碰其他原生库：\n\n"
                         + name + "\n" + targetPackage + "\n" + destination)
@@ -3157,7 +3157,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
             viewer.setPadding(dp(16), dp(10), dp(16), dp(10));
             ScrollView scroll = new ScrollView(this);
             scroll.addView(viewer);
-            new AlertDialog.Builder(this)
+            fxDialogBuilder()
                     .setTitle("Frida Gadget 消息/控制台 · " + port)
                     .setView(scroll)
                     .setPositiveButton("关闭", null)
@@ -3324,7 +3324,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
             setStatus("请先选择 debuggable 目标应用。");
             return;
         }
-        new AlertDialog.Builder(this).setTitle("清空 Frida 会话日志")
+        fxDialogBuilder().setTitle("清空 Frida 会话日志")
                 .setMessage("只清空 FX 为当前目标创建的会话日志，不会删除脚本或 Frida 服务。")
                 .setNegativeButton("取消", null)
                 .setPositiveButton("清空", (dialog, which) -> {
