@@ -316,21 +316,21 @@ fx_arb_decide() {
     return 0
   fi
 
-  # A deterministic internal port collision is a known degradation even if
-  # the host's /proc/net inventory is otherwise clean.
-  if [ -n "$FX_ARB_CONFIG_CONFLICTS" ]; then
-    FX_ARB_VERDICT="partial"
-    FX_ARB_GRADE_CN="部分兼容"
-    FX_ARB_REASONS="FX services share configured listener ports: $FX_ARB_CONFIG_CONFLICTS"
-    return 0
-  fi
-
   # 2) 槽位不变量无法完整核实时，不能把数据面标成独立运行。
   if [ "$FX_ARB_SLOT_USED" = "unknown" ]; then
     FX_ARB_VERDICT="unknown"
     FX_ARB_GRADE_CN="探测不可用"
     FX_ARB_REASONS="unable to verify the FX module dataplane VpnService invariant"
     FX_ARB_RC=2
+    return 0
+  fi
+
+  # A deterministic internal port collision is a known degradation even if
+  # the host's /proc/net inventory is otherwise clean.
+  if [ -n "$FX_ARB_CONFIG_CONFLICTS" ]; then
+    FX_ARB_VERDICT="partial"
+    FX_ARB_GRADE_CN="部分兼容"
+    FX_ARB_REASONS="FX services share configured listener ports: $FX_ARB_CONFIG_CONFLICTS"
     return 0
   fi
 
