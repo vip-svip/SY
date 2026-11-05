@@ -68,22 +68,13 @@ fx_system_app_digest() {
   # toybox/busybox sha256sum; no digest means we cannot prove the payload.
   [ -s "$1" ] || return 1
   command -v sha256sum >/dev/null 2>&1 || return 1
-  _fx_d=$(sha256sum "$1" 2>/dev/null | awk 'Nfx_system_app_stage() {
-  [ ! -L "$fx_system_app_state_dir" ] || {
-    ui_print "  [!] FX 状态目录是符号链接，拒绝写入系统应用部署状态"
-    return 1
-  }
-  mkdir -p "$fx_system_app_state_dir" 2>/dev/null || {
-    ui_print "  [!] 无法创建 FX 系统应用状态目录"
-    return 1
-  }
-  [ -d "$fx_system_app_state_dir" ] && [ ! -L "$fx_system_app_state_dir" ] || return 1
-  [ ! -L "$fx_system_app_log" ] && [ ! -L "$fx_system_app_marker" ] &&
-    [ ! -L "$fx_system_app_retry" ] || {
-      ui_print "  [!] FX 系统应用状态文件存在符号链接，拒绝部署"
-      return 1
-    }
-  : >> "$fx_system_app_log" 2>/dev/null || fx_system_app_log=/dev/nulled here (some install
+  _fx_d=$(sha256sum "$1" 2>/dev/null | awk 'NR==1 {print $1}')
+  [ -n "$_fx_d" ] || return 1
+  printf '%s\n' "$_fx_d"
+}
+
+fx_system_app_perm() {
+  # Normalise ownership/mode. Failures are tolerated here (some install
   # environments run as root already) but verified again below.
   chown 0:0 "$1" 2>/dev/null || :
   chmod "$2" "$1" 2>/dev/null || :
@@ -104,7 +95,20 @@ fx_system_app_context() {
 }
 
 fx_system_app_stage() {
-  mkdir -p "$fx_system_app_state_dir" 2>/dev/null || :
+  [ ! -L "$fx_system_app_state_dir" ] || {
+    ui_print "  [!] FX 状态目录是符号链接，拒绝写入系统应用部署状态"
+    return 1
+  }
+  mkdir -p "$fx_system_app_state_dir" 2>/dev/null || {
+    ui_print "  [!] 无法创建 FX 系统应用状态目录"
+    return 1
+  }
+  [ -d "$fx_system_app_state_dir" ] && [ ! -L "$fx_system_app_state_dir" ] || return 1
+  [ ! -L "$fx_system_app_log" ] && [ ! -L "$fx_system_app_marker" ] &&
+    [ ! -L "$fx_system_app_retry" ] || {
+      ui_print "  [!] FX 系统应用状态文件存在符号链接，拒绝部署"
+      return 1
+    }
   : >> "$fx_system_app_log" 2>/dev/null || fx_system_app_log=/dev/null
 
   _fx_overlay_dir="$MODPATH/system/app/FX"
