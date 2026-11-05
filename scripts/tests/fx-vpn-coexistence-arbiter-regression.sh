@@ -232,7 +232,7 @@ rc=${r%%|*}; out=${r#*|}
 pass "outer-tunnel binding remains unverified"
 
 echo "== case 3b: multiple injected VPN ownership rows are ambiguous =="
-r=$(run_arb "$LINKS_TUN" "$(printf 'tun0|10123\\ntun0|10124')" "$TMP/net_free" "$TMP/mod_clean")
+r=$(run_arb "$LINKS_TUN" "$(printf '%s\\n' 'tun0|10123' 'tun0|10124')" "$TMP/net_free" "$TMP/mod_clean")
 rc=${r%%|*}; out=${r#*|}
 [ "$rc" -eq 2 ] || fail "multiple injected ownership rows must return rc=2, got $rc: $out"
 [ "$(field "$out" "['verdict']")" = "unknown" ] || fail "multiple injected rows must be unknown: $out"
