@@ -20,11 +20,8 @@ grep -Fq 'android:name=".imported.dia.FxDiaScriptLibraryActivity" android:export
 grep -Fq 'fx_dia_frida' "$STORE" || fail "script library does not share the original Frida preference file"
 grep -Fq 'frida_script_library_v1' "$STORE" || fail "script library does not preserve the existing storage key"
 grep -Fq 'FX-DIA-FRIDA-SCRIPTS-1' "$STORE" || fail "script-library JSON compatibility schema changed"
-grep -Fq 'public static void save(Context context, String rawName, String source) throws Exception {
         if (context == null) throw new IllegalArgumentException("Context 为空。");' "$STORE" || fail "save must reject a null Context with a stable argument error"
-grep -Fq 'public static String exportJson(Context context) throws Exception {
         if (context == null) throw new IllegalArgumentException("Context 为空。");' "$STORE" || fail "export must reject a null Context with a stable argument error"
-grep -Fq 'public static ImportPreview previewImport(Context context, String json) throws Exception {
         if (context == null) throw new IllegalArgumentException("Context 为空。");' "$STORE" || fail "import preview must reject a null Context with a stable argument error"
 grep -Fq 'startActivityForResult(intent, REQUEST_EDITOR)' "$ACTIVITY" || fail "script editing does not use the existing full-screen editor"
 grep -Fq 'editorRequestPending = true;' "$ACTIVITY" || fail "script editor request is not tracked"
@@ -54,6 +51,14 @@ python3 - "$ACTIVITY" "$STORE" "$FRIDA" "$POLICY" "$HOST_TEST" <<'PY'
 from pathlib import Path
 import sys
 activity, store, frida, policy, host = [Path(p).read_text(encoding="utf-8") for p in sys.argv[1:]]
+for signature in (
+    "public static void save(Context context, String rawName, String source) throws Exception",
+    "public static String exportJson(Context context) throws Exception",
+    "public static ImportPreview previewImport(Context context, String json) throws Exception",
+):
+    start = store.index(signature)
+    body = store[start:store.index("\n    }", start)]
+    assert "if (context == null) throw new IllegalArgumentException(\"Context 为空。\");" in body, f"{signature} must reject null Context consistently"
 assert "REQUEST_IMPORT" in activity and "REQUEST_EXPORT" in activity
 assert "MAX_LIBRARY_JSON_BYTES" not in activity, "script-library import must not impose an arbitrary byte limit"
 assert "InputFilter.LengthFilter(64)" not in activity, "script names must not have an arbitrary UI length cap"
