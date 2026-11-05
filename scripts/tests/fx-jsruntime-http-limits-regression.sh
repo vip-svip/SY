@@ -54,6 +54,7 @@ Path(sys.argv[1]).write_text(
     encoding="utf-8",
 )
 PY
+cp -a "$T/module" "$T/baseline"
 python3 "$PATCHER" "$T/module" >/dev/null || fail "HTTP hardening patch failed on a known host fixture"
 
 for name in v1.0.0-jsruntime-utils-regression.sh v1.0.0-third-party-api-compat-regression.sh; do
@@ -82,6 +83,26 @@ python3 "$PATCHER" "$T/module" >/dev/null || fail "second HTTP hardening patch w
 [ "$before_readme" = "$(sha256sum "$README_FILE" | awk '{print $1}')" ] || fail "second patch changed README"
 [ "$before_utils" = "$(sha256sum "$T/module/scripts/tests/v1.0.0-jsruntime-utils-regression.sh" | awk '{print $1}')" ] || fail "second patch changed compatibility utils regression"
 [ "$before_compat" = "$(sha256sum "$T/module/scripts/tests/v1.0.0-third-party-api-compat-regression.sh" | awk '{print $1}')" ] || fail "second patch changed third-party compatibility regression"
+# Negative case: ambiguous insertion anchors must fail before writing host.js.
+mkdir -p "$T/ambiguous"
+cp -a "$T/baseline/." "$T/ambiguous/"
+printf '\n  function _fxRequest(options,cb) {}\n' >> "$T/ambiguous/scripts/jsruntime/host.js"
+ambiguous_before=$(sha256sum "$T/ambiguous/scripts/jsruntime/host.js" | awk '{print $1}')
+if python3 "$PATCHER" "$T/ambiguous" >/dev/null 2>&1; then
+  fail "ambiguous _fxRequest anchor was accepted"
+fi
+[ "$ambiguous_before" = "$(sha256sum "$T/ambiguous/scripts/jsruntime/host.js" | awk '{print $1}')" ] || fail "ambiguous anchor failure modified host.js"
+
+# Negative case: a partial marker pair must be rejected without rewriting files.
+mkdir -p "$T/partial"
+cp -a "$T/baseline/." "$T/partial/"
+printf '\n  /* FX_HTTP_REQUEST_LIMITS_V1_BEGIN */\n' >> "$T/partial/scripts/jsruntime/host.js"
+partial_before=$(sha256sum "$T/partial/scripts/jsruntime/host.js" | awk '{print $1}')
+if python3 "$PATCHER" "$T/partial" >/dev/null 2>&1; then
+  fail "partial HTTP-limit marker pair was accepted"
+fi
+[ "$partial_before" = "$(sha256sum "$T/partial/scripts/jsruntime/host.js" | awk '{print $1}')" ] || fail "partial-marker failure modified host.js"
+
 if [ -n "${1:-}" ]; then
   MODULE=$(CDPATH= cd -- "$1" && pwd)
   ACTUAL="$MODULE/scripts/jsruntime/host.js"
