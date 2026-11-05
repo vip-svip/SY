@@ -136,5 +136,5 @@ jobs:
           gradle --no-daemon -Pandroid.useAndroidX=true -p adhook \
             :app:testDebugUnitTest \
               --tests 'de.privacyguard.adhook.FxGkdSelectorEngineTest' \
-              --tests 'de.privacyguard.adhook.FxGkdPackageScanThrottleTest'
+              --tests 'de.privacyguard.adhook.FxGkdPackageScanThrottleTest' \
               --tests 'de.privacyguard.adhook.FxGkdPendingPackageScanTest'
