@@ -36,7 +36,7 @@ grep -Fq "FxGkdRuleStore.isEnabled(service)" "$automation"
 grep -Fq "rule.source.packageName == eventPackage" "$automation"
 grep -Fq "liveNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)" "$automation"
 grep -Fq "cooldownMillis" "$automation"
-grep -Fq "enabled = false" "$rules"
+grep -Fq "getBoolean(KEY_MASTER_ENABLED, false)" "$rules"
 grep -Fq "matchesUpstreamAttributeAndWidgetSelectors" "$unit"
 
 manifest="$root/adhook/app/src/main/AndroidManifest.xml"
