@@ -27,7 +27,7 @@ permissions:
 
 concurrency:
   group: fx-vpn-shell-regression-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   root-proxy:
