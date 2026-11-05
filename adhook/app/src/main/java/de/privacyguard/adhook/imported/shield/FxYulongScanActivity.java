@@ -82,7 +82,7 @@ public final class FxYulongScanActivity extends de.privacyguard.adhook.FxNativeT
         root.addView(header);
         ScrollView scroll=new ScrollView(this);scanScroll=scroll;scroll.setFillViewport(true);
         body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);body.setPadding(0,dp(4),0,dp(20));
-        scroll.addView(body);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));setContentViewWithNativeTabs(root, 5);
+        scroll.addView(body);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));setContentViewWithNativeTabs(root, 2);
         status=text("扫描只读取应用包名和名称，不会自动停用、冻结或卸载应用。",13,0xff5c6877,false);
         contentScan = new Switch(this);
         contentScan.setText("启用 APK 内容特征扫描（第二阶段）");
