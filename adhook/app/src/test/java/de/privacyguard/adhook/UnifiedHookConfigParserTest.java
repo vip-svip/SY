@@ -335,18 +335,27 @@ public class UnifiedHookConfigParserTest {
                 "[list:targets]\ncom.example.app,make_vip=1\n");
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void rejectsOversizedConfig() {
-        StringBuilder text = new StringBuilder(70000);
-        while (text.length() < 66000) text.append('#').append('x').append('\n');
-        UnifiedHookConfigParser.parse(text.toString());
+    @Test
+    public void acceptsVersionedConfigBeyondFormerByteLimit() {
+        StringBuilder text = new StringBuilder(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n[list:targets]\n");
+        for (int i = 0; i < 22000; i++) text.append("#").append('x').append('\n');
+        text.append("com.example.large,privacy=1\n");
+        assertTrue(text.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 65536);
+        assertTrue(UnifiedHookConfigParser.parse(text.toString())
+                .isPrivacyEnabledFor("com.example.large"));
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void rejectsOversizedLegacyConfigBeforeLegacyDispatch() {
+    @Test
+    public void acceptsLargeLegacyConfigWithUniqueTargets() {
         StringBuilder text = new StringBuilder("hook_ads_enabled=1\n[list:hook_targets]\n");
-        for (int i = 0; i < 22000; i++) text.append("com.example.app,ads_splash=1\n");
-        UnifiedHookConfigParser.parse(text.toString());
+        for (int i = 0; i < 2500; i++) {
+            text.append("com.example.legacy").append(i).append(",splash=1\n");
+        }
+        UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(text.toString());
+        assertEquals(2500, parsed.targets.size());
+        assertTrue(parsed.targets.get("com.example.legacy2499").splash);
+        assertFalse(parsed.privacyEnabled);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -354,11 +363,16 @@ public class UnifiedHookConfigParserTest {
         UnifiedHookConfigParser.parse(null);
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void rejectsUtf8ConfigOver64KiBEvenWhenCharacterCountIsLower() {
-        StringBuilder text = new StringBuilder("#");
+    @Test
+    public void acceptsUtf8ConfigOver64KiBEvenWhenCharacterCountIsLower() {
+        StringBuilder text = new StringBuilder(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n[list:targets]\n#");
         for (int i = 0; i < 22000; i++) text.append('界');
-        UnifiedHookConfigParser.parse(text.toString());
+        text.append("\ncom.example.utf8large,privacy=1\n");
+        assertTrue(text.length() < 65536);
+        assertTrue(text.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 65536);
+        assertTrue(UnifiedHookConfigParser.parse(text.toString())
+                .isPrivacyEnabledFor("com.example.utf8large"));
     }
 
     @Test
