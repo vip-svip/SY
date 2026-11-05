@@ -92,8 +92,10 @@ jobs:
           path: recovered-fx-module/
           if-no-files-found: error
           retention-days: 1
-      - name: Commit recovered module source into the integration branch
+      - name: Publish recovered module source for integration
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           mkdir -p docs/fx-module-recovery
@@ -113,14 +115,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "chore(module): restore canonical FX 1.0.0 runtime sources"
-          for attempt in 1 2 3 4 5; do
-            git fetch origin "$GITHUB_REF_NAME"
-            git rebase "origin/$GITHUB_REF_NAME"
-            if git push origin "HEAD:refs/heads/$GITHUB_REF_NAME"; then
-              exit 0
-            fi
-            echo "Concurrent branch update detected; retrying push ($attempt/5)."
-            sleep 2
-          done
-          echo "::error::Unable to publish recovered sources after concurrent updates."
-          exit 1
+          # Isolate the large source import from concurrent commits to the shared target.
+          git push origin "HEAD:refs/heads/fx-module-source-recovery"
+          gh pr create --repo vip-svip/SY \
+            --base "$GITHUB_REF_NAME" \
+            --head fx-module-source-recovery \
+            --title "Restore canonical FX 1.0.0 module runtime sources" \
+            --body "Restores the complete published FX 1.0.0 module tree, merges current branch-owned fx-module overlays, and preserves source provenance plus SHA-256 manifests. Five Host regressions passed; Android device validation remains separate."
