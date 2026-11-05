@@ -516,3 +516,80 @@ grep -Fq FX_GADGET_SESSION_STOPPED "$T/stop.result"
   exit 1
 }
 echo "PASS: Frida CLI mock stays attached, records session output and stops only the recorded CLI/feeder processes"
+
+# Exercise RootAccess itself with a payload larger than the former 8 MiB limit.
+# The fake su broker runs the supplied command locally; this verifies the Java
+# InputStream writer, byte integrity, and writer-failure propagation without
+# claiming Android KernelSU execution.
+STREAM_TEST="$ROOT/scripts/tests/RootAccessStreamHostTest.java"
+STREAM_CLASSES="$T/root-access-classes"
+mkdir -p "$STREAM_CLASSES" "$T/fake-su"
+cat > "$T/fake-su/su" <<'SU'
+#!/bin/sh
+[ "$1" = "-c" ] || exit 2
+exec /bin/sh -c "$2"
+SU
+chmod 700 "$T/fake-su/su"
+cat > "$STREAM_TEST" <<'JAVA'
+package de.privacyguard.adhook;
+
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.security.MessageDigest;
+
+public final class RootAccessStreamHostTest {
+    private static String sha256(Path path) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        try (InputStream input = Files.newInputStream(path)) {
+            byte[] buffer = new byte[64 * 1024];
+            int count;
+            while ((count = input.read(buffer)) != -1) digest.update(buffer, 0, count);
+        }
+        StringBuilder value = new StringBuilder();
+        for (byte b : digest.digest()) value.append(String.format("%02x", b & 0xff));
+        return value.toString();
+    }
+
+    private static String quote(Path path) {
+        return "'" + path.toAbsolutePath().toString().replace("'", "'\\''") + "'";
+    }
+
+    public static void main(String[] args) throws Exception {
+        Path dir = Paths.get(args[0]);
+        Path source = dir.resolve("source.bin");
+        Path destination = dir.resolve("destination.bin");
+        try (OutputStream output = Files.newOutputStream(source)) {
+            byte[] block = new byte[64 * 1024];
+            for (int i = 0; i < block.length; i++) block[i] = (byte) (i * 31 + 7);
+            for (int i = 0; i < 9 * 1024 * 1024 / block.length; i++) output.write(block);
+        }
+        String expected = sha256(source);
+        String command = "cat > " + quote(destination) + " && sha256sum " + quote(destination);
+        RootAccess.Result copied;
+        try (InputStream input = new FileInputStream(source.toFile())) {
+            copied = RootAccess.executeWithInput(command, input, 30000L, 4096);
+        }
+        if (copied.exitCode != 0 || copied.output == null || !copied.output.contains(expected))
+            throw new AssertionError("9 MiB streamed payload integrity failed: " + copied.exitCode + " " + copied.output);
+        if (Files.size(source) != Files.size(destination))
+            throw new AssertionError("streamed payload size changed");
+
+        InputStream broken = new InputStream() {
+            @Override public int read() throws IOException { throw new IOException("synthetic stream failure"); }
+        };
+        RootAccess.Result failed = RootAccess.executeWithInput("cat >/dev/null", broken, 10000L, 4096);
+        if (failed.exitCode == 0 || failed.output == null || !failed.output.contains("Root stdin 写入失败"))
+            throw new AssertionError("stdin writer failure was reported as success: " + failed.exitCode + " " + failed.output);
+        System.out.println("PASS: RootAccess streams and verifies a 9 MiB payload and fails closed on InputStream errors");
+    }
+}
+JAVA
+command -v javac >/dev/null 2>&1 || { echo "FAIL: javac is required for RootAccess stream host test" >&2; exit 1; }
+command -v java >/dev/null 2>&1 || { echo "FAIL: java is required for RootAccess stream host test" >&2; exit 1; }
+javac -d "$STREAM_CLASSES" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/RootAccess.java" "$STREAM_TEST"
+PATH="$T/fake-su:$PATH" java -cp "$STREAM_CLASSES" de.privacyguard.adhook.RootAccessStreamHostTest "$T"
