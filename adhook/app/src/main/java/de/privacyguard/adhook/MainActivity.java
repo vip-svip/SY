@@ -674,13 +674,13 @@ public final class MainActivity extends ComponentActivity {
         webView.addJavascriptInterface(rootBridge, "FXRoot");
         webView.setWebChromeClient(new WebChromeClient() {
             @Override public boolean onJsAlert(WebView view, String url, String message, JsResult result) {
-                new AlertDialog.Builder(MainActivity.this).setMessage(message)
+                FxNativeSkin.builder(MainActivity.this).setMessage(message)
                         .setPositiveButton(android.R.string.ok, (d, w) -> result.confirm())
                         .setOnCancelListener(d -> result.cancel()).show();
                 return true;
             }
             @Override public boolean onJsConfirm(WebView view, String url, String message, JsResult result) {
-                new AlertDialog.Builder(MainActivity.this).setMessage(message)
+                FxNativeSkin.builder(MainActivity.this).setMessage(message)
                         .setPositiveButton(android.R.string.ok, (d, w) -> result.confirm())
                         .setNegativeButton(android.R.string.cancel, (d, w) -> result.cancel())
                         .setOnCancelListener(d -> result.cancel()).show();
@@ -689,7 +689,7 @@ public final class MainActivity extends ComponentActivity {
             @Override public boolean onJsPrompt(WebView view, String url, String message, String defaultValue, JsPromptResult result) {
                 EditText input = new EditText(MainActivity.this);
                 input.setText(defaultValue);
-                new AlertDialog.Builder(MainActivity.this).setMessage(message).setView(input)
+                FxNativeSkin.builder(MainActivity.this).setMessage(message).setView(input)
                         .setPositiveButton(android.R.string.ok, (d, w) -> result.confirm(input.getText().toString()))
                         .setNegativeButton(android.R.string.cancel, (d, w) -> result.cancel())
                         .setOnCancelListener(d -> result.cancel()).show();
@@ -1021,7 +1021,7 @@ public final class MainActivity extends ComponentActivity {
         description.setPadding(0, dp(4), 0, dp(6));
         card.addView(title);
         card.addView(description);
-        card.addView(nativeAction("查看说明", () -> new AlertDialog.Builder(this)
+        card.addView(nativeAction("查看说明", () -> FxNativeSkin.builder(this)
                 .setTitle(heading).setMessage(detail)
                 .setPositiveButton("关闭", null).show()));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
@@ -1150,14 +1150,14 @@ public final class MainActivity extends ComponentActivity {
                 nav.setOrientation(LinearLayout.HORIZONTAL);
                 Button previous = nativeAction("上一页", () -> {
                     if (editor.getText().toString().equals(text)) showHostsEditor(spec, Math.max(1, start - 200));
-                    else new AlertDialog.Builder(this).setMessage("当前页有未保存修改，确定放弃并翻页？")
+                    else FxNativeSkin.builder(this).setMessage("当前页有未保存修改，确定放弃并翻页？")
                             .setNegativeButton("取消", null)
                             .setPositiveButton("放弃", (d, w) -> showHostsEditor(spec, Math.max(1, start - 200))).show();
                 });
                 previous.setEnabled(start > 1);
                 Button next = nativeAction("下一页", () -> {
                     if (editor.getText().toString().equals(text)) showHostsEditor(spec, start + 200);
-                    else new AlertDialog.Builder(this).setMessage("当前页有未保存修改，确定放弃并翻页？")
+                    else FxNativeSkin.builder(this).setMessage("当前页有未保存修改，确定放弃并翻页？")
                             .setNegativeButton("取消", null)
                             .setPositiveButton("放弃", (d, w) -> showHostsEditor(spec, start + 200)).show();
                 });
@@ -1165,7 +1165,7 @@ public final class MainActivity extends ComponentActivity {
                 nav.addView(previous, new LinearLayout.LayoutParams(0, -2, 1));
                 nav.addView(next, new LinearLayout.LayoutParams(0, -2, 1));
                 panel.addView(nav);
-                AlertDialog dialog = new AlertDialog.Builder(this)
+                AlertDialog dialog = FxNativeSkin.builder(this)
                         .setTitle(readOnly ? "系统 Hosts（只读）" : "本地 Hosts 编辑器")
                         .setView(panel)
                         .setNegativeButton("关闭", null)
@@ -1180,7 +1180,7 @@ public final class MainActivity extends ComponentActivity {
                 });
                 FxNativeSkin.showDialog(this, dialog);
             } catch (Exception error) {
-                new AlertDialog.Builder(this).setTitle("Hosts 读取失败")
+                FxNativeSkin.builder(this).setTitle("Hosts 读取失败")
                         .setMessage(error.getMessage()).setPositiveButton("重试", (d, w) -> showHostsEditor(spec, requestedPage))
                         .setNegativeButton("关闭", null).show();
             }
@@ -1204,7 +1204,7 @@ public final class MainActivity extends ComponentActivity {
                 Toast.makeText(this, "本地 Hosts 已保存，正在应用…", Toast.LENGTH_SHORT).show();
                 applyNativeHosts();
             } catch (Exception error) {
-                new AlertDialog.Builder(this).setTitle("保存失败")
+                FxNativeSkin.builder(this).setTitle("保存失败")
                         .setMessage("原文件未确认更新：" + error.getMessage())
                         .setPositiveButton("知道了", null).show();
             }
@@ -1216,7 +1216,7 @@ public final class MainActivity extends ComponentActivity {
             if (result.exitCode == 0) {
                 Toast.makeText(this, "Hosts / 过滤规则应用完成", Toast.LENGTH_LONG).show();
             } else {
-                new AlertDialog.Builder(this).setTitle("应用失败")
+                FxNativeSkin.builder(this).setTitle("应用失败")
                         .setMessage(result.output).setPositiveButton("知道了", null).show();
             }
         });
@@ -1231,12 +1231,12 @@ public final class MainActivity extends ComponentActivity {
                 getSharedPreferences("fx_hosts_external", MODE_PRIVATE).edit()
                         .putString("path", json.optString("path", ""))
                         .putString("hash", json.optString("baseHash", "")).apply();
-                new AlertDialog.Builder(this).setTitle("已导出 Hosts")
+                FxNativeSkin.builder(this).setTitle("已导出 Hosts")
                         .setMessage("文件已复制到：\n" + json.optString("path")
                                 + "\n请使用外部编辑器修改后，返回 FX 点击“从外部编辑器同步”。")
                         .setPositiveButton("知道了", null).show();
             } catch (Exception error) {
-                new AlertDialog.Builder(this).setMessage("导出失败：" + error.getMessage())
+                FxNativeSkin.builder(this).setMessage("导出失败：" + error.getMessage())
                         .setPositiveButton("知道了", null).show();
             }
         });
@@ -1260,7 +1260,7 @@ public final class MainActivity extends ComponentActivity {
                 Toast.makeText(this, "外部 Hosts 已同步，正在应用…", Toast.LENGTH_LONG).show();
                 applyNativeHosts();
             } catch (Exception error) {
-                new AlertDialog.Builder(this).setTitle("同步失败")
+                FxNativeSkin.builder(this).setTitle("同步失败")
                         .setMessage(error.getMessage()).setPositiveButton("知道了", null).show();
             }
         });
@@ -1270,7 +1270,7 @@ public final class MainActivity extends ComponentActivity {
         runNativeModuleCommand("sh \"$MP/scripts/native-managed-lists.sh\" list " + shellQuote(listId),
                 30000L, result -> {
             if (result.exitCode != 0) {
-                new AlertDialog.Builder(this).setTitle(title + "读取失败")
+                FxNativeSkin.builder(this).setTitle(title + "读取失败")
                         .setMessage(result.output == null ? "无法读取设备端列表。" : result.output.trim())
                         .setPositiveButton("重试", (d, w) -> showNativeManagedListDialog(listId, title))
                         .setNegativeButton("关闭", null).show();
@@ -1278,7 +1278,7 @@ public final class MainActivity extends ComponentActivity {
             }
             String[] lines = (result.output == null ? "" : result.output.trim()).split("\\r?\\n");
             if (lines.length == 0 || !"FXLIST1".equals(lines[0])) {
-                new AlertDialog.Builder(this).setTitle(title + "读取失败")
+                FxNativeSkin.builder(this).setTitle(title + "读取失败")
                         .setMessage("设备端列表响应格式错误。")
                         .setPositiveButton("重试", (d, w) -> showNativeManagedListDialog(listId, title))
                         .setNegativeButton("关闭", null).show();
@@ -1308,7 +1308,7 @@ public final class MainActivity extends ComponentActivity {
                 } catch (NumberFormatException ignored) { }
             }
             String[] items = labels.toArray(new String[0]);
-            new AlertDialog.Builder(this).setTitle(title)
+            FxNativeSkin.builder(this).setTitle(title)
                     .setItems(items, (dialog, which) -> showNativeManagedListItemActions(
                             listId, title, rowIndices.get(which), rowValues.get(which),
                             rowNotes.get(which), rowEnabled.get(which)))
@@ -1322,11 +1322,11 @@ public final class MainActivity extends ComponentActivity {
     }    private void showNativeManagedListItemActions(String listId, String title, int index,
                                                    String value, String note, boolean enabled) {
         String[] actions = {enabled ? "停用" : "启用", "编辑", "删除"};
-        new AlertDialog.Builder(this).setTitle(note.isEmpty() ? title : note)
+        FxNativeSkin.builder(this).setTitle(note.isEmpty() ? title : note)
                 .setItems(actions, (dialog, which) -> {
                     if (which == 0) mutateNativeManagedList(listId, index, "toggle", "", !enabled, title);
                     else if (which == 1) showNativeManagedListEditDialog(listId, title, index, value, note);
-                    else new AlertDialog.Builder(this).setMessage("确定删除此条目？")
+                    else FxNativeSkin.builder(this).setMessage("确定删除此条目？")
                             .setNegativeButton("取消", null)
                             .setPositiveButton("删除", (d, w) ->
                                     mutateNativeManagedList(listId, index, "delete", "", false, title)).show();
@@ -1346,7 +1346,7 @@ public final class MainActivity extends ComponentActivity {
         panel.setPadding(dp(16), dp(6), dp(16), dp(4));
         panel.addView(value);
         panel.addView(note);
-        AlertDialog managedDialog = new AlertDialog.Builder(this).setTitle(title)
+        AlertDialog managedDialog = FxNativeSkin.builder(this).setTitle(title)
                 .setView(panel).setNegativeButton("取消", null)
                 .setPositiveButton("添加", (dialog, which) -> {
                     String v = value.getText().toString().trim();
@@ -1376,7 +1376,7 @@ public final class MainActivity extends ComponentActivity {
         panel.setPadding(dp(16), dp(6), dp(16), dp(4));
         panel.addView(value);
         panel.addView(note);
-        AlertDialog managedDialog = new AlertDialog.Builder(this).setTitle("编辑条目")
+        AlertDialog managedDialog = FxNativeSkin.builder(this).setTitle("编辑条目")
                 .setView(panel).setNegativeButton("取消", null)
                 .setPositiveButton("保存", (d, w) -> {
                     String v = value.getText().toString().trim();
@@ -1423,7 +1423,7 @@ public final class MainActivity extends ComponentActivity {
                 showNativeManagedListDialog(listId, title);
             } else {
                 String detail = result.output == null ? "设备端保存或应用失败。" : result.output.trim();
-                new AlertDialog.Builder(this).setTitle("列表更新失败")
+                FxNativeSkin.builder(this).setTitle("列表更新失败")
                         .setMessage(detail)
                         .setPositiveButton("重试", (d, w) ->
                                 mutateNativeManagedList(listId, index, operation, newValue, enabled, title, newNote))
@@ -1439,7 +1439,7 @@ public final class MainActivity extends ComponentActivity {
             }
             String value = result.output == null || result.output.trim().isEmpty()
                     ? "当前列表为空。" : result.output.trim();
-            new AlertDialog.Builder(this).setTitle(title).setMessage(value)
+            FxNativeSkin.builder(this).setTitle(title).setMessage(value)
                     .setPositiveButton("关闭", null).show();
         });
     }
@@ -1660,7 +1660,7 @@ public final class MainActivity extends ComponentActivity {
                     enabledSwitch.setOnCheckedChangeListener((button, checked) ->
                             setNativeScriptEnabled(index, checked, rows, status, enabledSwitch, on));
                     ops.addView(enabledSwitch, new LinearLayout.LayoutParams(0, -2, 1));
-                    row.setOnClickListener(v -> new AlertDialog.Builder(this)
+                    row.setOnClickListener(v -> FxNativeSkin.builder(this)
                             .setTitle(note.isEmpty() ? "脚本详情" : note)
                             .setMessage(valueText).setPositiveButton("关闭", null).show());
                     if (!valueText.startsWith("https://")) {
@@ -1669,7 +1669,7 @@ public final class MainActivity extends ComponentActivity {
                         ops.addView(run);
                     }
                     ops.addView(nativeAction("编辑", () -> editNativeScript(index, valueText, note, rows, status)));
-                    ops.addView(nativeAction("删除", () -> new AlertDialog.Builder(this)
+                    ops.addView(nativeAction("删除", () -> FxNativeSkin.builder(this)
                             .setMessage("确定删除该脚本条目？")
                             .setNegativeButton("取消", null)
                             .setPositiveButton("删除", (d, w) -> deleteNativeScript(index, rows, status)).show()));
@@ -1707,7 +1707,7 @@ public final class MainActivity extends ComponentActivity {
 
     private void confirmRunNativeLocalScript(int index, String name, String source,
                                              LinearLayout rows, TextView status) {
-        new AlertDialog.Builder(this).setTitle("运行本地 JavaScript")
+        FxNativeSkin.builder(this).setTitle("运行本地 JavaScript")
                 .setMessage("即将通过 FX QuickJS-NG 执行本地脚本"
                         + (name == null || name.trim().isEmpty() ? "" : "「" + name + "」")
                         + "。脚本会使用 FX 明确提供的宿主 API；只运行你信任的源码。")
@@ -1728,12 +1728,12 @@ public final class MainActivity extends ComponentActivity {
                         boolean ok = result.exitCode == 0 && response.optBoolean("ok", false);
                         status.setText(ok ? "本地脚本执行完成 · QuickJS-NG" : "本地脚本执行失败 · " +
                                 response.optString("error", "模块未确认执行结果"));
-                        new AlertDialog.Builder(this).setTitle(ok ? "脚本执行完成" : "脚本执行失败")
+                        FxNativeSkin.builder(this).setTitle(ok ? "脚本执行完成" : "脚本执行失败")
                                 .setMessage(response.toString(2))
                                 .setPositiveButton("关闭", null).show();
                     } catch (Exception error) {
                         status.setText("脚本执行结果解析失败：" + error.getMessage());
-                        new AlertDialog.Builder(this).setTitle("脚本执行结果无效")
+                        FxNativeSkin.builder(this).setTitle("脚本执行结果无效")
                                 .setMessage(output.isEmpty() ? error.getMessage() : output)
                                 .setPositiveButton("关闭", null).show();
                     }
@@ -1785,7 +1785,7 @@ public final class MainActivity extends ComponentActivity {
         panel.setPadding(dp(16), dp(6), dp(16), dp(4));
         panel.addView(value);
         panel.addView(note);
-        new AlertDialog.Builder(this).setTitle("编辑脚本")
+        FxNativeSkin.builder(this).setTitle("编辑脚本")
                 .setView(panel).setNegativeButton("取消", null)
                 .setPositiveButton("保存", (dialog, which) -> {
                     String updatedValue = value.getText().toString();
@@ -1837,7 +1837,7 @@ public final class MainActivity extends ComponentActivity {
         hint.setTextColor(0xff718091);
         panel.addView(hint);
         panel.addView(input);
-        new AlertDialog.Builder(this).setTitle("添加脚本 / 订阅")
+        FxNativeSkin.builder(this).setTitle("添加脚本 / 订阅")
                 .setView(panel)
                 .setNegativeButton("取消", null)
                 .setPositiveButton("添加", (d, w) -> addNativeScriptValue(input.getText().toString(), "手动添加"))
@@ -2017,7 +2017,7 @@ public final class MainActivity extends ComponentActivity {
                 + "if [ -f \"$f\" ]; then echo \"--- $f ---\"; tail -n 160 \"$f\"; fi; done; "
                 + "test -f /data/adb/privacyguard/jsruntime/local-run.log -o -f /data/adb/privacyguard/jsruntime/scheduler.log "
                 + "|| echo '暂无脚本运行日志'", 30000L, result ->
-                new AlertDialog.Builder(this).setTitle("脚本运行日志")
+                FxNativeSkin.builder(this).setTitle("脚本运行日志")
                         .setMessage(result.output).setPositiveButton("关闭", null).show());
     }
 
@@ -2025,7 +2025,7 @@ public final class MainActivity extends ComponentActivity {
         runNativeModuleCommand("sh \"$MP/scripts/status.sh\" json", 30000L, result -> {
             try {
                 JSONObject json = new JSONObject(result.output.trim());
-                new AlertDialog.Builder(this).setTitle("MITM / 证书状态")
+                FxNativeSkin.builder(this).setTitle("MITM / 证书状态")
                         .setMessage("模块版本：" + json.optString("version", "unknown")
                                 + "\nDNS 转发：" + json.optString("dns_forward_status", "unknown")
                                 + "\nLSPosed：" + json.optString("lsposed_status", "unknown")
@@ -2129,7 +2129,7 @@ public final class MainActivity extends ComponentActivity {
     private void showNativeVpnAdvancedEditor() {
         runNativeModuleCommand("sh \"$MP/scripts/native-vpn-config.sh\" list", 30000L, result -> {
             if (result.exitCode != 0) {
-                new AlertDialog.Builder(this).setTitle("VPN 高级设置读取失败")
+                FxNativeSkin.builder(this).setTitle("VPN 高级设置读取失败")
                         .setMessage(result.output == null ? "无法读取设备端 [conf:vpn]。" : result.output.trim())
                         .setPositiveButton("重试", (d, w) -> showNativeVpnAdvancedEditor())
                         .setNegativeButton("关闭", null).show();
@@ -2137,7 +2137,7 @@ public final class MainActivity extends ComponentActivity {
             }
             String[] lines = (result.output == null ? "" : result.output.trim()).split("\\r?\\n");
             if (lines.length == 0 || !"FXVPNCONF1".equals(lines[0])) {
-                new AlertDialog.Builder(this).setTitle("VPN 高级设置读取失败")
+                FxNativeSkin.builder(this).setTitle("VPN 高级设置读取失败")
                         .setMessage("设备端配置响应格式错误。")
                         .setPositiveButton("重试", (d, w) -> showNativeVpnAdvancedEditor())
                         .setNegativeButton("关闭", null).show();
@@ -2165,7 +2165,7 @@ public final class MainActivity extends ComponentActivity {
                 labels.add(nativeVpnAdvancedLabel(key) + "\n" + shown);
             }
             String[] rows = labels.toArray(new String[0]);
-            new AlertDialog.Builder(this).setTitle("VPN 高级参数")
+            FxNativeSkin.builder(this).setTitle("VPN 高级参数")
                     .setItems(rows, (dialog, which) ->
                             showNativeVpnAdvancedItemDialog(availableKeys.get(which), values.get(availableKeys.get(which))))
                     .setPositiveButton("刷新", (dialog, which) -> showNativeVpnAdvancedEditor())
@@ -2238,7 +2238,7 @@ public final class MainActivity extends ComponentActivity {
             input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
         }
         input.setHint(nativeVpnAdvancedHint(key));
-        AlertDialog.Builder builder = new AlertDialog.Builder(this)
+        AlertDialog.Builder builder = FxNativeSkin.builder(this)
                 .setTitle(nativeVpnAdvancedLabel(key))
                 .setMessage(nativeVpnAdvancedDescription(key))
                 .setView(input)
@@ -2280,7 +2280,7 @@ public final class MainActivity extends ComponentActivity {
         int selected = 0;
         for (int i = 0; i < values.length; i++) if (values[i].equals(currentValue)) selected = i;
         final int[] choice = {selected};
-        new AlertDialog.Builder(this).setTitle(nativeVpnAdvancedLabel(key))
+        FxNativeSkin.builder(this).setTitle(nativeVpnAdvancedLabel(key))
                 .setSingleChoiceItems(labels, selected, (dialog, which) -> choice[0] = which)
                 .setNegativeButton("取消", null)
                 .setPositiveButton("应用", (dialog, which) ->
@@ -2297,7 +2297,7 @@ public final class MainActivity extends ComponentActivity {
                 showNativeVpnAdvancedEditor();
                 syncNativeVpnControls();
             } else {
-                new AlertDialog.Builder(this).setTitle("VPN 参数保存失败")
+                FxNativeSkin.builder(this).setTitle("VPN 参数保存失败")
                         .setMessage(result.output == null ? "设备端拒绝了本次修改。" : result.output.trim())
                         .setPositiveButton("知道了", null).show();
             }
@@ -2573,10 +2573,10 @@ public final class MainActivity extends ComponentActivity {
                             setNativeVpnSubscriptionEnabled(index, checked));
                     ops.addView(toggle, new LinearLayout.LayoutParams(0, -2, 1));
                     ops.addView(nativeAction("更新", () -> updateNativeVpnSubscription(index, url)));
-                    ops.addView(nativeAction("详情", () -> new AlertDialog.Builder(this)
+                    ops.addView(nativeAction("详情", () -> FxNativeSkin.builder(this)
                             .setTitle(note.isEmpty() ? "VPN 订阅" : note)
                             .setMessage(url).setPositiveButton("关闭", null).show()));
-                    ops.addView(nativeAction("删除", () -> new AlertDialog.Builder(this)
+                    ops.addView(nativeAction("删除", () -> FxNativeSkin.builder(this)
                             .setMessage("删除该订阅？仅清理确认只属于此订阅的节点。")
                             .setNegativeButton("取消", null)
                             .setPositiveButton("删除", (d, w) -> deleteNativeVpnSubscription(index)).show()));
@@ -2605,7 +2605,7 @@ public final class MainActivity extends ComponentActivity {
         input.setSingleLine(false);
         input.setMinLines(2);
         input.setHint("粘贴机场订阅 URL 或代理节点链接");
-        new AlertDialog.Builder(this).setTitle("添加 VPN 订阅 / 节点")
+        FxNativeSkin.builder(this).setTitle("添加 VPN 订阅 / 节点")
                 .setMessage("支持 Base64 / URI 列表 / Clash YAML 订阅，以及 vmess、vless、trojan、ss、ssr、hysteria2、tuic、anytls、socks5 节点链接。")
                 .setView(input)
                 .setNegativeButton("取消", null)
@@ -2873,7 +2873,7 @@ public final class MainActivity extends ComponentActivity {
                 org.json.JSONObject snapshot = new org.json.JSONObject((String) decoded);
                 org.json.JSONArray nodes = snapshot.optJSONArray("nodes");
                 if (nodes == null || nodes.length() == 0) {
-                    new AlertDialog.Builder(this).setTitle("选择节点")
+                    FxNativeSkin.builder(this).setTitle("选择节点")
                             .setMessage("当前没有可用节点。直连模式不需要节点；请先导入订阅后再选择代理节点。")
                             .setPositiveButton("知道了", null).show();
                     return;
@@ -2893,12 +2893,12 @@ public final class MainActivity extends ComponentActivity {
                     if (node.optBoolean("selected", false)) selected = labels.size() - 1;
                 }
                 if (labels.isEmpty()) {
-                    new AlertDialog.Builder(this).setTitle("选择节点").setMessage("没有启用的可用节点。")
+                    FxNativeSkin.builder(this).setTitle("选择节点").setMessage("没有启用的可用节点。")
                             .setPositiveButton("知道了", null).show();
                     return;
                 }
                 final int[] chosen = { selected };
-                new AlertDialog.Builder(this).setTitle("选择 VPN 节点")
+                FxNativeSkin.builder(this).setTitle("选择 VPN 节点")
                         .setSingleChoiceItems(labels.toArray(new String[0]), selected,
                                 (dialog, which) -> chosen[0] = which)
                         .setPositiveButton("应用", (dialog, which) -> {
@@ -3485,7 +3485,7 @@ public final class MainActivity extends ComponentActivity {
 
         java.util.concurrent.atomic.AtomicReference<android.graphics.Bitmap> previewBitmap =
                 new java.util.concurrent.atomic.AtomicReference<>();
-        AlertDialog dialog = new AlertDialog.Builder(this)
+        AlertDialog dialog = FxNativeSkin.builder(this)
                 .setTitle("壁纸随心换")
                 .setView(previewPanel)
                 .setPositiveButton("上传本地图片", (d, which) -> openNativeWallpaperPicker())
@@ -3537,7 +3537,7 @@ public final class MainActivity extends ComponentActivity {
             Toast.makeText(this, "壁纸选择无效或已有壁纸操作正在进行。", Toast.LENGTH_LONG).show();
             return;
         }
-        AlertDialog progress = new AlertDialog.Builder(this)
+        AlertDialog progress = FxNativeSkin.builder(this)
                 .setMessage("处理中...")
                 .setCancelable(false)
                 .create();
@@ -3561,7 +3561,7 @@ public final class MainActivity extends ComponentActivity {
                 progress.dismiss();
                 if (resultFailure != null || resultPath == null) {
                     String reason = resultFailure == null ? "未知错误" : resultFailure.getMessage();
-                    new AlertDialog.Builder(this)
+                    FxNativeSkin.builder(this)
                             .setTitle("壁纸保存失败")
                             .setMessage(reason == null ? "无法保存所选图片。" : reason)
                             .setPositiveButton("知道了", null)
@@ -3702,7 +3702,7 @@ public final class MainActivity extends ComponentActivity {
                             revertingRow[0] = true;
                             button.setChecked(!checked);
                             revertingRow[0] = false;
-                            new AlertDialog.Builder(this).setTitle("分应用配置未应用")
+                            FxNativeSkin.builder(this).setTitle("分应用配置未应用")
                                     .setMessage(result.output == null ? "模块未确认配置应用成功。" : result.output.trim())
                                     .setPositiveButton("关闭", null).show();
                         } else {
@@ -3742,7 +3742,7 @@ public final class MainActivity extends ComponentActivity {
                 suppressMasterListener[0] = true;
                 master.setChecked(false);
                 suppressMasterListener[0] = false;
-                new AlertDialog.Builder(this).setTitle("先选择应用")
+                FxNativeSkin.builder(this).setTitle("先选择应用")
                         .setMessage("启用分应用 VPN 路由前，至少需要选择一个应用。")
                         .setPositiveButton("知道了", null).show();
                 return;
@@ -3887,7 +3887,7 @@ public final class MainActivity extends ComponentActivity {
             // Keep the parsed panel local to this invocation; no WebView DOM is consulted.
             renderNativePrivacySettingsGroup(found, title);
         } catch (Exception error) {
-            new AlertDialog.Builder(this).setTitle(title + "读取失败")
+            FxNativeSkin.builder(this).setTitle(title + "读取失败")
                     .setMessage(error.getMessage()).setPositiveButton("关闭", null).show();
         }
     }
@@ -3972,11 +3972,11 @@ public final class MainActivity extends ComponentActivity {
                 ScrollView scroll = new ScrollView(this);
                 nativeScroll = scroll;
                 scroll.addView(panel);
-                new AlertDialog.Builder(this).setTitle(title)
+                FxNativeSkin.builder(this).setTitle(title)
                         .setView(scroll).setPositiveButton("关闭", null).show();
                 loadNativePrivacyEditEntries(panelSchema.optString("id"), panel);
             } catch (Exception error) {
-                new AlertDialog.Builder(this).setTitle(title + "读取失败")
+                FxNativeSkin.builder(this).setTitle(title + "读取失败")
                         .setMessage(error.getMessage()).setPositiveButton("重试", (d, w) ->
                                 showNativeSettingsGroup(panelSchema.optString("id"), title))
                         .setNegativeButton("关闭", null).show();
@@ -4056,7 +4056,7 @@ public final class MainActivity extends ComponentActivity {
                 if (!state.optBoolean("ok", false)) throw new IllegalStateException("证书管理器未确认状态");
                 showNativeCertificateList(state);
             } catch (Exception error) {
-                new AlertDialog.Builder(this).setTitle("证书状态读取失败")
+                FxNativeSkin.builder(this).setTitle("证书状态读取失败")
                         .setMessage(error.getMessage()).setPositiveButton("重试", (d, w) ->
                                 showNativeCertificateManager())
                         .setNegativeButton("关闭", null).show();
@@ -4118,7 +4118,7 @@ public final class MainActivity extends ComponentActivity {
             remove.setAllCaps(false);
             remove.setText("移除");
             remove.setEnabled(released);
-            remove.setOnClickListener(v -> new AlertDialog.Builder(this)
+            remove.setOnClickListener(v -> FxNativeSkin.builder(this)
                     .setTitle("移除系统 CA")
                     .setMessage("将移除 " + id + " 子模块并同步解除其系统信任。此操作不会写入用户证书区。")
                     .setNegativeButton("取消", null)
@@ -4143,7 +4143,7 @@ public final class MainActivity extends ComponentActivity {
         list.addView(summary);
         ScrollView scroll = new ScrollView(this);
         scroll.addView(list);
-        nativeCertificateDialog = new AlertDialog.Builder(this).setTitle("系统 CA 管理")
+        nativeCertificateDialog = FxNativeSkin.builder(this).setTitle("系统 CA 管理")
                 .setView(scroll)
                 .setNeutralButton("同步信任状态", (d, w) -> runNativeCertificateAction("sync", null))
                 .setPositiveButton("刷新", (d, w) -> showNativeCertificateManager())
@@ -4190,7 +4190,7 @@ public final class MainActivity extends ComponentActivity {
             text.setTextSize(11);
             text.setPadding(dp(14), dp(12), dp(14), dp(12));
             scroll.addView(text);
-            new AlertDialog.Builder(this).setTitle("FX 运行日志")
+            FxNativeSkin.builder(this).setTitle("FX 运行日志")
                     .setView(scroll).setPositiveButton("关闭", null).show();
         });
     }
@@ -5251,7 +5251,7 @@ public final class MainActivity extends ComponentActivity {
         chooseNetworkMode.setText("选择模拟网络类型");
         chooseNetworkMode.setOnClickListener(v -> {
             int selectedMode = "cellular".equals(chosenNetworkMode[0]) ? 1 : 0;
-            new AlertDialog.Builder(this).setTitle("网络类型")
+            FxNativeSkin.builder(this).setTitle("网络类型")
                     .setSingleChoiceItems(networkModeLabels, selectedMode,
                             (dialog, which) -> chosenNetworkMode[0] = networkModes[which])
                     .setPositiveButton("确定", (dialog, which) -> chosenNetworkModeText.setText(
@@ -5458,7 +5458,7 @@ public final class MainActivity extends ComponentActivity {
             boolean locationAccessBlocked = getPreferences(0).getBoolean(
                     selectedPackage + ":location_access_block", false);
             if (locationAccessBlocked && (enabled || providerEnabled)) {
-                new AlertDialog.Builder(this).setTitle("GPS 设置冲突")
+                FxNativeSkin.builder(this).setTitle("GPS 设置冲突")
                         .setMessage("当前已启用“限制位置访问”。GPS 坐标/服务状态模拟与位置访问阻断互斥；请先关闭位置访问阻断，或关闭两项 GPS 模拟后再保存。")
                         .setPositiveButton("知道了", null).show();
                 return;
@@ -5486,7 +5486,7 @@ public final class MainActivity extends ComponentActivity {
                 gpsEditor.apply();
                 publishConfig();
             } catch (Exception invalid) {
-                new AlertDialog.Builder(this).setTitle("GPS 参数无效")
+                FxNativeSkin.builder(this).setTitle("GPS 参数无效")
                         .setMessage(invalid.getMessage() == null ? "请输入有效经纬度和精度。" : invalid.getMessage())
                         .setPositiveButton("知道了", null).show();
             }
@@ -5698,7 +5698,7 @@ public final class MainActivity extends ComponentActivity {
                 idRules = de.privacyguard.adhook.imported.dia.FxDiaDialogMatchPolicy
                         .parseTerms(idTerms.getText() == null ? "" : idTerms.getText().toString());
             } catch (IllegalArgumentException invalid) {
-                new AlertDialog.Builder(this).setTitle("Dialog 规则无效")
+                FxNativeSkin.builder(this).setTitle("Dialog 规则无效")
                         .setMessage(invalid.getMessage())
                         .setPositiveButton("确定", null).show();
                 return;
@@ -5827,7 +5827,7 @@ public final class MainActivity extends ComponentActivity {
                 rules = de.privacyguard.adhook.imported.dia.FxDiaDialogMatchPolicy
                         .parseTerms(terms.getText() == null ? "" : terms.getText().toString());
             } catch (IllegalArgumentException invalid) {
-                new AlertDialog.Builder(this).setTitle("Toast 规则无效")
+                FxNativeSkin.builder(this).setTitle("Toast 规则无效")
                         .setMessage(invalid.getMessage())
                         .setPositiveButton("确定", null).show();
                 return;
@@ -6327,7 +6327,7 @@ public final class MainActivity extends ComponentActivity {
             @Override public void afterTextChanged(android.text.Editable value) { }
         });
         input.setHint("例如：网络监控、会员状态、设备模拟");
-        new AlertDialog.Builder(this).setTitle("新增规则分组")
+        FxNativeSkin.builder(this).setTitle("新增规则分组")
                 .setView(input)
                 .setNegativeButton("取消", (dialog, which) -> cancelCustomRuleGroupAddDialog())
                 .setOnCancelListener(dialog -> cancelCustomRuleGroupAddDialog())
@@ -6337,14 +6337,14 @@ public final class MainActivity extends ComponentActivity {
                     int pickerChoice = customRuleGroupDialogChoice;
                     String value = input.getText().toString().trim();
                     if (!validCustomRuleGroupName(value)) {
-                        new AlertDialog.Builder(this).setMessage("分组名称无效，最长 24 个字符。")
+                        FxNativeSkin.builder(this).setMessage("分组名称无效，最长 24 个字符。")
                                 .setPositiveButton("返回编辑", (d, w) ->
                                         retryCustomRuleGroupAddDialog(returnToPicker, pickerSlot, pickerChoice))
                                 .show();
                         return;
                     }
                     if (!ensureCustomRuleGroup(value)) {
-                        new AlertDialog.Builder(this)
+                        FxNativeSkin.builder(this)
                                 .setMessage(customRuleGroupCommitFailureMessage("创建分组"))
                                 .setPositiveButton("重试", (d, w) ->
                                         retryCustomRuleGroupAddDialog(returnToPicker, pickerSlot, pickerChoice))
@@ -6361,7 +6361,7 @@ public final class MainActivity extends ComponentActivity {
                         }
                         return;
                     }
-                    new AlertDialog.Builder(this).setMessage("已创建分组：" + value
+                    FxNativeSkin.builder(this).setMessage("已创建分组：" + value
                                     + (draftCleared ? "" : "；输入草稿清理未确认"))
                             .setPositiveButton("继续管理", (d, w) -> showCustomRuleGroupsDialog())
                             .setNegativeButton("关闭", null).show();
@@ -6377,11 +6377,11 @@ public final class MainActivity extends ComponentActivity {
         customRuleGroupDialogRestorePending = false;
         java.util.LinkedHashSet<String> groups = getCustomRuleGroups();
         String[] names = groups.toArray(new String[0]);
-        new AlertDialog.Builder(this).setTitle("规则分组 · " + names.length + " 个")
+        FxNativeSkin.builder(this).setTitle("规则分组 · " + names.length + " 个")
                 .setItems(names, (dialog, which) -> {
                     String chosen = names[which];
                     if ("默认".equals(chosen)) {
-                        new AlertDialog.Builder(this).setMessage("“默认”分组始终保留。")
+                        FxNativeSkin.builder(this).setMessage("“默认”分组始终保留。")
                                 .setPositiveButton("知道了", null).show();
                         return;
                     }
@@ -6396,7 +6396,7 @@ public final class MainActivity extends ComponentActivity {
         customRuleGroupDialogMode = "actions";
         customRuleGroupDialogValue = groupName;
         customRuleGroupDialogRestorePending = false;
-        new AlertDialog.Builder(this).setTitle("规则分组 · " + groupName)
+        FxNativeSkin.builder(this).setTitle("规则分组 · " + groupName)
                 .setItems(new String[]{"重命名分组", "删除分组"}, (dialog, which) -> {
                     if (which == 0) {
                         showRenameCustomRuleGroupDialog(groupName);
@@ -6450,14 +6450,14 @@ public final class MainActivity extends ComponentActivity {
         });
         input.setSelection(input.getText().length());
         input.setHint("新分组名称（最多 24 个字符）");
-        new AlertDialog.Builder(this).setTitle("重命名规则分组").setView(input)
+        FxNativeSkin.builder(this).setTitle("重命名规则分组").setView(input)
                 .setNegativeButton("取消", (dialog, which) -> clearCustomRuleGroupDialogState())
                 .setOnCancelListener(dialog -> clearCustomRuleGroupDialogState())
                 .setPositiveButton("保存", (dialog, which) -> {
                     clearCustomRuleGroupDialogState();
                     String newName = input.getText().toString().trim();
                     if (!validCustomRuleGroupName(newName) || "默认".equals(newName)) {
-                        new AlertDialog.Builder(this).setMessage("分组名称无效；不能重命名系统保留的“默认”分组。")
+                        FxNativeSkin.builder(this).setMessage("分组名称无效；不能重命名系统保留的“默认”分组。")
                                 .setPositiveButton("知道了", null).show();
                         return;
                     }
@@ -6465,7 +6465,7 @@ public final class MainActivity extends ComponentActivity {
                         String reason = lastCustomRuleGroupCommitAttempted
                                 ? customRuleGroupCommitFailureMessage("分组重命名")
                                 : "新名称可能已存在，或当前分组已不可用；原配置未写入。";
-                        new AlertDialog.Builder(this)
+                        FxNativeSkin.builder(this)
                                 .setMessage("重命名失败：" + reason)
                                 .setPositiveButton("知道了", null).show();
                         return;
@@ -6481,7 +6481,7 @@ public final class MainActivity extends ComponentActivity {
         customRuleGroupDialogMode = "delete";
         customRuleGroupDialogValue = groupName;
         customRuleGroupDialogRestorePending = false;
-        new AlertDialog.Builder(this).setTitle("删除分组")
+        FxNativeSkin.builder(this).setTitle("删除分组")
                 .setMessage("删除分组“" + groupName + "”？其中的规则会移动到“默认”，不会删除 Hook 规则。")
                 .setNegativeButton("取消", (dialog, which) -> clearCustomRuleGroupDialogState())
                 .setOnCancelListener(dialog -> clearCustomRuleGroupDialogState())
@@ -6504,7 +6504,7 @@ public final class MainActivity extends ComponentActivity {
                 assignments.put(key, "默认");
         }
         if (!commitCustomRuleGroupUpdate(groups, assignments)) {
-            new AlertDialog.Builder(this)
+            FxNativeSkin.builder(this)
                     .setMessage(customRuleGroupCommitFailureMessage("分组删除"))
                     .setPositiveButton("知道了", null).show();
             return;
@@ -6534,7 +6534,7 @@ public final class MainActivity extends ComponentActivity {
             selected = Math.max(0, Math.min(names.length - 1, restoreChoice));
         customRuleGroupDialogChoice = selected;
         final int[] chosen = { selected };
-        new AlertDialog.Builder(this).setTitle("将规则移动到分组")
+        FxNativeSkin.builder(this).setTitle("将规则移动到分组")
                 .setSingleChoiceItems(names, selected, (dialog, which) -> {
                     chosen[0] = which;
                     customRuleGroupDialogChoice = which;
@@ -6572,7 +6572,7 @@ public final class MainActivity extends ComponentActivity {
         String stored = getPreferences(0).getString(selectedPackage + ":dev_rule_" + slot, null);
         String[] parts = stored == null ? new String[0] : stored.split("\\|", -1);
         if (parts.length != 4 && parts.length != 5) {
-            new AlertDialog.Builder(this).setMessage("该规则已不存在或格式损坏，请刷新规则列表后重试。")
+            FxNativeSkin.builder(this).setMessage("该规则已不存在或格式损坏，请刷新规则列表后重试。")
                     .setPositiveButton("知道了", null).show();
             return;
         }
@@ -6831,7 +6831,7 @@ public final class MainActivity extends ComponentActivity {
         form.addView(help);
         refreshValidation.run();
 
-        new AlertDialog.Builder(this)
+        FxNativeSkin.builder(this)
                 .setTitle(editingSlot > 0 ? "编辑自定义 Hook 规则" : "新增自定义 Hook 规则")
                 .setView(form)
                 .setNegativeButton("取消", (dialog, which) -> clearCustomRuleEditorDialogState())
@@ -6844,7 +6844,7 @@ public final class MainActivity extends ComponentActivity {
                     String groupName = group.getText().toString().trim();
                     String priorityText = priority.getText().toString().trim();
                     if (!validCustomRuleGroupName(groupName)) {
-                        new AlertDialog.Builder(this).setMessage("分组名称最多 24 个字符，只允许字母、数字、空格、下划线和连字符。")
+                        FxNativeSkin.builder(this).setMessage("分组名称最多 24 个字符，只允许字母、数字、空格、下划线和连字符。")
                                 .setPositiveButton("知道了", null).show();
                         return;
                     }
@@ -6854,19 +6854,19 @@ public final class MainActivity extends ComponentActivity {
                             && !"RETURN_LITERAL".equals(actionText) && !"RETURN_ARGUMENT_0".equals(actionText)
                             && !"RETURN_ARG0".equals(actionText) && !"RETURN_THIS".equals(actionText)
                             && !"NO_OP_VOID".equals(actionText)) {
-                        new AlertDialog.Builder(this).setMessage("动作只允许 OBSERVE、RETURN_TRUE、RETURN_FALSE、RETURN_NULL、RETURN_ZERO、RETURN_EMPTY_STRING、RETURN_LITERAL、RETURN_ARGUMENT_0、RETURN_THIS 或 NO_OP_VOID。")
+                        FxNativeSkin.builder(this).setMessage("动作只允许 OBSERVE、RETURN_TRUE、RETURN_FALSE、RETURN_NULL、RETURN_ZERO、RETURN_EMPTY_STRING、RETURN_LITERAL、RETURN_ARGUMENT_0、RETURN_THIS 或 NO_OP_VOID。")
                                 .setPositiveButton("知道了", null).show();
                         return;
                     }
                     ApplicationInfo target = findApp(selectedPackage);
                     if (target == null) {
-                        new AlertDialog.Builder(this).setMessage("目标应用已卸载或不再可用，请返回应用列表刷新。")
+                        FxNativeSkin.builder(this).setMessage("目标应用已卸载或不再可用，请返回应用列表刷新。")
                                 .setPositiveButton("知道了", null).show();
                         return;
                     }
                     boolean debuggable = (target.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
                     if (!debuggable && !"OBSERVE".equals(actionText)) {
-                        new AlertDialog.Builder(this).setMessage("行为替换仅对 debuggable 目标开放。")
+                        FxNativeSkin.builder(this).setMessage("行为替换仅对 debuggable 目标开放。")
                                 .setPositiveButton("知道了", null).show();
                         return;
                     }
@@ -6878,7 +6878,7 @@ public final class MainActivity extends ComponentActivity {
                         String reason = DeveloperHookRule.isUnsupportedMutationAction(actionText)
                                 ? DeveloperHookRule.UNSUPPORTED_MUTATION_ACTION_MESSAGE
                                 : "规则无效：检查目标包名、完整方法签名、动作类型和优先级；NO_OP_VOID 必须是返回 void 的真实方法，不能用于构造器。";
-                        new AlertDialog.Builder(this).setMessage(reason)
+                        FxNativeSkin.builder(this).setMessage(reason)
                                 .setPositiveButton("知道了", null).show();
                         return;
                     }
@@ -6886,7 +6886,7 @@ public final class MainActivity extends ComponentActivity {
                         String existing = getPreferences(0).getString(selectedPackage + ":dev_rule_" + n, null);
                         if (n != editingSlot && existing != null
                                 && existing.startsWith(rule.id + "|")) {
-                            new AlertDialog.Builder(this).setMessage("规则 ID 已存在，请换一个 ID。")
+                            FxNativeSkin.builder(this).setMessage("规则 ID 已存在，请换一个 ID。")
                                     .setPositiveButton("知道了", null).show();
                             return;
                         }
@@ -6898,14 +6898,14 @@ public final class MainActivity extends ComponentActivity {
                     boolean previouslyEnabled = true;
                     if (editingSlot > 0) {
                         if (!presetDescriptor.equals(previousStored)) {
-                            new AlertDialog.Builder(this).setMessage("规则在编辑期间已发生变化，为避免覆盖新配置，本次保存已取消。请重新打开编辑器。")
+                            FxNativeSkin.builder(this).setMessage("规则在编辑期间已发生变化，为避免覆盖新配置，本次保存已取消。请重新打开编辑器。")
                                     .setPositiveButton("知道了", null).show();
                             return;
                         }
                         String[] previous = previousStored == null
                                 ? new String[0] : previousStored.split("\\|", -1);
                         if (previous.length != 4 && previous.length != 5) {
-                            new AlertDialog.Builder(this).setMessage("该规则在编辑期间已被删除或修改，请刷新后重试。")
+                            FxNativeSkin.builder(this).setMessage("该规则在编辑期间已被删除或修改，请刷新后重试。")
                                     .setPositiveButton("知道了", null).show();
                             return;
                         }
@@ -6915,7 +6915,7 @@ public final class MainActivity extends ComponentActivity {
                         while (slot <= 64
                                 && getPreferences(0).contains(selectedPackage + ":dev_rule_" + slot)) slot++;
                         if (slot > 64) {
-                            new AlertDialog.Builder(this).setMessage("每个应用最多配置 64 条自定义规则。")
+                            FxNativeSkin.builder(this).setMessage("每个应用最多配置 64 条自定义规则。")
                                     .setPositiveButton("知道了", null).show();
                             return;
                         }
@@ -6942,7 +6942,7 @@ public final class MainActivity extends ComponentActivity {
                         editor.remove(draftPrefix + field);
                     }
                     if (!editor.commit()) {
-                        new AlertDialog.Builder(this).setMessage("规则保存失败：本地配置未能提交，请重试。")
+                        FxNativeSkin.builder(this).setMessage("规则保存失败：本地配置未能提交，请重试。")
                                 .setPositiveButton("知道了", null).show();
                         return;
                     }
@@ -7007,7 +7007,7 @@ public final class MainActivity extends ComponentActivity {
             output.setGravity(android.view.Gravity.TOP | android.view.Gravity.START);
             output.setMinLines(8);
             output.setSelectAllOnFocus(true);
-            new AlertDialog.Builder(this).setTitle("导出可移植 Hook 规则组")
+            FxNativeSkin.builder(this).setTitle("导出可移植 Hook 规则组")
                     .setMessage("导出包含来源包名、分组元数据、规则动作、启停状态与优先级。导入其他应用时只会重写类所有者包名前缀，方法参数/返回描述符保持不变。")
                     .setView(output)
                     .setNegativeButton("关闭", null)
@@ -7021,7 +7021,7 @@ public final class MainActivity extends ComponentActivity {
                         }
                     }).show();
         } catch (Exception error) {
-            new AlertDialog.Builder(this).setMessage("导出失败：" + error.getMessage())
+            FxNativeSkin.builder(this).setMessage("导出失败：" + error.getMessage())
                     .setPositiveButton("知道了", null).show();
         }
     }
@@ -7048,7 +7048,7 @@ public final class MainActivity extends ComponentActivity {
             }
             @Override public void afterTextChanged(android.text.Editable value) { }
         });
-        new AlertDialog.Builder(this).setTitle("导入自定义 Hook 规则组")
+        FxNativeSkin.builder(this).setTitle("导入自定义 Hook 规则组")
                 .setMessage("支持旧版 JSON 数组及带 sourcePackage 的可移植规则组对象。来源包与当前目标不同时，只改写方法所属类的包名前缀；每条规则仍须通过目标包名与方法签名校验。")
                 .setView(input)
                 .setNegativeButton("取消", (dialog, which) -> {
@@ -7233,7 +7233,7 @@ public final class MainActivity extends ComponentActivity {
                         Toast.makeText(this, "已导入 " + array.length()
                                 + " 条规则组规则。", Toast.LENGTH_SHORT).show();
                     } catch (Exception invalid) {
-                        new AlertDialog.Builder(this).setTitle("导入失败")
+                        FxNativeSkin.builder(this).setTitle("导入失败")
                                 .setMessage(invalid.getMessage() == null
                                         ? "JSON 格式或规则数据无效。" : invalid.getMessage())
                                 .setPositiveButton("知道了", null).show();
@@ -7377,7 +7377,7 @@ public final class MainActivity extends ComponentActivity {
                 });
             };
             if (systemPackage) {
-                new AlertDialog.Builder(this)
+                FxNativeSkin.builder(this)
                         .setTitle("系统应用作用域")
                         .setMessage("该目标属于系统应用。启用作用域可能让 FX Hook 进入系统组件；请只在明确需要且了解影响时继续。最终仍由 LSPosed Manager 审批。")
                         .setPositiveButton("继续申请", (dialog, which) -> action.run())
@@ -7392,7 +7392,7 @@ public final class MainActivity extends ComponentActivity {
         Button remove = new Button(this);
         remove.setAllCaps(false);
         remove.setText("移除此应用的 LSPosed 作用域");
-        remove.setOnClickListener(v -> new AlertDialog.Builder(this)
+        remove.setOnClickListener(v -> FxNativeSkin.builder(this)
                 .setTitle("移除 LSPosed 作用域")
                 .setMessage("移除后，LSPosed 将不再向此应用进程加载 FX Hook。是否继续？")
                 .setPositiveButton("移除", (dialog, which) -> removeLsposedScope(packageName, state))
@@ -7741,7 +7741,7 @@ public final class MainActivity extends ComponentActivity {
                     Button remove = new Button(this);
                     remove.setAllCaps(false);
                     remove.setText("删除");
-                    remove.setOnClickListener(v -> new AlertDialog.Builder(this)
+                    remove.setOnClickListener(v -> FxNativeSkin.builder(this)
                             .setTitle("删除 Hook 规则")
                             .setMessage("删除规则“" + parts[0] + "”？此操作只移除此目标应用的本地规则草稿；需要再次发布后才会同步到 Hook 运行配置。")
                             .setNegativeButton("取消", null)
@@ -8121,10 +8121,10 @@ public final class MainActivity extends ComponentActivity {
                                 .putString("remote_path", remote)
                                 .putLong("published_at", System.currentTimeMillis())
                                 .apply();
-                        new AlertDialog.Builder(this).setMessage("配置已原子写入 LSPosed Remote Files，并已输出 SHA-256 校验值：\\n"+result.output+"\\n请确认 LSPosed Manager 已启用 FX 并将目标应用加入作用域，然后强制停止并重新打开目标应用。")
+                        FxNativeSkin.builder(this).setMessage("配置已原子写入 LSPosed Remote Files，并已输出 SHA-256 校验值：\\n"+result.output+"\\n请确认 LSPosed Manager 已启用 FX 并将目标应用加入作用域，然后强制停止并重新打开目标应用。")
                             .setPositiveButton("知道了",null).show();
                     } else {
-                        new AlertDialog.Builder(this).setMessage("Root 发布失败（退出码 "+result.exitCode+"）。"+result.output+"请确认 KernelSU 已授予 FX Hook Root 权限。配置仍保存在本机草稿。")
+                        FxNativeSkin.builder(this).setMessage("Root 发布失败（退出码 "+result.exitCode+"）。"+result.output+"请确认 KernelSU 已授予 FX Hook Root 权限。配置仍保存在本机草稿。")
                             .setPositiveButton("知道了",null).show();
                     }
                 });
@@ -8132,7 +8132,7 @@ public final class MainActivity extends ComponentActivity {
             hookPublisherThread = publisher;
             publisher.start();
         } catch(Exception e) {
-            new AlertDialog.Builder(this).setMessage("配置同步失败："+e.getClass().getSimpleName()+"。本机草稿仍已保存。")
+            FxNativeSkin.builder(this).setMessage("配置同步失败："+e.getClass().getSimpleName()+"。本机草稿仍已保存。")
                 .setPositiveButton("知道了",null).show();
         }
     }
