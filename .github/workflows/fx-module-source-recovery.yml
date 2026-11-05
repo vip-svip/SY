@@ -123,7 +123,7 @@ jobs:
             git merge --allow-unrelated-histories --no-commit -X ours "origin/$recovery_branch" || merge_status=$?
             unmerged=$(git diff --name-only --diff-filter=U | LC_ALL=C sort)
             if [[ -n "$unmerged" ]]; then
-              expected=$(printf '%s\\n' fx-module/module.prop fx-module/post-fs-data.sh | LC_ALL=C sort)
+              expected=$(printf '%s\n' fx-module/module.prop fx-module/post-fs-data.sh scripts/tests/fx-native-privacy-settings-regression.sh | LC_ALL=C sort)
               if [[ "$unmerged" != "$expected" ]]; then
                 echo "::error::Unexpected source-import merge conflicts:"
                 printf '%s\\n' "$unmerged"
@@ -132,8 +132,8 @@ jobs:
               # These two installer metadata files are branch-owned. Keep the
               # current integration versions; the import contributes missing
               # runtime files only.
-              git checkout --ours -- fx-module/module.prop fx-module/post-fs-data.sh
-              git add fx-module/module.prop fx-module/post-fs-data.sh
+              git checkout --ours -- fx-module/module.prop fx-module/post-fs-data.sh scripts/tests/fx-native-privacy-settings-regression.sh
+              git add fx-module/module.prop fx-module/post-fs-data.sh scripts/tests/fx-native-privacy-settings-regression.sh
             elif [[ "$merge_status" -ne 0 ]]; then
               echo "::error::Unrelated source-history merge failed without resolvable file conflicts."
               exit "$merge_status"
