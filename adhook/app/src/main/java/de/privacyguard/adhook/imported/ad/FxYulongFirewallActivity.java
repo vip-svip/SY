@@ -44,6 +44,7 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
     private static final String STATE_APP_PAGE = "fx_firewall_app_page";
     private static final String STATE_QUERY = "fx_firewall_query";
     private static final String STATE_SCROLL_Y = "fx_firewall_scroll_y";
+    private static final String STATE_SUITE_PAGE = "fx_firewall_suite_page";
     private final ThreadPoolExecutor worker = new ThreadPoolExecutor(1, 1, 30L,
             TimeUnit.SECONDS, new ArrayBlockingQueue<>(8),
             r -> new Thread(r, "fx-yulong-firewall-root"), new ThreadPoolExecutor.AbortPolicy());
@@ -60,6 +61,9 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
     private int pendingScrollY;
     private boolean pendingScrollRestore;
     private int scrollRestoreGeneration;
+    private int appLoadGeneration;
+    private TextView pageTitle;
+    private TextView scopeStatus;
     private final List<ApplicationInfo> apps = new ArrayList<>();
     private final Map<String, String> labels = new HashMap<>();
     private static final class FirewallRule {
@@ -331,7 +335,9 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
-        String requestedPage = getIntent() == null ? null : getIntent().getStringExtra("suite_page");
+        String launchPage = getIntent() == null ? null : getIntent().getStringExtra("suite_page");
+        String requestedPage = state == null ? launchPage
+                : state.getString(STATE_SUITE_PAGE, launchPage);
         if ("用户应用".equals(requestedPage) || "系统应用".equals(requestedPage)
                 || "按应用设置".equals(requestedPage) || "应用网络拦截".equals(requestedPage)) {
             suitePage = requestedPage;
@@ -344,8 +350,8 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
         LinearLayout header = new LinearLayout(this);
         header.setGravity(Gravity.CENTER_VERTICAL); header.setPadding(dp(10), dp(6), dp(12), dp(6));
         header.addView(button("‹ 返回 Ad", this::finish));
-        header.addView(text("FX Ad · " + suitePage, 18, 0xff17212b, true),
-                new LinearLayout.LayoutParams(0, -2, 1));
+        pageTitle = text("FX Ad · " + suitePage, 18, 0xff17212b, true);
+        header.addView(pageTitle, new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
         scroll = new ScrollView(this); scroll.setFillViewport(true);
         rows = new LinearLayout(this); rows.setOrientation(LinearLayout.VERTICAL);
@@ -367,7 +373,13 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
             pendingScrollY = Math.max(0, state.getInt(STATE_SCROLL_Y, 0));
             pendingScrollRestore = true;
         }
-        card("应用列表", "每个应用独立配置 Wi-Fi、移动数据与每日计划；UID 收发字节不是 DNS 查询次数。", query, button("刷新流量统计", this::renderRows));
+        scopeStatus = text(scopeStatusText(), 12, 0xff526170, false);
+        card("应用列表", "每个应用独立配置 Wi-Fi、移动数据与每日计划；可切换全部、用户及系统应用。UID 收发字节不是 DNS 查询次数。",
+                scopeStatus,
+                button("按应用设置", () -> selectSuitePage("按应用设置")),
+                button("用户应用", () -> selectSuitePage("用户应用")),
+                button("系统应用", () -> selectSuitePage("系统应用")),
+                query, button("刷新流量统计", this::renderRows));
         master.setOnCheckedChangeListener((button, checked) -> {
             if (loading || suppressMaster) return;
             if (checked && !hasEnabledRules()) {
@@ -408,6 +420,30 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
             loadAppsAsync();
         });
     }
+    private String scopeStatusText() {
+        if ("用户应用".equals(suitePage)) return "当前范围：仅显示非系统应用。";
+        if ("系统应用".equals(suitePage)) return "当前范围：包含系统应用与更新的系统应用。";
+        return "当前范围：全部可见应用（用户应用与系统应用）。";
+    }
+
+    private void selectSuitePage(String page) {
+        if (!("用户应用".equals(page) || "系统应用".equals(page)
+                || "按应用设置".equals(page)) || page.equals(suitePage)) return;
+        int nextMode = "用户应用".equals(page) ? 1 : "系统应用".equals(page) ? 2 : 0;
+        boolean filterChanged = nextMode != appFilterMode;
+        suitePage = page;
+        appFilterMode = nextMode;
+        if (pageTitle != null) pageTitle.setText("FX Ad · " + suitePage);
+        if (scopeStatus != null) scopeStatus.setText(scopeStatusText());
+        appPage = 1;
+        pendingScrollY = 0;
+        pendingScrollRestore = false;
+        scrollRestoreGeneration++;
+        if (scroll != null) scroll.scrollTo(0, 0);
+        if (filterChanged) loadAppsAsync();
+        else renderRows();
+    }
+
     private String safeOutput(String value) {
         return value == null || value.trim().isEmpty() ? "请确认 FX Hook 已获得 Root 权限。" : value.trim();
     }
@@ -438,12 +474,25 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
                 .putBoolean("master_enabled", masterEnabled).apply();
     }
     /** Package enumeration, label resolution and sorting must never block the Activity UI. */
+    private void enqueueLatestAppLoad(Runnable task) {
+        try {
+            appWorker.execute(task);
+        } catch (RejectedExecutionException full) {
+            if (appWorker.isShutdown()) throw full;
+            appWorker.getQueue().poll();
+            appWorker.execute(task);
+        }
+    }
+
     private void loadAppsAsync() {
+        final int generation = ++appLoadGeneration;
+        final int filterMode = appFilterMode;
         loading = true;
+        inventoryReady = false;
         master.setEnabled(false);
         status.setText("正在后台读取已安装应用…");
         try {
-            appWorker.execute(() -> {
+            enqueueLatestAppLoad(() -> {
                 List<ApplicationInfo> loaded = new ArrayList<>();
                 Map<String, String> loadedLabels = new HashMap<>();
                 Throwable failure = null;
@@ -452,9 +501,7 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
                     loaded.addAll(pm.getInstalledApplications(0));
                     loaded.removeIf(info -> {
                         if (info.packageName == null || info.packageName.equals(getPackageName())) return true;
-                        boolean systemApp = (info.flags & ApplicationInfo.FLAG_SYSTEM) != 0
-                                || (info.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0;
-                        return !FxYulongFirewallAppFilterPolicy.includes(appFilterMode, info.flags);
+                        return !FxYulongFirewallAppFilterPolicy.includes(filterMode, info.flags);
                     });
                     for (ApplicationInfo info : loaded) {
                         String label;
@@ -470,7 +517,8 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
                 }
                 final Throwable loadFailure = failure;
                 runOnUiThread(() -> {
-                    if (destroyed || isFinishing() || isDestroyed()) return;
+                    if (destroyed || isFinishing() || isDestroyed()
+                            || generation != appLoadGeneration) return;
                     if (loadFailure != null) {
                         loading = false;
                         inventoryReady = false;
@@ -491,7 +539,10 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
                     appsLoaded = true;
                     inventoryReady = true;
                     master.setEnabled(true);
-                    status.setText("已读取 " + apps.size() + " 个" + ("用户应用".equals(suitePage) ? "用户应用" : "系统应用".equals(suitePage) ? "系统应用" : "应用") + "；列表按需分页加载。");
+                    status.setText("已读取 " + apps.size() + " 个"
+                            + ("用户应用".equals(suitePage) ? "用户应用"
+                            : "系统应用".equals(suitePage) ? "系统应用" : "应用")
+                            + "；列表按需分页加载。");
                     renderRows();
                     restoreScrollIfNeeded();
                     if (refreshAfterLoad) {
@@ -500,11 +551,14 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
                     }
                 });
             });
-        } catch (java.util.concurrent.RejectedExecutionException closing) {
+        } catch (RejectedExecutionException closing) {
+            if (generation != appLoadGeneration) return;
             loading = false;
             inventoryReady = false;
             master.setEnabled(false);
-            if (!destroyed && !isFinishing()) status.setText("应用列表加载任务已停止，请重新打开页面。");
+            if (!destroyed && !isFinishing()) {
+                status.setText("应用列表加载任务已停止，请重新打开页面。");
+            }
         }
     }
     private void restoreScrollIfNeeded() {
@@ -521,6 +575,7 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
 
     @Override protected void onSaveInstanceState(Bundle outState) {
         outState.putInt(STATE_APP_PAGE, Math.max(1, appPage));
+        outState.putString(STATE_SUITE_PAGE, suitePage);
         if (query != null) outState.putString(STATE_QUERY, query.getText().toString());
         if (scroll != null) outState.putInt(STATE_SCROLL_Y, Math.max(0, scroll.getScrollY()));
         super.onSaveInstanceState(outState);
@@ -591,6 +646,7 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
     @Override protected void onDestroy() {
         unregisterPackageChangeReceiver();
         destroyed = true;
+        appLoadGeneration++;
         scrollRestoreGeneration++;
         worker.shutdownNow();
         appWorker.shutdownNow();

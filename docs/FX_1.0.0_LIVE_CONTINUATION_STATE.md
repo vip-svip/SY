@@ -5532,3 +5532,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `fx-atomic-cache-lock-release-regression.sh` 在普通 Host checkout 中因 Release-only `apply.sh` / `subfetch.sh` 缺失，会提前跳过完整缓存锁链路。此前虽然新增了独立合成夹具，但该早退分支未调用它，导致 Host lane 没有真正执行这项新回归。
 - 现将独立 Hosts lock safety regression 放到早退分支，在缺少 Release module 时仍直接动态运行补丁器与生产锁 helper；Release module 存在时则由完整缓存锁回归调用。
 - `e6120449` 的 Host Regression 与 Six UI Modes 均通过。Module Runtime Regression 仍在进行；其中 VPN 共存/TUN/DNS/watchdog 步骤已经 SUCCESS，等待 Root Proxy/native VPN 集成步骤结束。
+
+
+## 2026-11-06 — Ad 应用防火墙分类页恢复为可达原生路由
+
+- 检查原生 Firewall Activity 发现它虽已支持 `suite_page` 与用户/系统应用过滤，但 FX 壳层没有传入这些页面值，也没有页内分类切换入口；三个原始分类无法从当前 UI 到达。
+- 在唯一的 FX Firewall Activity 中加入“按应用设置 / 用户应用 / 系统应用”三项切换，分别显示全部应用、非系统应用、系统及更新系统应用；标题与范围说明同步更新，底层继续使用同一个 IPv4/IPv6 应用防火墙，不创建额外服务或重复 Activity。
+- 分类选择纳入 Activity 状态恢复。PackageManager 清单读取采用单活动 + 单待执行槽位，类别快速切换时淘汰旧的待执行任务，并通过 generation 丢弃过期结果，避免较早的用户/系统筛选覆盖当前选择。
+- 更新行为与 UI 定向回归，并将 Firewall Activity / Ad Activity 改动映射到 Host workflow。
+- 已知历史阻塞：完整 FX APK migration workflow `42092600253` 曾在旧 app-firewall 测试对已迁移 MainActivity 分类代码执行 `index()` 时失败（`ValueError: substring not found`）；之后测试已改为 FX 当前 native entry contract。此批重新校验这一页面的真实可达性。
+- 本批尚未宣称 Android Gradle 构建、安装、模拟器或真机验证完成。

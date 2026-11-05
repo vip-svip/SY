@@ -668,20 +668,23 @@ from pathlib import Path
 import sys
 main = Path(sys.argv[1]).read_text(encoding="utf-8")
 firewall = Path(sys.argv[2]).read_text(encoding="utf-8")
-# The current FX Ad shell exposes the migrated firewall as a dedicated native
-# action card. The Activity still accepts the three legacy suite_page values
-# for callers that preserve the original menu context.
+
 assert 'nativeAction("应用网络防火墙"' in main, "FX Ad shell must expose the native per-app firewall entry"
 assert "FxYulongFirewallActivity.class" in main, "native firewall action must open the Wi-Fi/mobile firewall, not the VPN route picker"
 assert "showImportedVpnAppManager();" not in main, "Ad firewall entry must not route to the VPN manager"
-for page in ("用户应用", "系统应用", "按应用设置"):
-    assert f'"{page}".equals(requestedPage)' in firewall, f"firewall Activity no longer accepts legacy page: {page}"
-assert 'getStringExtra("suite_page")' in firewall, "firewall Activity must preserve a requested legacy page"
-assert '"用户应用".equals(suitePage) ? 1 : "系统应用".equals(suitePage) ? 2 : 0' in firewall
-assert "FxYulongFirewallAppFilterPolicy.includes(appFilterMode, info.flags)" in firewall, "user/system package classification policy must be applied before rendering"
+assert 'getStringExtra("suite_page")' in firewall, "firewall Activity must preserve legacy incoming page identity"
+assert 'state.getString(STATE_SUITE_PAGE, launchPage)' in firewall, "selected firewall category must survive Activity recreation"
+assert 'appFilterMode = "用户应用".equals(suitePage) ? 1 : "系统应用".equals(suitePage) ? 2 : 0;' in firewall
+assert 'FxYulongFirewallAppFilterPolicy.includes(filterMode, info.flags)' in firewall, "user/system package classification policy must be applied before rendering"
 assert "FLAG_SYSTEM" in firewall and "FLAG_UPDATED_SYSTEM_APP" in firewall
-assert '"FX Ad · " + suitePage' in firewall, "native firewall page must preserve the selected page identity"
-print("PASS: Yulong 用户应用/系统应用/按应用设置 preserve original page identity and open the real Wi-Fi/mobile firewall filters")
+assert 'pageTitle.setText("FX Ad · " + suitePage)' in firewall, "native firewall page must update its unified title when category changes"
+for page in ("按应用设置", "用户应用", "系统应用"):
+    assert f'button("{page}", () -> selectSuitePage("{page}"))' in firewall, (
+        f"the original {page} firewall category is not reachable from the FX Activity"
+    )
+assert "private void selectSuitePage(String page)" in firewall, "category selection must update the real app filter"
+assert "appLoadGeneration++;" in firewall, "stale PackageManager callbacks must be invalidated on Activity destroy"
+print("PASS: Yulong user/system/all-app firewall categories are reachable in the single FX Ad Activity and drive the real PackageManager filter")
 PY
 
 echo "PASS: Yulong per-app firewall preserves legacy rows, separates Wi-Fi/mobile, enforces inclusive local-time schedules, reconciles UIDs, and owns its watcher lifecycle"
