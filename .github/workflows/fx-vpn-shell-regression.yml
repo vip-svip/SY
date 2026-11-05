@@ -7,6 +7,7 @@ on:
     paths:
       - "fx-module/scripts/yulong-root-proxy.sh"
       - "scripts/tests/fx-yulong-root-proxy-runtime-regression.sh"
+      - "scripts/tests/fx-root-proxy-uninstall-order-regression.sh"
       - ".github/workflows/fx-vpn-shell-regression.yml"
   pull_request:
     branches:
@@ -14,6 +15,7 @@ on:
     paths:
       - "fx-module/scripts/yulong-root-proxy.sh"
       - "scripts/tests/fx-yulong-root-proxy-runtime-regression.sh"
+      - "scripts/tests/fx-root-proxy-uninstall-order-regression.sh"
       - ".github/workflows/fx-vpn-shell-regression.yml"
 
 permissions:
@@ -38,3 +40,5 @@ jobs:
           sh -n scripts/tests/fx-yulong-root-proxy-runtime-regression.sh
       - name: Run Root Proxy runtime regression
         run: sh scripts/tests/fx-yulong-root-proxy-runtime-regression.sh
+      - name: Verify Root Proxy uninstall ordering
+        run: sh scripts/tests/fx-root-proxy-uninstall-order-regression.sh
