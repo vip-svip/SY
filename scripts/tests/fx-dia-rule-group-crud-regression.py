@@ -19,6 +19,8 @@ rename_dialog = body("private void showRenameCustomRuleGroupDialog(", "private v
 delete = body("private void deleteCustomRuleGroup(", "private void showCustomRuleGroupPicker(")
 
 assert '"默认"' in groups and "dev_rule_groups" in groups
+assert "Character.isISOControl(name.charAt(i))" in source, "group names must reject all control characters, including CR and tab"
+assert "name.contains(\"\\\\r\")" not in source, "literal backslash-r must not substitute for rejecting an actual carriage return"
 assert 'for (int i = 1; i <= 64; i++)' in groups
 assert "validCustomRuleGroupName(value)" in add and "ensureCustomRuleGroup(value)" in add
 assert 'showCustomRuleGroupActions(chosen)' in manager

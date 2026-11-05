@@ -6455,8 +6455,14 @@ public final class MainActivity extends ComponentActivity {
     private boolean validCustomRuleGroupName(String value) {
         if (value == null) return false;
         String name = value.trim();
-        return !name.isEmpty() && name.length() <= 24
-                && !name.contains("|") && !name.contains("\n") && !name.contains("\\r");
+        if (name.isEmpty() || name.length() > 24 || name.contains("|")) return false;
+        // Reject every ASCII/Unicode control character, including carriage return,
+        // tab, NUL and DEL. Checking the two-character string "\\r" is not enough:
+        // Android text input can contain an actual CR character.
+        for (int i = 0; i < name.length(); i++) {
+            if (Character.isISOControl(name.charAt(i))) return false;
+        }
+        return true;
     }
 
     private java.util.LinkedHashSet<String> getCustomRuleGroups() {
