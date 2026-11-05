@@ -44,4 +44,9 @@ grep -Fq '!java.util.Objects.equals(requestedTarget, targetPackage)' "$FRIDA" ||
 grep -Fq '!requestedFingerprint.equals(currentFingerprint)' "$FRIDA" || fail "Frida editor result can overwrite a newer script revision"
 grep -Fq 'outState.putBoolean(STATE_FULL_EDITOR_PENDING, fullEditorPending)' "$FRIDA" || fail "Frida editor pending request is not saved during rotation"
 
+grep -Fq 'if (isFinishing() && !isChangingConfigurations())' "$APP/java/de/privacyguard/adhook/imported/dia/FxDiaScriptLibraryActivity.java" || fail "editor source is deleted during Activity recreation"
+grep -Fq 'FxDiaCodeEditorTransfer.delete(this, editorSourceFile)' "$APP/java/de/privacyguard/adhook/imported/dia/FxDiaScriptLibraryActivity.java" || fail "pending editor source is not cleaned when the library Activity truly finishes"
+grep -Fq 'if (requestCode == REQUEST_EDITOR)' "$APP/java/de/privacyguard/adhook/imported/dia/FxDiaScriptLibraryActivity.java" || fail "script library does not reconcile the full-screen editor result"
+grep -Fq 'FxDiaCodeEditorTransfer.delete(this, resultFile)' "$APP/java/de/privacyguard/adhook/imported/dia/FxDiaScriptLibraryActivity.java" || fail "temporary editor result file is not cleaned after processing"
+
 echo "PASS: Dia Sora CodeEditor page, JavaLanguage, 0x3039 result contract, unsaved-change flow, source fingerprint and target ownership"
