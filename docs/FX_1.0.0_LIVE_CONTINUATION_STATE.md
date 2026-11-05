@@ -6191,3 +6191,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 现在先在受限 umask 下通过 `mktemp` 创建随机名称临时文件，验证其为普通非符号链接文件；内容写入、强制 `chmod 0600`、JSON 完整性检查和原子 `mv` 全部成功后才发布。任一环节失败删除临时文件并保留上一份完整快照。
 - 状态发布回归新增故障注入：替换专用 `chmod` 调用使临时文件权限设置失败，断言调用方仍 fail-open、旧快照内容/0600 权限不变且无残留临时文件。
 - 本修复针对 Root 状态快照落盘的权限和原子性，不改变 VPN 路由、DNS 规则或第三方网络设置；设备端文件系统/SELinux 仍需真机验证。
+
+## 2026-11-05 — production Android VPN ownership probe
+
+- Fixed a production-path gap in scripts/fx-vpn-coexistence-arbiter.sh: the standalone arbiter referenced vpncore_android_active_vpn_info without defining or sourcing it. Test-only VpnInfo fixtures had hidden that missing production provider.
+- Added a self-contained Android dumpsys connectivity reader. It accepts exactly one well-formed VpnInfo ownerUid/interface record; a successful mVpns section with no active VpnInfo is the only clean empty result. Missing/failed dumpsys, incomplete output, malformed records, or multiple VPN ownership records fail closed as unavailable rather than being mistaken for no external VPN.
+- Added regression cases for a real-shaped VpnInfo dump, confirmed empty mVpns, failed dumpsys, and multiple VpnInfo rows. The arbiter remains read-only.
+- Verification: FX VPN Coexistence Arbiter run 42104207561 (#26) SUCCESS, including the grading regression, read-only assertion, and live runner smoke check. Targeted Host Regression #1292 also completed SUCCESS on the same integrated branch lineage.
+- Live runner correctly reported unknown because the GitHub runner did not contain a complete installed FX module root; this is an expected fail-closed result, not evidence that no VPN was active.
+- No Android device test or real VPN traffic-path proof is claimed. The arbiter continues to report route/data-plane proof as unverified until a device-level end-to-end test exists.
+
