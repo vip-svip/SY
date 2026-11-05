@@ -27,5 +27,8 @@ grep -Fq 'if (destroyed || isFinishing() || isDestroyed()) return;' "$VIRUS" || 
 grep -Eq 'destroyed[[:space:]]*=[[:space:]]*true;[[:space:]]*worker\.shutdownNow\(\)' "$VIRUS" || fail "Virus DB teardown must invalidate callbacks before stopping its worker"
 grep -Fq 'checkButton.setEnabled(false)' "$INTEGRITY" || fail "Integrity check does not prevent duplicate requests"
 grep -Fq 'request != checkGeneration' "$INTEGRITY" || fail "late Integrity results are not generation guarded"
+grep -Fq 'catch (Throwable error)' "$INTEGRITY" || fail "Root worker exceptions are not converted to a UI result"
+grep -Fq 'checkButton.setEnabled(true)' "$INTEGRITY" || fail "Integrity check button is not restored after worker completion/failure"
+grep -Fq 'moduleStatus.setText(report)' "$INTEGRITY" || fail "Integrity worker failure/result is not reported on the UI thread"
 grep -Eq 'destroyed[[:space:]]*=[[:space:]]*true;[[:space:]]*checkGeneration\+\+;[[:space:]]*worker\.shutdownNow\(\)' "$INTEGRITY" || fail "Integrity teardown must invalidate generation before stopping its worker"
 echo "PASS: Shield workers are single-threaded and bounded, reject overload explicitly, and invalidate UI callbacks before teardown"
