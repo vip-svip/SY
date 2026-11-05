@@ -21,7 +21,7 @@ required = {
     "Gadget message/console log action is reachable from UI": 'button("查看 Gadget 消息/控制台日志", () -> showGadgetSessionLog())',
     "Gadget session stop action is reachable from UI": 'button("停止 Gadget 会话", () -> stopGadgetSession())',
     "Gadget session status refresh is reachable from UI": 'button("刷新 Gadget 会话状态", () -> checkGadgetSession())',
-    "Gadget session status checker exists": "private void checkGadgetSession()" in source,
+    "Gadget session status checker exists": "private void checkGadgetSession()",
     "separate Frida CLI path helper": "currentFridaCliPath()",
     "attach validates CLI executable path": "if (!validPath(cli))",
     "target is revalidated as debuggable": "ApplicationInfo.FLAG_DEBUGGABLE",
