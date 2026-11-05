@@ -168,11 +168,8 @@ jobs:
           python3 -m py_compile fx-patches/patch_system_app_install_stage.py
           python3 fx-patches/patch_system_app_install_stage.py fx-module
           python3 scripts/tests/fx-system-app-install-stage-patcher-regression.py
-          # The Release-restored module can carry an older installer. Re-sync the
-          # reviewed canonical installer/remover before checking system-app overlay
-          # precedence, and prove the packaged module uses those exact sources.
-          install -D -m 0755 scripts/install_adhook_app.sh fx-module/scripts/install_adhook_app.sh
-          install -D -m 0755 scripts/remove_adhook_app.sh fx-module/scripts/remove_adhook_app.sh
+          # The system-app patcher synchronizes canonical installer/remover
+          # sources into the restored module; verify byte parity before use.
           cmp -s scripts/install_adhook_app.sh fx-module/scripts/install_adhook_app.sh
           cmp -s scripts/remove_adhook_app.sh fx-module/scripts/remove_adhook_app.sh
           sh scripts/tests/adhook-app-installer-regression.sh

@@ -48,21 +48,26 @@ grep -Fq '[ -d "$LOG_DIR" ] && [ ! -L "$LOG_DIR" ]' "$POST_FS_DATA" || fail "pos
 grep -Fq 'pm list packages -s "$1"' "$INSTALLER" || fail "installer does not verify PackageManager system classification"
 # The KSU lane restores an older Release ZIP. It must stage the reviewed installer
 # and remover into that module before this test selects its scripts directory.
-python3 - "$KSU_WORKFLOW" <<'PY'
+python3 - "$KSU_WORKFLOW" "$ROOT/fx-patches/patch_system_app_install_stage.py" "$ROOT/scripts/tests/fx-system-app-install-stage-behavior-regression.py" <<'PY'
 from pathlib import Path
 import sys
-workflow = Path(sys.argv[1]).read_text(encoding="utf-8")
+workflow, patcher, behavior = (
+    Path(path).read_text(encoding="utf-8") for path in sys.argv[1:]
+)
 patch = workflow.index("python3 fx-patches/patch_system_app_install_stage.py fx-module")
-installer = workflow.index("install -D -m 0755 scripts/install_adhook_app.sh fx-module/scripts/install_adhook_app.sh", patch)
-remover = workflow.index("install -D -m 0755 scripts/remove_adhook_app.sh fx-module/scripts/remove_adhook_app.sh", patch)
 installer_cmp = workflow.index("cmp -s scripts/install_adhook_app.sh fx-module/scripts/install_adhook_app.sh", patch)
 remover_cmp = workflow.index("cmp -s scripts/remove_adhook_app.sh fx-module/scripts/remove_adhook_app.sh", patch)
 regression = workflow.index("sh scripts/tests/adhook-app-installer-regression.sh", patch)
 installer_copy = "install -D -m 0755 scripts/install_adhook_app.sh fx-module/scripts/install_adhook_app.sh"
 remover_copy = "install -D -m 0755 scripts/remove_adhook_app.sh fx-module/scripts/remove_adhook_app.sh"
-assert workflow.count(installer_copy) == 1, "canonical installer must be staged exactly once"
-assert workflow.count(remover_copy) == 1, "canonical remover must be staged exactly once"
-assert patch < installer < remover < installer_cmp < remover_cmp < regression, "installer/remover must be staged, byte-verified, then tested"
+assert workflow.count(installer_copy) == 0 and workflow.count(remover_copy) == 0, \
+    "KernelSU workflow must not duplicate the patcher's canonical installer sync"
+assert patch < installer_cmp < remover_cmp < regression, \
+    "canonical installer/remover must be synchronized by the patcher, byte-verified, then tested"
+assert "def sync_packaged_installer(root: Path)" in patcher and "sync_packaged_installer(root)" in patcher, \
+    "system-app patcher must own canonical installer/remover synchronization"
+assert 'patcher must synchronize canonical {name} into the module fixture' in behavior, \
+    "system-app behavior fixture must prove the patcher's canonical module sync"
 PY
 grep -Fq 'verified FX Hook system app and module APK digest; no PackageManager reinstall required' "$INSTALLER" || fail "system-app overlay verification path missing"
 grep -Fq '_installed_digest=$(sha256sum "$_system_installed_path"' "$INSTALLER" || fail "installer does not verify the PackageManager-resolved system APK digest"

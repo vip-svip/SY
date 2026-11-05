@@ -5861,3 +5861,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 最新 Host run `42099365565` 到达 `fx-yulong-firewall-activity-regression.sh` 的独立 JDK 测试后失败：`FxYulongFirewallListParser` 报 `invalid firewall list header`。
 - 根因是 Host test Java 字符串把换行写成了字面反斜杠+n，导致 parser 收到单行文本；现将 fixture 的双重转义改成 Java 标准换行转义，测试覆盖的有效协议头、master 状态与 malformed cases 保持不变。
 - 未更改 parser、安全策略或设备端防火墙命令；修复后等待新 Host Regression 确认。
+
+
+## 2026-11-06 — KernelSU installer canonical sync 单一责任
+
+- `patch_system_app_install_stage.py` 已在应用 system-app stage 时调用 `sync_packaged_installer(root)`，将仓库 canonical installer/remover 同步到 Release 恢复后的 `fx-module/scripts/`；`fx-system-app-install-stage-behavior-regression.py` 的隔离夹具已实测字节一致。
+- KSU workflow 原先在 patcher 后又执行两次 `install -D` 覆盖同一文件，形成重复写入。现删除手动复制，仅保留 installer/remover 的 `cmp` 回读与 `adhook-app-installer-regression.sh`。
+- 更新 Host regression：要求两条复制命令为零、patcher 内存在同步函数/调用、behavior fixture 断言模块副本等于 canonical 源，并强制顺序为 patcher → 两个 cmp → installer regression。
+- 先前 `42099086771` System App Install Stage run SUCCESS，`42099086725`? 相关 run 状态以 Actions 当前查询为准；不将旧 package failure 当作本批修复已通过。尚未运行最终 APK/KernelSU ZIP，也未做设备安装验证。
