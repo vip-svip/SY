@@ -8,6 +8,8 @@ fail(){ echo "FAIL: $*" >&2; exit 1; }
 [ -s "$TEST" ] || fail "Kotlin signature Host test missing"
 grep -Fq "kotlin.BooleanArray" "$TEST" || fail "Kotlin primitive-array erasure coverage missing"
 grep -Fq "kotlin.collections.MutableList" "$TEST" || fail "Kotlin collection erasure coverage missing"
+grep -Fq "kotlin.Unit" "$TEST" || fail "Kotlin Unit return erasure coverage missing"
+grep -Fq "kotlin.IntArray" "$TEST" || fail "Kotlin primitive-array erasure coverage missing"
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/fx-kotlin-hook-signature.XXXXXX")
 trap 'rm -rf "$WORK"' EXIT HUP INT TERM
 javac -d "$WORK" "$SOURCE" "$TEST" || fail "Kotlin signature Host test compilation failed"
