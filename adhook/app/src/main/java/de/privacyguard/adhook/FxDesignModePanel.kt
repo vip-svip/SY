@@ -1,9 +1,9 @@
 package de.privacyguard.adhook
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.border
-import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,6 +27,8 @@ import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -125,19 +127,20 @@ private fun ModeCard(
         )
     } else Modifier
 
-    Box(
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(shape)
             .then(glassModifier)
-            .then(if (glass) Modifier else Modifier.background(surface, shape))
             .border(if (selected) 2.dp else 1.dp, outline, shape)
             .selectable(
                 selected = selected,
                 role = Role.RadioButton,
                 onClick = { onModeSelected(mode) }
-            )
-            .padding(16.dp)
+            ),
+        colors = CardDefaults.defaultColors(
+            color = if (glass) Color.White.copy(alpha = 0.30f) else surface
+        ),
+        insideMargin = PaddingValues(16.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
