@@ -111,7 +111,7 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
         root.addView(header);
         pageScroll = new ScrollView(this); pageScroll.setFillViewport(true);
         LinearLayout body = new LinearLayout(this); body.setOrientation(1); body.setPadding(0, dp(4), 0, dp(18));
-        pageScroll.addView(body); root.addView(pageScroll, new LinearLayout.LayoutParams(-1, 0, 1)); setContentViewWithNativeTabs(root, 5);
+        pageScroll.addView(body); root.addView(pageScroll, new LinearLayout.LayoutParams(-1, 0, 1)); setContentViewWithNativeTabs(root, 4);
 
         fileStatus = text("尚未授权文件目录。", 12, 0xff526170, false);
         location = text("未选择目录", 12, 0xff334155, false);
