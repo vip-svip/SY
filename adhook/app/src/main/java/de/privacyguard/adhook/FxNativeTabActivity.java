@@ -5,6 +5,7 @@ import android.view.View;
 
 import androidx.activity.ComponentActivity;
 import android.app.AlertDialog;
+import android.app.Dialog;
 import androidx.compose.ui.platform.ComposeView;
 
 /**
@@ -32,7 +33,7 @@ public abstract class FxNativeTabActivity extends ComponentActivity {
     }
 
     /** Show a dialog created with a custom OnShowListener without replacing that listener. */
-    protected final void showFxDialog(AlertDialog dialog) {
+    protected final void showFxDialog(Dialog dialog) {
         FxNativeSkin.showDialog(this, dialog);
     }
 
