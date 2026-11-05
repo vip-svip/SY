@@ -61,6 +61,22 @@ for feature in ("FxYulongAdActivity.class", "FxYulongAdGeneralActivity.class",
     assert feature in ad_page, f"migrated Ad feature is not reachable from Ad tab: {feature}"
 assert "游龙广告插件" not in ad_page, "Ad home still exposes a source-app identity"
 assert "不会启动来源 APK 或第二套过滤服务" in ad_page, "Ad home must clarify unified FX service ownership"
+# Per-app VPN routing belongs to VPN (not Ad or Settings) and is directly reachable.
+vpn_start = activity.index("    private void renderNativePage(int index)")
+vpn_end = activity.index("            case 1:", vpn_start)
+vpn_home = activity[vpn_start:vpn_end]
+assert 'nativeAction("管理分应用 VPN 路由", this::showImportedVpnAppManager)' in vpn_home
+vpn_manager_start = activity.index("    private void showImportedVpnAppManager()")
+vpn_manager_end = activity.index("    private void showImportedSuitePendingPage(", vpn_manager_start)
+vpn_manager = activity[vpn_manager_start:vpn_manager_end]
+for token in ('nativeVpnAppManagerVisible = true', 'selectedBottomTab = 0',
+              'lastWebTabIndex = 0', 'base("VPN · 分应用路由")',
+              'nativeAction("返回 VPN 控制中心", this::showDashboard)'):
+    assert token in vpn_manager, f"VPN per-app routing page missing {token}"
+assert 'settingsUiVisible = true' not in vpn_manager, "VPN app routing must not masquerade as Settings"
+assert 'fx_native_vpn_app_manager_visible' in activity, "VPN app routing recreation state is not saved/restored"
+assert 'if (nativeVpnAppManagerVisible) { showWebDashboard(); return; }' in activity, "Back must return to VPN home"
+assert 'nativeVpnAppManagerVisible = false;' in activity, "Top-tab switch must leave VPN app-routing subpage"
 
 # Imported Ad activities are internal screens of the Ad destination; they must
 # not retain the source plugin identity or send users back to an external hub.
