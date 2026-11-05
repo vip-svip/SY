@@ -7250,18 +7250,20 @@ public final class MainActivity extends ComponentActivity {
     private void addLsposedScopeControls(String packageName, boolean systemPackage) {
         cancelHookTargetScopeOperation();
         section("LSPosed 作用域授权");
+        LinearLayout scopeGroup = new LinearLayout(this);
+        scopeGroup.setOrientation(LinearLayout.VERTICAL);
         TextView state = new TextView(this);
         state.setPadding(dp(18), dp(8), dp(18), dp(10));
         state.setText("正在读取 LSPosed 服务和当前目标作用域…");
         hookTargetScopeState = state;
         hookTargetScopePackage = packageName;
-        content.addView(state);
+        scopeGroup.addView(state);
 
         Button refresh = new Button(this);
         refresh.setAllCaps(false);
         refresh.setText("刷新 LSPosed 作用域状态");
         refresh.setOnClickListener(v -> refreshLsposedScopeStatus(state, packageName));
-        content.addView(refresh);
+        scopeGroup.addView(refresh);
 
         Button request = new Button(this);
         request.setAllCaps(false);
@@ -7316,7 +7318,7 @@ public final class MainActivity extends ComponentActivity {
                 action.run();
             }
         });
-        content.addView(request);
+        scopeGroup.addView(request);
 
         Button remove = new Button(this);
         remove.setAllCaps(false);
@@ -7327,7 +7329,8 @@ public final class MainActivity extends ComponentActivity {
                 .setPositiveButton("移除", (dialog, which) -> removeLsposedScope(packageName, state))
                 .setNegativeButton("取消", null)
                 .show());
-        content.addView(remove);
+        scopeGroup.addView(remove);
+        addNativeActionGroup(scopeGroup);
         refreshLsposedScopeStatus(state, packageName);
     }
     private void clearHookTargetScopePendingWork() {
