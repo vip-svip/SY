@@ -34,6 +34,20 @@ internal object FxGkdRuleStore {
             .getBoolean(KEY_MASTER_ENABLED, false)
 
     @JvmStatic
+    fun hasEnabledRule(context: Context, packageName: String): Boolean {
+        if (!isEnabled(context) || !isValidPackageName(packageName)) return false
+        return getRules(context).any { it.enabled && it.packageName == packageName }
+    }
+
+    @JvmStatic
+    fun isRuleEnabled(context: Context, id: String, packageName: String): Boolean {
+        if (!isEnabled(context)) return false
+        return getRules(context).any {
+            it.enabled && it.id == id && it.packageName == packageName
+        }
+    }
+
+    @JvmStatic
     fun setEnabled(context: Context, enabled: Boolean): Boolean {
         val hasRules = getRules(context).any { it.enabled }
         if (enabled && !hasRules) return false
