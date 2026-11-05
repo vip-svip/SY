@@ -16,7 +16,16 @@ _mitm_warn() {
 # FX_QUICKJS_SCHEDULER_STOP_BEGIN
 _FX_SCHEDULER_STATE_DIR=${PG:-${STATE_DIR:-/data/adb/privacyguard}}
 if [ -f "$MODDIR/scripts/jsruntime/scheduler.sh" ]; then
-  if ! sh "$MODDIR/scripts/jsruntime/scheduler.sh" uninstall >> "$_FX_SCHEDULER_STATE_DIR/jsruntime/scheduler.log" 2>&1; then
+  # Uninstall must still invoke the scheduler when it was never started and
+  # its state/log directory does not exist. Never follow a symlink or special
+  # file merely to create the shutdown log.
+  _FX_SCHEDULER_LOG=/dev/null
+  if [ -d "$_FX_SCHEDULER_STATE_DIR/jsruntime" ] && [ ! -L "$_FX_SCHEDULER_STATE_DIR/jsruntime" ] && \
+      { [ ! -e "$_FX_SCHEDULER_STATE_DIR/jsruntime/scheduler.log" ] || \
+        { [ -f "$_FX_SCHEDULER_STATE_DIR/jsruntime/scheduler.log" ] && [ ! -L "$_FX_SCHEDULER_STATE_DIR/jsruntime/scheduler.log" ]; }; }; then
+    _FX_SCHEDULER_LOG="$_FX_SCHEDULER_STATE_DIR/jsruntime/scheduler.log"
+  fi
+  if ! sh "$MODDIR/scripts/jsruntime/scheduler.sh" uninstall >> "$_FX_SCHEDULER_LOG" 2>&1; then
     echo "FX uninstall: QuickJS scheduler did not confirm shutdown; preserving state and aborting cleanup" >&2
     exit 1
   fi
@@ -24,7 +33,7 @@ elif [ -s "$_FX_SCHEDULER_STATE_DIR/jsruntime/scheduler.pid" ]; then
   echo "FX uninstall: scheduler PID record exists but scheduler script is missing; aborting cleanup" >&2
   exit 1
 fi
-unset _FX_SCHEDULER_STATE_DIR
+unset _FX_SCHEDULER_STATE_DIR _FX_SCHEDULER_LOG
 # FX_QUICKJS_SCHEDULER_STOP_END
 # Stop the published external-VPN state watcher before removing Root Proxy
 # redirects. Its stop command owns only the watcher process; Root Proxy teardown
