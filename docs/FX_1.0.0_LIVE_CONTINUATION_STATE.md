@@ -6317,7 +6317,7 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 修复：保留四个核心入口的完整性要求，并扫描模块 `scripts/*.sh` 全部顶层 shell 源文件；发现 VpnService API 即判定 slot-used，发现符号链接、不可读/非普通文件或空扫描则 fail-closed 为 unknown。没有执行网络命令，也没有改变任何路由或防火墙规则。
 - 新增回归：在四个既有入口均干净时，额外注入 `new-dataplane-helper.sh` 调用 `VpnService.prepare()`，断言裁决器返回不兼容且 `vpn_service_slot_used=true`。
 - 后续加固：扫描 glob 同时识别 `-e` 与 `-L`，避免悬空 `.sh` 符号链接因目标不存在而被跳过；新增悬空链接夹具，预期返回 unknown/null，而不是错误报告 slot-free。源码提交 `689d3d390b80879a459b6b381fe92bfb2e236741`，测试提交 `888a48d736d487f3d19cb910adaa9038c5fb1fe7`。
-- GitHub 回读：两份文件已从目标分支重新读取；源码 blob `c3d52a993bf7dd0f5a168b35653f2c05d8ac3a32`，测试 blob `c36520a090bfdd2cd353d15dd1e9f7c6cdc973b0`。
+- GitHub 回读：最终源码 blob `9b0c9b5f5507cc6b8b16acb7b7c4881e06e91c91`，最终测试 blob `7540b5deeb776d78ec6c6b16690b30bfb22437d1`，均已从目标分支重新读取并确认包含全量扫描、新 helper 与悬空 symlink 回归。
 - 验证等级：GitHub 提交成功、源码/测试回读确认。当前连接器未提供该分支的一般 Actions run 列表，且新提交的 combined status 为空；因此本批 Host regression / CI 尚未确认通过。未运行本地完整回归、Android Gradle 构建或真机测试。
 - 限制：此检查只覆盖模块 `scripts/*.sh` 顶层脚本中的静态 API 特征；不能证明运行时没有动态加载、二进制或 APK 内部创建 VpnService，也不能证明第三方 VPN 流量路径共存。真实数据面仍须设备级测试。
 
