@@ -4276,3 +4276,35 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 修正了 GKD 自动化回归脚本中把布尔表达式误放入字符串断言元组造成的 Python TypeError；另修正全局 Skin 回归中的动作按钮圆角断言变量名。
 - 上游 Selector JVM 测试在专用 Workflow `41985451124` 已通过；专用 workflow 的 FX App Kotlin/Java compile 目前运行中，尚不能宣称通过。较早失败 `41984962613` 是回归脚本 TypeError，修复后需以新 run 结果为准。
 - 当前仍未完成整套 GKD-XA 功能迁移：在线订阅源/规则组/排除项、复杂触发/动作、快照/触发历史、AI、Shizuku/AIDL、后台/磁贴/开机生命周期仍是后续任务。
+
+
+## 2026-11-05 — Hook 应用列表、逐应用作用域与自定义规则页 Skin 分组
+
+### 本批源码实现
+- Hook 授权中心 `showHookHub()`：Remote Files、KernelSU/Root、LSPosed、Android Accessibility 的状态与刷新/操作分别进入独立 native action group；保留各自真实 status refresh、Root 检查、LSPosed Manager 跳转、应用列表打开及 Accessibility 系统设置 callback。
+- Hook 应用列表 `showAppList()`：搜索、分类提示和异步加载状态使用当前 Skin 的表面背景；保留固定的头部 child 索引（0..4），不改变后台应用索引、搜索 TextWatcher、分页计数、滚动位置保存与恢复。
+- Hook 动态应用行 `appendAppRows()`：应用行使用 `uiPanelDrawable()`；应用名、包名与箭头颜色从 `uiPrimaryTextColor()/uiSecondaryTextColor()` 读取；分隔线使用 `0xffe3e8ee`，由 `FxNativeSkin.replacementBackgroundDrawable()` 转为当前 Skin divider。应用图标异步加载、点击 `showTarget(ai)`、加载更多及分页逻辑保持不变。
+- 逐应用 `addLsposedScopeControls()`：实时作用域状态、刷新、申请和移除四个控件放进统一 Skin 卡片；LSPosed request/remove 的审批、安全确认、超时与状态回读 callback 不变。
+- 自定义 Hook 规则页 `showCustomHookRulesPage()`：规则说明/新增/分组管理/JSON 导入导出/OBSERVE 日志为一个动作卡；保存发布与返回为单独 footer 卡；规则筛选 Spinner、搜索、清除筛选与摘要为 filter 卡。动态 `ruleRows` 保持独立容器；筛选 View 恢复引用、规则渲染、校验、草稿、发布与返回 callback 不变。
+- `scripts/tests/fx-hook-native-ui-regression.sh`：新增断言，覆盖五组授权卡、搜索/加载 Skin 背景、固定头部/分页/目标路由、Hook app row 的表面/文字/分隔线、LSPosed scope card、custom Hook action/filter/footer cards 与原 callback。
+
+### 相关提交
+- Hook 授权中心与应用列表初轮 Skin 接入：`ac969213f0ed3656c92116b4184cd16b5a969526`。
+- Hook Hub / app list 静态回归：`696d235aa539a565aed6d573845e02a8c79c06f8`。
+- Hook 动态应用行换肤：`5799a9145b91c1c94d76dde2c76892562bbf1ea1`。
+- Hook app row 回归：`d5b2b4487bbe067b3c526b1867464a096ac620fe`。
+- 逐应用 LSPosed 作用域分组：`9154a293932d6494c5d332a3ede8eeaa3186e835`。
+- 自定义 Hook 页面筛选/动作/发布分组：`34ee3577c6a56509c4ce2f557126aeb63dc7ad82`。
+- scope/custom-rule group regression：`7248b0af3ae171c4b12e5394b085a9313e8bf839`。
+
+### 验证等级和限制
+- 已逐文件 GitHub 回读确认 MainActivity/ FxNativeSkin/Hook regression 的新代码存在，且固定列表头部/索引、应用打开、分页和过滤 View 引用仍保留。
+- 当前最新分支 HEAD（记录时）为 `7248b0af3ae171c4b12e5394b085a9313e8bf839`，Targeted Host Regression run `41985996956` 状态为 pending/queued。此前连续 push 对应的中间 runs（含 `41985983455`、`41985940528` 等）被 concurrency cancel；取消不代表失败，也不代表通过。
+- 本批未在 Android SDK/Gradle 环境执行 Hook regression、Gradle compile、Android JUnit、APK assemble、安装或真机触控/视觉检查。当前只能标为 GitHub 源码回读，等待最新 Host job 结果。
+- 五 Skin 的完整逐应用页视觉验收仍未完成；本批主要建立共享 surface/color 的真实调用和页面分组，不能视为五 Skin × 六 Tab 完成。
+- Root、LSPosed、Accessibility 的状态卡反映对应系统事实；UI 分组本身不代表 Root 授权、LSPosed 批准或目标进程注入已经成功。
+
+### 下一批直接实施
+1. 逐应用目标页的广告识别、隐私 Hook、标识/剪贴板/Wi-Fi/网络类型/设备标识/版本/时区/位置表单，核对 EditText、Spinner、Switch、危险/保存按钮是否覆盖五 Skin renderer；优先补缺失的控件级 Skin 回归。
+2. 继续 Hook 自定义规则列表项、Dialog/Toast/按键页面的组件级 Skin 覆盖，同时保持业务数据/验证与执行安全边界。
+3. 检查 run `41985996956` 的最终 host-regressions job；仅在结果真实完成后更新验证结论，再继续 Ad/Privacy 对应 Activity 的页面级控件适配。
