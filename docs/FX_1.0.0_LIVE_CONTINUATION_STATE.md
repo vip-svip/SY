@@ -4739,3 +4739,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 安装/升级仍需设备 PackageManager 在重启时扫描 overlay。ROM 不支持或 overlay 未挂载时会降级为普通应用并明确记录，不能宣称该设备已系统应用部署成功。
 - 验证：已从 GitHub 回读 installer 根副本与模块副本，确认字节一致；回读测试 fixture、构建 workflow 和 README，确认 overlay staging、SHA、系统应用识别和 fallback 路径存在。Host regression、Gradle 构建、APK 签名/安装、KernelSU/Magisk 真机挂载与 SELinux/开机扫描尚未运行。
 - 本批没有创建或覆盖 Release APK/KernelSU ZIP；没有执行设备安装或修改设备分区。
+
+
+## 2026-11-05 — FX APK systemless system-app 安装链回归补强
+
+- 继续回读现有安装链，确认 APK 构建工作流把同一份 FX Hook APK 同时放入 optional 兼容载荷和 system/app/FX/FX.apk，生成 overlay SHA-256；KernelSU/Magisk boot service 在启动完成后调用 install_adhook_app.sh。
+- 安装器按 PackageManager 系统包分类和 PackageManager 返回的实际 APK 路径校验摘要；系统 overlay 已可见时跳过 pm install，系统更新版位于 /data/app 时保留 system-app 分类并原位升级。仅当 ROM/overlay 不可见时才记录降级并安装普通 /data/app 副本。卸载时不把 overlay 当普通用户包卸载，交由模块卸载/卸载挂载处理。
+- 这是一种 system/app 系统应用，不是 priv-app：APK 未平台签名，不能因此获得 signature/privileged 权限；不关闭 SELinux。Overlay 可见性、标签、PackageManager 扫描和卸载后行为仍需具体设备/ROM 验证。
+- 已扩展 scripts/tests/adhook-app-installer-regression.sh，要求回归检查 build workflow 的 system/app APK staging、0644 文件模式、SHA-256、非 priv-app 权限边界、启动服务部署、PackageManager 系统包识别和安装器按实际 APK 路径验签：
+  - 6001fb44dcf5e65f44bba317d23ee6532b70fedc — 增加 system-app overlay 构建/启动部署断言。
+  - 041527b821ecf19dfb8ae003cc1b121f0ab4645e — 对齐当前安装器的 PackageManager 实际路径摘要验证逻辑。
+- GitHub 回读静态检查 10/10 通过；未执行该 Shell 测试、Android PackageManager 真机验证或 SELinux 标签检查。不得将静态回读称为设备安装验收。
