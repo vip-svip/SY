@@ -223,7 +223,7 @@ public final class FxYulongWarningActivity extends de.privacyguard.adhook.FxNati
 
     private void showMessage(String title, String message) {
         if (isFinishing() || isDestroyed()) return;
-        new AlertDialog.Builder(this)
+        fxDialogBuilder()
                 .setTitle(title)
                 .setMessage(message)
                 .setPositiveButton("知道了", null)
@@ -300,7 +300,7 @@ public final class FxYulongWarningActivity extends de.privacyguard.adhook.FxNati
             return;
         }
 
-        new AlertDialog.Builder(this)
+        fxDialogBuilder()
                 .setTitle("已加入白名单")
                 .setMessage(appLabel + " 已保存到本机用户白名单，后续扫描将按白名单规则处理。")
                 .setPositiveButton("知道了", (dialog, which) -> finish())
@@ -317,7 +317,7 @@ public final class FxYulongWarningActivity extends de.privacyguard.adhook.FxNati
             showMessage("目标应用不可用", "应用当前不存在或系统不允许查询；请重新扫描后再处理。");
             return;
         }
-        new AlertDialog.Builder(this)
+        fxDialogBuilder()
                 .setTitle("再次确认")
                 .setMessage("将打开 Android 系统卸载界面。FX 不会自动确认卸载，也不会在后台静默删除应用。")
                 .setNegativeButton("取消", null)
