@@ -7899,7 +7899,7 @@ public final class MainActivity extends ComponentActivity {
             int paused = Math.max(0, total - activeCount);
             summary.setText("规则总数：" + total + " · 已启用：" + activeCount
                     + " · 已暂停：" + paused + " · 格式异常：" + invalidCount
-                    + " · 当前匹配：" + shown + " / 64");
+                    + " · 当前匹配：" + shown);
             if (shown == 0) {
                 TextView empty = new TextView(this);
                 empty.setText(total == 0

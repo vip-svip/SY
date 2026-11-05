@@ -4,12 +4,12 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 MAIN="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
 PUBLISHER="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxHookConfigPublisher.java"
 PARSER="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigParser.java"
-  "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigSerializer.java" \
+SERIALIZER="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigSerializer.java"
 LEGACY_PARSER="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/HookTargetConfigParser.java"
 HOOK="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
 ROOT_ACCESS="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/RootAccess.java"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
-for file in "$MAIN" "$PUBLISHER" "$PARSER" "$LEGACY_PARSER" "$HOOK" "$ROOT_ACCESS"; do
+for file in "$MAIN" "$PUBLISHER" "$PARSER" "$SERIALIZER" "$LEGACY_PARSER" "$HOOK" "$ROOT_ACCESS"; do
   [ -s "$file" ] || fail "missing Hook config streaming source: $file"
 done
 python3 - "$MAIN" "$PUBLISHER" "$PARSER" "$LEGACY_PARSER" "$HOOK" <<'PY'
@@ -35,6 +35,7 @@ assert "slot > 64" not in main and "最多 64 条" not in main
 assert "for (int slot = 1; slot <= 64; slot++)" not in main
 assert "getCustomRuleSlots(selectedPackage)" in main
 assert "getCustomRuleSlots(p)" in main
+assert '当前匹配：" + shown + " / 64' not in main
 print("PASS: Developer Hook rules have no fixed 64-rule parser, serializer or UI cap; sparse preference slots are enumerated dynamically")
 PY
 

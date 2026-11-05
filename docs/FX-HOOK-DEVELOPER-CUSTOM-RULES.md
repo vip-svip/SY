@@ -4,7 +4,7 @@ The custom rule engine is for an explicitly selected developer-owned application
 
 ## Rule syntax
 
-A target row can contain up to 64 rules. Each rule is a comma-delimited config field whose value uses pipe separators:
+A target row can contain any number of valid developer rules, subject to the enclosing configuration/import payload limits and available device storage. Slot identifiers are positive decimal integers and may be sparse; each rule is a comma-delimited config field whose value uses pipe separators:
 
 ```ini
 schema_version=1
@@ -39,4 +39,4 @@ These are local UI/state fixtures only. They do not mint credentials, create pur
 
 Rules install only when the selected package is marked `ApplicationInfo.FLAG_DEBUGGABLE`, the package matches the configured package exactly, and the owner class belongs to that package namespace. The module fails closed when a descriptor cannot be parsed or resolved. Remove the rule and force-stop/restart the app to start a process without the fixture. Existing hooks are not dynamically removed from a live process by editing Remote Files.
 
-Host-side tests cover syntax normalization, package scoping, explicit opt-in, duplicate detection, action handling, invalid signatures, rule limits and serializer round-trip. GitHub Actions is the build gate; device-level LSPosed verification remains separate.
+Host-side tests cover syntax normalization, package scoping, explicit opt-in, duplicate detection, action handling, invalid signatures, more than 64 rules, sparse high-numbered slots and parser/serializer round-trip. GitHub Actions is the build gate; device-level LSPosed verification remains separate.
