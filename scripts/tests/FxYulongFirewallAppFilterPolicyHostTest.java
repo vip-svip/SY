@@ -31,6 +31,16 @@ public final class FxYulongFirewallAppFilterPolicyHostTest {
         check(true, FxYulongFirewallAppFilterPolicy.includes(system,
                 flagSystem | flagUpdatedSystem), "system/both-system-flags");
         check(false, FxYulongFirewallAppFilterPolicy.includes(99, 0), "unknown mode");
+        check(true, FxYulongFirewallAppFilterPolicy.countUidMembers(
+                10123, new int[]{10123, 10124, 10125}) == 1, "unique UID package count");
+        check(true, FxYulongFirewallAppFilterPolicy.countUidMembers(
+                10123, new int[]{10123, 10124, 10123, 10125}) == 2, "shared UID package count");
+        check(true, FxYulongFirewallAppFilterPolicy.countUidMembers(
+                10222, new int[]{10123, 10124}) == 0, "unknown UID package count");
+        check(true, FxYulongFirewallAppFilterPolicy.countUidMembers(
+                0, new int[]{0, 10123}) == 0, "invalid UID rejected");
+        check(true, FxYulongFirewallAppFilterPolicy.countUidMembers(
+                10123, null) == 0, "missing inventory is not treated as a shared UID");
         System.out.println("PASS: " + assertions + " Yulong Firewall app filter assertions");
     }
 }

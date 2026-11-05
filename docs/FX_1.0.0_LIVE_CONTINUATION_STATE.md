@@ -5632,3 +5632,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 新增 Host-only 分支：无 `fx-module` 且未传模块参数时，只验证 decoder/importer 的输入输出契约、`[list:rule]`/FX anti-fraud 分区隔离、 pinned 210118 DNS / 3476 cosmetic baseline 及 KernelSU package workflow 的完整模块测试接线，然后明确打印 SKIP/PASS 边界并退出。
 - 正式模块数据回归保持不变：KernelSU package lane 下载校验固定 SHA-256 的原始 Yulong 资产，解码后对 210118 域名去重、3476 cosmetic/exception 规则和 AdGuard/sing-box/Hosts 路由做完整行为回归。Host-only 静态检查不声称覆盖这些真实规则数据。
 - `22144b49` 的 Host 首次失败与当前 `22144b49` Module Runtime Regression SUCCESS 分开记录；最终 APK/KernelSU ZIP 仍未完成。
+
+
+## 2026-11-06 — Ad 防火墙共享 UID 作用范围提示
+
+- Android owner UID 防火墙匹配的是 UID，不是包名；多个已安装应用共享 UID 时，底层规则无法只隔离其中一个包。原 UI 逐包显示开关，容易让用户误以为共享 UID 应用可独立控制。
+- 应用清单加载阶段现先基于完整已安装应用列表建立 UID 分组，再按“用户应用/系统应用/全部”筛选页面，确保切换分类不会把同 UID 的另一应用隐藏在检测之外。
+- 对共享 UID 的列表行显示影响范围；快速开关变更和详细配置入口均先展示明确确认对话框，说明规则会影响该 UID 下的全部应用。用户取消时快速开关会回滚；单 UID 应用保持原来的直接操作路径。
+- 扩展 Android-free UID policy 与 Host 单测，覆盖唯一 UID、重复 UID、未知 UID、无效 UID、缺失快照；将 JDK Host test 接入 fx-yulong-firewall-activity-regression.sh。
+- 验证：提交后由 Targeted Host Regression 与 Six UI Modes 执行；本批未进行 Android Gradle 构建、模拟器或真机 shared-UID 网络阻断测试。

@@ -13,6 +13,16 @@ public final class FxYulongFirewallAppFilterPolicy {
 
     private FxYulongFirewallAppFilterPolicy() { }
 
+    /** Count installed packages whose traffic is matched by the same Android owner UID. */
+    public static int countUidMembers(int targetUid, int[] installedUids) {
+        if (targetUid <= 0 || installedUids == null) return 0;
+        int count = 0;
+        for (int uid : installedUids) {
+            if (uid == targetUid) count++;
+        }
+        return count;
+    }
+
     public static boolean includes(int mode, int applicationFlags) {
         boolean systemApp = (applicationFlags & FLAG_SYSTEM) != 0
                 || (applicationFlags & FLAG_UPDATED_SYSTEM_APP) != 0;

@@ -13,6 +13,16 @@ def require(value, message):
         raise SystemExit("FAIL: " + message)
 
 require("private static final int APP_PAGE_SIZE = 50;", "app inventory page size is missing")
+require("private final Map<Integer, List<String>> uidPackages", "full UID peer inventory is missing")
+require("private int[] installedUidSnapshot", "UID snapshot for shared-app detection is missing")
+require("loadedUidPackages.put(info.uid, uidGroup)", "all installed apps must be grouped before category filtering")
+require("FxYulongFirewallAppFilterPolicy.countUidMembers(uid, installedUidSnapshot)", "shared UID detection is not backed by the tested policy")
+require("private String uidScopeSummary(int uid)", "shared UID effect is not disclosed in the app row")
+require("private void confirmSharedUidScope(", "shared UID changes require explicit confirmation")
+require("继续（影响全部共享应用）", "shared UID confirmation must state the full impact")
+require("此防火墙使用 Android owner UID 匹配，无法只限制其中一个包", "the UI must not claim package isolation for a shared UID")
+require("confirmSharedUidScope(pkg, info.uid, persist, revert)", "the quick rule switch must confirm shared UID scope")
+require("showRuleDialogInternal(packageName, uid)", "the detailed rule form must only open after the shared UID warning")
 require("private void card(String title, String detail, View... children)", "firewall cards must support multiple child controls")
 require("for (View child : children) if (child != null) card.addView(child);", "all card child controls must be attached")
 require("private final ThreadPoolExecutor appWorker =", "bounded app inventory worker is missing")
@@ -82,3 +92,15 @@ assert "getApplicationLabel(" not in render, "application labels are still loade
 assert "for (ApplicationInfo info : apps)" in render, "paged renderer lost the application row loop"
 print("PASS: Yulong firewall reloads apps, restores search/page/scroll state, pages rows and releases workers")
 PY
+
+POLICY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongFirewallAppFilterPolicy.java"
+POLICY_HOST_TEST="$ROOT/scripts/tests/FxYulongFirewallAppFilterPolicyHostTest.java"
+[ -s "$POLICY" ] && [ -s "$POLICY_HOST_TEST" ] || { echo "FAIL: firewall UID policy Host test sources missing" >&2; exit 1; }
+if command -v javac >/dev/null 2>&1 && command -v java >/dev/null 2>&1; then
+  WORK="$(mktemp -d "${TMPDIR:-/tmp}/fx-firewall-uid-policy.XXXXXX")"
+  trap 'rm -rf "$WORK"' EXIT HUP INT TERM
+  javac -d "$WORK" "$POLICY" "$POLICY_HOST_TEST"
+  java -cp "$WORK" de.privacyguard.adhook.imported.ad.FxYulongFirewallAppFilterPolicyHostTest
+else
+  echo "SKIP: JDK unavailable; shared UID policy runtime assertions were not executed."
+fi

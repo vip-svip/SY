@@ -66,6 +66,10 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
     private TextView scopeStatus;
     private final List<ApplicationInfo> apps = new ArrayList<>();
     private final Map<String, String> labels = new HashMap<>();
+    // Android owner-based firewall matching is per UID, not per package.
+    // This full inventory is retained independently of the selected list category.
+    private final Map<Integer, List<String>> uidPackages = new HashMap<>();
+    private int[] installedUidSnapshot = new int[0];
     private static final class FirewallRule {
         boolean enabled;
         boolean blockWifi = true;
@@ -163,6 +167,15 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
             status.setText("应用列表尚未成功刷新，暂不允许修改防火墙规则。");
             return;
         }
+        confirmSharedUidScope(packageName, uid,
+                () -> showRuleDialogInternal(packageName, uid), null);
+    }
+
+    private void showRuleDialogInternal(String packageName, int uid) {
+        if (!inventoryReady) {
+            status.setText("应用列表尚未成功刷新，暂不允许修改防火墙规则。");
+            return;
+        }
         FirewallRule draft = ruleFor(packageName).copy();
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL); panel.setPadding(dp(18), dp(8), dp(18), dp(8));
@@ -193,6 +206,66 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
         }));
         showFxDialog(dialog);
     }
+    private int uidPackageCount(int uid) {
+        return FxYulongFirewallAppFilterPolicy.countUidMembers(uid, installedUidSnapshot);
+    }
+
+    private String uidScopeSummary(int uid) {
+        int count = uidPackageCount(uid);
+        if (count <= 1) return "";
+        List<String> members = uidPackages.get(uid);
+        if (members == null || members.isEmpty()) {
+            return "共享 UID：" + count + " 个应用共用此 UID；网络规则会同时作用于全部共享应用。";
+        }
+        StringBuilder names = new StringBuilder();
+        int shown = 0;
+        for (String packageName : members) {
+            if (shown >= 5) break;
+            if (shown > 0) names.append("、");
+            names.append(labels.getOrDefault(packageName, packageName));
+            shown++;
+        }
+        if (members.size() > shown) names.append(" 等 ").append(members.size()).append(" 个应用");
+        return "共享 UID（" + count + " 个应用）：规则将同时作用于 " + names
+                + "；Android owner UID 匹配无法只限制其中一个应用。";
+    }
+
+    private void confirmSharedUidScope(String packageName, int uid,
+                                       Runnable proceed, Runnable cancel) {
+        int count = uidPackageCount(uid);
+        if (count <= 1) {
+            proceed.run();
+            return;
+        }
+        List<String> members = uidPackages.get(uid);
+        StringBuilder names = new StringBuilder();
+        int shown = 0;
+        if (members != null) {
+            for (String member : members) {
+                if (shown >= 8) break;
+                if (shown > 0) names.append("\n");
+                names.append("• ").append(labels.getOrDefault(member, member));
+                shown++;
+            }
+            if (members.size() > shown) {
+                names.append("\n…另有 ").append(members.size() - shown).append(" 个应用");
+            }
+        }
+        String selected = labels.getOrDefault(packageName, packageName);
+        String message = "所选应用：" + selected + "\nUID：" + uid
+                + "\n检测到 " + count + " 个应用共用此 UID：\n" + names
+                + "\n\n此防火墙使用 Android owner UID 匹配，无法只限制其中一个包。继续后，本规则会同时影响全部共享 UID 应用。";
+        AlertDialog dialog = fxDialogBuilder().setTitle("共享 UID 网络规则")
+                .setMessage(message)
+                .setCancelable(false)
+                .setNegativeButton("取消", (d, which) -> {
+                    if (cancel != null) cancel.run();
+                })
+                .setPositiveButton("继续（影响全部共享应用）", (d, which) -> proceed.run())
+                .create();
+        showFxDialog(dialog);
+    }
+
     private String ruleSummary(FirewallRule rule) {
         StringBuilder value = new StringBuilder(rule.enabled ? "已启用 · " : "未启用 · ");
         if (rule.blockWifi) value.append("Wi-Fi");
@@ -493,22 +566,32 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
         status.setText("正在后台读取已安装应用…");
         try {
             enqueueLatestAppLoad(() -> {
+                List<ApplicationInfo> installed = new ArrayList<>();
                 List<ApplicationInfo> loaded = new ArrayList<>();
                 Map<String, String> loadedLabels = new HashMap<>();
+                Map<Integer, List<String>> loadedUidPackages = new HashMap<>();
                 Throwable failure = null;
                 try {
                     PackageManager pm = getPackageManager();
-                    loaded.addAll(pm.getInstalledApplications(0));
-                    loaded.removeIf(info -> {
-                        if (info.packageName == null || info.packageName.equals(getPackageName())) return true;
-                        return !FxYulongFirewallAppFilterPolicy.includes(filterMode, info.flags);
-                    });
-                    for (ApplicationInfo info : loaded) {
+                    installed.addAll(pm.getInstalledApplications(0));
+                    for (ApplicationInfo info : installed) {
+                        if (info.packageName == null || info.packageName.equals(getPackageName())) continue;
                         String label;
                         try { label = String.valueOf(pm.getApplicationLabel(info)); }
                         catch (Throwable ignored) { label = info.packageName; }
                         loadedLabels.put(info.packageName, label);
+                        List<String> uidGroup = loadedUidPackages.get(info.uid);
+                        if (uidGroup == null) {
+                            uidGroup = new ArrayList<>();
+                            loadedUidPackages.put(info.uid, uidGroup);
+                        }
+                        uidGroup.add(info.packageName);
                     }
+                    loaded.addAll(installed);
+                    loaded.removeIf(info -> {
+                        if (info.packageName == null || info.packageName.equals(getPackageName())) return true;
+                        return !FxYulongFirewallAppFilterPolicy.includes(filterMode, info.flags);
+                    });
                     loaded.sort(Comparator.comparing(info ->
                             loadedLabels.getOrDefault(info.packageName, info.packageName)
                                     .toLowerCase(Locale.ROOT)));
@@ -532,6 +615,17 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
                     apps.addAll(loaded);
                     labels.clear();
                     labels.putAll(loadedLabels);
+                    uidPackages.clear();
+                    uidPackages.putAll(loadedUidPackages);
+                    int uidCount = 0;
+                    for (List<String> group : loadedUidPackages.values()) uidCount += group.size();
+                    installedUidSnapshot = new int[uidCount];
+                    int uidIndex = 0;
+                    for (Map.Entry<Integer, List<String>> entry : loadedUidPackages.entrySet()) {
+                        for (int member = 0; member < entry.getValue().size(); member++) {
+                            installedUidSnapshot[uidIndex++] = entry.getKey();
+                        }
+                    }
                     for (ApplicationInfo info : loaded) {
                         if (!rules.containsKey(info.packageName)) rules.put(info.packageName, new FirewallRule());
                     }
@@ -612,11 +706,15 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
             item.setPadding(dp(12), dp(7), dp(12), dp(7));
             TextView name = text(label, 14, 0xff17212b, true);
             TextView packageText = text(pkg + " · UID " + info.uid, 10, 0xff718091, false);
+            String sharedScope = uidScopeSummary(info.uid);
             long received = TrafficStats.getUidRxBytes(info.uid), transmitted = TrafficStats.getUidTxBytes(info.uid);
             TextView traffic = text("系统 UID 计数 · 接收 " + formatBytes(received)
                     + " · 发送 " + formatBytes(transmitted), 10, 0xff526170, false);
             TextView detail = text(ruleSummary(existing), 11, 0xff526170, false);
-            Switch enabled = new Switch(this); enabled.setText("启用该应用的网络拦截规则");
+            Switch enabled = new Switch(this);
+            enabled.setText(uidPackageCount(info.uid) > 1
+                    ? "启用共享 UID 网络拦截（同时影响多应用）"
+                    : "启用该应用的网络拦截规则");
             enabled.setChecked(existing.enabled);
             enabled.setEnabled(inventoryReady);
             final boolean[] suppressRow = {false};
@@ -624,15 +722,28 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
                 if (suppressRow[0] || !inventoryReady) return;
                 FirewallRule draft = ruleFor(pkg).copy();
                 boolean previous = draft.enabled; draft.enabled = checked; button.setEnabled(false);
-                persistRule(pkg, info.uid, draft, ok -> {
-                    button.setEnabled(true);
+                Runnable persist = () -> persistRule(pkg, info.uid, draft, ok -> {
+                    button.setEnabled(inventoryReady);
                     if (!ok) {
                         suppressRow[0] = true; button.setChecked(previous); suppressRow[0] = false;
                     } else renderRows();
                 });
+                Runnable revert = () -> {
+                    button.setEnabled(inventoryReady);
+                    suppressRow[0] = true; button.setChecked(previous); suppressRow[0] = false;
+                };
+                confirmSharedUidScope(pkg, info.uid, persist, revert);
             });
-            item.addView(name); item.addView(packageText); item.addView(traffic); item.addView(detail); item.addView(enabled);
-            Button configure = button("配置 Wi-Fi / 移动数据 / 每日时段", () -> showRuleDialog(pkg, info.uid));
+            item.addView(name); item.addView(packageText);
+            if (!sharedScope.isEmpty()) {
+                TextView shared = text(sharedScope, 11, 0xff8a4b16, true);
+                shared.setTag("fx-card-detail");
+                item.addView(shared);
+            }
+            item.addView(traffic); item.addView(detail); item.addView(enabled);
+            Button configure = button(uidPackageCount(info.uid) > 1
+                    ? "配置共享 UID 网络规则" : "配置 Wi-Fi / 移动数据 / 每日时段",
+                    () -> showRuleDialog(pkg, info.uid));
             configure.setEnabled(inventoryReady);
             item.addView(configure);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
