@@ -5932,3 +5932,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 防火墙 Activity 的所有 Root 读取、规则写入、主开关与应用命令共用该入口；发现路径异常时在执行控制脚本前失败关闭。
 - 更新 `scripts/tests/fx-yulong-firewall-activity-regression.sh`，逐项锁定父目录检查、版本匹配与模块 payload symlink 防护。
 - 本批尚未完成 CI 验证；未声称 APK 构建、Root 设备执行或真实防火墙流量验证通过。
+
+
+### Ad 防火墙无效快照只读锁定覆盖补齐（2026-11-06）
+
+- 复核 malformed list 失败路径后确认 Activity 已有双层写入保护：inventoryReady=false 使 rule editor/persist 拒绝写入，已渲染 row switch 和 detail/configure 按钮也会失效；恢复完整 Root list 后才重新启用。
+- 本批仅把这些现有运行时门控加入 fx-yulong-firewall-activity-regression.sh，防止未来重构移除其中任一层却只保留总开关 disabled 的假只读状态。
+- JDK parser/Shell strict protocol 的 33 条断言由前一批 d4588473 的 Host run 实际通过；本次新增静态断言等待新 Targeted Host 结果。

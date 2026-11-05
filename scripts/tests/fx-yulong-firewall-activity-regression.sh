@@ -30,6 +30,11 @@ require("confirmSharedUidScope(pkg, info.uid, persist, revert)", "the quick rule
 require("showRuleDialogInternal(packageName, uid)", "the detailed rule form must only open after the shared UID warning")
 require("FxYulongFirewallListParser.parse(output)", "Root list response is not parsed strictly")
 require("private void rejectInvalidListResponse()", "malformed firewall state does not lock writes")
+require("inventoryReady = false;", "invalid Root list must invalidate any previously loaded editable inventory")
+require("if (!inventoryReady) {", "rule editor and persistence must reject writes while the list is invalid")
+require("if (suppressRow[0] || !inventoryReady) return;", "already-rendered row switches must not write after list invalidation")
+require("enabled.setEnabled(inventoryReady);", "existing row switches must be disabled until a complete list is restored")
+require("configure.setEnabled(inventoryReady);", "existing rule detail buttons must be disabled until a complete list is restored")
 if source.count("if (!parseList(result.output))") != 2:
     raise SystemExit("FAIL: initial and refresh list reads must both fail closed")
 require("private void card(String title, String detail, View... children)", "firewall cards must support multiple child controls")
