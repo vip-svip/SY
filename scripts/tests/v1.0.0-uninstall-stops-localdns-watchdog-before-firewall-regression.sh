@@ -57,7 +57,7 @@ kill -0 "$$" 2>/dev/null || fail "PID identity check signalled the test process"
 
 # A symlinked PID record is untrusted and must preserve module state.
 rm -f "$PG/localdns-watchdog.pid"
-printf '%s\n' "$$" > "$T/pid-target"
+printf 'preserve-symlink-target\n' > "$T/pid-target"
 ln -s "$T/pid-target" "$PG/localdns-watchdog.pid"
 if PG="$PG" MODDIR="$MOD" sh "$MOD/uninstall.sh" > "$T/symlink.out" 2>&1; then
   fail "symlink PID record was accepted"
