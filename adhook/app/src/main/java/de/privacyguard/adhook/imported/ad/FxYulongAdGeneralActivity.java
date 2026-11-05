@@ -179,7 +179,7 @@ public final class FxYulongAdGeneralActivity extends de.privacyguard.adhook.FxNa
                 button("VPN 与 Root Proxy", () -> openPage("VPN 与 Root Proxy")));
 
         card(body, "系统快捷开关",
-                "通过 Android 系统的“添加磁贴”确认流程，将游龙广告过滤或 FX VPN 加入快捷设置面板。磁贴由系统托管；添加不会自动启动过滤或 VPN。",
+                "通过 Android 系统的“添加磁贴”确认流程，将FX 广告过滤或 FX VPN 加入快捷设置面板。磁贴由系统托管；添加不会自动启动过滤或 VPN。",
                 button("添加“FX 广告过滤”快捷开关", () ->
                         requestQuickSettingsTile(FxYulongAdTileService.class, "FX 广告过滤")),
                 button("添加“FX VPN”快捷开关", () ->
@@ -725,7 +725,7 @@ public final class FxYulongAdGeneralActivity extends de.privacyguard.adhook.FxNa
                 validateBackup(json);
                 runOnUiThread(() -> new android.app.AlertDialog.Builder(this)
                         .setTitle("确认导入过滤设置")
-                        .setMessage("这会替换当前游龙广告过滤来源、域名白/黑名单、DNS 开关和每周过滤计划。导入失败时会恢复导入前配置。")
+                        .setMessage("这会替换当前FX 广告过滤来源、域名白/黑名单、DNS 开关和每周过滤计划。导入失败时会恢复导入前配置。")
                         .setNegativeButton("取消", null)
                         .setPositiveButton("备份并导入", (d, w) -> applyImport(json))
                         .show());
