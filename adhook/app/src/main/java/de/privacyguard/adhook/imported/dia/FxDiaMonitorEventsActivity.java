@@ -136,8 +136,8 @@ public final class FxDiaMonitorEventsActivity extends de.privacyguard.adhook.FxN
         LinearLayout header = new LinearLayout(this);
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(8), dp(4), dp(12), dp(4));
-        header.addView(button("‹ 返回", this::finish));
-        TextView title = text("Dia 23.11 · 结构化监控事件", 18, 0xff17212b, true);
+        header.addView(button("‹ 返回 Hook", this::finish));
+        TextView title = text("Hook · 结构化监控事件", 18, 0xff17212b, true);
         header.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
 
