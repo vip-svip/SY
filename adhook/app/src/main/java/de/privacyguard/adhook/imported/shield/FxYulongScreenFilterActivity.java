@@ -85,7 +85,7 @@ public final class FxYulongScreenFilterActivity extends de.privacyguard.adhook.F
             if (checked) {
                 if (!Settings.canDrawOverlays(this)) {
                     setSwitch(false);
-                    new AlertDialog.Builder(this).setTitle("需要悬浮窗权限")
+                    fxDialogBuilder().setTitle("需要悬浮窗权限")
                             .setMessage("滤镜使用不接收触摸的透明覆盖层。请手动授予 FX 悬浮窗权限后再开启。")
                             .setNegativeButton("稍后", null)
                             .setPositiveButton("打开设置", (d, w) -> openOverlaySettings()).show();
@@ -131,7 +131,7 @@ public final class FxYulongScreenFilterActivity extends de.privacyguard.adhook.F
         volumeAdjust.setOnCheckedChangeListener((button, checked) -> {
             if (checked && !de.privacyguard.adhook.FxAccessibilityService.isConnected()) {
                 binding = true; volumeAdjust.setChecked(false); binding = false;
-                new AlertDialog.Builder(this).setTitle("需要 FX 无障碍服务")
+                fxDialogBuilder().setTitle("需要 FX 无障碍服务")
                         .setMessage("音量键调节只接收音量上/下键方向，不读取界面内容，也不会吞掉按键。请手动启用 FX 无障碍服务。")
                         .setNegativeButton("稍后", null)
                         .setPositiveButton("打开设置", (d, w) -> {
