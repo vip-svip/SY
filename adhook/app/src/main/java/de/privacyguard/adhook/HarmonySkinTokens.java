@@ -12,6 +12,9 @@ final class HarmonySkinTokens {
         static final int CARD_SURFACE = 0xfff8fbff;
         static final int CARD_STROKE = 0x332878d0;
         static final int ROW_RIPPLE = 0x222878d0;
+        static final int LIST_ROW_SURFACE = 0xfff8fbff;
+        static final int LIST_ROW_BORDER = 0x332878d0;
+        static final int LIST_ROW_RIPPLE = 0x222878d0;
         static final int BACKGROUND = 0xfff1f5fa;
         static final int WALLPAPER_TINT = 0xfff1f5fa;
         static final int NAV_SURFACE = 0xfff9fbfe;
@@ -35,6 +38,7 @@ final class HarmonySkinTokens {
         static final int CARD_RADIUS_DP = 20;
         static final int SECTION_RADIUS_DP = 14;
         static final int ACTION_RADIUS_DP = 16;
+        static final int LIST_ROW_RADIUS_DP = 16;
         private HarmonyShapeTokens() { }
     }
 
@@ -48,6 +52,8 @@ final class HarmonySkinTokens {
         static final float SWITCH_LABEL_SP = 15f;
         static final float CHOICE_LABEL_SP = 15f;
         static final float INPUT_LABEL_SP = 15f;
+        static final float LIST_ROW_TITLE_SP = 15f;
+        static final float LIST_ROW_SUBTITLE_SP = 12f;
         private HarmonyTypographyTokens() { }
     }
 
@@ -72,6 +78,9 @@ final class HarmonySkinTokens {
         static final int CARD_HORIZONTAL_PADDING_DP = 16;
         static final int CARD_VERTICAL_PADDING_DP = 12;
         static final int ROW_MIN_HEIGHT_DP = 52;
+        static final int LIST_ROW_MIN_HEIGHT_DP = 56;
+        static final int LIST_ROW_HORIZONTAL_PADDING_DP = 16;
+        static final int LIST_ROW_VERTICAL_PADDING_DP = 10;
 
         private HarmonySpacingTokens() { }
     }
