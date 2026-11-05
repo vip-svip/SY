@@ -9,7 +9,7 @@ mkdir -p "$MOD/scripts/jsruntime" "$PG"
 printf 'id=privacyguard\nversion=1.0.0\n' > "$MOD/module.prop"
 cp "$ROOT/fx-patches/native-script-list.sh" "$MOD/scripts/jsruntime/native-list.sh"
 cp "$ROOT/fx-patches/native-script-run.sh" "$MOD/scripts/jsruntime/local-run.sh"
-if [ -s "$ROOT/fx-module/scripts/util.sh" ]; then
+if [ -f "$ROOT/fx-module/scripts/util.sh" ] && [ -s "$ROOT/fx-module/scripts/util.sh" ]; then
   cp "$ROOT/fx-module/scripts/util.sh" "$MOD/scripts/util.sh"
 else
   # The targeted Host lane does not unpack the release module archive.

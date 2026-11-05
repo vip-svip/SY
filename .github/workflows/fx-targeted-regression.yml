@@ -198,6 +198,12 @@ jobs:
             run_sh scripts/tests/fx-yulong-shield-worker-bounds-regression.sh
           fi
 
+          if [[ "$changed" == "ALL" || "$changed" =~ (fx-patches/native-script-(list|run|scheduler)\\.sh|patch_native_script_store\\.py) ]]; then
+            run_sh scripts/tests/fx-native-script-store-regression.sh
+            run_sh scripts/tests/fx-native-script-local-run-regression.sh
+            run_sh scripts/tests/fx-native-script-scheduler-regression.sh
+          fi
+
           if [[ "$changed" == "ALL" || "$changed" =~ (fx-module/scripts/|patch_atomic_cache_lock_release|patch_localdns_uninstall_shutdown|patch_yulong_root_proxy|patch_vpn_tun_external_fallback) ]]; then
             run_sh scripts/tests/fx-atomic-cache-lock-release-regression.sh
             run_sh scripts/tests/v1.0.0-uninstall-stops-localdns-watchdog-before-firewall-regression.sh
