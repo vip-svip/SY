@@ -173,6 +173,7 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
 
         // 加入管控按钮
         Button addBtn = new Button(this);
+        addBtn.setTag("fx-action-row");
         addBtn.setText("添加要管控的应用");
         addBtn.setTextColor(Color.WHITE);
         addBtn.setTextSize(17);
@@ -223,10 +224,12 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
 
         // 空状态提示
         emptyHint = new LinearLayout(this);
+        emptyHint.setTag("fx-card");
         emptyHint.setOrientation(LinearLayout.VERTICAL);
         emptyHint.setGravity(Gravity.CENTER);
         emptyHint.setPadding(0, dp(20), 0, 0);
         blacklistEmptyText = new TextView(this);
+        blacklistEmptyText.setTag("fx-card-detail");
         blacklistEmptyText.setText("暂无管控应用\n所有应用都不会被拦截");
         blacklistEmptyText.setTextColor(0xFFBBBBBB);
         blacklistEmptyText.setTextSize(15);
@@ -253,6 +256,7 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
 
         // 已加入管控列表容器
         blacklistContainer = new LinearLayout(this);
+        blacklistContainer.setTag("fx-card-group");
         blacklistContainer.setOrientation(LinearLayout.VERTICAL);
         blacklistContainer.setPadding(0, dp(16), 0, 0);
         content.addView(blacklistContainer);
@@ -656,6 +660,7 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
         emptyHint.setVisibility(View.GONE);
         blacklistContainer.setVisibility(View.VISIBLE);
         TextView listTitle = new TextView(this);
+        listTitle.setTag("fx-section:已加入管控");
         listTitle.setText("已加入管控 (" + filtered.size() + " / " + blacklisted.size() + ")");
         listTitle.setTextColor(0xff333333);
         listTitle.setTextSize(16);
@@ -724,6 +729,7 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
         textCol.setLayoutParams(tp);
 
         TextView nameTv = new TextView(this);
+        nameTv.setTag("fx-list-title");
         nameTv.setText(item.label);
         nameTv.setTextColor(0xFF222222);
         nameTv.setTextSize(14);
@@ -731,6 +737,7 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
         textCol.addView(nameTv);
 
         TextView pkgTv = new TextView(this);
+        pkgTv.setTag("fx-list-subtitle");
         pkgTv.setText(item.packageName);
         pkgTv.setTextColor(0xFFAAAAAA);
         pkgTv.setTextSize(11);
@@ -741,6 +748,7 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
 
         // 移除按钮
         Button removeBtn = new Button(this);
+        removeBtn.setTag("fx-action-row");
         removeBtn.setText("移出");
         removeBtn.setTextColor(0xFF2E7D32);
         removeBtn.setTextSize(13);
