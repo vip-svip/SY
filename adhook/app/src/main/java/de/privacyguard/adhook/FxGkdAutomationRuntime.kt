@@ -13,7 +13,7 @@ import android.view.accessibility.AccessibilityNodeInfo
  * - one action per event and per-rule cooldown;
  * - no screenshots, network calls, AI, or node/text logging.
  */
-internal object FxGkdAutomationRuntime {
+object FxGkdAutomationRuntime {
     private data class CompiledRule(
         val source: FxGkdRule,
         val selector: li.gkd.selector.Selector
