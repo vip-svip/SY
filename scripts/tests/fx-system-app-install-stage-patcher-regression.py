@@ -34,7 +34,7 @@ with tempfile.TemporaryDirectory(prefix="fx-system-app-stage-") as tmp:
         'optional/FXUnifiedHook.apk',
         'fx_system_app_retry',
         'u:object_r:system_file:s0',
-        'FX is not a privileged app',
+        'privapp-permissions',
     ):
         assert required in patched, f"missing system-app stage contract: {required}"
     subprocess.run(["sh", "-n", str(customize)], check=True)
