@@ -84,6 +84,24 @@ for color in ("0xff9b2c2c", "0xffa32620", "0xffa12d2d",
     assert color in semantic, f"semantic action color missing from preservation guard: {color}"
 print("PASS: semantic destructive/warning/success buttons bypass generic accent recoloring.")
 PY
+
+python3 - "$skin" <<'PY'
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+transform = source[source.index("private static void transformKnownLegacyTokens"):source.index("private static void applyButtonSkin")]
+assert "background instanceof ColorDrawable" in transform
+assert "replacementBackgroundDrawable(oldColor, palette, wallpaperActive, density)" in transform
+helper = source[source.index("private static Drawable replacementBackgroundDrawable"):source.index("private static Integer replacementText")]
+assert "case 0xfff0f3f7:" in helper and "case 0xffffffff:" in helper
+assert "case 0xffe9eef3:" in helper and "case 0xffe5e5ea:" in helper
+assert "roundedSurface(p.surface," in helper and "roundedSurface(p.surfaceVariant," in helper
+assert "p.cornerRadiusDp - 4) * density" in helper
+assert "p.cornerRadiusDp - 8) * density" in helper
+assert "surface.setCornerRadius(radiusPx)" in helper
+assert "return null;" in helper, "unknown/custom background tokens must remain untouched"
+print("PASS: known neutral cards receive density-scaled five-skin radii while custom drawables remain intact.")
+PY
 grep -Fq 'addOnGlobalLayoutListener' "$skin" || { echo "FAIL: dynamic native pages are not re-skinned after layout"; exit 1; }
 grep -Fq 'addOnAttachStateChangeListener' "$skin" || { echo "FAIL: Skin observer is not attached to the live page root"; exit 1; }
 grep -Fq 'removeOnGlobalLayoutListener(layoutListener)' "$skin" || { echo "FAIL: Skin observer is not removed when page detaches"; exit 1; }
