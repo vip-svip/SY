@@ -554,9 +554,9 @@ FX 1.0.0 的三个模式使用统一持久化 ID，禁止页面各自保存不�
 
 - **Ad（1）**：游龙广告插件来源能力融入 FX Ad；包括广告控制中心、通用设置与备份格式兼容、DNS 日志、防火墙、应用白名单、本机统计/摘要、过滤列表、域名名单和计划任务。用户可见标题只显示 FX Ad/Ad，不显示“游龙广告插件 7.0.1”。
 - **VPN（0）**：系统 HTTP 代理编辑页归 VPN；节点/代理/TUN/路由/DNS/MITM 继续由 VPN 业务管理。不要把系统 HTTP 代理归入 Hook 或 Settings。
-- **隐私（2）**：安全防护中心及屏幕滤镜、每日安全总结、病毒库、扫描、风险详情、批量清理、完整性、救援、白名单/管控名单等 Shield 子页统一高亮“隐私”，返回按钮回到隐私业务链。
+- **隐私（2）**：安全防护中心及屏幕滤镜、每日安全总结、病毒库、扫描、风险详情、批量清理、完整性、救援、白名单/管控名单等 Shield 子页统一高亮“隐私”；通知监听/权限提示策略与 Toast 文本过滤也保留在隐私页，返回按钮回到隐私业务链。
 - **脚本（3）**：Frida JavaScript 脚本库归脚本页；浏览器 UserScript/扩展和其他脚本生态能力也归此页。
-- **Hook（4）**：Dia 来源的 Frida 环境/注入、DEX 浏览与方法选取、Activity 入口、文件/so、JSON、Inspector、监控事件、Frida 会话日志、签名信息、系统扩展、Hook 工具全局设置与自定义 Hook 页面。用户可见名称以“Hook”命名，不暴露 Dia 旧应用品牌。
+- **Hook（4）**：已安装应用列表与逐应用 Hook；Dia 来源的 Frida 环境/注入、DEX 浏览与方法选取、Activity 入口、文件/so、JSON、Inspector、监控事件、Frida 会话日志、签名信息、系统扩展、Hook 工具全局设置、自定义 Hook、Dialog 对话框 Hook 和按键动作 Hook。Dialog/按键从 Hook Hub 进入逐应用目标配置，页面始终高亮 Hook；用户可见名称以“Hook”命名，不暴露 Dia 旧应用品牌。
 - **设置（5）**：五种 Skin、壁纸、主题/动效、全局权限/诊断偏好、FX 统一备份恢复、关于。备份页由设置入口直达；不要重复出现在 Hook 工具页。
 
 当前代码入口：
@@ -567,7 +567,7 @@ FX 1.0.0 的三个模式使用统一持久化 ID，禁止页面各自保存不�
 - MainActivity.showSettings()：壁纸/五 Skin/全局备份恢复等系统级配置。
 - FxNativeTabActivity：通过统一 FxUiMode.read() 和共享 Shell 提供五 Skin；每个子页必须明确业务 Tab 索引。
 
-回归要求：验证 Settings 无迁移应用、六个主 Tab 标签固定、Ad/Shield/Dia 页面不暴露旧来源品牌、Shield 选中隐私、Dia Hook 工具选中 Hook、Frida JS 脚本库选中脚本、备份选中设置、HTTP 代理选中 VPN；这些页面映射必须在业务页中真实可达，不可只保留死的旧路由。
+回归要求：验证 Settings 无迁移应用、六个主 Tab 标签固定、Ad/Shield/Dia 页面不暴露旧来源品牌、Shield/Toast/通知隐私策略选中隐私、Frida/Dia Dialog/Dia 按键 Hook 工具选中 Hook、Frida JS 脚本库选中脚本、备份选中设置、HTTP 代理选中 VPN；这些页面映射必须在业务页中真实可达，不可只保留死的旧路由。
 
 
 ## 12. GKD-XA 1.4.8 来源固定与单 APK 融合约束
