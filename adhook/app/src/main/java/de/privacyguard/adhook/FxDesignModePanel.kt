@@ -75,8 +75,9 @@ private fun FxDesignModePanel(
             ) {
                 Text("选择 FX 全局界面模式")
                 Text(
-                    "五种模式覆盖整个应用的视觉呈现。切换只改变界面渲染，不重启 VPN、DNS、代理内核、Hook 或脚本服务。"
+                    "六种模式覆盖整个应用的视觉呈现。切换只改变界面渲染，不重启 VPN、DNS、代理内核、Hook 或脚本服务。"
                 )
+                ModeCard(FxUiMode.DEFAULT_STANDARD.storageId, FxUiMode.DEFAULT_STANDARD.title, FxUiMode.DEFAULT_STANDARD.description, currentMode, onModeSelected, backdrop, false)
                 ModeCard(FxUiMode.CLASSIC_WEB_COMPAT.storageId, FxUiMode.CLASSIC_WEB_COMPAT.title, FxUiMode.CLASSIC_WEB_COMPAT.description, currentMode, onModeSelected, backdrop, false)
                 ModeCard(FxUiMode.FX_LIQUID_NATIVE.storageId, FxUiMode.FX_LIQUID_NATIVE.title, FxUiMode.FX_LIQUID_NATIVE.description, currentMode, onModeSelected, backdrop, true)
                 ModeCard(FxUiMode.MIUIX_STYLE.storageId, FxUiMode.MIUIX_STYLE.title, FxUiMode.MIUIX_STYLE.description, currentMode, onModeSelected, backdrop, false)
