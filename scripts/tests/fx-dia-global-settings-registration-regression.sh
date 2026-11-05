@@ -72,7 +72,7 @@ assert 'addStoredSwitch("自动申请 LSPosed 作用域"' in global_page, "migra
 assert "通过官方 libXposed 服务向 LSPosed Manager 提交申请" in global_page, "scope request must disclose the official Manager approval route"
 assert "Manager 仍须批准" in global_page, "scope request must disclose that Manager approval remains required"
 assert "dialog.box.lsp.LScope" not in global_page, "FX must not preserve the legacy Dia Binder package as a fake migrated dependency"
-assert 'addAction("快速重启系统"' in global_page, "Dia quick framework restart must be a real action"
+assert 'addAction("重启 LSPosed 框架服务"' in global_page, "Dia framework restart must be a real action with an accurate service-level label"
 assert "FRAMEWORK_RESTART_COMMAND" in global_page and '"stop;' in global_page, "original stop/start framework restart command is missing"
 assert "RootAccess.execute(" in global_page, "framework restart must use the KernelSU Root broker"
 assert "确认重启框架服务" in global_page and "正在运行的应用" in global_page, "framework restart must require explicit confirmation and disclose disruption"
