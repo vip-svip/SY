@@ -131,7 +131,7 @@ for label, needle in (
         raise SystemExit(f"FAIL: {label}")
 root_worker = source[source.index("private final ThreadPoolExecutor worker ="):
                       source.index("private void ensureFridaWorkerActive()")]
-if "ThreadPoolExecutor(1, 1, 30L" not in root_worker or "new ArrayBlockingQueue<>(12)" not in root_worker:
+if not re.search(r"ThreadPoolExecutor\\(\\s*1,\\s*1,\\s*30L", root_worker) or not re.search(r"new ArrayBlockingQueue<>\\(\\s*12\\s*\\)", root_worker):
     raise SystemExit("FAIL: Frida Root operations must share one bounded serial worker")
 if "new ThreadPoolExecutor.AbortPolicy()" not in root_worker:
     raise SystemExit("FAIL: Frida Root worker must reject overload explicitly")
