@@ -5360,3 +5360,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `_ensure_locked()` previously ignored `_stop_locked()` failure when the proxy was disabled and returned success, even if an FX-owned OUTPUT DNS redirect remained attached and its recovery metadata/resolver had intentionally been preserved.
 - Disabled ensure now returns non-zero when firewall cleanup is incomplete. Added a runtime regression that activates the proxy, disables it while injecting an iptables detach failure, verifies marker/resolver preservation, then retries successfully after the fault is removed.
 - No Android device validation is implied.
+
+
+## 2026-11-06 — Root Proxy legacy lock cleanup hardening
+
+- Branch HEAD before this batch: `bb18cf2246f8fc3f24aabfaae1a454da4097626d`.
+- Source commit: `e8246fdfcf4f2dcf0abda9a5798662866667af48`; regression additions: `a91f23f2592ceb14670ad7eb6f72d9adbf15d937`; fixture newline correction: `472451b2b7c6d3a2853aad4aa98ddb2f8babcae3`.
+- Changed `fx-module/scripts/yulong-root-proxy.sh`: legacy lock-directory retirement no longer uses recursive `rm -rf`. It accepts only an empty directory or a directory containing exactly one non-symlink regular `pid` file; unknown entries and symlinks are preserved and cleanup fails closed. Canonical regular-file locks continue to be removed normally.
+- Changed `scripts/tests/fx-yulong-root-proxy-runtime-regression.sh`: extracted production lock remover is exercised against valid PID-only directories, empty directories, canonical regular files, and a legacy directory containing unrelated nested data.
+- Verification: isolated host-shell execution of the production-equivalent lock-removal cases passed. The complete Root Proxy runtime regression harness and full source `sh -n` were not run in this environment because a repository checkout/runtime download is unavailable. GitHub combined status returned no checks and the available commit-workflow query returned no runs; CI result is therefore unknown, not passed. No Android build, install, emulator, or real-device validation was performed.
+- Current branch HEAD at state update: `472451b2b7c6d3a2853aad4aa98ddb2f8babcae3`.
+- Next implementation focus: continue Root Proxy / independent local DNS coexistence and service lifecycle tests; then proceed with the next complete native UI page group. Preserve existing VPN and DNS routes; do not generate a final APK/module before acceptance gates.
