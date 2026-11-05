@@ -106,7 +106,7 @@ jobs:
           # Create a fresh integration branch from the exact current target HEAD.
           # Import only paths missing from the target tree; never replace branch-owned
           # files with older Release copies.
-          recovery_branch=fx-module-source-recovery-latest
+          recovery_branch=fx-module-source-recovery-final
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin "+refs/heads/$GITHUB_REF_NAME:refs/remotes/origin/$GITHUB_REF_NAME"
