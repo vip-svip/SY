@@ -195,16 +195,24 @@ public final class FxYulongIntegrityActivity extends de.privacyguard.adhook.FxNa
         moduleStatus.setText("正在通过 Root 读取模块文件与语法状态…");
         try {
             worker.execute(() -> {
-                RootAccess.Result result = RootAccess.execute(moduleCheckCommand(), 30000L, 256 * 1024);
+                final String report;
+                try {
+                    RootAccess.Result result = RootAccess.execute(moduleCheckCommand(), 30000L, 256 * 1024);
+                    report = "Root 退出码：" + result.exitCode + "\n"
+                            + (result.output == null ? "" : result.output)
+                            + (result.exitCode == 0
+                            ? "\n结果：只读检查完成；这不是设备运行或网络行为验证。"
+                            : "\n结果：检查未完成，请确认 FX Hook 已获 Root 授权。");
+                } catch (Throwable error) {
+                    report = "完整性检查执行失败：" + error.getClass().getSimpleName()
+                            + (error.getMessage() == null ? "" : "：" + error.getMessage())
+                            + "\n请确认 FX Hook 的 Root 授权与模块状态后重试。";
+                }
                 runOnUiThread(() -> {
                     if (destroyed || isFinishing() || isDestroyed()
                             || request != checkGeneration) return;
                     checkButton.setEnabled(true);
-                    moduleStatus.setText("Root 退出码：" + result.exitCode + "\n"
-                            + (result.output == null ? "" : result.output)
-                            + (result.exitCode == 0
-                            ? "\n结果：只读检查完成；这不是设备运行或网络行为验证。"
-                            : "\n结果：检查未完成，请确认 FX Hook 已获 Root 授权。"));
+                    moduleStatus.setText(report);
                 });
             });
         } catch (RejectedExecutionException full) {
