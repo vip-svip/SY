@@ -168,10 +168,8 @@ final class FxNativeSkin {
         Drawable background = view.getBackground();
         if (background instanceof ColorDrawable) {
             int oldColor = ((ColorDrawable) background).getColor();
-            Integer replacement = replacementBackground(oldColor, palette, wallpaperActive);
-            if (replacement != null && replacement != oldColor) {
-                view.setBackground(new ColorDrawable(replacement));
-            }
+            Drawable replacement = replacementBackgroundDrawable(oldColor, palette, wallpaperActive);
+            if (replacement != null) view.setBackground(replacement);
         }
 
         if (view instanceof TextView) {
@@ -300,23 +298,34 @@ final class FxNativeSkin {
         return (color & 0x00ffffff) | ((alpha & 0xff) << 24);
     }
 
-    private static Integer replacementBackground(int color, Palette p,
-                                                  boolean wallpaperActive) {
+    private static Drawable replacementBackgroundDrawable(int color, Palette p,
+                                                            boolean wallpaperActive) {
         switch (color) {
             case 0xfff7f8fa:
             case 0xfff4f6f8:
-                return wallpaperActive ? 0x00000000 : p.background;
+                // Root/page surfaces reveal the Compose wallpaper when selected.
+                return new ColorDrawable(wallpaperActive ? 0x00000000 : p.background);
             case 0xfff0f3f7:
             case 0xffffffff:
-                return p.surface;
+                // Only known neutral legacy card tokens receive rounded surfaces.
+                return roundedSurface(p.surface, Math.max(10, p.cornerRadiusDp - 4), p.divider);
             case 0xffe9eef3:
             case 0xffe5e5ea:
-                return p.surfaceVariant;
+                return roundedSurface(p.surfaceVariant, Math.max(8, p.cornerRadiusDp - 8), p.divider);
             case 0xffe3e8ee:
-                return p.divider;
+                return new ColorDrawable(p.divider);
             default:
+                // Preserve arbitrary custom drawables and semantic status colors.
                 return null;
         }
+    }
+
+    private static GradientDrawable roundedSurface(int color, int radiusDp, int strokeColor) {
+        GradientDrawable surface = new GradientDrawable();
+        surface.setColor(color);
+        surface.setCornerRadius(radiusDp);
+        if (strokeColor != 0) surface.setStroke(1, strokeColor);
+        return surface;
     }
 
     private static Integer replacementText(int color, Palette p) {
