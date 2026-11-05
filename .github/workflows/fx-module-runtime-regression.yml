@@ -133,6 +133,7 @@ jobs:
           set -euo pipefail
           module="$FX_MODULE_RUNTIME"
           sh scripts/tests/fx-vpn-tun-external-fallback-regression.sh "$module"
+          python3 scripts/tests/fx-unbound-stop-pid-identity-regression.py
           sh scripts/tests/fx-yulong-root-proxy-unbound-regression.sh "$module"
           sh scripts/tests/fx-yulong-root-proxy-runtime-regression.sh "$module"
           sh scripts/tests/fx-native-vpn-api-regression.sh "$module/webroot/index.html"
