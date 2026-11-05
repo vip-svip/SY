@@ -183,7 +183,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         int total = 0, blocked = 0, malformed = 0;
         String raw = output == null ? "" : output;
         if (raw.contains("FXDNSLOG_DISABLED")) {
-            status.setText("DNS 查询日志当前关闭。请返回FX Ad → DNS 设置，手动开启本地日志。");
+            status.setText("DNS 查询日志当前关闭。请返回 Ad → DNS 设置，手动开启本地日志。");
             render(); return;
         }
         if (raw.contains("FXDNSLOG_EMPTY")) {
