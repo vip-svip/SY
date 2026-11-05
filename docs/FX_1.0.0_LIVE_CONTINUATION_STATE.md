@@ -6573,3 +6573,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Fix: canonicalize the patch template from the module's managed block; update patcher-required anchors to require `retry` for absent/unsafe overlay directory, APK and checksum; extend patcher regression to reject silent skip and assert the emitted block matches the template; extend early-boot behavior regression to assert missing overlay creates a mode-0600 retry marker.
 - CI: `FX System App Install Stage` run `42108423643` at commit `a8c31e50788fbc6a407bc4728d220c56eea2cc20` SUCCESS. Logs confirm patcher idempotence, install-stage behavior, and absent-overlay retry case passed.
 - Limits: Host test validates the retry and packaged shell behavior only; KernelSU/Magisk mount timing, PackageManager system-app classification and live SELinux label remain device-level checks.
+
+
+## 2026-11-06 — Hosts 原生保存路径回归测试的 Java 转义匹配修复
+
+- 失败运行：Hook APK migration run `42107889234`（提交 `8a852b94d6e7436e73e66a17cf6b4159e1f5b8d1`）在 `fx-native-managed-lists-regression.sh` 的 Hosts 保存断言失败，错误为 `Hosts page save temp-path invariant missing: [ -d "$path" ] && [ ! -L "$path" ]`。
+- 根因：`MainActivity.writeHostsPage()` 将 shell 命令嵌入 Java 字符串，源码中的引号保留为 `\\\"`；测试使用 Python 普通字符串，解释时丢失反斜杠，导致匹配正确实现时误报。不是运行时保存逻辑缺少目录保护。
+- 修复提交：`fec78b13e31c707c44701eae88ac4294a0fc9788`（`test(hosts): assert Java-escaped temp-path shell safely`）。将 shell token 改为 Python raw string，保留 Java 源码的转义引号；顺序断言同样使用 raw string。
+- 当前源码回读确认 `writeHostsPage` 已有 /data、/data/local、/data/local/tmp 逐级目录非符号链接检查、`umask 077`、唯一 `mktemp`、EXIT 清理 trap、临时文件常规文件检查及 `fileedit.sh replacepage`。
+- 修复已在当前分支 HEAD `5938090c1eba4d2ab63887b06de96d7caec5dd17` 中；Hook APK migration run `42109361175` 当前为 pending，尚未把此修复记为 CI 通过。此前同一工作流的失败是该测试的误报。
+- 设备级验证仍需实际 Android 保存操作、系统 Hosts 应用和权限/SELinux 检查；Host 静态匹配不替代真机。
