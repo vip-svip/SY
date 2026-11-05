@@ -105,7 +105,7 @@ grep -Fq 'invalid external VPN egress marker' "$T/invalid.err" || {
 # Keep the patched Unbound validator aligned with the controller: reject
 # non-unicast and non-canonical IPv4 text before it reaches outgoing-interface.
 for invalid_ip in 0.0.0.0 127.0.0.1 169.254.1.1 224.0.0.1 240.0.0.1 255.255.255.255 10.01.2.3; do
-  printf '%s\\n' "$invalid_ip" > "$PG/unbound-vpn-egress-ip"
+  printf '%s\n' "$invalid_ip" > "$PG/unbound-vpn-egress-ip"
   if render_config "$PG" > "$T/invalid-ip.out" 2> "$T/invalid-ip.err"; then
     echo "FAIL: invalid VPN egress IPv4 marker was accepted: $invalid_ip" >&2
     exit 1
