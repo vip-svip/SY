@@ -102,7 +102,7 @@ public final class FxDiaSignatureActivity extends de.privacyguard.adhook.FxNativ
         String[] labels = new String[apps.size()];
         for (int i = 0; i < apps.size(); i++)
             labels[i] = label(apps.get(i)) + "\n" + apps.get(i).packageName;
-        new AlertDialog.Builder(this).setTitle("选择 APK").setItems(labels, (d, which) -> {
+        fxDialogBuilder().setTitle("选择 APK").setItems(labels, (d, which) -> {
             selected = apps.get(which);
             target.setText(labels[which]);
             output.setText("目标已选择；点击读取签名证书。");
