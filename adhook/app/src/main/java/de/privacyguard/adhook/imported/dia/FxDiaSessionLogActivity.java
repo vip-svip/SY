@@ -283,7 +283,7 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
     }
 
     private void confirmClearLog() {
-        new AlertDialog.Builder(this)
+        fxDialogBuilder()
                 .setTitle("清空 Frida 会话日志")
                 .setMessage("只清空 FX 为当前目标创建的会话日志，不会删除脚本、目标应用配置或 Frida 服务。此操作不可撤销。")
                 .setNegativeButton("取消", null)
