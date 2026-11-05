@@ -3367,6 +3367,13 @@ public final class MainActivity extends ComponentActivity {
 
     private void refreshHookHubLsposedStatus(TextView state) {
         if (state == null) return;
+        // Preserve Dia's active_tip preference: this controls the activation/status
+        // banner only, never the actual LSPosed bridge or target-app scope state.
+        boolean showActivationTip = getSharedPreferences("digXposed", MODE_PRIVATE)
+                .getBoolean("active_tip", true);
+        state.setVisibility(showActivationTip ? View.VISIBLE : View.GONE);
+        if (!showActivationTip) return;
+
         boolean managerInstalled = isLsposedManagerInstalled();
         boolean serviceConnected = FxLsposedScopeBridge.isConnected();
         state.setText((managerInstalled
@@ -3375,7 +3382,7 @@ public final class MainActivity extends ComponentActivity {
                 + (serviceConnected
                     ? "\nlibXposed 服务 Binder：已连接；可在各目标应用配置页查看、申请或移除该应用作用域。"
                     : "\nlibXposed 服务 Binder：尚未连接。请在 Manager 启用 FX Hook 后重新打开 FX Hook；若仍未连接，可在 Manager 手动设置作用域。")
-                + "\n作用域批准不等于目标进程已经注入。");
+                + "\n服务连接状态不等同于目标进程注入状态；不代表 FX Hook 已注入。");
     }
 
     private void refreshHookHubAccessibilityStatus(TextView state) {
