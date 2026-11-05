@@ -20,6 +20,9 @@ shield_rescue="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/sh
 ad_summary="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdSummaryActivity.java"
 ad_firewall="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongFirewallActivity.java"
 shield_main="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongShieldActivity.java"
+shield_scan="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongScanActivity.java"
+shield_daily="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongDailySummaryActivity.java"
+shield_warning="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongWarningActivity.java"
 dia_frida="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaFridaActivity.java"
 dia_scripts="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaScriptLibraryActivity.java"
 for f in "$mode" "$panel" "$shell" "$tokens" "$activity" "$host" "$skin" "$harmony_tokens" "$cupertino_tokens" "$harmony_renderer" "$cupertino_renderer" "$native_skin_test" "$ad_main" "$ad_general" "$ad_summary" "$ad_firewall" "$shield_main" "$shield_scan" "$shield_rescue" "$dia_frida" "$dia_scripts"; do
@@ -165,7 +168,7 @@ grep -Fq 'control.setMinimumHeight(Math.max(control.getMinimumHeight()' "$skin" 
 # Imported feature Activities share the same Harmony/Cupertino component renderer.
 # Their helper-built cards and action buttons must carry role tags or the Skin
 # adapter cannot transform those legacy pages.
-for page in "$ad_main" "$ad_general" "$ad_summary" "$ad_firewall" "$shield_main" "$dia_frida" "$dia_scripts"; do
+for page in "$ad_main" "$ad_general" "$ad_summary" "$ad_firewall" "$shield_main" "$shield_scan" "$shield_daily" "$shield_warning" "$dia_frida" "$dia_scripts"; do
   grep -Fq 'setTag("fx-card")' "$page" || { echo "FAIL: imported feature card is not tagged for global Skin: $page"; exit 1; }
   grep -Fq 'setTag("fx-card-title")' "$page" || { echo "FAIL: imported feature card title is not tagged for global Skin: $page"; exit 1; }
   grep -Fq 'setTag("fx-card-detail")' "$page" || { echo "FAIL: imported feature card detail is not tagged for global Skin: $page"; exit 1; }
@@ -182,6 +185,33 @@ for path in sys.argv[1:]:
     assert '("fx-card".equals(role) || "fx-card-group".equals(role) || "fx-setting-card".equals(role))' in source
 print("PASS: Harmony/Cupertino component renderers process card title/detail tags once.")
 PY
+# Shield pages use shared component roles while keeping scan severity as an explicit semantic color.
+for token in 'setTag("fx-card")' 'setTag("fx-card-title")' 'setTag("fx-card-detail")' 'setTag("fx-action-row")'; do
+  grep -Fq "$token" "$shield_main" || { echo "FAIL: Shield home card renderer role missing: $token"; exit 1; }
+  grep -Fq "$token" "$shield_daily" || { echo "FAIL: Shield daily summary card renderer role missing: $token"; exit 1; }
+  grep -Fq "$token" "$shield_warning" || { echo "FAIL: Shield warning page renderer role missing: $token"; exit 1; }
+done
+grep -Fq 'setTag("fx-switch-row")' "$shield_main" || { echo "FAIL: Shield switches are not routed through the active Skin"; exit 1; }
+grep -Fq 'setTag("fx-card")' "$shield_scan" || { echo "FAIL: Shield scan status card is not tagged"; exit 1; }
+grep -Fq 'setTag("fx-card-title")' "$shield_scan" || { echo "FAIL: Shield scan card title is not tagged"; exit 1; }
+grep -Fq 'contentScan.setTag("fx-switch-row")' "$shield_scan" || { echo "FAIL: Shield content-scan switch is not Skin-aware"; exit 1; }
+grep -Fq 'resultHeading.setTag("fx-section:风险结果")' "$shield_scan" || { echo "FAIL: Shield findings section title is not tagged"; exit 1; }
+grep -Fq 'item.setTag(finding.severity==FxYulongScanEngine.Severity.CERTAIN?"fx-risk-certain":"fx-risk-suspect")' "$shield_scan" || { echo "FAIL: scan findings lost severity-specific card roles"; exit 1; }
+grep -Fq 'riskTitle.setTag(finding.severity==FxYulongScanEngine.Severity.CERTAIN?"fx-risk-title-certain":"fx-risk-title-suspect")' "$shield_scan" || { echo "FAIL: scan findings lost severity-specific title roles"; exit 1; }
+for renderer in "$harmony_renderer" "$cupertino_renderer"; do
+  grep -Fq '"fx-risk-certain".equals(role)' "$renderer" || { echo "FAIL: semantic certain-risk card renderer missing: $renderer"; exit 1; }
+  grep -Fq '"fx-risk-suspect".equals(role)' "$renderer" || { echo "FAIL: semantic suspect-risk card renderer missing: $renderer"; exit 1; }
+  grep -Fq '"fx-risk-title-certain".equals(role)' "$renderer" || { echo "FAIL: semantic certain-risk title renderer missing: $renderer"; exit 1; }
+  grep -Fq '"fx-risk-title-suspect".equals(role)' "$renderer" || { echo "FAIL: semantic suspect-risk title renderer missing: $renderer"; exit 1; }
+done
+for tokens_file in "$harmony_tokens" "$cupertino_tokens"; do
+  grep -Fq 'RISK_CERTAIN_SURFACE' "$tokens_file" || { echo "FAIL: certain-risk surface token missing: $tokens_file"; exit 1; }
+  grep -Fq 'RISK_SUSPECT_SURFACE' "$tokens_file" || { echo "FAIL: suspect-risk surface token missing: $tokens_file"; exit 1; }
+  grep -Fq 'RISK_CERTAIN_TEXT' "$tokens_file" || { echo "FAIL: certain-risk text token missing: $tokens_file"; exit 1; }
+  grep -Fq 'RISK_SUSPECT_TEXT' "$tokens_file" || { echo "FAIL: suspect-risk text token missing: $tokens_file"; exit 1; }
+done
+grep -Fq 'uninstallButton.setTextColor(0xffa32620)' "$shield_warning" || { echo "FAIL: warning page must preserve destructive-action semantics"; exit 1; }
+grep -Fq 'riskDetails.addView(text(advice, 12, 0xff8a5b12, false))' "$shield_warning" || { echo "FAIL: warning advice must preserve semantic amber text"; exit 1; }
 
 grep -Fq 'webView.setVisibility(View.VISIBLE)' "$activity" || { echo "FAIL: ClassicWebCompat WebView not mounted"; exit 1; }
 grep -Fq 'navigateWebPage(webPageForBottomTab(index))' "$activity" || { echo "FAIL: ClassicWebCompat tab routing missing"; exit 1; }
