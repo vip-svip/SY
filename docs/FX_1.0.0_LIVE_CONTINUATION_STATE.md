@@ -6615,3 +6615,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - GitHub 回读：生产源码与测试脚本均已重新读取；4 个 no-follow 契约 token 在生产源码和回归测试中全部匹配。
 - 验证边界：本轮只完成 GitHub 源码回读和静态契约匹配；尚未执行 Host shell regression、Java/Gradle 编译、APK 构建或 Android 真机验证。不得报告 CI 通过。
 - 下一步：在可执行环境运行 scripts/tests/fx-yulong-shield-worker-bounds-regression.sh，并确认 Shield 相关 workflow 对新提交触发；随后继续从未被其他 AI 修改的 UI 页面组随机挑选任务。
+
+
+## 2026-11-06 — 修复 subfetch V2 锁升级与共享缓存补丁的顺序冲突
+
+- 失败运行：Hook migration run `42110174286`（HEAD `e2697371d3feec55ab96b54e445703238bc33d20`）在 Release-source restore 阶段的 `fx-atomic-cache-lock-release-regression.sh` 失败。
+- 根因一：`patch_subfetch_file_lock.py` 的 V2 完整性 token 将 shell PID `$$` 错写成 `$`，导致每次运行都误判 V2 锁不完整并重复重写锁块。
+- 根因二：共享缓存回归脚本在 Hosts V3 升级后再次运行旧共享补丁，未按 KernelSU 实际顺序执行，误把 Hosts 已迁移状态判为缺少旧锚点。
+- 修复：`patch_subfetch_file_lock.py` 的 V2 token 恢复 `$$`；`patch_atomic_cache_lock_release.py` 对 V2 订阅锁进行只读完整性验证并跳过旧目录/PID 重写；其 V2 release-owner 检查要求精确当前 PID。回归脚本调整为先完成 subfetch V2、再运行共享补丁验证、最后升级 Hosts V3，匹配真实打包顺序。
+- 相关提交：`eb93c93c83d7bb4575083d90ae5a59d50cc8563e`（subfetch V2 token）；`a0d7e12e4229f4639dca01a59fcc44bdb6cd8e3c`（共享补丁 PID 检查）；`ffa56953f2c6377a0e4af19a34a3a74c352398d8`（回归顺序）。
+- 最新 Hook migration / Runtime / Host 回归已在新提交触发，结果尚未确认；不得将旧失败运行算作修复后失败或成功。
