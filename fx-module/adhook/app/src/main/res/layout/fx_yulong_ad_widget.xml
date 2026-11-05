@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/fx_yulong_widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:gravity="center_vertical"
+    android:background="@drawable/fx_yulong_widget_background">
+    <TextView
+        android:id="@+id/fx_yulong_widget_open"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="FX VPN 快捷控制"
+        android:textStyle="bold"
+        android:textSize="15sp"
+        android:textColor="#17212B"
+        android:paddingBottom="4dp" />
+    <TextView
+        android:id="@+id/fx_yulong_widget_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="正在读取状态…"
+        android:textSize="12sp"
+        android:textColor="#617080"
+        android:paddingBottom="8dp" />
+    <TextView
+        android:id="@+id/fx_yulong_widget_count"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="节点：未选择"
+        android:textSize="11sp"
+        android:textColor="#617080"
+        android:paddingBottom="4dp" />
+    <Button
+        android:id="@+id/fx_yulong_widget_toggle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="启动 VPN"
+        android:textAllCaps="false" />
+</LinearLayout>
