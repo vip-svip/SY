@@ -272,9 +272,11 @@ source = Path(sys.argv[1]).read_text(encoding="utf-8")
 start = source.index("private static void applyButtonSkin")
 end = source.index("private static boolean isSemanticActionBackground", start)
 button_skin = source[start:end]
-assert "isSemanticActionColor(button.getCurrentTextColor())" in button_skin
-assert "isSemanticActionBackground(button.getBackground())" in button_skin
-assert button_skin.index("isSemanticActionColor") < button_skin.index("BUTTON_SKINS")
+assert "shouldPreserveSemanticAction(button)" in button_skin
+assert button_skin.index("shouldPreserveSemanticAction(button)") < button_skin.index("BUTTON_SKINS")
+semantic_guard = source[source.index("static boolean shouldPreserveSemanticAction"):source.index("private static boolean isSemanticActionBackground")]
+assert "isSemanticActionColor(button.getCurrentTextColor())" in semantic_guard
+assert "isSemanticActionBackground(button.getBackground())" in semantic_guard
 semantic = source[source.index("private static boolean isSemanticActionColor"):source.index("private static void applySwitchSkin")]
 for color in ("0xff9b2c2c", "0xffa32620", "0xffa12d2d",
               "0xfffff6e8", "0xff7a4b13", "0xff79552b",
