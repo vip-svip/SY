@@ -44,14 +44,14 @@ printf '%s\n   0: 0100007F:14E9 00000000:0000 07 00000000:00000000 00:00000000 0
 
 # net_filter_dns_busy: AdGuard Home's client-facing DNS port 53 is occupied by TCP.
 mkdir -p "$TMP/net_filter_dns_busy"
-for f in tcp6 udp udp6; do printf '%s\\n' "$HDR" > "$TMP/net_filter_dns_busy/$f"; done
-printf '%s\\n   0: 0100007F:0035 00000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 3 1\\n' \\
+for f in tcp6 udp udp6; do printf '%s\n' "$HDR" > "$TMP/net_filter_dns_busy/$f"; done
+printf '%s\n   0: 0100007F:0035 00000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 3 1\n' \
   "$HDR" > "$TMP/net_filter_dns_busy/tcp"
 
 # net_filter_dns_udp_busy: port 53 is occupied by UDP.
 mkdir -p "$TMP/net_filter_dns_udp_busy"
-for f in tcp tcp6 udp6; do printf '%s\\n' "$HDR" > "$TMP/net_filter_dns_udp_busy/$f"; done
-printf '%s\\n   0: 0100007F:0035 00000000:0000 07 00000000:00000000 00:00000000 00000000  1000        0 4 1\\n' \\
+for f in tcp tcp6 udp6; do printf '%s\n' "$HDR" > "$TMP/net_filter_dns_udp_busy/$f"; done
+printf '%s\n   0: 0100007F:0035 00000000:0000 07 00000000:00000000 00:00000000 00000000  1000        0 4 1\n' \
   "$HDR" > "$TMP/net_filter_dns_udp_busy/udp"
 
 # net_partial: TCP and UDP6 readable, but UDP4 inventory missing.
