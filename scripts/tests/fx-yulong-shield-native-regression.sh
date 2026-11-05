@@ -184,13 +184,17 @@ for token in ('addNativeSettingsCategory("传感器", "sensorPanel")',
     assert token in privacy_page, f"Privacy controls missing from the integrated settings groups: {token}"
 assert "Settings migration entry missing" not in main
 hub = shield["FxYulongShieldActivity.java"]
-rescue_route_start = main.index('case "悬浮救援入口":')
-rescue_route = main[rescue_route_start:rescue_route_start + 420]
-assert "FxYulongShieldActivity.class" in rescue_route, \
-    "Shield floating-rescue settings must open the hub that owns the real enable switch"
+# The overlay-rescue switch and the separate recovery screen both live
+# inside the integrated Shield hub. MainActivity is only the Privacy -> Shield
+# entry point; it must not grow a source-app-specific rescue route.
+assert 'overlayRescueSwitch.setText("显示浮动救援入口")' in hub, \
+    "Shield hub must own the real floating-rescue enable switch"
+assert 'Intent overlay = new Intent(this, FxYulongRescueOverlayService.class)' in hub, \
+    "Shield hub switch must control the shared overlay service"
+assert 'card("救援中心"' in hub and "FxYulongRescueActivity.class" in hub \
+       and "打开救援中心" in hub, \
+    "Shield hub must provide the distinct recovery-actions destination"
 assert "FxYulongRescueActivity.java" in shield, "Dedicated rescue Activity source missing"
-assert "FxYulongRescueActivity.class" in hub and "打开救援中心" in hub, \
-    "The hub must retain a separate path into the original recovery actions"
 rescue = shield["FxYulongRescueActivity.java"]
 assert "new Intent(context, FxYulongRescueActivity.class)" in protection_service, \
     "Rescue notification must open the dedicated Rescue screen, not the Shield Hub"
