@@ -82,6 +82,18 @@ for f in tcp tcp6 udp udp6; do printf '%s\n' "$HDR" > "$TMP/net_proxy_udp6_busy/
 printf '%s\n' '  0: 00000000000000000000000001000000:1ED2 00000000000000000000000000000000:0000 07 00000000:00000000 00:00000000 00000000  1000        0 8 1' \
   "$HDR" > "$TMP/net_proxy_udp6_busy/udp6"
 
+# net_filter_dns_udp6_busy: client-facing DNS port 53 is bound on IPv6 UDP.
+mkdir -p "$TMP/net_filter_dns_udp6_busy"
+for f in tcp tcp6 udp udp6; do printf '%s\n' "$HDR" > "$TMP/net_filter_dns_udp6_busy/$f"; done
+printf '%s\n' '  0: 00000000000000000000000001000000:0035 00000000000000000000000000000000:0000 07 00000000:00000000 00:00000000 00000000  1000        0 9 1' \
+  "$HDR" > "$TMP/net_filter_dns_udp6_busy/udp6"
+
+# net_proxy_tcp6_busy: proxy port 7890 is listening on IPv6 TCP.
+mkdir -p "$TMP/net_proxy_tcp6_busy"
+for f in tcp tcp6 udp udp6; do printf '%s\n' "$HDR" > "$TMP/net_proxy_tcp6_busy/$f"; done
+printf '%s\n' '  0: 00000000000000000000000001000000:1ED2 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 10 1' \
+  "$HDR" > "$TMP/net_proxy_tcp6_busy/tcp6"
+
 # net_partial: TCP and UDP6 readable, but UDP4 inventory missing.
 mkdir -p "$TMP/net_partial"
 for f in tcp tcp6 udp6; do printf '%s\n' "$HDR" > "$TMP/net_partial/$f"; done
@@ -369,6 +381,20 @@ rc=${r%%|*}; out=${r#*|}
 [ "$rc" -eq 0 ] || fail "expected rc=0, got $rc: $out"
 [ "$(field "$out" "['proxy']['owner']")" = "other" ] || fail "IPv6 UDP/7890 conflict was missed: $out"
 pass "IPv6 UDP bind prevents false-free proxy status"
+
+echo "== case 4i: IPv6 UDP AdGuard/53 bind is a port conflict =="
+r=$(run_arb "$LINKS_TUN" "tun0|10123" "$TMP/net_filter_dns_udp6_busy" "$TMP/mod_clean")
+rc=${r%%|*}; out=${r#*|}
+[ "$rc" -eq 0 ] || fail "expected rc=0, got $rc: $out"
+[ "$(field "$out" "['dns_filter']['owner']")" = "other" ] || fail "IPv6 UDP/53 conflict was missed: $out"
+pass "IPv6 UDP bind prevents false-free client-facing DNS status"
+
+echo "== case 4j: IPv6 TCP proxy/7890 listener is a port conflict =="
+r=$(run_arb "$LINKS_TUN" "tun0|10123" "$TMP/net_proxy_tcp6_busy" "$TMP/mod_clean")
+rc=${r%%|*}; out=${r#*|}
+[ "$rc" -eq 0 ] || fail "expected rc=0, got $rc: $out"
+[ "$(field "$out" "['proxy']['owner']")" = "other" ] || fail "IPv6 TCP/7890 conflict was missed: $out"
+pass "IPv6 TCP listener prevents false-free proxy status"
 
 echo "== case 5: link inventory unavailable -> unknown, fail-safe rc=2 =="
 r=$(run_arb "" "" "$TMP/net_free" "$TMP/mod_clean")
