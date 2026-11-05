@@ -401,6 +401,25 @@ _ensure_locked() {
   _activate_chains "$_uid" "$_whitelist_uids" || {
     _stop_locked; _log "dual-stack DNS NAT setup failed; fail-open"; return 1;
   }
+  # Recheck after the redirect chains are live, immediately before committing
+  # active state. This catches a tunnel address or route change during NAT setup.
+  if ! command -v nslookup >/dev/null 2>&1 || ! command -v timeout >/dev/null 2>&1 \
+      || ! timeout 5 nslookup example.com 127.0.0.1 2>&1 \
+             | grep -Eq 'Address[[:space:]]+[0-9]+:[[:space:]]*[0-9]{1,3}(\.[0-9]{1,3}){3}|[0-9]{1,3}(\.[0-9]{1,3}){3}'; then
+    _stop_locked
+    _log "post-activation local DNS probe failed; fail-open"
+    return 1
+  fi
+  _post_activation_egress=$(_resolve_vpn_egress "$_iface") || {
+    _stop_locked
+    _log "VPN egress route could not be revalidated after DNS redirects were activated; fail-open"
+    return 1
+  }
+  if [ "$_post_activation_egress" != "$_egress" ]; then
+    _stop_locked
+    _log "VPN egress changed during DNS redirect activation ($_egress -> $_post_activation_egress); fail-open"
+    return 1
+  fi
   _meta_tmp=$(mktemp "$ACTIVE_META.tmp.XXXXXX") || {
     _stop_locked
     _log "unable to create Root Proxy active metadata temp; fail-open"

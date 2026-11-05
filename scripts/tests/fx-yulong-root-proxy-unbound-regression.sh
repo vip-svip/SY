@@ -140,6 +140,15 @@ python3 - "$ROOT/fx-module/scripts/yulong-root-proxy.sh" <<'PY'
 from pathlib import Path
 import sys
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
+ensure_start = source.index("_ensure_locked() {")
+activate_at = source.index('_activate_chains "$_uid" "$_whitelist_uids"', ensure_start)
+post_probe_at = source.index('post-activation local DNS probe failed', activate_at)
+post_route_at = source.index('_post_activation_egress=$(_resolve_vpn_egress "$_iface")', activate_at)
+meta_commit_at = source.index('_meta_tmp=$(mktemp "$ACTIVE_META.tmp.XXXXXX")', activate_at)
+assert activate_at < post_probe_at < post_route_at < meta_commit_at, (
+    "Root Proxy must re-probe local DNS and revalidate VPN egress after redirects "
+    "are activated but before publishing active metadata"
+)
 start = source.index("_activate_chains() {")
 end = source.index("\n}\n_ensure_locked()", start) + 2
 body = source[start:end]
