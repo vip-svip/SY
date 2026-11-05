@@ -8100,7 +8100,7 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void toggle(String label,String feature,boolean def) {
-        Switch sw=new Switch(this); sw.setText(label); sw.setTextSize(15); sw.setPadding(dp(18),dp(12),dp(18),dp(12));
+        Switch sw=new Switch(this); sw.setTag("fx-switch-row"); sw.setText(label); sw.setTextSize(15); sw.setPadding(dp(18),dp(12),dp(18),dp(12));
         sw.setBackground(uiPanelDrawable()); sw.setChecked(getPreferences(0).getBoolean(key(feature),def));
         sw.setOnCheckedChangeListener((b,on)->getPreferences(0).edit().putBoolean(key(feature),on).apply());
         content.addView(sw,new LinearLayout.LayoutParams(-1,-2));
