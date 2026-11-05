@@ -6260,3 +6260,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `FxYulongAdSummaryActivity` 的有界 `enqueueLatest()` 已由并行提交恢复；本批不重复修改该方法，而是增强 DNS summary regression，明确验证 null task 拒绝、Activity teardown 拒绝、旧 waiter 淘汰和最新任务重新入队。
 - targeted workflow 的 DNS summary 与共享 Root resolver 触发条件均加入 `FxYulongAdSummaryActivity`，确保后续 Summary 代码变更实际执行两项 Host 回归。
 - 上次 Host run `42104599004` 的具体失败是 summary enqueueLatest 定义缺失；该实现已在后续并行提交进入当前 HEAD。本提交之后将以当前 commit 的 Host 结果确认回归。
+
+
+## 2026-11-06 — 游龙 Ad 防护总结刷新队列修复
+
+- 功能提交：`1a07ae472417331ff3947968465a41d6c98a0b53`；回归增强提交：`3e02e954cec0108028bcffcf57a6ee815e806f24`。
+- 修复 `FxYulongAdSummaryActivity` 中调用了但未定义的 `enqueueLatest`：新请求先移除尚未开始的旧排队请求，再提交最新 Root 读取；正在执行的旧请求不强制杀死，仍由 `loadGeneration` 阻止过期结果覆盖新页面；Activity 已销毁时拒绝继续入队。
+- 回归脚本新增队列销毁状态与最新请求提交断言，原有 `worker.getQueue().poll()` 断言保留。
+- GitHub 回读确认 `enqueueLatest`、`poll`、`execute` 均已存在。
+- GitHub Actions：`FX Targeted Host Regression` 在 `3e02e954` 成功（run `42105155375`，job `127517900195`）；日志确认执行了 `fx-yulong-ad-dns-summary-regression.sh`，静态请求队列/配置解析/隐私字段断言通过。该 Host-only lane 明确跳过依赖 Release 模块归档的 AdGuard YAML runtime 渲染测试；不将此项报告为已通过。
+- 尚未执行 Android Gradle 编译或设备端 Root/DNS 运行验证。
