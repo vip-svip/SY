@@ -122,7 +122,7 @@ jobs:
       - name: Stage checksum-verified Unbound Android ARM64 runtime
         shell: bash
         env:
-          GH_TOKEN: \${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           workflow="build-unbound-android-arm64.yml"
