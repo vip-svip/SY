@@ -198,7 +198,7 @@ jobs:
             run_sh scripts/tests/fx-yulong-shield-worker-bounds-regression.sh
           fi
 
-          if [[ "$changed" == "ALL" || "$changed" =~ (fx-patches/native-script-(list|run|scheduler)\\.sh|patch_native_script_store\\.py) ]]; then
+          if [[ "$changed" == "ALL" || "$changed" =~ (fx-patches/native-script-(list|run|scheduler)\.sh|patch_native_script_store\.py) ]]; then
             run_sh scripts/tests/fx-native-script-store-regression.sh
             run_sh scripts/tests/fx-native-script-local-run-regression.sh
             run_sh scripts/tests/fx-native-script-scheduler-regression.sh
