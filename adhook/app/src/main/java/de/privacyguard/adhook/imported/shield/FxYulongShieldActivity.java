@@ -463,7 +463,7 @@ public final class FxYulongShieldActivity extends de.privacyguard.adhook.FxNativ
             } else stopService(overlay);
         });
         card("悬浮救援入口",
-                "用户主动开启后在屏幕边缘显示小型 FX 入口；点击可返回安全护盾，不会自动操作其他应用。",
+                "用户主动开启后在屏幕边缘显示小型 FX 入口；点击可返回隐私防护中心，不会自动操作其他应用。",
                 overlayRescueSwitch,
                 action("打开悬浮窗权限设置", () -> {
                     try { startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
