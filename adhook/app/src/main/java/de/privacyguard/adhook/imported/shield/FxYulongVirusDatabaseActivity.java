@@ -76,6 +76,9 @@ public final class FxYulongVirusDatabaseActivity extends de.privacyguard.adhook.
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
+        // Core workers otherwise remain alive for the lifetime of a retained Activity.
+        // Let the 30-second keep-alive retire idle threads after UI-triggered work.
+        worker.allowCoreThreadTimeOut(true);
         restoredScrollY = state == null ? 0 : Math.max(0, state.getInt(STATE_SCROLL_Y, 0));
         LinearLayout root=new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(0xfff7f8fa);
         LinearLayout header=new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL); header.setPadding(dp(12),dp(8),dp(12),dp(8));
