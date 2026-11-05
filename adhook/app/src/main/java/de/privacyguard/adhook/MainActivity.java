@@ -109,6 +109,7 @@ public final class MainActivity extends ComponentActivity {
     private TextView nativeDashboardStatus;
     private Switch nativeVpnSwitch;
     private TextView nativeVpnState;
+    private TextView nativeSystemVpnState;
     private Button nativeVpnNodeButton;
     private final List<Button> nativeVpnModeButtons = new ArrayList<>();
     private LinearLayout nativeVpnSubRows;
@@ -2073,6 +2074,7 @@ public final class MainActivity extends ComponentActivity {
         nativeVpnControls = null;
         nativeVpnSwitch = null;
         nativeVpnState = null;
+        nativeSystemVpnState = null;
         nativeVpnNodeButton = null;
         nativeVpnModeButtons.clear();
 
@@ -2396,6 +2398,14 @@ public final class MainActivity extends ComponentActivity {
         nativeVpnState.setPadding(0, dp(4), 0, dp(8));
         card.addView(nativeVpnState);
 
+        nativeSystemVpnState = new TextView(this);
+        nativeSystemVpnState.setText("正在检测 Android VPN 接口…");
+        nativeSystemVpnState.setTextSize(12);
+        nativeSystemVpnState.setTextColor(0xff667784);
+        nativeSystemVpnState.setPadding(0, dp(2), 0, dp(8));
+        nativeSystemVpnState.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        card.addView(nativeSystemVpnState);
+
         nativeVpnNodeButton = new Button(this);
         nativeVpnNodeButton.setAllCaps(false);
         nativeVpnNodeButton.setText("选择节点 · 尚未选择");
@@ -2433,6 +2443,7 @@ public final class MainActivity extends ComponentActivity {
         }
         card.addView(modes);
         nativeVpnControls.addView(card, new LinearLayout.LayoutParams(-1, -2));
+        refreshAndroidVpnNetworkStatus();
     }
 
     private void testNativeVpnSelectedNodeLatency(Button button) {
@@ -2914,6 +2925,42 @@ public final class MainActivity extends ComponentActivity {
         });
     }
 
+    /**
+     * Read-only view of active Android VPN transports. FX's module proxy uses Root
+     * routing rather than VpnService, so this diagnostic must never claim to identify
+     * the owning VPN app or imply that every pair of VPNs is route-compatible.
+     */
+    private void refreshAndroidVpnNetworkStatus() {
+        TextView target = nativeSystemVpnState;
+        if (target == null || isFinishing() || isDestroyed()) return;
+        String message;
+        try {
+            android.net.ConnectivityManager connectivity =
+                    (android.net.ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+            if (connectivity == null) throw new IllegalStateException("ConnectivityManager unavailable");
+            int vpnNetworks = 0;
+            for (android.net.Network network : connectivity.getAllNetworks()) {
+                android.net.NetworkCapabilities capabilities =
+                        connectivity.getNetworkCapabilities(network);
+                if (capabilities != null
+                        && capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN)) {
+                    vpnNetworks++;
+                }
+            }
+            if (vpnNetworks == 0) {
+                message = "Android VPN 接口：未检测到活动 VpnService 网络（不代表设备未安装 VPN 应用）。";
+            } else {
+                message = "Android VPN 接口：检测到 " + vpnNetworks + " 个活动 VPN 网络。";
+            }
+            message += "\nFX Root 内核代理不占用 VpnService 名额；与其他 VPN 的流量兼容性仍取决于 ROM、UID 路由、DNS、TUN 和策略规则。";
+        } catch (SecurityException denied) {
+            message = "Android VPN 接口：系统拒绝读取网络状态。FX Root 内核代理不申请 VpnService 名额。";
+        } catch (Exception unavailable) {
+            message = "Android VPN 接口：状态暂不可用。FX Root 内核代理不申请 VpnService 名额。";
+        }
+        target.setText(message);
+    }
+
     private void syncNativeVpnControls() {
         if (nativeVpnSwitch == null || nativeVpnState == null || isFinishing() || isDestroyed()
                 || nativeVpnOperationBusy || !nativeVpnStatusQueued.compareAndSet(false, true)) return;
@@ -2942,13 +2989,14 @@ public final class MainActivity extends ComponentActivity {
                     syncingNativeVpn = true;
                     nativeVpnSwitch.setChecked(!"direct".equals(mode) && liveOn);
                     syncingNativeVpn = false;
-                    String live = rootProxyOn ? "第三方 VPN / Root DNS 保护正在运行"
+                    String live = rootProxyOn ? "FX Root 网络代理保护正在运行"
                             : "direct".equals(mode) ? "直连：未接管流量"
                             : liveOn ? "status.sh 确认：代理正在运行"
                             : "已保存代理模式，但后端尚未确认运行";
                     String node = state.optString("vpn_node", "");
                     nativeVpnState.setText("模式：" + modeLabel + " · " + live
                             + (node.isEmpty() ? " · 尚未选择节点" : " · 节点已配置"));
+                    refreshAndroidVpnNetworkStatus();
                     nativeVpnSwitch.setEnabled(true);
                     if (nativeVpnNodeButton != null) {
                         nativeVpnNodeButton.setEnabled(true);
@@ -2971,6 +3019,7 @@ public final class MainActivity extends ComponentActivity {
                     syncingNativeVpn = false;
                     nativeVpnSwitch.setEnabled(false);
                     nativeVpnState.setText("VPN 状态读取失败；Root 后端未返回有效 status.sh 状态");
+                    refreshAndroidVpnNetworkStatus();
                 }
             });
         });
