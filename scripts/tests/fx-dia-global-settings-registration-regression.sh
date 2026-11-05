@@ -24,8 +24,10 @@ expand_page = expand_path.read_text(encoding="utf-8")
 manifest = ET.parse(manifest_path).getroot()
 ns = "{http://schemas.android.com/apk/res/android}"
 
-route = main.split('case "全局设置":', 1)[1].split("case ", 1)[0]
-assert "FxDiaGlobalSettingsActivity.class" in route, "Dia global settings does not route to the native page"
+route_start = main.index('addNativeActionCard("Hook 工具与运行设置"')
+route_end = main.index('addNativeActionCard("系统扩展"', route_start)
+route = main[route_start:route_end]
+assert "FxDiaGlobalSettingsActivity.class" in route, "Dia global settings card does not route to the native page"
 assert "showImportedSuitePendingPage" not in route, "Dia global settings still points to the pending placeholder"
 
 activities = {
