@@ -1,0 +1,1 @@
+../artifact/AdGuardHome: ELF 64-bit LSB pie executable, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /system/bin/linker64, Go BuildID=6mfe7zwwVh3O8V-D6FPr/jgou7WeHdZo-sXCmxZGP/-vXKERXWRvj53zumFCrF/oROVz96zS6xulatSWddj, BuildID[sha1]=cedd1cff9243e134637802b989310430a1bd5e7c, stripped

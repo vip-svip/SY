@@ -1,0 +1,36 @@
+{
+  "project": "FX",
+  "version": "1.0.0",
+  "versionCode": 10000,
+  "updated": "2026-10-28",
+  "zip": "FX-v1.0.0-LSPosed-Adaptive-Ad-Hook-Remote-Status-Billing-Diagnostic-Audit160-2026-10-27.zip",
+  "sha256": "See adjacent external .zip.sha256 sidecar; ZIP hash is intentionally not embedded to avoid self-reference.",
+  "source_regression_tests": {
+    "total": 250,
+    "passed": 250,
+    "failed": 0
+  },
+  "static_checks": {
+    "shell_syntax": 296,
+    "standalone_js_syntax": 7,
+    "inline_html_js_blocks": 32,
+    "total": 335,
+    "failed": 0
+  },
+  "extracted_package_focused_tests": {
+    "total": 13,
+    "passed": 13,
+    "failed": 0
+  },
+  "extracted_package_full_suite_attempt": {
+    "completed_tests_before_executor_timeout": 87,
+    "total": 250,
+    "claim": "not completed; no pass claim"
+  },
+  "go_checks": {
+    "go_test": "PASS",
+    "go_vet": "PASS",
+    "go_test_race": "PASS"
+  },
+  "note": "Full source regression passed; ZIP source comparison and CRC passed. Not a real OnePlus 12 test."
+}

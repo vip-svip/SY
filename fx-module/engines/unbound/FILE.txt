@@ -1,0 +1,4 @@
+ELF64 AArch64 PIE executable; Android NDK r26b/API 24; interpreter /system/bin/linker64.
+Runtime binaries: unbound, unbound-checkconf, unbound-anchor, fx-dns-probe.
+Dependencies libssl/libcrypto/libexpat are statically linked. Each binary and root data file has a SHA-256 sidecar.
+Source provenance and runtime acceptance boundary: BUILD-INFO.txt.
