@@ -110,6 +110,37 @@ final class HarmonySkinRenderer {
             detail.setPadding(0, dp(4, density), 0, dp(6, density));
             return;
         }
+        if ("fx-list-row".equals(role) && view instanceof ViewGroup) {
+            ViewGroup row = (ViewGroup) view;
+            GradientDrawable surface = rounded(HarmonyColorTokens.LIST_ROW_SURFACE,
+                    HarmonyColorTokens.LIST_ROW_BORDER, HarmonyShapeTokens.LIST_ROW_RADIUS_DP, density);
+            GradientDrawable mask = rounded(0xffffffff, 0, HarmonyShapeTokens.LIST_ROW_RADIUS_DP, density);
+            row.setBackground(new RippleDrawable(
+                    ColorStateList.valueOf(HarmonyColorTokens.LIST_ROW_RIPPLE), surface, mask));
+            row.setPadding(dp(HarmonySpacingTokens.LIST_ROW_HORIZONTAL_PADDING_DP, density),
+                    dp(HarmonySpacingTokens.LIST_ROW_VERTICAL_PADDING_DP, density),
+                    dp(HarmonySpacingTokens.LIST_ROW_HORIZONTAL_PADDING_DP, density),
+                    dp(HarmonySpacingTokens.LIST_ROW_VERTICAL_PADDING_DP, density));
+            row.setMinimumHeight(dp(HarmonySpacingTokens.LIST_ROW_MIN_HEIGHT_DP, density));
+            return;
+        }
+        if ("fx-list-title".equals(role) && view instanceof TextView) {
+            TextView title = (TextView) view;
+            title.setTextColor(HarmonyColorTokens.PRIMARY_TEXT);
+            title.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+            title.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,
+                    HarmonyTypographyTokens.LIST_ROW_TITLE_SP);
+            return;
+        }
+        if ("fx-list-subtitle".equals(role) && view instanceof TextView) {
+            TextView subtitle = (TextView) view;
+            subtitle.setTextColor(HarmonyColorTokens.SECONDARY_TEXT);
+            subtitle.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+            subtitle.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,
+                    HarmonyTypographyTokens.LIST_ROW_SUBTITLE_SP);
+            subtitle.setLetterSpacing(0.005f);
+            return;
+        }
         if (("fx-card".equals(role) || "fx-card-group".equals(role) || "fx-setting-card".equals(role)) && view instanceof ViewGroup) {
             ViewGroup card = (ViewGroup) view;
             card.setBackground(rounded(HarmonyColorTokens.CARD_SURFACE,
