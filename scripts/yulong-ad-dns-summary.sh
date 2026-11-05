@@ -35,19 +35,64 @@ LOG_FILE="$DATA_DIR/querylog.json"
 [ -s "$LOG_FILE" ] || { echo FXDNSLOG_EMPTY; exit 0; }
 
 awk '
+function read_json_string(pos,    j,c,escaped) {
+  str_value=""; str_valid=0; j=pos+1; escaped=0
+  while (j <= length(current_line)) {
+    c=substr(current_line,j,1)
+    if (escaped) { str_value=str_value c; escaped=0; j++; continue }
+    if (c == "\\") { escaped=1; j++; continue }
+    if (c == "\"") { str_end=j; str_valid=1; return }
+    str_value=str_value c; j++
+  }
+  str_end=length(current_line)
+}
+function scan_record(line,    i,n,c,j,k,key,value,stack,valid,first,last,nextc,expected) {
+  current_line=line; n=length(line); first=1; last=n
+  while (first<=n && substr(line,first,1) ~ /[[:space:]]/) first++
+  while (last>=first && substr(line,last,1) ~ /[[:space:]]/) last--
+  if (substr(line,first,1)!="{" || substr(line,last,1)!="}") return 0
+  query=0; filtered=0; stack=""; valid=1
+  for (i=first; i<=last; i++) {
+    c=substr(line,i,1)
+    if (c=="\"") {
+      read_json_string(i)
+      if (!str_valid) { valid=0; break }
+      key=tolower(str_value); j=str_end; k=j+1
+      while (k<=last && substr(line,k,1) ~ /[[:space:]]/) k++
+      if (substr(line,k,1)==":") {
+        k++
+        while (k<=last && substr(line,k,1) ~ /[[:space:]]/) k++
+        if (key=="qh" || key=="question") query=1
+        if (key=="isfiltered") {
+          if (tolower(substr(line,k,4))=="true") {
+            nextc=substr(line,k+4,1)
+            if (nextc !~ /[A-Za-z0-9_]/) filtered=1
+          }
+        } else if (key=="reason" || key=="status") {
+          if (substr(line,k,1)=="\"") {
+            read_json_string(k); value=tolower(str_value)
+            if ((key=="reason" && value ~ /^filtered/) ||
+                (key=="status" && value ~ /(block|filter)/)) filtered=1
+          }
+        }
+      }
+      i=j
+    } else if (c=="{" || c=="[") {
+      stack=stack c
+    } else if (c=="}" || c=="]") {
+      expected=(c=="}" ? "{" : "[")
+      if (substr(stack,length(stack),1)!=expected) valid=0
+      else stack=substr(stack,1,length(stack)-1)
+    }
+  }
+  if (stack!="") valid=0
+  return valid && query
+}
 BEGIN { queries=0; blocked=0 }
 {
-  line=tolower($0)
-  # AdGuard Home querylog is JSON-lines. Count only records with a DNS
-  # question field; do not print or retain any field from the record.
-  if (line ~ /^[[:space:]]*\{/ &&
-      (line ~ /"qh"[[:space:]]*:/ || line ~ /"question"[[:space:]]*:/)) {
+  if (scan_record($0)) {
     queries++
-    if (line ~ /"isfiltered"[[:space:]]*:[[:space:]]*true/ ||
-        line ~ /"reason"[[:space:]]*:[[:space:]]*"filtered[^"]*"/ ||
-        line ~ /"status"[[:space:]]*:[[:space:]]*"[^"]*(block|filter)[^"]*"/) {
-      blocked++
-    }
+    if (filtered) blocked++
   }
 }
 END {
@@ -59,5 +104,4 @@ END {
   print "queries=" queries
   print "blocked=" blocked
   print "unblocked=" queries-blocked
-}
-' "$LOG_FILE"
+}' "$LOG_FILE"
