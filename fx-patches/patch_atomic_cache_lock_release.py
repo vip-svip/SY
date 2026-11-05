@@ -64,6 +64,15 @@ def replace_shell_function(path: Path, function_name: str, replacement: str, lab
 
 
 
+# The release ZIP predates the repository-owned Root Proxy lock regression.
+# Restore that canonical test into the staged module before validating inputs.
+root_proxy_test_source = repo / "fx-module/scripts/tests/v1.0.0-yulong-root-proxy-lock-regression.sh"
+if not root_proxy_test_source.is_file() or root_proxy_test_source.stat().st_size < 3000:
+    raise SystemExit("repository Root Proxy lock regression source is missing or incomplete")
+root_proxy_test.parent.mkdir(parents=True, exist_ok=True)
+if root_proxy_test_source.resolve() != root_proxy_test.resolve():
+    shutil.copy2(root_proxy_test_source, root_proxy_test)
+
 for required in (apply_file, subfetch_file, host_test, sub_test, root_proxy, root_proxy_test, subfetch_stale_owner_test, subfetch_stale_reclaim_test):
     if not required.is_file():
         raise SystemExit(f"restored FX cache-lock input missing: {required}")
