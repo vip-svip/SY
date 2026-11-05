@@ -359,7 +359,7 @@ fx_arb_decide() {
     fi
     FX_ARB_VERDICT="kernel_only"
     FX_ARB_GRADE_CN="内核级独立"
-    FX_ARB_REASONS="no external VPN detected; kernel dataplane runs without the VPN slot"
+    FX_ARB_REASONS="no external VPN detected; kernel dataplane is configured outside the VPN slot; live traffic path remains unverified"
     return 0
   fi
 
