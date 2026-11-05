@@ -5034,5 +5034,5 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 为 `fx-hook-observation-logs-regression.sh` 增加查询安全合同：目标包名必须先经过包名格式校验，再由 `shellQuote()` 作为固定字符串 grep 参数传入；只筛选 `FX Hook` 标签下的 `dev-observe` / `dia-dialog-match` 记录，并要求包名与 executable 字段精确匹配。避免日志查看器未来退化成宽泛日志搜索或 shell 字符串注入。
 - 本次只强化回归约束，没有改变 Hook 目标应用的执行行为，也没有把 OBSERVE 日志当成实时 Hook 授权或当前进程存活证明。
 - 提交：`e47ebd78f2e9dc1be9a1be2c4ec8e99d60d3a1ac`（首次断言草稿，CI 暴露断言字符串构造错误）；`c4f399d3af20f5c12901327ad1f556a8c95534d3`（修复首轮字符串但 Python token 列表仍错误）；`80a3b88a03f9fd2b644344c8d2f547eb720c324e`（Host 通过的中间版本）；`60f113a2ec65faae34e83eca5408422ce1eaa199`（简化并修正最终断言）。
-- 最终版本 FX Targeted Host Regression run `42030169436` 已 completed/success；日志明确输出两条 PASS：生命周期/边界保护，以及目标包名 shell quoting 与精确日志筛选。FX Module Runtime Regression run `42030169200` 在状态记录时仍在运行；不将其计为通过。
+- 最终版本 FX Targeted Host Regression run `42030169436` 已 completed/success；日志明确输出两条 PASS：生命周期/边界保护，以及目标包名 shell quoting 与精确日志筛选。FX Module Runtime Regression run `42030169200` 已 completed/success（vpn-dns-runtime job）。该 workflow 验证的是既有 VPN/DNS Host 运行时回归，不代表本次 Hook 查询在设备上的行为。
 - 未执行 Android Gradle 完整构建或真机 LSPosed/Hook 注入验证。
