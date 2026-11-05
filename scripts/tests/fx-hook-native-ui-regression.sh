@@ -503,8 +503,8 @@ grep -Fq 'hadHookEnabled' "$main_activity"
 grep -Fq 'previousGroupSet' "$main_activity"
 grep -Fq 'boolean rollbackSaved = rollback.commit();' "$main_activity"
 grep -Fq '原有规则已恢复' "$main_activity"
-grep -Fq 'new android.text.InputFilter.LengthFilter(65536)' "$main_activity" || fail "portable Hook rule import input is truncated below its documented 64 KiB limit"
-grep -Fq 'raw.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 65536' "$main_activity" || fail "portable Hook rule import lacks its UTF-8 byte-size guard"
+# Import capacity is checked in the method-scoped custom Hook passthrough regression;
+# avoid reintroducing stale 64 KiB assertions in this broader native UI suite.
 
 # Rule-group add/rename/delete/move must restore prior assignments if persistence fails.
 grep -Fq 'private boolean commitCustomRuleGroupUpdate(' "$main_activity"
