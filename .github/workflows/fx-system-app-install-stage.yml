@@ -1,0 +1,77 @@
+name: FX System App Install Stage
+
+# Guards the install-time deployment of the packaged FX APK as a system app.
+# The KernelSU ZIP build applies fx-patches/patch_system_app_install_stage.py to
+# the restored module; this workflow proves that stage is idempotent, behaves
+# correctly when the installer runs it, and fails closed on a damaged payload.
+
+on:
+  push:
+    branches:
+      - main
+      - fx-v1.0.0-unified-hook-integration
+    paths:
+      - 'fx-patches/patch_system_app_install_stage.py'
+      - 'scripts/tests/fx-system-app-install-stage-*.py'
+      - 'scripts/tests/fx-system-app-install-stage-*.sh'
+      - '.github/workflows/fx-system-app-install-stage.yml'
+      - 'fx-module/customize.sh'
+  pull_request:
+    paths:
+      - 'fx-patches/patch_system_app_install_stage.py'
+      - 'scripts/tests/fx-system-app-install-stage-*.py'
+      - 'scripts/tests/fx-system-app-install-stage-*.sh'
+      - '.github/workflows/fx-system-app-install-stage.yml'
+      - 'fx-module/customize.sh'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fx-system-app-install-stage-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  install-stage:
+    name: install-stage
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Verify the patcher is idempotent and shell-valid
+        run: |
+          set -euo pipefail
+          python3 -m py_compile fx-patches/patch_system_app_install_stage.py
+          python3 scripts/tests/fx-system-app-install-stage-patcher-regression.py
+
+      - name: Verify installer-time behaviour of the deployed stage
+        run: |
+          set -euo pipefail
+          python3 scripts/tests/fx-system-app-install-stage-behavior-regression.py
+
+      - name: Run the installer-execution regression on a patched customize.sh
+        run: |
+          set -euo pipefail
+          # fx-module is only partially tracked in Git; the packaging job restores
+          # the full module from the Release archive. Synthesise the documented
+          # insertion anchor here so this step is self-contained and always runs.
+          work="$(mktemp -d)"
+          mkdir -p "$work/module"
+          cat > "$work/module/customize.sh" <<'CUSTOMIZE_EOF'
+          #!/system/bin/sh
+          ui_print "Installing FX"
+          set_perm_recursive "$MODPATH/webroot" 0 0 0755 0644
+          CUSTOMIZE_EOF
+          python3 fx-patches/patch_system_app_install_stage.py "$work/module"
+          sh -n "$work/module/customize.sh"
+          sh scripts/tests/fx-system-app-install-stage-regression.sh "$work/module"
+
+      - name: Confirm the packaging job still applies this stage
+        run: |
+          set -euo pipefail
+          grep -Fq 'python3 fx-patches/patch_system_app_install_stage.py fx-module' \
+            .github/workflows/build-fx-kernelsu.yml
+          echo "KernelSU ZIP build applies the install-time system-app stage"
