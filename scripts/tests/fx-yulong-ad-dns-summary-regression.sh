@@ -78,9 +78,15 @@ PY
 
 # Exercise the restored runtime renderer with query logging disabled and enabled.
 # AdGuard Home expects YAML booleans, not the integer values 0/1.
-MODULE_SOURCE="$1"
-[ -n "$MODULE_SOURCE" ] || MODULE_SOURCE="$ROOT/fx-module"
+MODULE_SOURCE="${1:-$ROOT/fx-module}"
 case "$MODULE_SOURCE" in /*) ;; *) MODULE_SOURCE="$ROOT/$MODULE_SOURCE" ;; esac
+if [ -z "${1:-}" ] && {
+  [ ! -s "$MODULE_SOURCE/scripts/adguardhome.sh" ] ||
+  [ ! -s "$MODULE_SOURCE/fxrules/anti_fraud_96110.txt" ];
+}; then
+  echo "SKIP: restored FX module runtime sources are not staged in the Host-only lane; the package lane passes fx-module explicitly and validates AdGuard YAML rendering."
+  exit 0
+fi
 [ -s "$MODULE_SOURCE/scripts/adguardhome.sh" ] || fail "restored AdGuard Home lifecycle script missing"
 [ -s "$MODULE_SOURCE/fxrules/anti_fraud_96110.txt" ] || fail "restored anti-fraud rules missing"
 mkdir -p "$TMP/module/scripts" "$TMP/module/fxrules" "$TMP/pg"
