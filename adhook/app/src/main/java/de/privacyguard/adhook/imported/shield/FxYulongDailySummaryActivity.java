@@ -69,8 +69,9 @@ public final class FxYulongDailySummaryActivity extends de.privacyguard.adhook.F
         LinearLayout header=new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(10),dp(6),dp(10),dp(6));
         header.addView(button("‹ 返回隐私",this::finish));
-        header.addView(text("隐私 · 每日安全总结",18,0xff17212b,true),
-                new LinearLayout.LayoutParams(0,-2,1));
+        TextView pageTitle=text("隐私 · 每日安全总结",18,0xff17212b,true);
+        pageTitle.setTag("fx-title:18");
+        header.addView(pageTitle,new LinearLayout.LayoutParams(0,-2,1));
         root.addView(header);
         ScrollView scroll=new ScrollView(this); scroll.setFillViewport(true);
         LinearLayout body=new LinearLayout(this); body.setOrientation(1);
