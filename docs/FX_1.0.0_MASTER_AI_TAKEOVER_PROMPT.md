@@ -182,3 +182,26 @@ P8 整合验收：五 Skin × 六 Tab；升级/回滚/权限撤销；网络泄�
 2. 检查 MainActivity、FxNativeAppShell、导航配置、设置页面和相关测试：找出并删除“迁移应用”产品入口及其旧导航；把第二 Tab 所有显示文案统一为“Ad”；Hosts 保留为 Ad 内部页面。
 3. 修改对应路由、标题、测试断言和产品文档；确认设置不再出现来源应用入口。
 4. 直接提交代码并运行定向回归；随后继续五 Skin 和来源功能整合，不要停在汇报。
+
+
+## 10. 当前代码入口与业务 Tab 映射（2026-11-05 优先级规则）
+
+固定索引：VPN=0、Ad=1、隐私=2、脚本=3、Hook=4、设置=5。来源 APK 名称只允许留在源码类名、内部版本兼容和研发追踪中，不得出现在用户可见标题/返回项/导航。
+
+- Ad：广告控制、广告规则、DNS 日志、Firewall、应用白名单、本机防护摘要等都从 Ad 页打开；页面标题用 FX Ad/Ad。Hosts 是 Ad 内的工具页，不是主 Tab。
+- VPN：系统 HTTP 代理编辑器、节点、代理、路由、DNS、MITM。
+- 隐私：安全防护中心及它的所有扫描、病毒库、名单、风险、救援、屏幕滤镜、每日总结子页。所有这些子页底栏选中索引必须为 2。
+- 脚本：Frida JavaScript 脚本库和脚本生态入口，底栏选中索引 3。
+- Hook：Frida 环境、DEX 方法选取、Activity 入口、文件/so、JSON、内存/数据库检查、事件监控、Frida 会话日志、签名、系统扩展、Hook 工具全局设置和自定义 Hook，底栏选中索引 4。
+- 设置：壁纸与五 Skin、全局设置、统一备份恢复、关于；备份页选中索引 5。不要把备份或脚本库重复放在 Hook 工具入口中。
+
+当前已落地入口：
+- MainActivity.buildNativeHostsPage() → Ad 功能子页。
+- MainActivity.buildNativePrivacyPage() → 安全防护中心。
+- MainActivity.showHookHub() → Hook 高级工具入口和授权状态。
+- MainActivity.buildNativeScriptPage() → Frida JS 库。
+- MainActivity.showSettings() → 五 Skin、壁纸、统一备份恢复。
+- FxNativeTabActivity + FxNativeSkin → 统一 Skin/壁纸宿主与页面表面适配。
+- Ad 子页统一 FX Ad 品牌；Shield 子页归隐私；Dia 子页按实际业务分别归 Hook/Script/VPN/设置。
+
+验收必须覆盖上述路由、标题、返回链和底栏选中态；来源 app 页面不可通过 Settings 再次作为独立应用入口暴露。
