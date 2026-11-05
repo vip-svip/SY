@@ -4043,3 +4043,35 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 1. 在一次有 MainActivity 变更的定向 Host 节点上运行 fx-unified-navigation-regression.sh 和 fx-imported-suite-back-navigation-regression.sh，读取失败日志修复真实问题。
 2. 继续五 Skin 的页面级原生控件/renderer 适配；特别检查 Huawei 与 Cupertino 页面的列表、表单、开关、弹窗、Sheet、键盘和无障碍，而不是只检查底栏。
 3. 按业务域推进 Ad/VPN/隐私/Hook/脚本真实功能闭环；来源 APK 页面树只作功能差异审计，不得重新变成用户导航。
+
+
+## 2026-11-05 — 统一跨 AI 总提示词入口并归档 UI 导航纠偏
+
+### 本批实际变更
+- 将完整 UI 重构和功能大纲整合进正式跨 AI 提示词：`docs/FX_1.0.0_AUTONOMOUS_CROSS_AI_HANDOFF_PROMPT.md`。该文件现在是唯一可直接交给其他 AI 的执行提示词，覆盖固定六 Tab、Ad-only、设置页职责、五种 Skin、10.0.2 壁纸、多层 Ad、VPN/Root 内核级代理共存、防泄漏、MITM/CA、隐私/安全护盾、Dia/GKD Hook、脚本与浏览器扩展、版权/许可证、分阶段交付和验证分级。
+- 在正式提示词补充 GKD-XA v1.4.8 的历史审计锁定依据（`8a6ce935da11671dac7e1a7595416ec99ee07436`、GPL-3.0）与 Gradle/JDK/Kotlin/Manifest/Room/AIDL/Accessibility 兼容 spike 要求；要求新接手 AI 继续回读最新 submodule，不把历史 SHA 当最新。
+- 补充 ClassicWebCompat WebView 安全边界：只使用可信本地 WebViewAssetLoader，不开放任意远程页面或不必要 JavaScript bridge。
+- 产品规格 `docs/FX_1.0.0_PRODUCT_RESTRUCTURE_AND_AI_HANDOFF.md` 顶部唯一提示词指针及第 9 节已改为指向正式 AUTONOMOUS 文件；第 9 节不再复制第二份长提示词。
+- 删除重复的 `docs/FX_1.0.0_MASTER_AI_HANDOFF_PROMPT.md`，避免两份提示词争夺“唯一正式版”。
+- 同一批 UI 源码纠偏已把 Ad 主页面方法命名为 `buildNativeAdPage()`，导航回归断言同步；前序记录见提交 `ac5003a6dfe36705d04b9844164318f80625a251`、`58f1579cd86d2e006aace2dfb28ac5531589aaaf`。
+
+### GitHub 提交
+- 统一完整提示词写入正式文件：`9e1dd2726967e05b791c1d1f856021b186c295ad`
+- 产品规格唯一入口与旧提示词副本清理：`205e4c3cca7fba6a4ad4a2d7754d4f007e6552a9`
+- 删除重复 MASTER 提示词：`69728293f03e436151b40f548eb23140f09a6bf4`
+
+### 回读核验
+- 已回读确认正式提示词包含六 Tab 固定结构、Ad/Hosts 命名边界、禁止设置“迁移应用”、壁纸原版契约、Ad 五层、VPN 共存/防泄漏、`who.1ms.dog`、GKD-XA 锁定与许可证要求。
+- 已回读确认产品规格指向正式 AUTONOMOUS 提示词，第 9 节不再维护第二份提示词；重复 MASTER 路径已删除。
+- 当前分支 HEAD 在本次状态写入前观测为 `9dbe40882cee7829eb03a0c226fb21a42cdf6baa`；分支有其他并发提交，下一轮必须重新读取实时 HEAD。
+
+### 验证等级与限制
+- 已完成 GitHub Contents API 写入/回读和源码静态内容检查。
+- 当前 Targeted Host workflow run `41984171926`（run 499）在最后一次读取时为 `in_progress`，其 HEAD 为 `ce5106308727cd4b09c2c5c98ac5cdaf20094b90`；不能据此声称本批回归通过。
+- 同一并发窗口内部分旧 run 被 GitHub Actions concurrency cancel，取消不计为通过。应读取最新成功/失败 run 和具体 job 日志，不要重复手动触发整套 Actions。
+- 未执行 Gradle 单测/assemble、APK 安装、UI 自动化或真机验收。全量功能迁入和五 Skin × 六 Tab 逐页视觉适配仍未完成。
+
+### 下一批直接开工
+1. 读取最新 Targeted Host run 的 job 结果；用一次定向节点验证 `fx-unified-navigation-regression.sh` 与 `fx-imported-suite-back-navigation-regression.sh`，修复失败根因。
+2. 继续五 Skin × 六 Tab 的实际页面控件适配，优先 Harmony/Cupertino 的列表、表单、开关、弹窗、Sheet、键盘和无障碍。
+3. 按 Ad/VPN/隐私/Hook/脚本逐页接通真实 Repository/Service/权限，不以删掉旧来源导航代表所有功能已迁入。
