@@ -146,7 +146,7 @@ for token in (
     "sourceRules.length() > MAX_RULES",
     "isInstalledUserApplication(context, packageName)",
     "FxGkdSelectorEngine.compile(selector).isValid",
-    'known.add(packageName + "\\u0000" + selector)',
+    "known.add(packageName +" in store and r"\u0000" in store, "package-selector deduplication must use an unambiguous separator",
     "enabled = false",
     "writeRules(context, merged)",
     "规则写入失败，原有规则保持不变。",
