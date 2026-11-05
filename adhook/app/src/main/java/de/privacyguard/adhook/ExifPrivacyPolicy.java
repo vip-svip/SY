@@ -29,6 +29,14 @@ public final class ExifPrivacyPolicy {
                 || "Artist".equals(tag)
                 || "Copyright".equals(tag)
                 || "Software".equals(tag)
+                // Free-form fields can contain names, addresses or private notes.
+                || "ImageDescription".equals(tag)
+                || "DocumentName".equals(tag)
+                || "UserComment".equals(tag)
+                || "RelatedSoundFile".equals(tag)
+                // Host/device-specific metadata can disclose workstation and hardware details.
+                || "HostComputer".equals(tag)
+                || "MakerNote".equals(tag)
                 || "XPAuthor".equals(tag)
                 || "XPComment".equals(tag)
                 || "XPKeywords".equals(tag)
