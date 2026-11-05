@@ -5425,8 +5425,8 @@ public final class MainActivity extends ComponentActivity {
         settingsUiVisible = false;
         hookTargetVisible = true;
         hookHubVisible = false;
-        selectedBottomTab = 2;
-        base("Dialog 处理 · " + selectedLabel);
+        selectedBottomTab = 4;
+        base("Hook · Dialog 处理 · " + selectedLabel);
 
         TextView packageName = new TextView(this);
         packageName.setText(selectedPackage);
@@ -5574,7 +5574,7 @@ public final class MainActivity extends ComponentActivity {
         content.addView(save, new LinearLayout.LayoutParams(-1, -2));
 
         Button back = new Button(this);
-        back.setText("返回 Dialog 应用列表");
+        back.setText("返回 Hook 应用列表");
         back.setOnClickListener(v -> showAppList("Dialog处理"));
         content.addView(back, new LinearLayout.LayoutParams(-1, -2));
         restoreHookTargetScrollAfterBuild();
