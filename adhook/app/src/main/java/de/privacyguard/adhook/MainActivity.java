@@ -3055,6 +3055,10 @@ public final class MainActivity extends ComponentActivity {
         intro.setTextColor(0xff536170);
         content.addView(intro);
         section("Hook 工具与调试");
+        addNativeActionCard("GKD 选择器自动化",
+                "在 FX Hook 内管理 GKD 本地选择器规则。只有你主动启用总开关并限定具体用户应用后，才会匹配可见控件；首批支持本地规则与 Click。",
+                "打开 GKD 规则", () ->
+                        startActivity(new Intent(this, FxGkdAutomationActivity.class)));
         addNativeActionCard("GKD 辅助自动化",
                 "使用 GKD-XA 选择器引擎管理本地逐应用规则。默认关闭；只有你在规则页开启总开关后才会匹配并执行本地规则。",
                 "管理 GKD 规则", () -> startActivity(
