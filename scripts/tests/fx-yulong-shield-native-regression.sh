@@ -215,18 +215,43 @@ assert r'"\\n累计提醒："' not in hub, "Shield status must not show a litera
 assert '"累计提醒：" +' in hub, "Shield status must retain the cumulative reminder label"
 assert r'"\n最近提醒："' in hub, "Recent reminder timestamp must start on a new line"
 assert r'"\n只恢复用户主动开启的 FX 守护/救援服务' in hub, "Recovery note must render on a new line"
-assert 'case "位置与 GPS":' in main and 'showAppList("位置隐私")' in main, \
-    "Dia GPS settings must open the per-target location/GPS editor"
-assert 'case "Wi-Fi 模拟":' in main and 'showAppList("Wi-Fi 环境模拟")' in main, \
-    "Dia Wi-Fi simulation must open its per-target editor"
-assert 'case "网络类型模拟":' in main and 'showAppList("网络类型模拟")' in main, \
-    "Dia network-type simulation must open its per-target editor"
-assert 'case "文件与 so 库":' in main and "FxDiaFileActivity.class" in main, \
-    "Dia file/SO tools must open the SAF-backed native file browser"
-assert 'case "按键控制":' in main and 'loadDiaMonitorTemplate("key")' in (repo_root / "adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaFridaActivity.java").read_text(encoding="utf-8"), \
-    "Dia key-control page must open its key-event observer template"
-assert 'case "应用版本":' in main and 'case "签名信息":' in main and "FxDiaSignatureActivity.class" in main, \
-    "Dia version/signature pages must open the native PackageManager signing inspector"
+# Per-app simulators live on the unified Hook target-detail page, not legacy
+# source-app category routes. Verify target scoping, persistence and publication.
+target_start = main.index("private void showTarget(ApplicationInfo ai)")
+target_end = main.index("private void showDiaKeyControlTarget(ApplicationInfo target)", target_start)
+target_page = main[target_start:target_end]
+for token in ('section("Wi-Fi 环境模拟")', 'wifi_simulate', 'wifi_sim_ssid',
+              'wifi_sim_bssid', 'saveWifiSimulation', 'publishConfig()'):
+    assert token in target_page, f"Per-app Wi-Fi simulation missing from Hook target detail: {token}"
+for token in ('section("网络类型模拟")', 'network_type_sim',
+              'network_type', 'saveNetworkType', 'publishConfig()'):
+    assert token in target_page, f"Per-app network-type simulation missing from Hook target detail: {token}"
+for token in ('section("位置隐私")', 'location_simulate',
+              'location_provider_enabled_simulate', 'location_lat', 'location_lon',
+              'REQUEST_DIA_GPS_PICKER', 'FxDiaGpsPickerActivity.class',
+              'pendingDiaGpsTargetPackage = selectedPackage', 'targetDebuggable',
+              '保存并发布 GPS 测试位置', 'publishConfig()'):
+    assert token in target_page, f"Per-app GPS test-location editor missing: {token}"
+assert 'if (requestCode == REQUEST_DIA_GPS_PICKER)' in main and 'target.equals(selectedPackage)' in main, \
+    "GPS map-picker result must return only to the originating target"
+hook_hub_start = main.index("private void showHookHub()")
+hook_hub_end = main.index("private void refreshHookHubAuthorizationStates()", hook_hub_start)
+hook_hub = main[hook_hub_start:hook_hub_end]
+assert 'addNativeActionCard("按键动作 Hook"' in hook_hub and 'showAppList("按键控制")' in hook_hub, \
+    "Hook Hub must expose the per-target key-action editor"
+assert 'if ("按键控制".equals(activePrivacySection))' in main and 'showDiaKeyControlTarget(ai)' in main, \
+    "Key-action destination must resolve to the selected Hook target"
+key_start = main.index("private void showDiaKeyControlTarget(ApplicationInfo target)")
+key_end = main.index("private void showCustomHookRulesPage(", key_start)
+key_page = main[key_start:key_end]
+assert '保存并发布按键动作' in key_page and 'publishConfig()' in key_page, \
+    "Key-action editor must persist and publish target-specific triggers"
+assert 'addNativeActionCard("文件与 so 库浏览"' in hook_hub and 'FxDiaFileActivity.class' in hook_hub, \
+    "Hook Hub must directly expose the SAF-backed file/SO browser"
+assert 'addNativeActionCard("APK 签名信息"' in hook_hub and 'FxDiaSignatureActivity.class' in hook_hub, \
+    "Hook Hub must directly expose the PackageManager signing inspector"
+assert 'section("应用版本模拟")' in target_page and 'app_version_simulate' in target_page, \
+    "Application-version simulation must remain scoped to the chosen Hook target"
 frida_activity = (repo_root / "adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaFridaActivity.java").read_text(encoding="utf-8")
 assert "FX QuickJS 脚本页仍是独立运行时，不会被当作 Frida。" in frida_activity, "Frida and QuickJS runtimes must remain explicitly distinct"
 assert 'wifi_simulate' in main and 'network_type_sim' in main and 'publishConfig();' in main, \
