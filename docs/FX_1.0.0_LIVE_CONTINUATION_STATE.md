@@ -5604,3 +5604,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 状态发布器此前仅凭 arbiter 路径可读就把 `source` 标成 `arbiter`；当路径指向空文件（如 `/dev/null`）或旧版/不完整 helper 时，实际数据来自本地 fallback，却被错误标记为 arbiter。
 - 现在仅在 verdict、grade、probe 与 slot 字段均完整时接受 arbiter 记录；否则标记 `source=local`，再由槽位证据规则将缺失/null/非法 slot 降为 `unknown`。slot=true 仍强制 incompatible，slot=false 才保留已验证的 arbiter verdict。
 - 修复 Host 回归 case 9 对 `/dev/null` 的真实边界验证，不改变网络数据面与端口探测行为。
+
+
+### VPN 发布器无 arbiter 场景测试夹具隔离（2026-11-06）
+
+- `574c83d64640` 的 case 9 将 `FX_COEXIST_ARBITER` 指向 `/dev/null` 后，测试仍意外得到 `source=arbiter`；状态结果本身已正确为 `unknown/null`。为消除 shell 环境覆盖歧义，改为使用不含 arbiter 文件的独立模块根目录，直接验证发布器的真实 default-path fallback。
+- case 9 继续要求无 arbiter 时 verdict 必须为 unknown、槽位字段必须为 JSON null；不因来源标签而弱化核心安全断言。

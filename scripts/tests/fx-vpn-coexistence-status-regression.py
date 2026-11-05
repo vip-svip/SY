@@ -229,10 +229,12 @@ def main() -> int:
             check(d["verdict"] == "partial", f"arbiter verdict wins (got {d.get('verdict')})")
             check(d["route_probe"] == "unverified", "missing arbiter route probe defaults to unverified")
 
-        print("== case 9: defensive wording when arbiter is unreadable ==")
+        print("== case 9: no module arbiter available -> unknown slot evidence ==")
+        mod_no_arb = tmp / "mod-no-arb"
+        (mod_no_arb / "scripts").mkdir(parents=True)
         st = tmp / "s9"
-        r = run_writer(pub, tmp, module, st, {"FX_COEXIST_ARBITER": "/dev/null",
-                                              "FAKE_EXT_IF": "tun0", "FAKE_EXT_UID": "5"})
+        r = run_writer(pub, tmp, mod_no_arb, st,
+                       {"FAKE_EXT_IF": "tun0", "FAKE_EXT_UID": "5"})
         check(r.returncode == 0, "writer exit 0 when arbiter missing")
         _, d = read_status(st)
         if d:
