@@ -53,7 +53,8 @@ import sys
 control, patcher, activity, documented_config = (Path(x).read_text(encoding="utf-8") for x in sys.argv[1:])
 for token in (
     "[ -d '/data' ] && [ ! -L '/data' ]",
-    "[ -d '/data/adb' ] && [ ! -L '/data/adb' ]",
+    "[ -d '/data/adb' ]",
+    "&& [ ! -L '/data/adb' ]",
     "[ ! -L '/data/adb/modules' ]",
     "[ ! -L '/data/adb/modules_update' ]",
     r'if [ -d \"$d\" ] && [ ! -L \"$d\" ]',

@@ -5468,3 +5468,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 现对 `/data`、`/data/adb`、`modules`、`modules_update` 以及候选模块目录、`module.prop`、`scripts` 目录和 `yulong-ad-control.sh` 本体逐层拒绝符号链接；同时要求模块 ID 与 `version=1.0.0` 精确匹配。
 - 扩展 DNS summary Host regression，覆盖这些 Root 命令解析前置条件。此前 Summary 队列容量已收紧为 1，刷新代次仍保证新结果优先。
 - 本批未声称 Android Gradle 构建或设备端验证；等待当前提交 Targeted Host、六套 UI 与模块 Runtime workflow 结果。
+
+
+### Ad 总结页模块解析回归断言修正（2026-11-06）
+
+- Targeted Host run `42092733168` 指出新的模块路径静态断言将分成两段 Java 字符串拼接的 `/data/adb` 检查误认为一个连续字面量。
+- 修正测试为分别验证 `/data/adb` 目录存在与非符号链接两个条件；Root resolver 不作逻辑变更。当前提交之后会重新观察 Host 回归结果。
