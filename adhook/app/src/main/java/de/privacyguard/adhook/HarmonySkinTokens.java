@@ -8,6 +8,10 @@ final class HarmonySkinTokens {
     private HarmonySkinTokens() { }
 
     static final class HarmonyColorTokens {
+        static final int TOP_BAR_BACKGROUND = 0xfff9fbfe;
+        static final int CARD_SURFACE = 0xfff8fbff;
+        static final int CARD_STROKE = 0x332878d0;
+        static final int ROW_RIPPLE = 0x222878d0;
         static final int BACKGROUND = 0xfff1f5fa;
         static final int WALLPAPER_TINT = 0xfff1f5fa;
         static final int NAV_SURFACE = 0xfff9fbfe;
