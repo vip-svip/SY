@@ -18,7 +18,7 @@ permissions:
 
 concurrency:
   group: fx-module-runtime-regression-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   vpn-dns-runtime:
