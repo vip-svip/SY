@@ -5518,3 +5518,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 - 当前 Module Runtime run `42093393397` 的 TUN、DNS、watchdog 回归步骤通过；Root Proxy/native VPN 集成步骤失败在 Hosts 原子锁 marker 断言，原因是新 Hosts 安全清理实现已升级为 `FX_HOSTS_FILE_LOCK_V3`，而旧回归仍硬编码检查 V2。
 - 将 `fx-atomic-cache-lock-release-regression.sh` 中 Shell 与 Python 两处 marker 断言同步到 V3；不改变锁实现与运行行为。当前提交等待 Host 和 Runtime 重新验证。
+
+
+### Yulong 防火墙 Host/Package 回归源选择修正（2026-11-06）
+
+- Host Regression 发现无参数模式读取仓库 `fx-module/` 下的旧 Release 快照，而不是 canonical `scripts/yulong-app-firewall.sh`；该快照尚未运行 package lane 的 source-restoration patcher，因此缺少 UID 变更拒绝逻辑。
+- 无参数 Host lane 现直接测试 canonical 脚本；显式传入模块目录的 package/runtime lane 仍测试 patcher 恢复后的模块副本。两条路径分别验证源码本体与最终模块产物。
+- 前一 Host run `42093526987` 因该错误源选择导致 UID mismatch 回归失败；当前修订等待新 CI 验证。

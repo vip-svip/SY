@@ -2,18 +2,16 @@
 set -eu
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 if [ -n "${1:-}" ]; then
+  # Package lane: test the restored module after its source-restoration patcher.
   MODULE=$(CDPATH= cd -- "$1" && pwd)
+  REPO=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)
+  SOURCE="$MODULE/scripts/yulong-app-firewall.sh"
 else
-  case "$SCRIPT_DIR" in
-    */fx-module/scripts/tests) MODULE=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd) ;;
-    *) ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd); MODULE="$ROOT/fx-module" ;;
-  esac
+  # Host lane: test the canonical reviewed source, not an unpatched Release snapshot.
+  REPO=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)
+  MODULE="$REPO/fx-module"
+  SOURCE="$REPO/scripts/yulong-app-firewall.sh"
 fi
-case "$SCRIPT_DIR" in
-  */fx-module/scripts/tests) REPO=$(CDPATH= cd -- "$SCRIPT_DIR/../../.." && pwd) ;;
-  *) REPO=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd) ;;
-esac
-SOURCE="$MODULE/scripts/yulong-app-firewall.sh"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 [ -s "$SOURCE" ] || fail "Yulong firewall implementation missing"
 sh -n "$SOURCE" || fail "Yulong firewall implementation has invalid POSIX shell syntax"
