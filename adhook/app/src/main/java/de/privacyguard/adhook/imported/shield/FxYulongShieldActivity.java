@@ -305,6 +305,7 @@ public final class FxYulongShieldActivity extends de.privacyguard.adhook.FxNativ
                 action("查看当前签名指纹", () -> startActivity(new Intent(this, FxYulongIntegrityActivity.class))));
         shieldPrefs = getSharedPreferences("shield_prefs", MODE_PRIVATE);
         installScanSwitch = new android.widget.Switch(this);
+        installScanSwitch.setTag("fx-switch-row");
         installScanSwitch.setText("安装新应用时自动扫描");
         installScanSwitch.setChecked(shieldPrefs.getBoolean("automatic_install_scan_enabled", true));
         installScanSwitch.setOnCheckedChangeListener((button, enabled) -> {
@@ -316,6 +317,7 @@ public final class FxYulongShieldActivity extends de.privacyguard.adhook.FxNativ
             shieldPrefs.edit().putBoolean("automatic_install_scan_enabled", enabled).apply();
         });
         contentScanSwitch = new android.widget.Switch(this);
+        contentScanSwitch.setTag("fx-switch-row");
         contentScanSwitch.setText("同时启用 APK 内容特征扫描");
         contentScanSwitch.setChecked(shieldPrefs.getBoolean("automatic_content_scan_enabled", false));
         contentScanSwitch.setOnCheckedChangeListener((button, enabled) -> {
@@ -326,6 +328,7 @@ public final class FxYulongShieldActivity extends de.privacyguard.adhook.FxNativ
                 "监听系统安装与更新广播，调用 FX 本地病毒名单扫描器。只提示命中结果，不会自动卸载、冻结或修改目标应用。",
                 installScanSwitch, contentScanSwitch);
         autoRiskScanSwitch = new android.widget.Switch(this);
+        autoRiskScanSwitch.setTag("fx-switch-row");
         autoRiskScanSwitch.setText("自动前台风险扫描");
         autoRiskScanSwitch.setChecked(shieldPrefs.getBoolean("auto_block_on", true));
         autoRiskScanSwitch.setOnCheckedChangeListener((button, enabled) -> {
@@ -400,6 +403,7 @@ public final class FxYulongShieldActivity extends de.privacyguard.adhook.FxNativ
                 action("打开完整应用扫描", () -> startActivity(new Intent(this,
                         FxYulongScanActivity.class))));
         protectionSwitch = new android.widget.Switch(this);
+        protectionSwitch.setTag("fx-switch-row");
         protectionSwitch.setText("实时应用守护（黑名单前台提醒）");
         protectionSwitch.setChecked(shieldPrefs.getBoolean("protect_on", false));
         protectionSwitch.setOnCheckedChangeListener((button, enabled) -> {
@@ -436,6 +440,7 @@ public final class FxYulongShieldActivity extends de.privacyguard.adhook.FxNativ
                     catch (Throwable ignored) { }
                 }));
                 overlayRescueSwitch = new android.widget.Switch(this);
+        overlayRescueSwitch.setTag("fx-switch-row");
         overlayRescueSwitch.setText("显示浮动救援入口");
         overlayRescueSwitch.setChecked(shieldPrefs.getBoolean("overlay_rescue_on", false));
         overlayRescueSwitch.setOnCheckedChangeListener((button, enabled) -> {
@@ -477,6 +482,7 @@ public final class FxYulongShieldActivity extends de.privacyguard.adhook.FxNativ
                 action("打开救援中心", () -> startActivity(new Intent(this,
                         FxYulongRescueActivity.class))));
         volumeTriggerSwitch = new android.widget.Switch(this);
+        volumeTriggerSwitch.setTag("fx-switch-row");
         volumeTriggerSwitch.setText("音量键连续触发救援提醒（需启用 FX 无障碍服务）");
         volumeTriggerSwitch.setChecked(shieldPrefs.getBoolean("volume_trigger_on", false));
         volumeTriggerSwitch.setOnCheckedChangeListener((button, enabled) -> {
@@ -548,6 +554,7 @@ public final class FxYulongShieldActivity extends de.privacyguard.adhook.FxNativ
                     }).show();
         });
         shakeTriggerSwitch = new android.widget.Switch(this);
+        shakeTriggerSwitch.setTag("fx-switch-row");
         shakeTriggerSwitch.setText("摇动设备触发救援提醒");
         shakeTriggerSwitch.setChecked(shieldPrefs.getBoolean("shake_trigger_on", false));
         shakeTriggerSwitch.setOnCheckedChangeListener((button, enabled) -> {
