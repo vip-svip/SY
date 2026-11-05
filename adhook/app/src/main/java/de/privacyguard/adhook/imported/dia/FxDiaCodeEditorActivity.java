@@ -54,6 +54,7 @@ public final class FxDiaCodeEditorActivity extends de.privacyguard.adhook.FxNati
 
     private Button button(String label, Runnable action) {
         Button button = new Button(this);
+        button.setTag("fx-action-row");
         button.setAllCaps(false);
         button.setText(label);
         button.setOnClickListener(view -> action.run());
@@ -97,6 +98,7 @@ public final class FxDiaCodeEditorActivity extends de.privacyguard.adhook.FxNati
                 getIntent() == null ? "" : getIntent().getStringExtra(EXTRA_LANGUAGE));
         TextView title = text(javascriptMode ? "Hook · JavaScript 规则编辑器" : "Hook · Java 代码编辑器",
                 17, 0xff17212b, true);
+        title.setTag("fx-title:18");
         header.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
         header.addView(button("保存并返回", this::saveAndReturn));
         root.addView(header);
@@ -105,6 +107,7 @@ public final class FxDiaCodeEditorActivity extends de.privacyguard.adhook.FxNati
                 ? "Frida JavaScript 脚本编辑模式。当前 APK 只内置 Java 语法模块，因此脚本使用纯文本编辑；保存只回传，不会自动执行。"
                 : "原版 CodeEditorActivity 的 Java 原生编辑页。保存只将代码回传上一页，不会自动执行。",
                 12, 0xff617080, false);
+        note.setTag("fx-card-detail");
         note.setPadding(dp(12), dp(3), dp(12), dp(7));
         root.addView(note);
 
