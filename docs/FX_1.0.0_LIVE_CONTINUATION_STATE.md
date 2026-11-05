@@ -4308,3 +4308,34 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 1. 逐应用目标页的广告识别、隐私 Hook、标识/剪贴板/Wi-Fi/网络类型/设备标识/版本/时区/位置表单，核对 EditText、Spinner、Switch、危险/保存按钮是否覆盖五 Skin renderer；优先补缺失的控件级 Skin 回归。
 2. 继续 Hook 自定义规则列表项、Dialog/Toast/按键页面的组件级 Skin 覆盖，同时保持业务数据/验证与执行安全边界。
 3. 后续代码批次合并后再读取最新 HEAD 对应 Host run；本 Hook 批次取消，不可写为 CI PASS。继续 Ad/Privacy 对应 Activity 的页面级控件适配。
+
+
+## 2026-11-05 — 五 Skin 共享卡片与开关组件接入 Harmony/Cupertino Renderer
+
+### 实际实现
+- MainActivity 的共享信息卡片标题/正文/设置说明分别使用 `fx-card-title`、`fx-card-body` 语义标签；统一 toggle 行使用 `fx-switch-row`。
+- Harmony Renderer 与 Cupertino Renderer 分别实现卡片标题、正文与开关行的视觉分支：使用各自独立的 PRIMARY/SECONDARY text、CARD_TITLE、CARD_DESCRIPTION、SWITCH_LABEL、ROW_MIN_HEIGHT、横/纵 padding、surface/stroke/radius token。
+- 两套 skin 的说明文字令牌不同：Harmony 13.5sp、Cupertino 13sp；两者均使用独立字重/letter spacing/line spacing，业务事件和点击回调不变。
+- `FxNativeSkin.beginTaggedComponentRender(view, mode, role)` 使用 WeakHashMap 缓存 View 的当前 Skin/role，重复 bind 不再重复创建相同 Drawable；切换 Skin 或 component role 后重新应用。
+- 相关页面适配并行扩展至 Hook 应用列表、LSPosed 逐应用 scope、Dia Frida 页面和聚合卡片/操作组；它们仍调用原有功能逻辑，不因换肤替换业务回调。
+
+### 主要源码/测试提交
+- Harmony card title renderer：`9ab0d6722c07390c05bac3744e34f840ab67afbd`。
+- Harmony/Cupertino card description typography tokens：`c4c8b2e3ea65be37e69c58645ef4bd65597ac35d`、`74f328061a2696d1f3f2ed5566c2507b693ea465`。
+- Harmony/Cupertino card/switch renderer：`44289cf22350bf68cb70f17c666dacb85a425750`、`649c277739c61573f2c590e65f682491876a0236`。
+- Harmony/Cupertino redraw cache：`1ec5cc076e7336d19ec90a74e1d8ef8afbdb8d20`、`4bfa596c0cc0a1e8adcbee3f662dcc0242d9be2e`。
+- MainActivity toggle role：`bf67e66b8f31cc0ae020961f6e0f5fa9da791e04`；Harmony 说明文字渲染：`9f99a82dbbe17dbf9e96c29076738284c0db40d3`；Cupertino 说明文字渲染：`dee16d59fbb35e6aa1069becca344ed7296b1251`。
+- Skin palette typography 单测：`537fe8701af8a1a7acc2f0154a33c4505385ec0c`。
+- Hook app row / Frida screen / LSPosed scope 适配：`5799a9145b91c1c94d76dde2c76892562bbf1ea1`、`aef3ea88df3ad2f4047d5d3a215e7c887d183e95`、`9154a293932d6494c5d332a3ede8eeaa3186e835`。
+
+### 回归修复与验证
+- Host run `41986085308`（run 627）最初失败：测试仍要求卡片组条件只含 `fx-card` 与 `fx-setting-card`；当前实现新增 `fx-card-group`，旧断言已更新为分别要求三种角色。
+- Host run `41986237883`（run 635）失败：测试仍要求语义色检查直接内联在 `applyButtonSkin()`；当前实现已抽取 `shouldPreserveSemanticAction(button)`，测试已改为检查该 guard 在 BUTTON_SKINS 缓存前执行，并核验其读取文字色/背景色。
+- 修正提交：`28ecd0f05a255ad964185e2cb917f3f58c5082b8`。
+- Targeted Host run `41986350889`（run 639）在 HEAD `28ecd0f05a255ad964185e2cb917f3f58c5082b8` 上 **success**。当前相关静态回归覆盖：Renderer cache gate、token 常量唯一性、五 Skin 页面/section/card tokens、卡片角色、Switch/CompoundButton 分派、背景仅重绘已知中性色、语义危险/警告/成功颜色保护。
+- Host success 只表示这些源码静态/主机回归通过，不是 Android Gradle 编译、安装或真机视觉验收。
+
+### 未验证与下一批
+- 尚未运行 `testDebugUnitTest` / `assembleDebug`、APK 安装升级、UI 自动化、截图基线或真机触控；五 Skin × 六 Tab 的每个页面并未全部覆盖完成。
+- Harmony/Cupertino 当前已接入导航、卡片、标题/正文、列表行、开关和部分 Hook/Frida 页面；Dialog/Sheet、EditText/Spinner、键盘、空/加载/错误状态仍需逐页补齐和验收。
+- 下一批继续将语义标签扩展到未接入的业务 Activity 与表单/弹窗；同时检查 cache 在 View tag 或 mode 改变后的正确失效，并保留 ClassicWebCompat 原有 WebView 与壁纸行为。
