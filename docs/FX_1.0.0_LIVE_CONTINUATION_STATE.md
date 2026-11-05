@@ -5656,3 +5656,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 仓库 canonical installer 本身已正确选择 `system/app/FX/FX.apk`，并在 PackageManager 不确认 system-app 分类时拒绝回退为普通应用；问题是 KernelSU workflow 未像 APK workflow 一样在回归前同步 canonical installer/remover。
 - KernelSU workflow 现先覆盖同步 `scripts/install_adhook_app.sh` 与 `scripts/remove_adhook_app.sh`，再用 `cmp -s` 验证模块副本逐字节一致，最后才执行安装器回归。回归脚本增加顺序检查，防止以后先测试旧 Release 脚本。
 - 本批没有更改安装器运行逻辑、系统权限或签名策略；等待新 KernelSU package workflow 验证恢复、同步、overlay 检查及后续完整打包阶段。
+
+
+### 系统应用安装脚本发布映射防回归（2026-11-06）
+
+- 在 KernelSU workflow 中补入 canonical `install_adhook_app.sh` / `remove_adhook_app.sh` 后，进一步把两条 `install -D -m 0755` 映射加入 Host installer regression，防止未来 Release restore 再覆盖为旧版脚本。
+- 上一次 KernelSU package run `42096247931` 在该脚本映射处失败；修复后的 workflow 尚未重新执行最终 package。`migration_complete` 仍是显式人工门控，本轮不擅自触发最终 APK/ZIP 构建。

@@ -18,6 +18,8 @@ grep -Fq '_overlay_apk="$MODDIR/system/app/FX/FX.apk"' "$INSTALLER" || fail "ins
 grep -Fq 'refusing ordinary-app fallback' "$INSTALLER" || fail "installer may silently downgrade a mounted system-app overlay"
 grep -Fq 'if [ -s "$_overlay_apk" ] && [ "$_is_system_app" != 1 ]; then' "$INSTALLER" || fail "installer does not require PackageManager system classification for the overlay"
 grep -Fq 'install -m 0644 "$BUILT_APK" fx-module/system/app/FX/FX.apk' "$KSU_WORKFLOW" || fail "KernelSU release pipeline does not stage the APK as a system app"
+grep -Fq 'install -D -m 0755 scripts/install_adhook_app.sh fx-module/scripts/install_adhook_app.sh' "$KSU_WORKFLOW" || fail "KernelSU package does not stage the canonical Hook installer"
+grep -Fq 'install -D -m 0755 scripts/remove_adhook_app.sh fx-module/scripts/remove_adhook_app.sh' "$KSU_WORKFLOW" || fail "KernelSU package does not stage the canonical Hook remover"
 grep -Fq 'sha256sum FX.apk > FX.apk.sha256' "$KSU_WORKFLOW" || fail "KernelSU system-app overlay checksum is missing"
 grep -Fq 'test "$BUILT_APK_SHA" = "$SYSTEM_APK_SHA"' "$KSU_WORKFLOW" || fail "KernelSU ZIP overlay is not verified against the signed build output"
 grep -Fq 'system/app/FX/FX.apk.sha256' "$KSU_WORKFLOW" || fail "KernelSU package verification does not include the system-app checksum"
