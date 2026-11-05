@@ -56,9 +56,12 @@ retry(){
   exit 0
 }
 
-path_components_are_safe "$APP_DIR" || exit 0
-[ -d "$APP_DIR" ] && [ ! -L "$APP_DIR" ] || exit 0
-[ -f "$APK_PATH" ] && [ ! -L "$APK_PATH" ] || exit 0
+# Do not silently accept an absent or unsafe overlay. The boot service runs
+# after PackageManager's scan and cannot retroactively make this APK a system
+# app until the next boot; preserve an explicit retry marker for diagnosis.
+path_components_are_safe "$APP_DIR" || retry "system-app overlay path contains a symlink or traversal"
+[ -d "$APP_DIR" ] && [ ! -L "$APP_DIR" ] || retry "system-app overlay directory is not mounted"
+[ -f "$APK_PATH" ] && [ ! -L "$APK_PATH" ] || retry "system-app overlay APK is missing or unsafe"
 [ -f "$SUM_PATH" ] && [ ! -L "$SUM_PATH" ] || retry "overlay checksum sidecar is missing or unsafe"
 command -v sha256sum >/dev/null 2>&1 || retry "sha256sum is unavailable; overlay digest cannot be verified"
 
