@@ -55,8 +55,23 @@ grep -Fq 'p.cardCornerRadiusDp - 4) * density' "$skin" || { echo "FAIL: native n
 grep -Fq 'palette.cornerRadiusDp * density' "$skin" || { echo "FAIL: native action buttons must retain the independent action radius"; exit 1; }
 grep -Fq 'return HarmonySkinRenderer.palette();' "$skin" || { echo "FAIL: Android Views do not use the Harmony renderer"; exit 1; }
 grep -Fq 'return CupertinoSkinRenderer.palette();' "$skin" || { echo "FAIL: Android Views do not use the Cupertino renderer"; exit 1; }
-grep -Fq 'HarmonySkinRenderer.applyTaggedComponent(activity, view)' "$skin" || { echo "FAIL: Harmony component renderer is not in the shared native Skin walk"; exit 1; }
-grep -Fq 'CupertinoSkinRenderer.applyTaggedComponent(activity, view)' "$skin" || { echo "FAIL: Cupertino component renderer is not in the shared native Skin walk"; exit 1; }
+grep -Fq 'HarmonySkinRenderer.applyTaggedComponent(activity, view, mode)' "$skin" || { echo "FAIL: Harmony component renderer is not in the shared native Skin walk"; exit 1; }
+grep -Fq 'CupertinoSkinRenderer.applyTaggedComponent(activity, view, mode)' "$skin" || { echo "FAIL: Cupertino component renderer is not in the shared native Skin walk"; exit 1; }
+grep -Fq 'private static final WeakHashMap<View, String> TAGGED_COMPONENT_SKINS' "$skin" || { echo "FAIL: tagged component render cache is missing"; exit 1; }
+grep -Fq 'TAGGED_COMPONENT_SKINS.get(view)' "$skin" || { echo "FAIL: tagged component cache does not deduplicate the current view"; exit 1; }
+python3 - "$harmony_renderer" "$cupertino_renderer" <<'PY'
+from pathlib import Path
+import sys
+for path in sys.argv[1:]:
+    source = Path(path).read_text(encoding="utf-8")
+    start = source.index("static void applyTaggedComponent(Activity activity, View view, FxUiMode mode)")
+    end = source.index("private static int parseRequestedSize", start)
+    render = source[start:end]
+    gate = render.index("FxNativeSkin.beginTaggedComponentRender(view, mode, role)")
+    first_drawable = render.find("setBackground(rounded")
+    assert first_drawable < 0 or gate < first_drawable, f"{path}: cached render gate must precede Drawable creation"
+print("PASS: Harmony/Cupertino tagged renderers dedupe layout redraws by mode and component role.")
+PY
 grep -Fq 'FxNativeSkin.shouldPreserveSemanticAction(action)' "$harmony_renderer" || { echo "FAIL: Harmony renderer may recolor semantic actions"; exit 1; }
 grep -Fq 'FxNativeSkin.shouldPreserveSemanticAction(action)' "$cupertino_renderer" || { echo "FAIL: Cupertino renderer may recolor semantic actions"; exit 1; }
 for role in 't.setTag("fx-title:" + size)' 'button.setTag("fx-action-row")' 'card.setTag("fx-card")' 'card.setTag("fx-setting-card")' 't.setTag("fx-section:" + s)'; do
