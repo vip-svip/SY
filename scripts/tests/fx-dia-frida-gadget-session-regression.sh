@@ -183,6 +183,10 @@ if attach.count("session_pid_active") < 3:
     raise SystemExit("FAIL: both recorded CLI and feeder PIDs must use the same zombie-aware liveness guard")
 if 'if kill -0 \\"$old_cli\\"' in attach or '&& kill -0 \\"$old_feed\\"' in attach:
     raise SystemExit("FAIL: reattach must not use kill -0 alone for old Gadget session ownership")
+if 'if session_pid_active \\"$old_feed\\"; then' not in attach:
+    raise SystemExit("FAIL: active Gadget CLI must not be accepted without a live stdin feeder")
+if "FX_GADGET_FEEDER_PID_CONFLICT" not in attach or "FX_GADGET_SESSION_DEGRADED" not in attach:
+    raise SystemExit("FAIL: reattach must distinguish a foreign feeder from a degraded CLI-only session")
 if "currentInjectorPath()" in attach or "String injector" in attach:
     raise SystemExit("FAIL: remote Gadget session must use frida CLI, not the frida-inject binary")
 if "Runtime.exec" in attach:

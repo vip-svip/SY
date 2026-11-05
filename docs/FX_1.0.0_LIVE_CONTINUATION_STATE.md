@@ -5146,3 +5146,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 最新提交 `756feee` 已回读确认；FX Targeted Host Regression 运行 `42053364872` 通过，FX Module Runtime Regression 运行 `42053365005` 通过。
 - 以上为 GitHub Actions 主机回归及模块运行回归结果，不代表 Android APK 构建、Gadget 真正加载/连接、LSPosed 注入或真机行为已验证。
 - 尚未验证：Android Gradle 完整 APK 构建与安装、KernelSU/Magisk 部署、LSPosed Remote Files 加载及目标注入、ROM SELinux 行为、第三方 VPN 内层流量、设备 IPv4/IPv6 泄漏与耗电行为。APK 手动构建门仍保持关闭。
+
+## 2026-11-05 — Gadget 重连拒绝 CLI/输入馈线半失效状态
+
+- 修复 `attachToGadgetAndResume()` 的重连判定：旧 CLI 进程即使仍存活，也必须同时确认对应 stdin feeder 存活且命令行身份匹配，才报告 `FX_GADGET_SESSION_ALREADY_RUNNING`。
+- CLI 存活但 feeder 已退出时，现在明确返回 `FX_GADGET_SESSION_DEGRADED`，不再把半失效会话误报为正常运行；检测到 feeder PID 被其他命令占用时返回 `FX_GADGET_FEEDER_PID_CONFLICT`，拒绝触碰外部进程。用户可先通过现有“停止 Gadget 会话”操作回收归属已验证的 CLI，再重新连接。
+- `fx-dia-frida-gadget-session-regression.sh` 增加重连必须校验 feeder 活性及身份的回归断言。
+- 本次代码、回归和本文档作为一个提交单元；提交后回读并等待 Host 与 Module Runtime Regression。Android 真机行为仍未验证。
