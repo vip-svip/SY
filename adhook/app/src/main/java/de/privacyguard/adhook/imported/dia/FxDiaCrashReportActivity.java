@@ -208,7 +208,7 @@ public final class FxDiaCrashReportActivity extends de.privacyguard.adhook.FxNat
     }
 
     private void confirmClear() {
-        new AlertDialog.Builder(this)
+        fxDialogBuilder()
                 .setTitle("清除崩溃记录？")
                 .setMessage("将删除 FX 私有 crash.log、待显示标记，以及 dia-native-crash/ 下的 Native minidump。若发现符号链接或意外子目录，将拒绝清理并保留崩溃报告。此操作不可撤销。")
                 .setNegativeButton("取消", null)
