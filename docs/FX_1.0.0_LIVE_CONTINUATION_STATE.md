@@ -6457,3 +6457,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - GitHub Actions `FX VPN Coexistence Arbiter` run `42107661260` at commit `24733adb101d933ece749a17fa06e0258220ad4c` completed successfully. All cases passed, including no-VPN/kernel-only, external VPN ownership, FX self-VPN rejection, TCP/UDP IPv4/IPv6 DNS port conflicts, malformed/partial inventories, nested helper scanning, symlink rejection, read-only enforcement, and JSON/text parity.
 - Follow-up commit `229f28be5d416eaa23f9570c5ad67c1e69b35279` exports the fake PATH in the source-inventory command-failure fixture; latest branch readback includes this follow-up. The successful arbiter run predates that fixture-only adjustment, so the exact latest HEAD still requires a fresh arbiter run before claiming CI pass at latest HEAD.
 - This arbiter remains observation-only. Its `partial` verdict explicitly does not prove packet routing, return path, DNS reachability, or true tunnel chaining. No device-level coexistence test is claimed.
+
+
+## 2026-11-06 — 修复 VPN arbiter CI 的 dumpsys 测试夹具
+
+- 失败运行：Actions run `42107398173`（提交 `0516184bb5cb9be19d0d5cc6aec2c72677ca84c9`），`FX VPN Coexistence Arbiter` 在 case 5c 失败；Shell 解析通过，失败在 Android VpnInfo 测试数据。
+- 根因：case 5c3 fake dumpsys 使用双重转义的 `\\n`，输出字面反斜杠+n 而非换行，导致 parser 无法识别 `mVpns` 与 `VpnInfo` 行，产生假失败。
+- 修复提交：`118161b61d5ec1ce1126898120deaa97b8918380`，将 fixture 改为真实换行格式。case 5c 用明确的 `FX_ARB_SELF_UID` 隔离 PackageManager 查询；case 5c3 单独验证 PackageManager UID 不可用时 fail-closed。
+- GitHub 回读与新 CI 结果待确认；未声称该修复已通过 CI。
