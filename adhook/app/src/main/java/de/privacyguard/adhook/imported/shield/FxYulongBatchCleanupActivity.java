@@ -61,6 +61,7 @@ public final class FxYulongBatchCleanupActivity extends de.privacyguard.adhook.F
 
     private Button button(String label, Runnable action) {
         Button view = new Button(this);
+        view.setTag("fx-action-row");
         view.setAllCaps(false);
         view.setText(label);
         view.setOnClickListener(v -> action.run());
@@ -86,8 +87,9 @@ public final class FxYulongBatchCleanupActivity extends de.privacyguard.adhook.F
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(12), dp(8), dp(12), dp(8));
         header.addView(button("‹ 返回隐私", this::finish));
-        header.addView(text("隐私 · 批量清理 · 逐项确认", 19, 0xff17212b, true),
-                new LinearLayout.LayoutParams(0, -2, 1));
+        TextView pageTitle = text("隐私 · 批量清理 · 逐项确认", 19, 0xff17212b, true);
+        pageTitle.setTag("fx-title:18");
+        header.addView(pageTitle, new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
 
         ScrollView scroll = new ScrollView(this);
@@ -97,11 +99,15 @@ public final class FxYulongBatchCleanupActivity extends de.privacyguard.adhook.F
         scroll.addView(body);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
 
-        body.addView(text(
+        TextView safetyNote = text(
                 "每项都会打开 Android 系统卸载确认。取消卸载不会自动继续；FX 不会静默卸载、强停或冻结应用。",
-                12, 0xff8a5b12, false));
+                12, 0xff8a5b12, false);
+        safetyNote.setTag("fx-card-body");
+        body.addView(safetyNote);
         state = text("", 13, 0xff617080, false);
+        state.setTag("fx-card-detail");
         current = text("", 15, 0xff17212b, true);
+        current.setTag("fx-card-title");
         uninstall = button("打开当前应用的系统卸载确认", this::requestCurrent);
         next = button("跳过当前项，查看下一项", this::advance);
         body.addView(state);
