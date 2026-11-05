@@ -6414,3 +6414,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - CI fix commit: `29a6c625c14d56fe279310d9fa2a611044cb8cfa` adds a `push` trigger limited to `fx-v1.0.0-unified-hook-integration` in `.github/workflows/build-fx-adhook.yml`. Existing PR and manual dispatch triggers remain intact.
 - Root cause: workflow comments described cumulative push validation, but the event list did not include `push`; direct branch commits therefore did not start this workflow. The commit-associated workflow-run connector available here filters to pull-request runs only, so it cannot confirm the new push run. CI status remains unverified until a run is visible in GitHub Actions.
 - Readback verified the push branch filter and preserved PR/manual triggers. This enables future commits to validate the latest cumulative tree; concurrency continues cancelling superseded runs.
+
+
+## 2026-11-06 — VPN 共存裁决器脚本目录与端口冲突状态补强
+
+- VPN slot scanner 修复提交：`e53770b2a3cef431234a0d2a339f702d385b5df3`；对应嵌套/符号链接目录回归提交：`30e33c926c632b7f0c8a0e3541afe4e4c0856683`。
+- 扫描器递归枚举模块 Shell 文件，并额外检查 `scripts/` 内符号链接目录；脚本清单逐行读取，避免空格路径被拆分。任何不可信链接、find 错误或 grep 读取错误均 fail-closed 为 unknown。
+- 首次 Arbiter Actions run `42107291150` 失败于既有新增用例 case 1f：裁决器已在 `reasons` 输出重复服务端口，但 JSON 缺少测试/状态消费者要求的独立 `config_conflicts` 字段。
+- 修复提交：`c48f2379211b3e05459c2f32a21374345e08f22b`，在 JSON 状态中发布规范化后的 `config_conflicts`。分支回读确认字段已存在。
+- 新一轮 Arbiter run：`42107395857`；记录时状态为 queued，尚不能记为通过。Android Gradle、KernelSU ZIP、真实设备 VPN/TUN/DNS 路径仍未验证。
