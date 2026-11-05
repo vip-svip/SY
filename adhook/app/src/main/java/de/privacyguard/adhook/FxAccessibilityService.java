@@ -167,13 +167,21 @@ public final class FxAccessibilityService extends AccessibilityService {
         AccessibilityServiceInfo info = getServiceInfo();
         if (info == null) return;
         int wantedEvents = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED;
-        if (FxGkdRuleStore.isEnabled(this)
-                && !FxGkdRuleStore.getRules(this).stream().noneMatch(FxGkdRule::getEnabled)) {
+        int wantedFlags = info.flags;
+        boolean gkdEnabled = FxGkdRuleStore.isEnabled(this)
+                && FxGkdRuleStore.getRules(this).stream().anyMatch(FxGkdRule::getEnabled);
+        if (gkdEnabled) {
             wantedEvents |= AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
                     | AccessibilityEvent.TYPE_VIEW_SCROLLED;
+            // GKD selectors may target resource IDs (id/vid). Request those IDs
+            // only while the user's GKD master switch and at least one rule are on.
+            wantedFlags |= AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS;
+        } else {
+            wantedFlags &= ~AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS;
         }
-        if (info.eventTypes != wantedEvents) {
+        if (info.eventTypes != wantedEvents || info.flags != wantedFlags) {
             info.eventTypes = wantedEvents;
+            info.flags = wantedFlags;
             setServiceInfo(info);
         }
     }
