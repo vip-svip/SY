@@ -60,6 +60,7 @@ for token in ("FxGkdRuleStore.isEnabled(service)", "it.source.packageName == eve
               "maximum = 12", "liveNode.isPassword", "liveNode.isEditable",
               "liveNode.isVisibleToUser", "liveNode.isClickable",
               "FxGkdRuleStore.isRuleEnabled(service, rule.source.id, eventPackage)",
+              "FxAccessibilityService.isConnected()", "isTargetStillForeground(service, eventPackage)",
               "performAction(AccessibilityNodeInfo.ACTION_CLICK)"):
     assert token in runtime, f"GKD automation guard missing: {token}"
 for forbidden in ("dispatchGesture(", "takeScreenshot(", "HttpURLConnection", "OkHttpClient", "ACTION_LONG_CLICK"):
