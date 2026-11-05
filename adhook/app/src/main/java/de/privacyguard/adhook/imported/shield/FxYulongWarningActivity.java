@@ -136,7 +136,7 @@ public final class FxYulongWarningActivity extends de.privacyguard.adhook.FxNati
         body.addView(uninstallButton);
         body.addView(button("稍后处理", this::finish));
 
-        setContentViewWithNativeTabs(root, 5);
+        setContentViewWithNativeTabs(root, 2);
         if (state != null) {
             final int restoreY = Math.max(0, state.getInt(STATE_SCROLL_Y, 0));
             warningScroll.post(() -> warningScroll.scrollTo(0, restoreY));
