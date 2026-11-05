@@ -5425,3 +5425,17 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Tasker 选择器回归首次运行时，Host 因将跨行 `queryIntentActivities` 调用误当作单行 token 而失败；已拆成方法名和查询 flag 两项源码断言。
 - 加强安全契约：选择器方法不得写入授权包名、签名摘要或 Root 外部授权开关；签名固定及授权仍由独立显式操作执行。
 - 当前仅修正测试匹配和增加边界断言；待最新 HEAD 的 Targeted Host Regression 再验证。
+
+
+## 2026-11-06 — 游龙 Ad 本机总结刷新一致性
+
+- 本机防护总结的配置读取与 DNS 聚合计数改为共享刷新代次；旧代次的 Root 回调不会再覆盖用户最新一次刷新结果。
+- 将原先最多堆积 8 个 Root 读取的线程池收紧为 1 个执行线程 + 1 个待执行槽位。队列满时只保留最新请求；Activity 销毁时递增 generation 并关闭 worker。
+- DNS 统计数据来源、只返回数字的隐私约束、日志关闭默认值和 30 天保留说明均保持不变。
+- 同步 `scripts/tests/fx-yulong-ad-dns-summary-regression.sh`，覆盖 bounded queue、latest-only request 与回调 generation。尚未运行 APK 构建、模拟器或真机统计刷新压力测试。
+
+
+### 前一批 Dia 刷新/路径修复验证记录
+
+- `6ec508f5fd41cf6eeeba97e5bed60ab6ebc0c0e7` 的 Targeted Host Regression run `42091648985`：SUCCESS；FX Six UI Modes run `42091649028`：SUCCESS。
+- 该提交的 Module Runtime Regression run `42091648844` 最终标记 CANCELLED；取消前 TUN/DNS/watchdog 与 Root Proxy/native VPN 两个实测步骤均显示 SUCCESS。故记录为“相关回归步骤通过、workflow 总结状态取消”，不表述为完整 workflow success。

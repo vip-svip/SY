@@ -56,6 +56,13 @@ assert 'pg_get dns_querylog_enabled 0' in control, "statistics command does not 
 assert 'yulong-ad-dns-summary.sh' in control, "control command does not invoke numeric summary helper"
 assert 'yulong-ad-dns-summary.sh' in patcher and 'copy2' in patcher, "Release patcher does not stage summary helper"
 assert 'root("dns-log-summary"' in activity, "native summary UI does not consume aggregate counts"
+assert "new ArrayBlockingQueue<>(1)" in activity, "summary Root read queue must be bounded to one waiter"
+assert "private void enqueueLatest(Runnable task)" in activity, "summary refresh must replace a stale queued request"
+assert "worker.getQueue().poll();" in activity, "stale summary Root reads are not discarded"
+assert "private int loadGeneration;" in activity and "final int generation = ++loadGeneration;" in activity, "summary refresh generation is missing"
+assert 'root("list", generation' in activity and 'root("dns-log-summary", generation' in activity, "both summary reads must use the same refresh generation"
+assert "generation != loadGeneration" in activity, "late summary results may overwrite a newer refresh"
+assert "loadGeneration++;" in activity and "worker.shutdownNow();" in activity, "destroy must invalidate pending summary work"
 assert 'ClientIP' not in activity and 'QH' not in activity, "native summary UI must not parse or display raw log fields"
 assert '最近 500 条日志样本' not in activity, "daily summary still reports the old 500-row sample instead of retained totals"
 metric_start = activity.index("private static long metric(")

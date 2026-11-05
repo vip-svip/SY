@@ -25,6 +25,7 @@ public final class FxYulongAdSummaryActivity extends de.privacyguard.adhook.FxNa
             new ThreadPoolExecutor.AbortPolicy());
     private LinearLayout body;
     private TextView status;
+    private int loadGeneration;
     private int dp(float n) { return (int)(n * getResources().getDisplayMetrics().density + 0.5f); }
     private TextView text(String s, int size, int color, boolean bold) {
         TextView t = new TextView(this); t.setText(s); t.setTextSize(size); t.setTextColor(color);
@@ -49,14 +50,32 @@ public final class FxYulongAdSummaryActivity extends de.privacyguard.adhook.FxNa
                 + "then MP=\"$d\"; break; fi; done; "
                 + "[ -n \"$MP\" ] || exit 20; sh \"$MP/scripts/yulong-ad-control.sh\" " + scriptArgs;
     }
-    private void root(String args, java.util.function.Consumer<RootAccess.Result> callback) {
+    // Keep one Root read active and only the newest follow-up request queued.
+    private void enqueueLatest(Runnable task) {
         try {
-            worker.execute(() -> {
-                RootAccess.Result result = RootAccess.execute(moduleShell(args), 30000L, 1024 * 1024);
-                runOnUiThread(() -> { if (!isFinishing() && !isDestroyed()) callback.accept(result); });
-            });
+            worker.execute(task);
         } catch (RejectedExecutionException full) {
-            callback.accept(RootAccess.failure(75, "防护总结后台队列繁忙，本次读取未执行；请稍后重试。"));
+            if (worker.isShutdown()) throw full;
+            worker.getQueue().poll();
+            worker.execute(task);
+        }
+    }
+
+    private void root(String args, int generation,
+                      java.util.function.Consumer<RootAccess.Result> callback) {
+        try {
+            enqueueLatest(() -> {
+                RootAccess.Result result = RootAccess.execute(moduleShell(args), 30000L, 1024 * 1024);
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed() || generation != loadGeneration) return;
+                    callback.accept(result);
+                });
+            });
+        } catch (RejectedExecutionException unavailable) {
+            if (!isFinishing() && !isDestroyed() && generation == loadGeneration) {
+                callback.accept(RootAccess.failure(75,
+                        "防护总结后台读取已结束，本次刷新未执行；请重新刷新。"));
+            }
         }
     }
 
@@ -83,14 +102,19 @@ public final class FxYulongAdSummaryActivity extends de.privacyguard.adhook.FxNa
     }
 
     private void load() {
+        final int generation = ++loadGeneration;
         body.removeViews(1, Math.max(0, body.getChildCount() - 1));
         status.setText("正在读取配置…");
-        root("list", config -> {
+        root("list", generation, config -> {
+            if (generation != loadGeneration) return;
             if (config.exitCode != 0) {
                 status.setText("读取广告过滤配置失败：" + safe(config.output)); return;
             }
             Summary summary = parseConfig(config.output);
-            root("dns-log-summary", stats -> renderSummary(summary, stats));
+            root("dns-log-summary", generation, stats -> {
+                if (generation != loadGeneration) return;
+                renderSummary(summary, stats);
+            });
         });
     }
 
@@ -173,5 +197,9 @@ public final class FxYulongAdSummaryActivity extends de.privacyguard.adhook.FxNa
     private String safe(String value) {
         return value == null || value.trim().isEmpty() ? "Root 后端没有返回错误详情。" : value.trim();
     }
-    @Override protected void onDestroy() { worker.shutdownNow(); super.onDestroy(); }
+    @Override protected void onDestroy() {
+        loadGeneration++;
+        worker.shutdownNow();
+        super.onDestroy();
+    }
 }
