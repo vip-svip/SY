@@ -37,6 +37,18 @@ grep -Fq 'pageContent.getParent() != null' "$activity" || { echo "FAIL: deferred
 for token in 'case HUAWEI_HARMONY_STYLE:' 'case IOS_CUPERTINO_STYLE:' '0xfff0f3f7' '0xff17212b' 'wallpaperActive ? 0x00000000'; do
   grep -Fq "$token" "$skin" || { echo "FAIL: shared native Skin adapter missing $token"; exit 1; }
 done
+python3 - "$skin" <<'PY'
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+switch = source.index("if (view instanceof Switch)")
+choice = source.index("else if (view instanceof android.widget.CompoundButton)", switch)
+button = source.index("else if (view instanceof Button)", choice)
+assert switch < choice < button, "Switch/CompoundButton must be dispatched before generic Button"
+assert "control.setThumbTintList" in source and "control.setTrackTintList" in source
+assert "control.setButtonTintList" in source
+print("PASS: Switch and CheckBox/RadioButton tint adapters are reachable before generic Button styling.")
+PY
 grep -Fq 'addOnGlobalLayoutListener' "$skin" || { echo "FAIL: dynamic native pages are not re-skinned after layout"; exit 1; }
 grep -Fq 'addOnAttachStateChangeListener' "$skin" || { echo "FAIL: Skin observer is not attached to the live page root"; exit 1; }
 grep -Fq 'removeOnGlobalLayoutListener(layoutListener)' "$skin" || { echo "FAIL: Skin observer is not removed when page detaches"; exit 1; }
