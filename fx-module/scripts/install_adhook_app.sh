@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Install the unified dual-entry FX Hook APK as one ordinary /data/app package.
+# Verify the unified FX Hook system-app overlay; retain an ordinary-app fallback for older modules.
 set -u
 MODDIR=${1:-}
 if [ -z "$MODDIR" ]; then _d=$(dirname "$0" 2>/dev/null); MODDIR=$(cd "$_d/.." 2>/dev/null && pwd); fi
@@ -112,19 +112,20 @@ install_one(){
     _paths=$(pm path "$_pkg" 2>/dev/null | sed -n 's/^package://p')
     _system_path=$(printf '%s\n' "$_paths" | awk '/^\/system\// || /^\/product\// || /^\/vendor\// {print; exit}')
     if [ -n "$_system_path" ] || package_is_system "$_pkg"; then
-      if [ -n "$_system_path" ]; then
-        _installed_digest=$(sha256sum "$_system_path" 2>/dev/null | awk 'NR==1 {print $1}')
-        if [ -z "$_installed_digest" ] || [ "$_installed_digest" != "$_actual" ]; then
-          log_msg "ERROR: system FX Hook path does not match the module APK digest; refusing an unsafe overwrite"
-          return 1
-        fi
-        log_msg "verified FX Hook as a system app from the systemless /system/app overlay"
+      _system_installed_path=$(printf '%s\n' "$_paths" | awk 'NR==1 {print; exit}')
+      _installed_digest=$(sha256sum "$_system_installed_path" 2>/dev/null | awk 'NR==1 {print $1}')
+      if [ -n "$_installed_digest" ] && [ "$_installed_digest" = "$_actual" ]; then
+        log_msg "verified FX Hook system app and module APK digest; no PackageManager reinstall required"
         retire_legacy_standalone || return 1
         return 0
       fi
-      # An updated system app can be stored in /data/app. Keep PackageManager's
+      if [ -n "$_system_path" ]; then
+        log_msg "ERROR: system FX Hook path does not match the module APK digest; refusing an unsafe overwrite"
+        return 1
+      fi
+      # An updated system app can be stored under /data/app. Keep PackageManager's
       # system classification and update that data-side package in place below.
-      log_msg "FX Hook is an updated system app under /data/app; checking module APK update"
+      log_msg "FX Hook is an updated system app under /data/app; module APK digest changed"
     fi
   fi
   _prior=$(cat "$_marker" 2>/dev/null); _was_present=0; package_present "$_pkg" && _was_present=1
