@@ -11,7 +11,7 @@ public final class ExifPrivacyPolicy {
 
     /** GPS tag family used by both string and numeric ExifInterface accessors. */
     public static boolean isGpsTag(String tag) {
-        return tag != null && tag.startsWith("GPS");
+        return tag != null && tag.length >= 3 && tag.regionMatches(true, 0, "GPS", 0, 3);
     }
 
     public static boolean shouldRedactTag(String tag) {
