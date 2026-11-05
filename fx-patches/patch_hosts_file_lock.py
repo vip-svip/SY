@@ -10,9 +10,19 @@ if not target.is_file():
 
 source = target.read_text(encoding="utf-8")
 marker = "# FX_HOSTS_FILE_LOCK_V3"
-if marker in source:
-    print("Hosts cache already uses the POSIX atomic file lock.")
+required_lock_tokens = (
+    '_hf_release="$_hf_lock.release.$"',
+    'mv "$_hf_lock" "$_hf_release"',
+    'if [ "$_hf_release_owner" = "$" ]; then',
+    '_hf_stale="$_hf_lock.stale.$.$_hf_wait"',
+    'mv "$_hf_lock" "$_hf_stale"',
+    'if [ "$_hf_moved_owner" = "$_hf_owner" ]',
+)
+if marker in source and all(token in source for token in required_lock_tokens):
+    print("Hosts cache already uses the complete POSIX atomic file lock.")
     raise SystemExit(0)
+if marker in source:
+    print("Existing V3 Hosts lock is incomplete; repairing the entire lock block.")
 
 start_token = '  _hf_lock="$PG/cache/rules/.lock.$_hf_key"\n'
 end_token = "  # Keep a verified previous generation."
