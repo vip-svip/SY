@@ -48,7 +48,7 @@ case "$*" in
   "-o -4 addr show dev tun0 scope global")
     addr_count=0
     [ ! -r "$MOCK_ADDR_COUNT" ] || addr_count=$(cat "$MOCK_ADDR_COUNT")
-    addr_count=$((addr_count+1)); printf '%s\\n' "$addr_count" > "$MOCK_ADDR_COUNT"
+    addr_count=$((addr_count+1)); printf '%s\n' "$addr_count" > "$MOCK_ADDR_COUNT"
     if [ "${MOCK_ADDR_CHANGE_RECHECK:-0}" = 1 ] && [ "$addr_count" -gt 2 ]; then
       echo '7: tun0 inet 10.23.4.6/32 scope global tun0'
     else
