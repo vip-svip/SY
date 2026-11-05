@@ -264,7 +264,7 @@ NATIVE_SHELL="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppS
 grep -Fq 'MiuixTheme(controller = controller)' "$NATIVE_SHELL" || fail "native app shell must use the Miuix theme"
 grep -Fq 'miuixColors.surface' "$NATIVE_SHELL" || fail "Miuix mode must use the real Miuix surface palette"
 grep -Fq 'miuixColors.primaryContainer' "$NATIVE_SHELL" || fail "Miuix selected tab must use the real Miuix color scheme"
-grep -Fq 'top.yukonga.miuix.kmp.basic.Text' "$DESIGN_PANEL" || fail "real Miuix typography component is not used"
+grep -Fq 'top.yukonga.miuix.kmp.basic.Card' "$DESIGN_PANEL" || fail "real Miuix Card component is not used"
 grep -Fq '.drawBackdrop(' "$DESIGN_PANEL" || fail "Backdrop renderer is not used by Liquid Glass mode"
 grep -Fq 'lens(18.dp.toPx(), 22.dp.toPx())' "$DESIGN_PANEL" || fail "Backdrop lens refraction effect missing"
 grep -Fq '.layerBackdrop(backdrop)' "$DESIGN_PANEL" || fail "Backdrop source layer missing"
