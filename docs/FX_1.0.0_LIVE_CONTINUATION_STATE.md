@@ -3888,3 +3888,20 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `fx-global-ui-modes-regression.sh` 覆盖颜色映射、语义色保护以及 Switch/CompoundButton dispatch 顺序，并会联动执行 Wallpaper 与相邻 VPN 静态检查。
 - 代码提交：`0b810c724653e169d6fe05976fa8a597ed28b528`；回归扩展：`c8a025068562c842a8c7d74a0e92435110a25ec1`、`2fdbb1ec252e17025d1b528574a7652111c17ad5`。
 - 这些是代码和 Host 静态检查，不代表 Gradle/设备真机通过。最新 Targeted Host run 需等当前脚本提交的 Actions 结果后再更新验证结论。
+
+
+## 2026-11-05 — 壁纸缩放算法边界单测与 Host 回归确认
+
+- 扩展 `adhook/app/src/test/java/de/privacyguard/adhook/FxWallpaperStoreTest.kt`：
+  - 增加小图不放大断言。
+  - 对宽度为 0、高度为 0、maxEdge 为 0 的输入逐项验证抛出 IllegalArgumentException。
+  - 验证大图采样值始终为正数且为 2 的幂，避免 BitmapFactory 非法 sample size。
+- 扩展 `scripts/tests/fx-wallpaper-regression.sh`：要求上述单测源文件存在，并检查测试方法，防止只保留实现而丢失缩放边界测试。
+- 主要提交：`50788668069fe9e2b8dbf7cc685c7f3bcab9727e`（单测）；`ac623f55ee7977d43c3f19b2ac34fbe1f3df0d8e`（静态回归门禁）。
+- Host 回归：GitHub Actions run `41981558626`，最新相关提交 `c8a025068562c842a8c7d74a0e92435110a25ec1`，job `host-regressions` 结果 success。日志明确输出五模式控件分派/文本 token PASS，以及 `PASS: 10.0.2-compatible wallpaper storage, bounded import decode, Classic WebUI transparency, and shared native wallpaper renderer across migrated Ad/Shield/Dia Activities.`
+- 该 run 是主机静态/定向回归，不包含 Android Gradle 单元测试执行、APK assemble、安装或真机壁纸截图；新增 FxWallpaperStoreTest 仍需在后续 Gradle testDebugUnitTest lane 执行。
+
+### 下一批优先工作
+1. 继续五 Skin 逐页覆盖：检查 imported Activity 和 MainActivity 动态新增的控件，确保不覆盖警告/错误语义色、不吞掉自定义 Drawable、不重复挂载 layout listener。
+2. 补齐 APK 10.0.2 旧界面页面映射与 wallpaper 行为实机截图验收；ClassicWebCompat 的网页资源只在完整 Release staging lane 验证。
+3. 对 Ad、VPN、隐私、Hook、脚本进行来源功能逐项映射；已有入口不代表该页所有旧功能都已接入真实运行时。
