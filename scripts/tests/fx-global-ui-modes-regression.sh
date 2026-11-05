@@ -94,6 +94,21 @@ python3 - "$skin" <<'PY'
 from pathlib import Path
 import sys
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
+start = source.index("private static void apply(Activity activity")
+end = source.index("private static boolean isKnownPageBackground", start)
+apply = source[start:end]
+assert "isKnownPageBackground(rootBackground, palette, rootColor)" in apply
+assert "pageContent.setBackgroundColor(rootColor)" in apply
+helper = source[source.index("private static boolean isKnownPageBackground"):source.index("private static Palette palette")]
+assert "if (!(background instanceof ColorDrawable)) return false;" in helper
+assert "background == null" in helper
+assert "color == palette.background" in helper
+print("PASS: Skin adapter only rewrites known neutral ColorDrawable roots; custom GradientDrawable/selector/ripple roots remain untouched.")
+PY
+python3 - "$skin" <<'PY'
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
 switch = source.index("if (view instanceof Switch)")
 choice = source.index("else if (view instanceof android.widget.CompoundButton)", switch)
 button = source.index("else if (view instanceof Button)", choice)
