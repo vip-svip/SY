@@ -3708,3 +3708,17 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 其他壁纸代码提交：`1f7a1922fb6e4dbb8eb022a41dc7879691d12d9c`（Store 初版）；`090e1b726e15b2da5d8354a977aa73c6c738ccc1`（按目标长边限制采样）；`26fc3149aa899c14b7b8b383110c547fd6023f9e`（设置入口/选择器/预览/恢复）；`fe210098d9e36907ba1cc7724bdb2470e903068b`（共享 Shell 壁纸渲染）；`ee7217890227022e6eb936b925953aac91bc15f7`、`03da7263a3259678b82075234dea821409b81b66`（页面容器透明与 Bitmap 生命周期修复）。
 - 当前最新观测的目标回归 Run：`41936402322`，commit `d1eabc29c87951208a9829f33db570f463809839`，当时状态 pending；还没有可确认的最终 job 结果。
 - 验证边界：已核对 GitHub 代码、文档、测试脚本和 CI 接线；尚未取得成功 Actions 完成结果、Gradle build、安装运行、壁纸切换截图或华为/非华为真机验证。不得标记设备验收完成。
+
+
+## 2026-11-05 — MainActivity 动态原生页面补齐统一 Skin 注入
+
+- 复核发现一个真实覆盖缺口：此前 `FxNativeSkin.apply(this, pageContent)` 只在 `FxNativeTabActivity` 生效，而 FX 主 Activity 中的原生页面由 `MainActivity.mountNativeShell()` 动态构建，原先没有对已建成的页面树应用统一 Skin palette。
+- 已在 `MainActivity.mountNativeShell(View pageContent)` 创建 Compose 壳前调用 `FxNativeSkin.apply(this, pageContent)`，确保 VPN/Ad/隐私/脚本/Hook/设置及其原生二级页面在挂载时将已存在的旧背景色/文字色转换成当前 Skin token；自定义告警色和未知背景仍由适配器保留。
+- 新增回归断言：
+  - `fx-global-ui-modes-regression.sh` 检查 MainActivity 与迁入 Activity 两个宿主都调用 Skin adapter。
+  - `fx-wallpaper-regression.sh` 检查 MainActivity 的 Shell mount path 执行 Skin 注入，保证有壁纸时页面树背景透明逻辑不只覆盖来源 Activity。
+- 提交：
+  - MainActivity：`317879d3f2a38b6c96962986268d7bd9be9ca5e2`
+  - 五模式回归：`40f950b58af77628892221ae4caa66e2d06cbf33`
+  - 壁纸回归：`9a7cb4e3550f1a880148f1aab3df68509909a600`
+- 验证限制：已完成 GitHub 源码回读和回归脚本/CI 接线核对；未在本执行环境运行 Android Gradle 编译或真机截图测试，不能标记五套 Skin 逐页视觉验收完成。
