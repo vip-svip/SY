@@ -381,12 +381,12 @@ EOF
 cat > "$TMP/fakebin/am" <<'EOF'
 #!/bin/sh
 [ "$1" = "get-current-user" ] || exit 2
-printf '%s\\n' 0
+printf '%s\n' 0
 EOF
 cat > "$TMP/fakebin/cmd" <<'EOF'
 #!/bin/sh
-[ "$1 $2 $3" = "package list packages" ] || exit 2
-printf '%s\\n' 'package:de.privacyguard.adhook uid:10000'
+[ "$*" = "package list packages -U --user 0 de.privacyguard.adhook" ] || exit 2
+printf '%s\n' 'package:de.privacyguard.adhook uid:10000'
 EOF
 chmod 0755 "$TMP/fakebin/dumpsys" "$TMP/fakebin/am" "$TMP/fakebin/cmd"
 printf '%s\n' "$LINKS_TUN" > "$TMP/links.txt"
