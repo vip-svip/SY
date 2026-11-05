@@ -29,13 +29,35 @@ final class FxNativeSkin {
             if (WATCHED.containsKey(pageContent)) return;
             WATCHED.put(pageContent, Boolean.TRUE);
         }
-        ViewTreeObserver observer = pageContent.getViewTreeObserver();
-        observer.addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
+
+        // Register against the ViewTreeObserver only after the page is attached.
+        // Compose's AndroidView may attach the pageContent after this method returns;
+        // observers obtained before attachment can be replaced during attach.
+        final ViewTreeObserver.OnGlobalLayoutListener layoutListener =
+                new ViewTreeObserver.OnGlobalLayoutListener() {
             @Override public void onGlobalLayout() {
                 if (activity.isFinishing() || activity.isDestroyed()) return;
                 // View additions, async list population and size changes all
-                // converge here; replacing only known legacy colors is idempotent.
+                // converge here; replacement of known legacy colors is idempotent.
                 apply(activity, pageContent);
+            }
+        };
+        pageContent.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+            private ViewTreeObserver observedTree;
+
+            @Override public void onViewAttachedToWindow(View view) {
+                ViewTreeObserver observer = view.getViewTreeObserver();
+                if (observer.isAlive()) {
+                    observedTree = observer;
+                    observer.addOnGlobalLayoutListener(layoutListener);
+                }
+            }
+
+            @Override public void onViewDetachedFromWindow(View view) {
+                if (observedTree != null && observedTree.isAlive()) {
+                    observedTree.removeOnGlobalLayoutListener(layoutListener);
+                }
+                observedTree = null;
             }
         });
     }
@@ -67,7 +89,12 @@ final class FxNativeSkin {
         transformKnownLegacyTokens(pageContent, palette, wallpaperActive);
         // Root surface is always the Presentation backdrop. With a selected
         // wallpaper it must be transparent; child cards remain styled surfaces.
-        pageContent.setBackgroundColor(wallpaperActive ? 0x00000000 : palette.background);
+        int rootColor = wallpaperActive ? 0x00000000 : palette.background;
+        Drawable rootBackground = pageContent.getBackground();
+        if (!(rootBackground instanceof ColorDrawable)
+                || ((ColorDrawable) rootBackground).getColor() != rootColor) {
+            pageContent.setBackgroundColor(rootColor);
+        }
     }
 
     private static Palette palette(FxUiMode mode) {
@@ -97,7 +124,7 @@ final class FxNativeSkin {
         if (background instanceof ColorDrawable) {
             int oldColor = ((ColorDrawable) background).getColor();
             Integer replacement = replacementBackground(oldColor, palette, wallpaperActive);
-            if (replacement != null) {
+            if (replacement != null && replacement != oldColor) {
                 view.setBackground(new ColorDrawable(replacement));
             }
         }
@@ -106,7 +133,7 @@ final class FxNativeSkin {
             TextView text = (TextView) view;
             int oldColor = text.getCurrentTextColor();
             Integer replacement = replacementText(oldColor, palette);
-            if (replacement != null) text.setTextColor(replacement);
+            if (replacement != null && replacement != oldColor) text.setTextColor(replacement);
         }
 
         if (view instanceof ViewGroup) {
