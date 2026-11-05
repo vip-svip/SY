@@ -6398,3 +6398,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 修复：将生产脚本路径同时加入目标分支 push 与 pull_request 的路径过滤器；测试文件仍由既有 `scripts/tests/**` 覆盖，job 内按文件名条件执行 arbiter regression。
 - GitHub 回读：workflow blob `f36be3b4b426d29a2518972d437c60ce7c2b4ea6`，确认 push 和 PR 路径过滤器均含生产脚本。
 - 验证等级：workflow 源码静态回读确认；未触发 workflow_dispatch，也未取得该提交实际 Actions run。不能报告 CI 通过。
+
+
+## 2026-11-06 — system-app overlay missing/mount failure retry visibility
+
+- Production fix: `dbc1801703ca099ff51e4fcf60d1a480658b8863` updates `fx-module/post-fs-data.sh`. Missing/unmounted `/system/app/FX`, absent APK, symlink/traversal paths now enter the existing safe retry-marker path instead of silently exiting.
+- Regression assertion: `1931a4942c068b10caf0f492c19bdf2fbea35953` extends `scripts/tests/adhook-app-installer-regression.sh` to require explicit missing-directory and missing/unsafe-APK retry diagnostics.
+- Reason: post-fs-data executes before PackageManager's system-app scan; a later boot-service install cannot retroactively change the current boot's system-app classification. Failure now remains diagnosable and retry state is retained without an unsafe ordinary-app fallback.
+- GitHub readback verified production blob `4bf9a423bfeede20ffbf82deadd9c1f5b7d30586`, test blob `109d8e5c6b6a390a35a8fedbfd9431416ad66308`, and that `.github/workflows/build-fx-adhook.yml` invokes the regression script.
+- Not yet executed: shell regression on a runner, Android Gradle/APK/KernelSU ZIP build, SELinux behavior on a device, PackageManager scan-order validation on target ROM. Do not mark CI or device verification complete until Actions/device evidence exists.
