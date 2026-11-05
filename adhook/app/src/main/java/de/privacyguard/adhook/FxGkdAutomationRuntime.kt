@@ -42,7 +42,7 @@ object FxGkdAutomationRuntime {
         eventPackage: String,
         rootHandle: AccessibilityNodeInfo
     ): Boolean {
-        if (!FxGkdRuleStore.isEnabled(service)) {
+        if (!FxGkdRuleStore.isEnabled(service) || !FxAccessibilityService.isConnected()) {
             try { rootHandle.recycle() } catch (_: RuntimeException) {}
             return false
         }
@@ -95,7 +95,11 @@ object FxGkdAutomationRuntime {
                     ) continue
                     // Honor a user disable or per-rule revocation that arrives while
                     // a bounded snapshot is being matched.
-                    if (!FxGkdRuleStore.isRuleEnabled(service, rule.source.id, eventPackage)) {
+                    if (!FxAccessibilityService.isConnected()
+                        || !FxGkdRuleStore.isEnabled(service)
+                        || !FxGkdRuleStore.isRuleEnabled(service, rule.source.id, eventPackage)
+                        || !isTargetStillForeground(service, eventPackage)
+                    ) {
                         continue
                     }
 
@@ -108,6 +112,24 @@ object FxGkdAutomationRuntime {
             return false
         } finally {
             snapshot.close()
+        }
+    }
+
+    private fun isTargetStillForeground(
+        service: AccessibilityService,
+        packageName: String
+    ): Boolean {
+        val activeRoot = try {
+            service.rootInActiveWindow
+        } catch (_: RuntimeException) {
+            null
+        } ?: return false
+        return try {
+            activeRoot.packageName?.toString() == packageName
+        } catch (_: RuntimeException) {
+            false
+        } finally {
+            try { activeRoot.recycle() } catch (_: RuntimeException) {}
         }
     }
 
