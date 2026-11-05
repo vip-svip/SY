@@ -70,7 +70,7 @@ jobs:
           python3 fx-patches/patch_yulong_root_proxy.py "$module" .
           python3 fx-patches/patch_atomic_cache_lock_release.py "$module"
           echo "Published uninstall local-DNS hooks:"
-          grep -n -C 3 "localdns-watchdog" "$module/uninstall.sh" || true
+          sed -n '100,175p' "$module/uninstall.sh"
           python3 fx-patches/patch_localdns_uninstall_shutdown.py "$module"
           python3 fx-patches/patch_yulong_dns_upstreams.py "$module"
           python3 fx-patches/patch_yulong_ad_master.py "$module"
