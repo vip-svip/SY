@@ -5490,3 +5490,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 锁补丁升级标记为 V3，使已使用旧 V2 的模块在重新打包时也能重写安全清理函数。
 - 新增 `scripts/tests/fx-hosts-cache-lock-regression.sh`，动态执行生产函数并覆盖空目录、PID-only 目录、普通文件锁、未知/隐藏内容、外层 symlink、PID symlink 与 FIFO；在 KernelSU 包装阶段接入该补丁和回归，并在 Targeted Host Regression 中按补丁路径触发。
 - 本批待 CI 验证；未运行最终 KernelSU 包生成、APK 构建或设备安装。
+
+
+### Yulong 防火墙迁移回归适配当前导航（2026-11-06）
+
+- 旧 Host/迁移流水线的防火墙回归仍通过 `应用管理` 与 `HTTPS 与证书` 两个旧分类标题切片 MainActivity；当前 FX Ad 原生页已改为独立 `应用网络防火墙` action card，旧标题不存在时测试直接抛出 `ValueError`。
+- 将回归改为验证当前 Ad action card 直接打开 `FxYulongFirewallActivity`，同时验证 Activity 仍兼容 `用户应用`、`系统应用`、`按应用设置` 三种 suite_page 并执行真实系统/用户包分类过滤。
+- 该修复仅调整过时的导航断言，不改变防火墙实现；待新 Host/模块 Runtime workflow 验证。

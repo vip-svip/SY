@@ -670,19 +670,19 @@ from pathlib import Path
 import sys
 main = Path(sys.argv[1]).read_text(encoding="utf-8")
 firewall = Path(sys.argv[2]).read_text(encoding="utf-8")
-start = main.index('if (category.equals("应用管理"))')
-end = main.index('if (category.equals("HTTPS 与证书"))', start)
-route = main[start:end]
+# The current FX Ad shell exposes the migrated firewall as a dedicated native
+# action card. The Activity still accepts the three legacy suite_page values
+# for callers that preserve the original menu context.
+assert 'nativeAction("应用网络防火墙"' in main, "FX Ad shell must expose the native per-app firewall entry"
+assert "FxYulongFirewallActivity.class" in main, "native firewall action must open the Wi-Fi/mobile firewall, not the VPN route picker"
+assert "showImportedVpnAppManager();" not in main, "Ad firewall entry must not route to the VPN manager"
 for page in ("用户应用", "系统应用", "按应用设置"):
-    assert f'page.equals("{page}")' in route, f"original app-management route missing: {page}"
-assert "FxYulongFirewallActivity.class" in route, "original app categories must open the migrated per-app firewall, not the VPN route picker"
-assert '.putExtra("suite_page", page)' in route, "original page identifier must reach the firewall filter"
-assert "showImportedVpnAppManager();" not in route, "VPN route management must not impersonate the legacy Wi-Fi/mobile firewall"
-assert 'getStringExtra("suite_page")' in firewall, "firewall Activity must read the original page identifier"
+    assert f'"{page}".equals(requestedPage)' in firewall, f"firewall Activity no longer accepts legacy page: {page}"
+assert 'getStringExtra("suite_page")' in firewall, "firewall Activity must preserve a requested legacy page"
 assert '"用户应用".equals(suitePage) ? 1 : "系统应用".equals(suitePage) ? 2 : 0' in firewall
 assert "FxYulongFirewallAppFilterPolicy.includes(appFilterMode, info.flags)" in firewall, "user/system package classification policy must be applied before rendering"
 assert "FLAG_SYSTEM" in firewall and "FLAG_UPDATED_SYSTEM_APP" in firewall
-assert '"游龙广告插件 · " + suitePage' in firewall, "native firewall page must preserve original menu title"
+assert '"FX Ad · " + suitePage' in firewall, "native firewall page must preserve the selected page identity"
 print("PASS: Yulong 用户应用/系统应用/按应用设置 preserve original page identity and open the real Wi-Fi/mobile firewall filters")
 PY
 
