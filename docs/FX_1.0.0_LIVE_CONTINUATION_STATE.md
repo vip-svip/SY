@@ -5542,3 +5542,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 更新行为与 UI 定向回归，并将 Firewall Activity / Ad Activity 改动映射到 Host workflow。
 - 已知历史阻塞：完整 FX APK migration workflow `42092600253` 曾在旧 app-firewall 测试对已迁移 MainActivity 分类代码执行 `index()` 时失败（`ValueError: substring not found`）；之后测试已改为 FX 当前 native entry contract。此批重新校验这一页面的真实可达性。
 - 本批尚未宣称 Android Gradle 构建、安装、模拟器或真机验证完成。
+
+
+### 防火墙分类 Host 回归与策略职责对齐（2026-11-06）
+
+- 当前 Host run `42094107263` 已运行到应用防火墙回归，失败原因是测试仍要求 Firewall Activity 本体出现 `FLAG_SYSTEM` / `FLAG_UPDATED_SYSTEM_APP` 字段名；实际实现把分类规则集中在纯策略类 `FxYulongFirewallAppFilterPolicy`，Activity 仅把 Android ApplicationInfo flags 传入策略。
+- 将回归改为验证策略类中 ALL/USER/SYSTEM 三种模式和两种系统标志位，并检查对应单元测试仍覆盖 unknown mode fail-closed；不为迎合旧断言在 Activity 保留无用变量。
+- 分类页面实现与异步 generation 逻辑不变，当前提交后会重新触发定向 Host/UI 检查。

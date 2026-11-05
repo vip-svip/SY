@@ -663,11 +663,12 @@ grep -Fq 'reconcile_watch_lifecycle' "$RESTORE/scripts/yulong-app-firewall.sh" |
 [ "$(grep -Fc 'yulong-ad-schedule.sh" stop' "$RESTORE/uninstall.sh")" -eq 1 ] || fail "schedule stop hook is not idempotent"
 [ "$(grep -Fc 'yulong-app-firewall.sh" uninstall' "$RESTORE/uninstall.sh")" -eq 1 ] || fail "firewall uninstall hook is not idempotent"
 
-python3 - "$REPO/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" "$REPO/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongFirewallActivity.java" <<'PY'
+python3 - "$REPO/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" "$REPO/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongFirewallActivity.java" "$REPO/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongFirewallAppFilterPolicy.java" <<'PY'
 from pathlib import Path
 import sys
 main = Path(sys.argv[1]).read_text(encoding="utf-8")
 firewall = Path(sys.argv[2]).read_text(encoding="utf-8")
+policy = Path(sys.argv[3]).read_text(encoding="utf-8")
 
 assert 'nativeAction("应用网络防火墙"' in main, "FX Ad shell must expose the native per-app firewall entry"
 assert "FxYulongFirewallActivity.class" in main, "native firewall action must open the Wi-Fi/mobile firewall, not the VPN route picker"
@@ -676,7 +677,13 @@ assert 'getStringExtra("suite_page")' in firewall, "firewall Activity must prese
 assert 'state.getString(STATE_SUITE_PAGE, launchPage)' in firewall, "selected firewall category must survive Activity recreation"
 assert 'appFilterMode = "用户应用".equals(suitePage) ? 1 : "系统应用".equals(suitePage) ? 2 : 0;' in firewall
 assert 'FxYulongFirewallAppFilterPolicy.includes(filterMode, info.flags)' in firewall, "user/system package classification policy must be applied before rendering"
-assert "FLAG_SYSTEM" in firewall and "FLAG_UPDATED_SYSTEM_APP" in firewall
+assert "case ALL_APPS:" in policy and "case USER_APPS:" in policy and "case SYSTEM_APPS:" in policy
+assert "(applicationFlags & 1)" in policy and "(applicationFlags & 128)" in policy, (
+    "the shared package policy must account for both FLAG_SYSTEM and FLAG_UPDATED_SYSTEM_APP"
+)
+assert "unknownMode" in Path(sys.argv[3]).parent.parent.parent.parent.joinpath(
+    "test/java/de/privacyguard/adhook/imported/ad/FxYulongFirewallAppFilterPolicyTest.java"
+).read_text(encoding="utf-8"), "package policy unit tests must fail closed for unknown modes"
 assert 'pageTitle.setText("FX Ad · " + suitePage)' in firewall, "native firewall page must update its unified title when category changes"
 for page in ("按应用设置", "用户应用", "系统应用"):
     assert f'button("{page}", () -> selectSuitePage("{page}"))' in firewall, (
