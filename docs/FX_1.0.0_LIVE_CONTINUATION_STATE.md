@@ -6107,3 +6107,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Verification: GitHub write responses succeeded; all three code/test/workflow files were fetched again from the target branch and their new blob SHAs/content markers verified. The Actions result for commit `9391c0d59824d26a4897c92a3989355684ce71cc` has not yet been observed. No local execution, Android cross-build, installation or real-device DNS test is claimed.
 - Scope: this closes the probe's unintended ability to send health checks to arbitrary IPv4 destinations; it does not change DNS routing, redirect device traffic or alter user VPN/firewall state.
 - Next: inspect the triggered workflow result and fix any test/build failures; then resume the next existing UI/backend batch from the branch's latest HEAD. Real-device recursive DNS reachability and third-party VPN coexistence remain unverified.
+
+
+### DNS probe host execution follow-up (2026-11-06)
+
+- Executed the committed probe/test logic in an isolated Linux host workspace: `python3 test.py` — PASS. The test compiled the C helper with `cc -std=c11 -O2 -Wall -Wextra -Werror` and exercised UDP loopback NOERROR/NXDOMAIN responses, missing RD, TC/truncation, non-loopback rejection and malformed CLI arguments.
+- This is a host integration test only. Android NDK cross-compilation, GitHub Actions result, actual Unbound runtime and device/mobile-network recursion remain unverified.
