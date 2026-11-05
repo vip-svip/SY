@@ -83,21 +83,22 @@ if "本机路径索引保存失败" not in start:
 if "grep -Fq" in start or "pkill" in start or "killall" in start:
     raise SystemExit("FAIL: start path uses substring or broad process matching")
 cleanup_block = start[start.index("cleanup_start()"):start.index("trap cleanup_start")]
-cleanup_pidfile_tokens = (
+cleanup_prefix_tokens = (
     "kill -TERM ",
     "! server_pid_live ",
     "[ -f ",
     "[ ! -L ",
     "expected_record=$(printf",
-    "$spawned_pid",
-    "$spawned_start",
     "actual_record=$(cat",
-    "if [ ",
+    r'''if [ \\\"$actual_record\\\" = \\\"$expected_record\\\" ]; then''',
     "un" + "link ",
 )
-cleanup_positions = [cleanup_block.find(token) for token in cleanup_pidfile_tokens]
-if any(position < 0 for position in cleanup_positions) or cleanup_positions != sorted(cleanup_positions):
-    raise SystemExit("FAIL: failed-start cleanup must unlink only its exact regular, non-symlink PID record")
+cleanup_positions = [cleanup_block.find(token) for token in cleanup_prefix_tokens]
+record_block = cleanup_block[cleanup_block.find("expected_record=$(printf"):]
+if (any(position < 0 for position in cleanup_positions)
+        or cleanup_positions != sorted(cleanup_positions)
+        or not all(token in record_block for token in ("$spawned_pid", "$server", "27042", "$spawned_start"))):
+    raise SystemExit("FAIL: failed-start cleanup must unlink only its exact regular, non-symlink PID record after process exit")
 
 cleanup_pid_guard = r'''if [ -n \"$spawned_pid\" ] && [ -n \"$spawned_start\" '''
 cleanup_start_guard = r'''&& [ \"$(server_pid_starttime \"$spawned_pid\" 2>/dev/null || :)\" = \"$spawned_start\" ] '''
