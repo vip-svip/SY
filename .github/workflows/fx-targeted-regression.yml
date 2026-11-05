@@ -241,9 +241,6 @@ jobs:
             run_py scripts/tests/fx-vpn-coexistence-ui-regression.py
           fi
 
-          if [[ "$changed" == "ALL" || "$changed" =~ (MainActivity\\.java|fx-vpn-coexistence-ui-regression) ]]; then
-            run_py scripts/tests/fx-vpn-coexistence-ui-regression.py
-          fi
 
           if [[ "$changed" == "ALL" || "$changed" =~ (fx-patches/native-script-(list|run|scheduler)\.sh|patch_native_script_store\.py) ]]; then
             run_sh scripts/tests/fx-native-script-store-regression.sh
