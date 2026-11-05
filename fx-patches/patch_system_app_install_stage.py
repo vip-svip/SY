@@ -48,20 +48,42 @@ fx_system_app_marker=$fx_system_app_state_dir/system-app-apk.sha256
 fx_system_app_retry=$fx_system_app_state_dir/system-app-retry
 
 fx_system_app_note() {
+  [ ! -L "$fx_system_app_state_dir" ] && [ ! -L "$fx_system_app_log" ] || return 0
+  [ -d "$fx_system_app_state_dir" ] || return 0
   printf '%s %s\n' "$(date '+%m-%d %H:%M:%S' 2>/dev/null)" "$*" >> "$fx_system_app_log" 2>/dev/null || :
+}
+
+fx_system_app_mark_retry() {
+  [ ! -L "$fx_system_app_state_dir" ] || return 0
+  mkdir -p "$fx_system_app_state_dir" 2>/dev/null || return 0
+  [ -d "$fx_system_app_state_dir" ] && [ ! -L "$fx_system_app_state_dir" ] || return 0
+  [ ! -L "$fx_system_app_retry" ] || return 0
+  _fx_retry_tmp="$fx_system_app_retry.tmp.$$"
+  [ ! -e "$_fx_retry_tmp" ] && [ ! -L "$_fx_retry_tmp" ] || return 0
+  ( umask 077; set -C; printf '%s\n' "$(date '+%m-%d %H:%M:%S' 2>/dev/null)" > "$_fx_retry_tmp" ) 2>/dev/null &&
+    mv -f "$_fx_retry_tmp" "$fx_system_app_retry" 2>/dev/null || rm -f "$_fx_retry_tmp" 2>/dev/null || :
 }
 
 fx_system_app_digest() {
   # toybox/busybox sha256sum; no digest means we cannot prove the payload.
   [ -s "$1" ] || return 1
   command -v sha256sum >/dev/null 2>&1 || return 1
-  _fx_d=$(sha256sum "$1" 2>/dev/null | awk 'NR==1 {print $1}')
-  [ -n "$_fx_d" ] || return 1
-  printf '%s\n' "$_fx_d"
-}
-
-fx_system_app_perm() {
-  # Normalise ownership/mode. Failures are tolerated here (some install
+  _fx_d=$(sha256sum "$1" 2>/dev/null | awk 'Nfx_system_app_stage() {
+  [ ! -L "$fx_system_app_state_dir" ] || {
+    ui_print "  [!] FX 状态目录是符号链接，拒绝写入系统应用部署状态"
+    return 1
+  }
+  mkdir -p "$fx_system_app_state_dir" 2>/dev/null || {
+    ui_print "  [!] 无法创建 FX 系统应用状态目录"
+    return 1
+  }
+  [ -d "$fx_system_app_state_dir" ] && [ ! -L "$fx_system_app_state_dir" ] || return 1
+  [ ! -L "$fx_system_app_log" ] && [ ! -L "$fx_system_app_marker" ] &&
+    [ ! -L "$fx_system_app_retry" ] || {
+      ui_print "  [!] FX 系统应用状态文件存在符号链接，拒绝部署"
+      return 1
+    }
+  : >> "$fx_system_app_log" 2>/dev/null || fx_system_app_log=/dev/nulled here (some install
   # environments run as root already) but verified again below.
   chown 0:0 "$1" 2>/dev/null || :
   chmod "$2" "$1" 2>/dev/null || :
@@ -203,8 +225,7 @@ if fx_system_app_stage; then
   :
 else
   ui_print "  [!] 系统应用部署未完成；主模块继续安装，开机服务会重试（日志：$fx_system_app_log）"
-  ( umask 077; printf '%s\n' "$(date '+%m-%d %H:%M:%S' 2>/dev/null)" > "$fx_system_app_retry.tmp.$$" ) 2>/dev/null &&
-    mv -f "$fx_system_app_retry.tmp.$$" "$fx_system_app_retry" 2>/dev/null || :
+  fx_system_app_mark_retry
 fi
 # <<< fx-system-app-install-stage
 '''
