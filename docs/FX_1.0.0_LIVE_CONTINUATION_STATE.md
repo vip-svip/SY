@@ -6642,3 +6642,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Hook migration run `42110597398` 在完整 Release-source 回归中继续暴露第二个补丁器问题：Hosts owner-read anchor 的 Python 字符串把换行写成了字面 `\\n`，导致原始与已修补锚点都无法匹配。
 - 修复提交：`8fa0bbabeb6efed5c567f4c3fadab429582f31cf`，将四个 Hosts owner / stale-owner anchor 改为真实换行转义；保留 subfetch V2 的单独完整性验证。
 - 新提交 `8fa0bbab` 已触发 Hook migration、Targeted Host、Module Runtime 和 Six UI Modes 工作流；当前均未全部完成，尚不报告通过。
+
+
+## 2026-11-06 — QuickJS scheduler argv identity
+
+- Tightened scheduler owner recognition: parse `/proc/PID/cmdline` as NUL-delimited argv entries and require an exact `SCRIPT_PATH` argument match instead of substring matching across the flattened command line. This avoids false ownership when another process merely includes the path inside a longer argument.
+- Added a regression assertion. Host CI remains the verification gate; no device test is claimed.
