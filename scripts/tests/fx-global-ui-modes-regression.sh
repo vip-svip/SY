@@ -193,7 +193,8 @@ grep -Fq 'import androidx.appcompat.app.AlertDialog;' "$activity" || { echo "FAI
 grep -Fq 'static AlertDialog.Builder builder(Activity activity)' "$skin" || { echo "FAIL: centralized Skin-aware AlertDialog Builder missing"; exit 1; }
 grep -Fq 'protected final AlertDialog.Builder fxDialogBuilder()' "$host" || { echo "FAIL: imported FX tabs need a platform AlertDialog Skin builder"; exit 1; }
 grep -Fq 'FxNativeSkin.showDialog(FxNativeTabActivity.this, dialog);' "$host" || { echo "FAIL: imported FX tabs must route modal show() through shared renderer"; exit 1; }
-grep -Fq 'protected final void showFxDialog(AlertDialog dialog)' "$host" || { echo "FAIL: imported FX tabs need the custom OnShowListener dialog display path"; exit 1; }
+grep -Fq 'protected final void showFxDialog(Dialog dialog)' "$host" || { echo "FAIL: imported FX tabs need the custom OnShowListener dialog display path"; exit 1; }
+grep -Fq 'showFxDialog(picker);' "$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongFirewallActivity.java" || { echo "FAIL: Firewall time picker bypasses the shared modal Skin"; exit 1; }
 grep -Fq 'FxNativeSkin.showDialog(activity, dialog);' "$skin" || { echo "FAIL: Skin-aware Builder does not intercept show()"; exit 1; }
 grep -Fq 'static AlertDialog.Builder builder(Activity activity)' "$skin" || { echo "FAIL: Skin-aware AlertDialog Builder missing"; exit 1; }
 python3 - "$activity" "$skin" <<'PY'
