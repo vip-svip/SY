@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
+import java.security.cert.X509Certificate;
 import java.security.spec.RSAPublicKeySpec;
 import java.util.Arrays;
 
