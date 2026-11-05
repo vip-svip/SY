@@ -159,8 +159,8 @@ if "currentInjectorPath()" in attach or "String injector" in attach:
     raise SystemExit("FAIL: remote Gadget session must use frida CLI, not the frida-inject binary")
 if "Runtime.exec" in attach:
     raise SystemExit("FAIL: Frida attach must not bypass the bounded RootAccess command bridge")
-if "runRoot(command, 20000L" not in attach:
-    raise SystemExit("FAIL: persistent Gadget command must use the bounded RootAccess worker")
+if "runRootWithInput(command, sourceBytes, 20000L" not in attach:
+    raise SystemExit("FAIL: persistent Gadget command must stream source through the bounded RootAccess worker")
 if "nohup sh -c 'while kill -0 " not in attach or "fx-gadget-feed-$port" not in attach:
     raise SystemExit("FAIL: FIFO feeder must be the fixed CLI-PID-bound helper, not a user-controlled shell payload")
 for process_id in ("cli_pid", "feed_pid"):

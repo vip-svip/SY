@@ -5,6 +5,7 @@ import re
 import sys
 
 module = Path(sys.argv[1] if len(sys.argv) > 1 else "fx-module")
+repo_root = Path(__file__).resolve().parents[1]
 apply_file = module / "scripts/apply.sh"
 subfetch_file = module / "scripts/subfetch.sh"
 host_test = module / "scripts/tests/v1.0.0-hosts-cache-concurrency-regression.sh"
@@ -66,7 +67,7 @@ def replace_shell_function(path: Path, function_name: str, replacement: str, lab
 
 # The release ZIP predates the repository-owned Root Proxy lock regression.
 # Restore that canonical test into the staged module before validating inputs.
-root_proxy_test_source = repo / "fx-module/scripts/tests/v1.0.0-yulong-root-proxy-lock-regression.sh"
+root_proxy_test_source = repo_root / "fx-module/scripts/tests/v1.0.0-yulong-root-proxy-lock-regression.sh"
 if not root_proxy_test_source.is_file() or root_proxy_test_source.stat().st_size < 3000:
     raise SystemExit("repository Root Proxy lock regression source is missing or incomplete")
 root_proxy_test.parent.mkdir(parents=True, exist_ok=True)
