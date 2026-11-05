@@ -206,7 +206,7 @@ public final class FxDiaMonitorEventsActivity extends de.privacyguard.adhook.FxN
         rows.setPadding(dp(8), dp(3), dp(8), dp(12));
         logScroll.addView(rows);
         root.addView(logScroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        setContentViewWithNativeTabs(root, 5);
+        setContentViewWithNativeTabs(root, 4);
 
         category.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(AdapterView<?> parent, View view,
