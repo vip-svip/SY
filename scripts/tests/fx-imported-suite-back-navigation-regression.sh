@@ -25,6 +25,29 @@ assert "activePrivacySection = \"自定义 Hook\";" in source
 assert "showTarget(targetInfo);" in source
 assert "migrationChildActive = true;" not in source
 
+# Back navigation belongs to the unified FX app tree only.
+def method(signature):
+    start = source.find(signature)
+    assert start >= 0, f"missing method: {signature}"
+    end = source.find("\\n    }", start)
+    assert end >= 0, f"method body is not closed: {signature}"
+    return source[start:end + 6]
+
+back = method("@Override public void onBackPressed()")
+back_order = (
+    "if (hookCustomRulesPageVisible && hookTargetVisible)",
+    "if (hookTargetVisible)",
+    "if (nativeVpnAppManagerVisible)",
+    "if (settingsUiVisible)",
+    "if (hookUiVisible && !hookHubVisible)",
+    "if (hookHubVisible)"
+)
+positions = [back.find(token) for token in back_order]
+assert all(position >= 0 for position in positions), f"FX Back stack is missing a business destination: {dict(zip(back_order, positions))}"
+assert positions == sorted(positions), "Hook target, VPN detail and Settings Back precedence is incorrect"
+assert 'if (nativeVpnAppManagerVisible) { showWebDashboard(); return; }' in back
+assert 'if (settingsUiVisible) { showDashboard(); return; }' in back
+
 # Source capabilities remain integrated in the actual business destinations.
 for token in (
     "FxYulongAdActivity.class", "FxYulongAdGeneralActivity.class",
