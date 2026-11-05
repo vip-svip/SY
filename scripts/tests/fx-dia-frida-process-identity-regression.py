@@ -52,8 +52,11 @@ assert "base=/data/adb/privacyguard" in inject and "for path in /data /data/adb 
     "Frida script staging must validate each parent state directory"
 assert "unsafe-frida-state-symlink=$path" in inject and "unsafe-frida-session-file" in inject, \
     "Frida script staging must reject symlinked state and destination paths"
-assert 'tmp=$(mktemp ' in inject and 'base64 -d > ' in inject and 'mv -f ' in inject, \
-    "Frida script source must be staged privately and atomically replaced"
+assert 'tmp=$(mktemp ' in inject and r'cat > \"$tmp\"' in inject and 'mv -f ' in inject, \
+    "Frida script source must be streamed from Root stdin and atomically replaced"
+assert 'runRootWithInput(command, sourceBytes, 90000L' in inject, \
+    "large Frida source must use the bounded Root stdin transport"
+assert 'base64 -d > ' not in inject, "script source must not be embedded in the shell command as Base64"
 assert 'unsafe-frida-log-path' in inject and 'chmod 600' in inject, \
     "Frida session logs must remain private and regular files"
 viewer = (ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaSessionLogActivity.java").read_text(encoding="utf-8")
