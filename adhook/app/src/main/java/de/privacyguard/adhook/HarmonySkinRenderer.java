@@ -104,6 +104,25 @@ final class HarmonySkinRenderer {
             detail.setLineSpacing(dp(2, density), 1.05f);
             return;
         }
+        if ("fx-card-title".equals(role) && view instanceof TextView) {
+            TextView title = (TextView) view;
+            title.setTextColor(HarmonyColorTokens.PRIMARY_TEXT);
+            title.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+            title.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,
+                    HarmonyTypographyTokens.CARD_TITLE_SP);
+            title.setLetterSpacing(0.005f);
+            return;
+        }
+        if ("fx-card-detail".equals(role) && view instanceof TextView) {
+            TextView detail = (TextView) view;
+            detail.setTextColor(HarmonyColorTokens.SECONDARY_TEXT);
+            detail.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+            detail.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,
+                    HarmonyTypographyTokens.CARD_DESCRIPTION_SP);
+            detail.setLineSpacing(dp(2, density), 1.0f);
+            detail.setPadding(0, dp(4, density), 0, dp(6, density));
+            return;
+        }
         if (("fx-card".equals(role) || "fx-setting-card".equals(role)) && view instanceof ViewGroup) {
             ViewGroup card = (ViewGroup) view;
             card.setBackground(rounded(HarmonyColorTokens.CARD_SURFACE,
@@ -112,6 +131,20 @@ final class HarmonySkinRenderer {
                     dp(HarmonySpacingTokens.CARD_VERTICAL_PADDING_DP, density),
                     dp(HarmonySpacingTokens.CARD_HORIZONTAL_PADDING_DP, density),
                     dp(HarmonySpacingTokens.CARD_VERTICAL_PADDING_DP, density));
+            return;
+        }
+        if ("fx-switch-row".equals(role) && view instanceof android.widget.Switch) {
+            android.widget.Switch row = (android.widget.Switch) view;
+            row.setTextColor(HarmonyColorTokens.PRIMARY_TEXT);
+            row.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,
+                    HarmonyTypographyTokens.SWITCH_LABEL_SP);
+            row.setMinimumHeight(dp(HarmonySpacingTokens.ROW_MIN_HEIGHT_DP, density));
+            row.setPadding(dp(HarmonySpacingTokens.SWITCH_HORIZONTAL_PADDING_DP, density),
+                    dp(HarmonySpacingTokens.SWITCH_VERTICAL_PADDING_DP, density),
+                    dp(HarmonySpacingTokens.SWITCH_HORIZONTAL_PADDING_DP, density),
+                    dp(HarmonySpacingTokens.SWITCH_VERTICAL_PADDING_DP, density));
+            row.setBackground(rounded(HarmonyColorTokens.CARD_SURFACE,
+                    HarmonyColorTokens.CARD_STROKE, HarmonyShapeTokens.SECTION_RADIUS_DP, density));
             return;
         }
         if ("fx-action-row".equals(role) && view instanceof Button) {
