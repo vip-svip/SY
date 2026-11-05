@@ -231,6 +231,10 @@ jobs:
             run_py scripts/tests/fx-vpn-coexistence-status-regression.py
           fi
 
+          if [[ "$changed" == "ALL" || "$changed" =~ (fx-vpn-coexistence-arbiter\.sh|fx-vpn-coexistence-arbiter-regression\.sh) ]]; then
+            run_sh scripts/tests/fx-vpn-coexistence-arbiter-regression.sh
+          fi
+
           if [[ "$changed" == "ALL" || "$changed" =~ (MainActivity\.java|fx-vpn-coexistence-ui-regression) ]]; then
             run_py scripts/tests/fx-vpn-coexistence-ui-regression.py
           fi
