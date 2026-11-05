@@ -53,7 +53,7 @@ cat > "$TMP/bin/pm" <<'PM'
 #!/bin/sh
 set -eu
 case "$1" in
- path) grep -Fxq "$2" "$FX_ADHOOK_FAKE_PM_STATE/installed" 2>/dev/null && [ -s "$FX_ADHOOK_FAKE_PM_STATE/$2.apk" ] && echo "package:$FX_ADHOOK_FAKE_PM_STATE/$2.apk" || exit 1;;
+ path) grep -Fxq "$2" "$FX_ADHOOK_FAKE_PM_STATE/installed" 2>/dev/null || exit 1; if [ "${FX_ADHOOK_FAKE_SYSTEM_OVERLAY:-0}" = 1 ]; then echo "package:/system/app/FX/FX.apk"; else [ -s "$FX_ADHOOK_FAKE_PM_STATE/$2.apk" ] && echo "package:$FX_ADHOOK_FAKE_PM_STATE/$2.apk" || exit 1; fi;;
  list) [ "$2" = packages ] && [ "$3" = -s ] || exit 2; if [ "${FX_ADHOOK_FAKE_SYSTEM:-0}" = 1 ] && grep -Fxq "$4" "$FX_ADHOOK_FAKE_PM_STATE/installed" 2>/dev/null; then echo "package:$4"; fi;;
  install) [ "$2" = -r ] || exit 2; case "$3" in */.fx-unified-hook-*.apk) if [ "${FX_ADHOOK_FAKE_SIGNATURE_MISMATCH:-0}" = 1 ]; then echo 'Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE: signatures do not match]' >&2; exit 1; fi;; esac; if ! grep -Fxq de.privacyguard.adhook "$FX_ADHOOK_FAKE_PM_STATE/installed" 2>/dev/null; then [ ! -e "$FX_ADHOOK_STATE_DIR/adhook-apk-fxunifiedhook.fx-owned" ] || { echo "ownership marker was committed before pm install" >&2; exit 4; }; echo de.privacyguard.adhook >> "$FX_ADHOOK_FAKE_PM_STATE/installed"; fi; cp "$3" "$FX_ADHOOK_FAKE_PM_STATE/de.privacyguard.adhook.apk"; echo "$3" >> "$FX_ADHOOK_FAKE_PM_STATE/install-calls";;
  uninstall) if [ "$2" = -k ]; then _pkg=$3; echo "-k $_pkg" >> "$FX_ADHOOK_FAKE_PM_STATE/uninstall-calls"; else _pkg=$2; echo "$_pkg" >> "$FX_ADHOOK_FAKE_PM_STATE/uninstall-calls"; fi; sed "/^$_pkg$/d" "$FX_ADHOOK_FAKE_PM_STATE/installed" > "$FX_ADHOOK_FAKE_PM_STATE/installed.tmp"; mv "$FX_ADHOOK_FAKE_PM_STATE/installed.tmp" "$FX_ADHOOK_FAKE_PM_STATE/installed"; rm -f "$FX_ADHOOK_FAKE_PM_STATE/$_pkg.apk";;
@@ -165,4 +165,19 @@ echo de.privacyguard.adhook > "$TMP/pm/installed"
 printf 'user reinstalled replacement APK\n' > "$TMP/pm/de.privacyguard.adhook.apk"
 sh "$REMOVER" "$TMP/mod" "$TMP/state" || fail "cleanup after manual reinstall failed"
 grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "manual reinstall was removed by stale ownership"
-echo "PASS: system-app detection, ordinary-app fallback, signature safety, ownership-safe uninstall, and stale-marker cleanup"
+
+# A real /system/app overlay is removed by module unmount, not pm uninstall.
+# The remover must clear FX ownership records while leaving PackageManager's
+# system package entry alone; this also guards against accidental system-app deletion.
+rm -f "$TMP/pm/installed" "$TMP/pm/uninstall-calls"
+echo de.privacyguard.adhook > "$TMP/pm/installed"
+printf 'system-overlay-digest\\n' > "$TMP/state/adhook-apk-fxunifiedhook.sha256"
+printf 'fx-managed-v1\\n' > "$TMP/state/adhook-apk-fxunifiedhook.fx-owned"
+export FX_ADHOOK_FAKE_SYSTEM_OVERLAY=1
+sh "$REMOVER" "$TMP/mod" "$TMP/state" || fail "system-overlay cleanup failed"
+grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "module uninstall removed the system package from PackageManager"
+[ ! -e "$TMP/state/adhook-apk-fxunifiedhook.sha256" ] || fail "system-overlay digest marker survived module uninstall"
+[ ! -e "$TMP/state/adhook-apk-fxunifiedhook.fx-owned" ] || fail "system-overlay ownership marker survived module uninstall"
+[ ! -s "$TMP/pm/uninstall-calls" ] || fail "system-overlay cleanup invoked pm uninstall instead of module unmount"
+unset FX_ADHOOK_FAKE_SYSTEM_OVERLAY
+echo "PASS: system-app detection, overlay-safe uninstall, ordinary-app fallback, signature safety, ownership-safe cleanup, and stale-marker handling"
