@@ -563,7 +563,7 @@ nohup sh -c 'trap "" TERM; while :; do sleep 1; done' \
 stale_feed=$!
 pid_tmp=$(mktemp "$T/logs/.gadget-27043.pid.XXXXXX")
 {
-  printf '%s\\n%s\\n' "$cli_pid" "$stale_feed"
+  printf '%s\n%s\n' "$cli_pid" "$stale_feed"
   tail -n +3 "$T/logs/gadget-27043.pid"
 } > "$pid_tmp"
 chmod 600 "$pid_tmp"
@@ -578,6 +578,7 @@ grep -Fq FX_GADGET_FEEDER_STOP_TIMEOUT "$T/feeder-timeout.result"
   exit 1
 }
 kill -KILL "$stale_feed" 2>/dev/null || :
+wait "$stale_feed" 2>/dev/null || :
 _wait=0
 while kill -0 "$stale_feed" 2>/dev/null; do
   [ "$_wait" -lt 5 ] || { echo "FAIL: stale feeder did not exit after KILL" >&2; exit 1; }
