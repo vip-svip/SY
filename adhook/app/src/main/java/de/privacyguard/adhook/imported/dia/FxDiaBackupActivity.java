@@ -937,7 +937,7 @@ public final class FxDiaBackupActivity extends de.privacyguard.adhook.FxNativeTa
         body.addView(button("从 GitHub 恢复",()->{
             String o=ghOwner.getText().toString().trim(),r=ghRepo.getText().toString().trim(),p=ghPath.getText().toString().trim(),t=ghToken.getText().toString().trim();
             if(o.isEmpty()||r.isEmpty()||p.isEmpty()||t.isEmpty()){status.setText("请填写完整 GitHub 仓库和 Token。");return;}
-            new AlertDialog.Builder(this).setTitle("确认 GitHub 恢复").setMessage("将解密并覆盖本机 FX 模块配置与迁入的 Hook/护盾偏好设置。请在上方填写备份密码；旧版未加密备份不需要密码。")
+            fxDialogBuilder().setTitle("确认 GitHub 恢复").setMessage("将解密并覆盖本机 FX 模块配置与迁入的 Hook/护盾偏好设置。请在上方填写备份密码；旧版未加密备份不需要密码。")
                 .setNegativeButton("取消",null).setPositiveButton("恢复",(d,w)->githubDownload(o,r,p,t,enteredBackupPassword())).show();
         }));
         davUrl=new EditText(this);davUrl.setSingleLine(true);davUrl.setHint("https://dav.example.com/path/fx-dia-backup.json");
@@ -968,7 +968,7 @@ public final class FxDiaBackupActivity extends de.privacyguard.adhook.FxNativeTa
         body.addView(button("从 WebDAV 恢复",()->{
             String u=davUrl.getText().toString().trim(),n=davUser.getText().toString(),p=davPass.getText().toString();
             if(u.isEmpty()){status.setText("请填写 WebDAV HTTPS 文件地址。");return;}
-            new AlertDialog.Builder(this).setTitle("确认 WebDAV 恢复").setMessage("将解密并覆盖本机 FX 模块配置与迁入的 Hook/护盾偏好设置。请在上方填写备份密码；旧版未加密备份不需要密码。")
+            fxDialogBuilder().setTitle("确认 WebDAV 恢复").setMessage("将解密并覆盖本机 FX 模块配置与迁入的 Hook/护盾偏好设置。请在上方填写备份密码；旧版未加密备份不需要密码。")
                 .setNegativeButton("取消",null).setPositiveButton("恢复",(d,w)->webdavDownload(u,n,p,enteredBackupPassword())).show();
         }));
         status=text("尚未执行备份或恢复。",12,0xff526170,false);body.addView(status);
@@ -1044,7 +1044,7 @@ public final class FxDiaBackupActivity extends de.privacyguard.adhook.FxNativeTa
         }
         if(result!=RESULT_OK||data==null||data.getData()==null)return;
         if(request==REQUEST_IMPORT){
-            new AlertDialog.Builder(this).setTitle("恢复 FX 备份")
+            fxDialogBuilder().setTitle("恢复 FX 备份")
                     .setMessage("恢复会解密并替换设备当前模块 settings.conf，以及 Hook、护盾和 Stellar 本地偏好设置。新备份需要上方密码；旧版未加密备份无需密码。SHA-256/GCM 完整性校验失败时拒绝恢复。")
                     .setNegativeButton("取消",null).setPositiveButton("继续恢复",(d,w)->restoreBackup(data.getData(),enteredBackupPassword())).show();
         }
