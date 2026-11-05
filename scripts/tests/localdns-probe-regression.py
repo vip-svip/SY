@@ -54,6 +54,10 @@ def alter_question(packet):
     packet[13] ^= 0x01
 
 
+def alter_question_count(packet):
+    packet[4:6] = struct.pack("!H", 2)
+
+
 def main():
     with tempfile.TemporaryDirectory(prefix="fx-dns-probe-") as tmp:
         binary = os.path.join(tmp, "probe")
@@ -75,6 +79,7 @@ def main():
         assert run_case(binary, 0x8380, 73).returncode == 73  # truncated UDP reply
         assert run_case(binary, mutate=flip_transaction_id, expect=73).returncode == 73
         assert run_case(binary, mutate=alter_question, expect=73).returncode == 73
+        assert run_case(binary, mutate=alter_question_count, expect=73).returncode == 73
         assert run_case(binary, truncate=10, expect=72).returncode == 72
 
         # A syntactically valid response without recursion availability is not
