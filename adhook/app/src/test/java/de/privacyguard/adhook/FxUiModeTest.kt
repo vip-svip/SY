@@ -13,6 +13,17 @@ class FxUiModeTest {
         )
         assertEquals(FxUiMode.DEFAULT_STANDARD, FxUiMode.values().first())
         assertEquals(FxUiMode.Renderer.NATIVE_DEFAULT, FxUiMode.DEFAULT_STANDARD.renderer)
+        assertEquals(
+            listOf(
+                "默认模式 · Default",
+                "旧网页模式 · Classic",
+                "原生液态玻璃 · Glass",
+                "Miuix · 小米澎湃风格",
+                "HarmonyStyle · 华为风格",
+                "CupertinoStyle · iOS 风格"
+            ),
+            FxUiMode.values().map { it.title }
+        )
     }
 
     @Test

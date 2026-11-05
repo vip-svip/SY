@@ -1,7 +1,7 @@
 package de.privacyguard.adhook
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.semantics.Role
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
@@ -115,7 +116,11 @@ private fun ModeCard(
         modifier = Modifier
             .fillMaxWidth()
             .then(glassModifier)
-            .clickable { onModeSelected(mode) },
+            .selectable(
+                selected = mode == currentMode,
+                role = Role.RadioButton,
+                onClick = { onModeSelected(mode) }
+            ),
         colors = CardDefaults.defaultColors(
             color = if (mode == currentMode) Color(0x332F80ED) else Color(0x1AFFFFFF)
         ),
