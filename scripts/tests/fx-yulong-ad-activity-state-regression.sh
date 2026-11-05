@@ -127,7 +127,7 @@ assert create < render_call < restore < load, \
     "onCreate must build page controls before restoring drafts and refreshing data"
 general = (ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdGeneralActivity.java").read_text(encoding="utf-8")
 dns = (ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongDnsActivity.java").read_text(encoding="utf-8")
-summary = (ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdSummaryActivity.java").read_text(encoding="utf-8")
+summary = (ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongDailySummaryActivity.java").read_text(encoding="utf-8")
 dns_required = [
     'private static final String STATE_SEARCH = "fx_dns_search";',
     'private static final String STATE_SCROLL_Y = "fx_dns_scroll_y";',

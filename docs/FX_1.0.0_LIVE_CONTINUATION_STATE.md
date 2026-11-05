@@ -5790,3 +5790,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - read_master() 现在要求配置段唯一、enabled key 恰好一个、值严格为 0/1；列表命令显式检查读取失败再输出协议头。
 - list_rows() 对重复的 [list:yulong_app_firewall] section 拒绝；缺失列表 section 仍是合法的空规则集合，保留新安装无规则状态。
 - Shell 回归新增缺失/重复/非法主状态、重复 master key、空列表 section 和重复列表 section 场景。本提交等待 Targeted Host/Module Runtime CI。
+
+
+### Shield 每日总结 Host 测试目标路径修正（2026-11-06）
+
+- `42098602252`（HEAD `22ff74cd`）Targeted Host Regression 在 Ad Activity 状态测试中失败：每日安全总结断言要求本机 `shield_prefs` 计数和 Protection/Rescue 服务运行状态，却错误地读取 `imported/ad/FxYulongAdSummaryActivity.java`。
+- 实际每日安全总结页面是 `imported/shield/FxYulongDailySummaryActivity.java`；其实现读取本地 SharedPreferences、查询两个本机服务状态，不执行 Root 或网络请求。Ad 的 `FxYulongAdSummaryActivity` 则是另一页本机广告过滤/DNS汇总，保留原实现不变。
+- 仅将回归测试目标路径改为正确的 Shield 页面，业务代码不变；本修订等待新 HEAD 的 Host 回归确认。
