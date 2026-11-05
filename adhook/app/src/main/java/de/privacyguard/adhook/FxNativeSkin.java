@@ -26,7 +26,7 @@ import java.util.WeakHashMap;
  * Translate only those known legacy tokens; preserve custom user content,
  * status colors, warning/error colors, and all non-color drawables.
  */
-final class FxNativeSkin {
+public final class FxNativeSkin {
     private FxNativeSkin() { }
 
     // A weak registry prevents duplicate listeners if a page is re-mounted.
@@ -240,7 +240,7 @@ final class FxNativeSkin {
         };
     }
 
-    static void showDialog(Activity activity, Dialog dialog) {
+    public static void showDialog(Activity activity, Dialog dialog) {
         if (activity == null || dialog == null
                 || activity.isFinishing() || activity.isDestroyed()) return;
         dialog.show();
