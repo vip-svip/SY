@@ -228,7 +228,7 @@ end = activity.index("private void applyNativeHosts()", start)
 writer = activity[start:end]
 # MainActivity embeds the shell program inside Java string literals. Decode
 # Java's escaped double quotes before checking the actual shell command.
-writer = writer.replace(r'\\"', '"')
+writer = writer.replace(chr(92) + '"', '"')
 for token in (
     "for path in /data /data/local /data/local/tmp; do",
     '[ -d "$path" ] && [ ! -L "$path" ]',
