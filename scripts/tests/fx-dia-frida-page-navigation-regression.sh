@@ -23,8 +23,21 @@ if "FxDiaFridaActivity.class" not in frida_route or '.putExtra("dia_page", "Frid
     raise SystemExit("FAIL: FX Hook hub must open the integrated Frida runtime Activity")
 if "showNativeRuntimeLogs()" in frida_route:
     raise SystemExit("FAIL: Frida runtime entry is incorrectly routed to the FX module log viewer")
-if 'else if ("运行日志".equals(title)' not in frida or 'body.post(() -> {' not in frida:
-    raise SystemExit("FAIL: Frida session log deep-link no longer opens within the target context")
+if 'button("查看当前目标注入日志", () -> showSessionLog())' not in frida:
+    raise SystemExit("FAIL: Frida runtime page does not expose its target session log")
+session_log_start = frida.index("private void showSessionLog()")
+session_log_end = frida.index("private void showMonitorEvents()", session_log_start)
+session_log = frida[session_log_start:session_log_end]
+for token in (
+    "targetPackage == null || targetPackage.trim().isEmpty()",
+    "请先选择 debuggable 目标应用。",
+    "new Intent(this, FxDiaSessionLogActivity.class)",
+    'page.putExtra("fx_dia_session_log_target_package", targetPackage)',
+    'page.putExtra("fx_dia_session_log_target_name"',
+    "startActivity(page)"
+):
+    if token not in session_log:
+        raise SystemExit(f"FAIL: Frida session-log route missing {token}")
 checks = {
 
     "target picker open state saved": "outState.putBoolean(STATE_TARGET_PICKER_OPEN" in frida,
