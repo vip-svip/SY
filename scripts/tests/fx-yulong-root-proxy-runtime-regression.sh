@@ -271,42 +271,42 @@ prepare_case status-missing-v4
 run_proxy "$CASE_DIR" >/dev/null || fail "status IPv4 case setup failed"
 : > "$CASE_DIR/hooks4"
 status_out=$(run_status "$CASE_DIR")
-printf '%s\\n' "$status_out" | grep -Fqx active=0 || fail "missing IPv4 redirect was reported active"
-printf '%s\\n' "$status_out" | grep -Fqx reason=ipv4_redirect_missing || fail "missing IPv4 redirect reason not reported"
+printf '%s\n' "$status_out" | grep -Fqx active=0 || fail "missing IPv4 redirect was reported active"
+printf '%s\n' "$status_out" | grep -Fqx reason=ipv4_redirect_missing || fail "missing IPv4 redirect reason not reported"
 assert_stopped "$CASE_DIR" "status missing IPv4 redirect"
 
 prepare_case status-missing-v6
 run_proxy "$CASE_DIR" >/dev/null || fail "status IPv6 case setup failed"
 : > "$CASE_DIR/hooks6"
 status_out=$(run_status "$CASE_DIR")
-printf '%s\\n' "$status_out" | grep -Fqx reason=ipv6_redirect_missing || fail "missing IPv6 redirect reason not reported"
+printf '%s\n' "$status_out" | grep -Fqx reason=ipv6_redirect_missing || fail "missing IPv6 redirect reason not reported"
 assert_stopped "$CASE_DIR" "status missing IPv6 redirect"
 
 prepare_case status-route-lost
 run_proxy "$CASE_DIR" >/dev/null || fail "status route case setup failed"
 status_out=$(run_status "$CASE_DIR" MOCK_ROUTE_FAIL=1)
-printf '%s\\n' "$status_out" | grep -Fqx active=0 || fail "lost VPN route was reported active"
-printf '%s\\n' "$status_out" | grep -Fqx reason=vpn_route_unavailable || fail "unavailable VPN route reason not reported"
+printf '%s\n' "$status_out" | grep -Fqx active=0 || fail "lost VPN route was reported active"
+printf '%s\n' "$status_out" | grep -Fqx reason=vpn_route_unavailable || fail "unavailable VPN route reason not reported"
 assert_stopped "$CASE_DIR" "status lost VPN route"
 
 prepare_case status-dns-probe
 run_proxy "$CASE_DIR" >/dev/null || fail "status DNS probe case setup failed"
 status_out=$(run_status "$CASE_DIR" MOCK_DNS_PROBE_FAIL=1)
-printf '%s\\n' "$status_out" | grep -Fqx reason=local_dns_probe_failed || fail "failed local DNS probe reason not reported"
+printf '%s\n' "$status_out" | grep -Fqx reason=local_dns_probe_failed || fail "failed local DNS probe reason not reported"
 assert_stopped "$CASE_DIR" "status failed local DNS probe"
 
 prepare_case status-disabled
 run_proxy "$CASE_DIR" >/dev/null || fail "status disabled case setup failed"
 status_out=$(run_status "$CASE_DIR" MOCK_ENABLED=0)
-printf '%s\\n' "$status_out" | grep -Fqx reason=disabled || fail "disabled proxy reason not reported"
+printf '%s\n' "$status_out" | grep -Fqx reason=disabled || fail "disabled proxy reason not reported"
 assert_stopped "$CASE_DIR" "status disabled proxy"
 
 # Even with no state markers, a status read cleans up orphaned FX-owned hooks.
 prepare_case status-orphan-hooks
-printf '%s\\n' FXYRP4_A > "$CASE_DIR/hooks4"
-printf '%s\\n' FXYRP6_A > "$CASE_DIR/hooks6"
+printf '%s\n' FXYRP4_A > "$CASE_DIR/hooks4"
+printf '%s\n' FXYRP6_A > "$CASE_DIR/hooks6"
 status_out=$(run_status "$CASE_DIR")
-printf '%s\\n' "$status_out" | grep -Fqx reason=not_active || fail "orphan hook state was not reported inactive"
+printf '%s\n' "$status_out" | grep -Fqx reason=not_active || fail "orphan hook state was not reported inactive"
 assert_stopped "$CASE_DIR" "status orphan hooks"
 
 for scenario in route route2 package-manager unbound adguard probe route-recheck; do
