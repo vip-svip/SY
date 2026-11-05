@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Keep the legacy Xposed scope array empty so targets are selected explicitly
+        in LSPosed Manager. The source merger removes the old static xposed_scope
+        duplicate from imported arrays.xml; staticScope=false keeps the modern
+        libxposed target scope dynamically user-managed.
+    -->
+    <string-array name="xposed_scope" />
+</resources>
