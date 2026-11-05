@@ -8,6 +8,8 @@ public class ExifPrivacyPolicyTest {
         assertTrue(ExifPrivacyPolicy.shouldRedactTag("GPSLatitude"));
         assertTrue(ExifPrivacyPolicy.shouldRedactTag("GPSLongitude"));
         assertTrue(ExifPrivacyPolicy.shouldRedactTag("GPSAltitude"));
+        assertTrue(ExifPrivacyPolicy.isGpsTag("GPSProcessingMethod"));
+        assertFalse(ExifPrivacyPolicy.isGpsTag("ImageWidth"));
     }
     @Test public void redactsDeviceAndTimestampMetadata() {
         assertTrue(ExifPrivacyPolicy.shouldRedactTag("Make"));
@@ -15,6 +17,21 @@ public class ExifPrivacyPolicyTest {
         assertTrue(ExifPrivacyPolicy.shouldRedactTag("DateTime"));
         assertTrue(ExifPrivacyPolicy.shouldRedactTag("DateTimeOriginal"));
         assertTrue(ExifPrivacyPolicy.shouldRedactTag("DateTimeDigitized"));
+        assertTrue(ExifPrivacyPolicy.shouldRedactTag("OffsetTime"));
+        assertTrue(ExifPrivacyPolicy.shouldRedactTag("OffsetTimeOriginal"));
+        assertTrue(ExifPrivacyPolicy.shouldRedactTag("SubSecTimeOriginal"));
+        assertTrue(ExifPrivacyPolicy.shouldRedactTag("BodySerialNumber"));
+        assertTrue(ExifPrivacyPolicy.shouldRedactTag("LensSerialNumber"));
+        assertTrue(ExifPrivacyPolicy.shouldRedactTag("CameraOwnerName"));
+        assertTrue(ExifPrivacyPolicy.shouldRedactTag("ImageUniqueID"));
+        assertTrue(ExifPrivacyPolicy.shouldRedactTag("Artist"));
+        assertTrue(ExifPrivacyPolicy.shouldRedactTag("Copyright"));
+        assertTrue(ExifPrivacyPolicy.shouldRedactTag("Software"));
+        assertTrue(ExifPrivacyPolicy.shouldRedactTag("XPAuthor"));
+        assertTrue(ExifPrivacyPolicy.shouldRedactTag("XPComment"));
+        assertTrue(ExifPrivacyPolicy.shouldRedactTag("XPKeywords"));
+        assertTrue(ExifPrivacyPolicy.shouldRedactTag("XPSubject"));
+        assertTrue(ExifPrivacyPolicy.shouldRedactTag("XPTitle"));
     }
     @Test public void preservesUnrelatedImageMetadata() {
         assertFalse(ExifPrivacyPolicy.shouldRedactTag("ImageWidth"));
