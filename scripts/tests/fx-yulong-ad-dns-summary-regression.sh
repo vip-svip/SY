@@ -73,6 +73,15 @@ assert 'pg_get dns_querylog_enabled 0' in control, "statistics command does not 
 assert 'yulong-ad-dns-summary.sh' in control, "control command does not invoke numeric summary helper"
 assert 'yulong-ad-dns-summary.sh' in patcher and 'copy2' in patcher, "Release patcher does not stage summary helper"
 assert 'root("dns-log-summary"' in activity, "native summary UI does not consume aggregate counts"
+parser_start = activity.index("private Summary parseConfig(")
+parser_end = activity.index("private static long metric(", parser_start)
+parser = activity[parser_start:parser_end]
+assert "boolean sawMaster = false;" in parser, "configuration summary must require an explicit master state"
+assert "return sawMaster ? out : null;" in parser, "configuration summary must reject missing master state"
+assert "if (sawMaster || p.length != 2 || !isBinaryFlag(p[1])) return null;" in parser, "duplicate or malformed master state must be rejected"
+assert "p.length < 4 || !isBinaryFlag(p[3])" in parser, "malformed rule/domain flags must be rejected"
+assert "else {\n                return null;" in parser, "unknown config protocol records must not be accepted"
+assert "if (summary == null)" in activity and "为避免误报，本次不展示汇总" in activity, "invalid config protocol must not render default-zero summary"
 assert "new ArrayBlockingQueue<>(1)" in activity, "summary Root read queue must be bounded to one waiter"
 assert "private void enqueueLatest(Runnable task)" in activity, "summary refresh must replace a stale queued request"
 assert "worker.getQueue().poll();" in activity, "stale summary Root reads are not discarded"

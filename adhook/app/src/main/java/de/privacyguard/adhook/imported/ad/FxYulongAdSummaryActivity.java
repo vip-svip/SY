@@ -120,6 +120,10 @@ public final class FxYulongAdSummaryActivity extends de.privacyguard.adhook.FxNa
                 status.setText("读取广告过滤配置失败：" + safe(config.output)); return;
             }
             Summary summary = parseConfig(config.output);
+            if (summary == null) {
+                status.setText("广告过滤配置返回格式无效；为避免误报，本次不展示汇总。");
+                return;
+            }
             root("dns-log-summary", generation, stats -> {
                 if (generation != loadGeneration) return;
                 renderSummary(summary, stats);
@@ -131,17 +135,36 @@ public final class FxYulongAdSummaryActivity extends de.privacyguard.adhook.FxNa
         boolean adMaster;
         int enabledRules, totalRules, allowDomains, blockDomains;
     }
+    private static boolean isBinaryFlag(String value) {
+        return "0".equals(value) || "1".equals(value);
+    }
+
     private Summary parseConfig(String raw) {
+        if (raw == null) return null;
         Summary out = new Summary();
-        for (String line : (raw == null ? "" : raw).split("\\r?\\n")) {
+        boolean sawMaster = false;
+        for (String line : raw.split("\\r?\\n")) {
+            if (line.trim().isEmpty()) continue;
             String[] p = line.split("\\|", -1);
-            if (p.length == 2 && "AD_MASTER".equals(p[0])) out.adMaster = "1".equals(p[1]);
-            else if (p.length >= 4 && "RULE".equals(p[0])) {
-                out.totalRules++; if ("1".equals(p[3])) out.enabledRules++;
-            } else if (p.length >= 4 && "ALLOW".equals(p[0]) && "1".equals(p[3])) out.allowDomains++;
-            else if (p.length >= 4 && "BLOCK".equals(p[0]) && "1".equals(p[3])) out.blockDomains++;
+            if ("AD_MASTER".equals(p[0])) {
+                if (sawMaster || p.length != 2 || !isBinaryFlag(p[1])) return null;
+                out.adMaster = "1".equals(p[1]);
+                sawMaster = true;
+            } else if ("RULE".equals(p[0])) {
+                if (p.length < 4 || !isBinaryFlag(p[3])) return null;
+                out.totalRules++;
+                if ("1".equals(p[3])) out.enabledRules++;
+            } else if ("ALLOW".equals(p[0])) {
+                if (p.length < 4 || !isBinaryFlag(p[3])) return null;
+                if ("1".equals(p[3])) out.allowDomains++;
+            } else if ("BLOCK".equals(p[0])) {
+                if (p.length < 4 || !isBinaryFlag(p[3])) return null;
+                if ("1".equals(p[3])) out.blockDomains++;
+            } else {
+                return null;
+            }
         }
-        return out;
+        return sawMaster ? out : null;
     }
 
     private static long metric(String raw, String key) {
