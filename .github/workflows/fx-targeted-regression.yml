@@ -297,7 +297,7 @@ jobs:
             run_sh scripts/tests/fx-hosts-cache-lock-regression.sh
           fi
 
-          if [[ "$changed" == "ALL" || "$changed" =~ (build-fx-kernelsu|build-unbound-android-arm64|fx-unbound-package-staging-regression) ]]; then
+          if [[ "$changed" == "ALL" || "$changed" =~ (build-fx-kernelsu|build-unbound-android-arm64|fx-unbound-package-staging-regression|fx-module/scripts/unbound\.sh|fx-module/scripts/yulong-root-proxy\.sh) ]]; then
             run_sh scripts/tests/fx-unbound-package-staging-regression.sh
           fi
 
