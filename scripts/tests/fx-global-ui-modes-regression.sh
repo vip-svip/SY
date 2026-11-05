@@ -78,6 +78,19 @@ grep -Fq 'INPUT_BORDER = 0xffb7cce5' "$harmony_tokens" || { echo "FAIL: Harmony 
 grep -Fq 'INPUT_BORDER = 0xffc6c6cc' "$cupertino_tokens" || { echo "FAIL: Cupertino form border token missing"; exit 1; }
 [[ "$(grep -Fc 'static final int INPUT_BORDER' "$harmony_tokens")" -eq 1 ]] || { echo "FAIL: Harmony INPUT_BORDER must be declared exactly once"; exit 1; }
 [[ "$(grep -Fc 'static final int INPUT_BORDER' "$cupertino_tokens")" -eq 1 ]] || { echo "FAIL: Cupertino INPUT_BORDER must be declared exactly once"; exit 1; }
+python3 - "$harmony_tokens" "$cupertino_tokens" <<'PY'
+from collections import Counter
+from pathlib import Path
+import re
+import sys
+
+for filename in sys.argv[1:]:
+    source = Path(filename).read_text(encoding="utf-8")
+    names = re.findall(r"static\s+final\s+\w+\s+(\w+)\s*=", source)
+    duplicates = [name for name, count in Counter(names).items() if count > 1]
+    assert not duplicates, f"{filename}: duplicate Skin token declarations: {duplicates}"
+print("PASS: Harmony and Cupertino token names are unique; duplicate Java constants cannot break compilation.")
+PY
 grep -Fq 'control.setMinimumHeight(Math.max(control.getMinimumHeight()' "$skin" || { echo "FAIL: native form controls lack minimum touch height"; exit 1; }
 
 grep -Fq 'webView.setVisibility(View.VISIBLE)' "$activity" || { echo "FAIL: ClassicWebCompat WebView not mounted"; exit 1; }
