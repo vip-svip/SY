@@ -20,6 +20,25 @@ import sys
 s = Path(sys.argv[1]).read_text(encoding="utf-8")
 ROOT = Path(sys.argv[2])
 
+# Root-backed Ad commands must resolve only a real FX 1.0.0 module tree.
+cmd_start = s.index("private String cmd(String args)")
+cmd_end = s.index("private void root(", cmd_start)
+cmd = s[cmd_start:cmd_end]
+for token in (
+    "[ -d '/data' ]", "[ ! -L '/data' ]",
+    "[ -d '/data/adb' ]", "[ ! -L '/data/adb' ]",
+    "[ -d '/data/adb/modules' ]", "[ ! -L '/data/adb/modules' ]",
+    "[ ! -L '/data/adb/modules_update' ]",
+    'if [ -d \\"$d\\" ] && [ ! -L \\"$d\\" ]',
+    '&& [ -f \\"$d/module.prop\\" ] && [ ! -L \\"$d/module.prop\\" ]',
+    "grep -qx 'id=privacyguard'",
+    "grep -qx 'version=1.0.0'",
+    '&& [ -d \\"$d/scripts\\" ] && [ ! -L \\"$d/scripts\\" ]',
+    '&& [ -f \\"$d/scripts/yulong-ad-control.sh\\" ]',
+    '&& [ ! -L \\"$d/scripts/yulong-ad-control.sh\\" ]',
+):
+    assert token in cmd, f"Ad Root module resolution must enforce: {token}"
+
 # Async Root callbacks may update only the page that issued the request.
 assert "private long pageGeneration;" in s, "Ad page generation token is missing"
 assert "private void render(){pageGeneration++;" in s, "page rebuild must invalidate earlier requests"

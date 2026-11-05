@@ -5767,3 +5767,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - KSU 恢复步骤现在在覆盖模块目录前，把 checkout 中受审阅的 `fx-module/post-fs-data.sh` 保存到 `$RUNNER_TEMP`；Release 解包后恢复该文件并 `cmp -s` 字节核对。这样安装器/boot post-fs-data 检查针对的是准备打包的 canonical 实现，而不是 Release 历史副本。
 - 安装器 Host 回归已经由 `306fc0d1` 调整为优先测试根目录 canonical scripts；Host 不再把 partial `fx-module/` 快照误判为已同步产物。真实模块副本同步仍由 APK/KSU workflow 的 install+cmp 步骤负责。
 - 当前最新 APK/模块与 UI 的 CI 结果需继续按提交 HEAD 核对；本次未触发受 `migration_complete` 控制的最终 KernelSU package dispatch，也未做设备端安装、SELinux 或 overlay mount 验收。
+
+
+## 2026-11-06 — Ad 主页面 Root 模块发现路径加固
+
+- `FxYulongAdActivity.cmd()` 是 Ad 主页面全部 Root 控制命令的模块发现入口；旧逻辑仅检查 `module.prop` 是否含 id，未拒绝模块目录、元数据或控制脚本的符号链接，也未校验 FX 版本和 scripts 父目录。
+- 现要求 `/data`、`/data/adb`、modules 根目录为真实目录，`modules_update` 若存在必须为真实目录；候选模块目录、`module.prop`、`scripts` 与 `yulong-ad-control.sh` 均必须是非符号链接的正确文件类型，并精确匹配 `id=privacyguard`、`version=1.0.0`。
+- 更新 `fx-yulong-ad-activity-state-regression.sh` 锁定 Root 模块解析约束。该修复只收紧 Root 命令入口，不改变 Ad 控制参数、页面行为或后台服务状态。
+- 待当前提交 Host/Module Runtime 回归；未进行 Android 构建、Root 真机或 ROM 安装测试。
