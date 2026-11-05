@@ -257,6 +257,8 @@ jobs:
           sh fx-module/scripts/tests/v1.0.0-subfetch-concurrency-regression.sh
           sh fx-module/scripts/tests/v1.0.0-subfetch-stale-lock-ownership-regression.sh
           sh fx-module/scripts/tests/v1.0.0-subfetch-stale-lock-reclaim-regression.sh
+          # Route standalone VPN core lifecycle entry points through the shared apply lock.
+          python3 fx-patches/patch_vpncore_standalone_lock.py fx-module
           python3 fx-patches/patch_vpn_apps.py fx-module
           sh fx-module/scripts/tests/v1.0.0-yulong-per-app-vpn-regression.sh
           python3 fx-patches/patch_yulong_ad_master.py fx-module && python3 fx-patches/patch_vpn_coexistence_status.py fx-module && python3 scripts/tests/fx-vpn-coexistence-status-regression.py
