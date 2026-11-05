@@ -21,6 +21,7 @@ final class CupertinoSkinTokens {
         static final int ACTION_BACKGROUND = 0xffe5e5ea;
         static final int ACTION_BORDER = 0x1f8e8e93;
         static final int SWITCH_OFF_TRACK = 0xffd1d1d6;
+        static final int INPUT_BORDER = 0x338e8e93;
         static final int INPUT_BORDER = 0xffc6c6cc;
         private CupertinoColorTokens() { }
     }
@@ -37,6 +38,8 @@ final class CupertinoSkinTokens {
         static final float TAB_LABEL_SP = 13f;
         static final float ACTION_LABEL_SP = 15f;
         static final float SWITCH_LABEL_SP = 16f;
+        static final float CHOICE_LABEL_SP = 15f;
+        static final float INPUT_LABEL_SP = 16f;
         private CupertinoTypographyTokens() { }
     }
 
@@ -47,6 +50,13 @@ final class CupertinoSkinTokens {
         static final int NAV_INNER_HORIZONTAL_DP = 12;
         static final int NAV_INNER_VERTICAL_DP = 5;
         static final int TAB_HEIGHT_DP = 68;
+        static final int ACTION_MIN_HEIGHT_DP = 44;
+        static final int ACTION_MIN_WIDTH_DP = 64;
+        static final int ACTION_HORIZONTAL_PADDING_DP = 18;
+        static final int ACTION_VERTICAL_PADDING_DP = 10;
+        static final int SWITCH_HORIZONTAL_PADDING_DP = 18;
+        static final int SWITCH_VERTICAL_PADDING_DP = 12;
+        static final int INPUT_MIN_HEIGHT_DP = 44;
         private CupertinoSpacingTokens() { }
     }
 }
