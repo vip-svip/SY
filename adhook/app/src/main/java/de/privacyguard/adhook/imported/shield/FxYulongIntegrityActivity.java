@@ -68,8 +68,8 @@ public final class FxYulongIntegrityActivity extends de.privacyguard.adhook.FxNa
         LinearLayout header = new LinearLayout(this);
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(10), dp(6), dp(10), dp(6));
-        header.addView(button("‹ 返回安全护盾", this::finish));
-        header.addView(text("应用签名与完整性", 18, 0xff17212b, true),
+        header.addView(button("‹ 返回隐私", this::finish));
+        header.addView(text("隐私 · 应用签名与完整性", 18, 0xff17212b, true),
                 new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
 
@@ -99,7 +99,7 @@ public final class FxYulongIntegrityActivity extends de.privacyguard.adhook.FxNa
                 moduleStatus.getText() == null ? "" : moduleStatus.getText().toString())));
 
         body.addView(text("迁移边界", 16, 0xff17212b, true));
-        body.addView(text("原版 PiracyWarningActivity 校验游龙原 APK 专属证书。合入 FX 后包名和签名证书已改变，不能沿用旧固定指纹，否则会误锁正式 FX。原版 SelfDefense 的强停、冻结、自动重新启用、无障碍权限恢复和自动修复动作未迁入；本页仅报告当前状态。",
+        body.addView(text("来源应用的固定签名指纹不能直接用于 FX：合并后包名与签名证书已变化，沿用旧指纹会误报 FX 安装包。本页仅报告当前安装包签名与完整性状态。来源版本中的强停、冻结、自动重新启用、无障碍权限恢复和自动修复仍属于未迁移能力，不能把本页状态报告视为这些能力已启用。",
                 12, 0xff8a5b12, false));
 
         setContentViewWithNativeTabs(root, 2);
