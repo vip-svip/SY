@@ -17,6 +17,7 @@ grep -Fq 'host.js' "$PATCHER" || fail "scheduler patcher does not validate HTTP 
 sh -n "$SOURCE" || fail "scheduler shell syntax invalid"
 if [ "$MOD_EXPLICIT" -eq 1 ] && [ -s "$MOD/scripts/tests/v1.0.0-uninstall-scheduler-pid-reuse-regression.sh" ] \
     && [ -s "$MOD/scripts/jsruntime/scheduler.sh" ] && [ -s "$MOD/uninstall.sh" ]; then
+  python3 "$PATCHER" "$MOD" >/dev/null || fail "staged scheduler patcher could not refresh PID-reuse regression"
   cmp -s "$ROOT/scripts/tests/v1.0.0-uninstall-scheduler-pid-reuse-regression.sh" "$MOD/scripts/tests/v1.0.0-uninstall-scheduler-pid-reuse-regression.sh" || fail "staged PID-reuse regression is stale"
   cmp -s "$SOURCE" "$MOD/scripts/jsruntime/scheduler.sh" || fail "staged scheduler differs from reviewed source"
   sh -n "$MOD/scripts/jsruntime/scheduler.sh" || fail "staged scheduler shell syntax invalid"
