@@ -151,8 +151,9 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(10), dp(5), dp(12), dp(5));
         header.addView(button("‹ 返回脚本", this::finish));
-        header.addView(text("脚本 · Frida JavaScript 脚本库", 17, 0xff17212b, true),
-                new LinearLayout.LayoutParams(0, -2, 1));
+        TextView pageTitle = text("脚本 · Frida JavaScript 脚本库", 17, 0xff17212b, true);
+        pageTitle.setTag("fx-title:18");
+        header.addView(pageTitle, new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
 
         ScrollView scroll = new ScrollView(this);
@@ -174,6 +175,7 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
         search.setText(restoredSearch);
         body.addView(search, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout actions = new LinearLayout(this);
+        actions.setTag("fx-card-group");
         actions.setOrientation(LinearLayout.HORIZONTAL);
         actions.addView(button("新建脚本", this::createScript), new LinearLayout.LayoutParams(0, -2, 1));
         actions.addView(button("导入 JSON", this::chooseImport), new LinearLayout.LayoutParams(0, -2, 1));
@@ -247,11 +249,15 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
             String source = scripts.optString(name, "");
             int bytes = source.getBytes(StandardCharsets.UTF_8).length;
             LinearLayout row = new LinearLayout(this);
+            row.setTag("fx-list-row");
             row.setOrientation(LinearLayout.VERTICAL);
             row.setPadding(dp(12), dp(7), dp(12), dp(7));
-            row.setBackgroundColor(0xfff0f3f7);
-            row.addView(text(name, 14, 0xff17212b, true));
-            row.addView(text("UTF-8 " + bytes + " bytes · 不会自动执行", 11, 0xff617080, false));
+            TextView scriptName = text(name, 14, 0xff17212b, true);
+            scriptName.setTag("fx-list-title");
+            row.addView(scriptName);
+            TextView metadata = text("UTF-8 " + bytes + " bytes · 不会自动执行", 11, 0xff617080, false);
+            metadata.setTag("fx-list-subtitle");
+            row.addView(metadata);
             LinearLayout buttons = new LinearLayout(this);
             buttons.setOrientation(LinearLayout.HORIZONTAL);
             buttons.addView(button("编辑", () -> openEditor(name, source)),
