@@ -33,7 +33,7 @@ if command -v mkfifo >/dev/null 2>&1; then
   rmdir "$T/legacy-lock-fifo" || fail "FIFO lock fixture could not be cleaned safely"
 fi
 mkdir "$T/legacy-lock-symlink"
-printf '%s\\n' 12345 > "$T/legacy-lock-target"
+printf '%s\n' 12345 > "$T/legacy-lock-target"
 ln -s "$T/legacy-lock-target" "$T/legacy-lock-symlink/pid"
 if _read_lock_owner "$T/legacy-lock-symlink" >/dev/null 2>&1; then
   fail "legacy lock reader followed a PID symlink"
