@@ -3219,6 +3219,14 @@ public final class MainActivity extends ComponentActivity {
                 startActivity(new Intent(this,
                         de.privacyguard.adhook.imported.dia.FxDiaFridaActivity.class)
                         .putExtra("dia_page", "Frida 环境")));
+        addNativeActionCard("按文本/ID 自动点击", "使用 Frida 模板对当前目标应用中可见控件执行精确匹配；规则默认留空，并受控件树深度、节点数和点击次数限制。", "打开自动点击模板", () ->
+                startActivity(new Intent(this,
+                        de.privacyguard.adhook.imported.dia.FxDiaFridaActivity.class)
+                        .putExtra("dia_page", "按文本/ID 自动点击")));
+        addNativeActionCard("按文本/ID 移除匹配弹窗", "使用 Frida 模板处理当前目标应用中明确匹配的弹窗子视图；默认无匹配规则、限制父视图范围和移除次数。", "打开弹窗移除模板", () ->
+                startActivity(new Intent(this,
+                        de.privacyguard.adhook.imported.dia.FxDiaFridaActivity.class)
+                        .putExtra("dia_page", "按文本/ID 移除匹配弹窗")));
         addNativeActionCard("Activity 入口与禁用", "按目标应用浏览 Activity 入口与组件启用状态；仅对明确选择的目标应用执行。", "打开 Activity 浏览器", () ->
                 startActivity(new Intent(this,
                         de.privacyguard.adhook.imported.dia.FxDiaActivityBrowserActivity.class)
