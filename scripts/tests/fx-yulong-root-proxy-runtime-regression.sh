@@ -217,13 +217,16 @@ exec "$@"
 TIMEOUT
 cat > "$BIN/nslookup" <<'NSLOOKUP'
 #!/bin/sh
+_server=${2:-127.0.0.1}
+[ -z "${MOCK_DNS_PROBE_LOG:-}" ] || printf '%s\n' "$_server" >> "$MOCK_DNS_PROBE_LOG"
 [ "${MOCK_DNS_PROBE_FAIL:-0}" = 0 ] || exit 1
+[ "${MOCK_DNS_PROBE_FAIL_IPV6:-0}" = 0 ] || [ "$_server" != "::1" ] || exit 1
 if [ "${MOCK_DNS_SERVER_ONLY:-0}" = 1 ]; then
-  printf 'Server: 127.0.0.1\nAddress 1: 127.0.0.1\n'
+  printf 'Server: %s\nAddress 1: %s\n' "$_server" "$_server"
 elif [ "${MOCK_DNS_INVALID_ANSWER:-0}" = 1 ]; then
-  printf 'Server: 127.0.0.1\nAddress 1: 127.0.0.1\nName: example.com\nAddress 1: 127.0.0.1\n'
+  printf 'Server: %s\nAddress 1: %s\nName: example.com\nAddress 1: 127.0.0.1\n' "$_server" "$_server"
 else
-  printf 'Server: 127.0.0.1\nAddress 1: 127.0.0.1\nName: example.com\nAddress 1: 93.184.216.34\n'
+  printf 'Server: %s\nAddress 1: %s\nName: example.com\nAddress 1: 93.184.216.34\n' "$_server" "$_server"
 fi
 NSLOOKUP
 cat > "$MOD/scripts/unbound.sh" <<'UNBOUND'
@@ -365,7 +368,11 @@ for state_file in yulong-root-proxy-active yulong-root-proxy-active.meta unbound
 done
 
 prepare_case success
-out=$(run_proxy "$CASE_DIR")
+out=$(run_proxy "$CASE_DIR" MOCK_DNS_PROBE_LOG="$CASE_DIR/dns-probe.log")
+[ "$(grep -Fxc 127.0.0.1 "$CASE_DIR/dns-probe.log")" -ge 1 ] || fail "IPv4 loopback DNS probe was not run"
+[ "$(grep -Fxc ::1 "$CASE_DIR/dns-probe.log")" -ge 1 ] || fail "IPv6 loopback DNS probe was not run"
+printf '%s\n' "$out" | grep -Fqx active=1 || fail "dual-stack local DNS probe did not activate Root Proxy"
+
 printf '%s\n' "$out" | grep -Fqx active=1 || fail "valid VPN did not activate Root Proxy"
 printf '%s\n' "$out" | grep -Fqx interface=tun0 || fail "wrong active interface"
 printf '%s\n' "$out" | grep -Fqx vpn_uid=10042 || fail "wrong VPN owner UID"
@@ -517,6 +524,7 @@ for scenario in route route2 package-manager unbound adguard probe probe-server-
       ;;
     adguard) if run_proxy "$CASE_DIR" MOCK_ADGUARD_FAIL=1 >/dev/null 2>&1; then fail "AdGuard failure accepted"; fi ;;
     probe) if run_proxy "$CASE_DIR" MOCK_DNS_PROBE_FAIL=1 >/dev/null 2>&1; then fail "DNS probe failure accepted"; fi ;;
+    probe-ipv6) if run_proxy "$CASE_DIR" MOCK_DNS_PROBE_FAIL_IPV6=1 >/dev/null 2>&1; then fail "IPv6 DNS probe failure accepted"; fi ;;
     probe-server-only)
       if run_proxy "$CASE_DIR" MOCK_DNS_SERVER_ONLY=1 >/dev/null 2>&1; then
         fail "resolver server header was mistaken for an answer"
