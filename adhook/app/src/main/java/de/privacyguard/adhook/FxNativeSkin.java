@@ -101,6 +101,7 @@ final class FxNativeSkin {
         final int switchOffTrack;
         final int cornerRadiusDp;
         final int inputBorder;
+        final int cardCornerRadiusDp;
         final float buttonTextSizeSp;
         final int buttonMinHeightDp;
         final int buttonMinWidthDp;
@@ -134,6 +135,7 @@ final class FxNativeSkin {
             this.switchOffTrack = switchOffTrack;
             this.cornerRadiusDp = cornerRadiusDp;
             this.inputBorder = inputBorder;
+            this.cardCornerRadiusDp = cardCornerRadiusDp;
             this.buttonTextSizeSp = buttonTextSizeSp;
             this.buttonMinHeightDp = buttonMinHeightDp;
             this.buttonMinWidthDp = buttonMinWidthDp;
@@ -413,10 +415,10 @@ final class FxNativeSkin {
             case 0xfff0f3f7:
             case 0xffffffff:
                 // Only known neutral legacy card tokens receive rounded surfaces.
-                return roundedSurface(p.surface, Math.max(10, p.cornerRadiusDp - 4) * density, p.divider);
+                return roundedSurface(p.surface, Math.max(10, p.cardCornerRadiusDp - 4) * density, p.divider);
             case 0xffe9eef3:
             case 0xffe5e5ea:
-                return roundedSurface(p.surfaceVariant, Math.max(8, p.cornerRadiusDp - 8) * density, p.divider);
+                return roundedSurface(p.surfaceVariant, Math.max(8, p.cardCornerRadiusDp - 8) * density, p.divider);
             case 0xffe3e8ee:
                 return new ColorDrawable(p.divider);
             default:
