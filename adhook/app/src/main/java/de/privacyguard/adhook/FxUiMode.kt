@@ -9,17 +9,17 @@ import android.content.Context
  * Legacy storage IDs are retained so existing 1.0.0 installations migrate in place.
  */
 enum class FxUiMode(
+    val storageId: String,
+    val title: String,
+    val description: String,
+    val renderer: Renderer
+) {
     DEFAULT_STANDARD(
         "default",
         "默认模式 · Default",
         "FX 标准原生界面：独立于五种皮肤的基础 renderer，首次安装默认使用。",
         Renderer.NATIVE_DEFAULT
     ),
-    val storageId: String,
-    val title: String,
-    val description: String,
-    val renderer: Renderer
-) {
     CLASSIC_WEB_COMPAT(
         "classic",
         "ClassicWebCompat",
