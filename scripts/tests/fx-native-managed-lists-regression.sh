@@ -226,6 +226,9 @@ activity = Path(sys.argv[1]).read_text(encoding="utf-8")
 start = activity.index("private void writeHostsPage(")
 end = activity.index("private void applyNativeHosts()", start)
 writer = activity[start:end]
+# MainActivity embeds shell snippets inside Java string literals. Normalize
+# Java's escaped quote characters before asserting the shell-level contract.
+writer = writer.replace(r'\"', '"')
 for token in (
     "for path in /data /data/local /data/local/tmp; do",
     '[ -d \"$path\" ] && [ ! -L \"$path\" ]',
