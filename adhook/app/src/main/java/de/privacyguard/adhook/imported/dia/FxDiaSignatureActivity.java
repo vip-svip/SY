@@ -65,7 +65,7 @@ public final class FxDiaSignatureActivity extends de.privacyguard.adhook.FxNativ
         ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
         LinearLayout body = new LinearLayout(this); body.setOrientation(1);
         body.setPadding(0, dp(4), 0, dp(18)); scroll.addView(body);
-        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1)); setContentViewWithNativeTabs(root, 5);
+        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1)); setContentViewWithNativeTabs(root, 4);
 
         target = text("尚未选择应用。", 13, 0xff334155, false);
         output = text("选择应用后读取 APK 签名证书。", 12, 0xff344054, false);
