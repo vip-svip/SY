@@ -13,6 +13,15 @@ _mitm_warn() {
   echo "$_msg" >&2
   if command -v log >/dev/null 2>&1; then log -p w -t PrivacyGuardUninstall "$_msg" 2>/dev/null; fi
 }
+# Validate every network teardown log before invoking any network helper.
+# A symlink or special file here could redirect shell output outside FX state.
+for _fx_log in "$STATE_DIR/vpn-external-watchdog.log" "$STATE_DIR/yulong-root-proxy.log"; do
+  if [ -L "$_fx_log" ] || { [ -e "$_fx_log" ] && [ ! -f "$_fx_log" ]; }; then
+    _mitm_warn "network teardown log is a symlink or non-regular file ($_fx_log); preserving state and aborting uninstall"
+    exit 1
+  fi
+done
+unset _fx_log
 # FX_QUICKJS_SCHEDULER_STOP_BEGIN
 _FX_SCHEDULER_STATE_DIR=${PG:-${STATE_DIR:-/data/adb/privacyguard}}
 if [ -f "$MODDIR/scripts/jsruntime/scheduler.sh" ]; then
