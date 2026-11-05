@@ -103,6 +103,10 @@ jobs:
             run_sh scripts/tests/fx-gkd-xa-source-lock-regression.sh
           fi
 
+          if [[ "$changed" == "ALL" || "$changed" =~ (FxGkdSelectorRuntime|FxGkdSelectorRuntimeTest|fx-gkd-selector|fx-gkd-selector-integration-regression) ]]; then
+            run_sh scripts/tests/fx-gkd-selector-integration-regression.sh
+          fi
+
           if [[ "$changed" == "ALL" || "$changed" =~ (FxGkdSelectorRuntime|fx-gkd-selector-runtime) ]]; then
             run_sh scripts/tests/fx-gkd-selector-runtime-regression.sh
           fi
