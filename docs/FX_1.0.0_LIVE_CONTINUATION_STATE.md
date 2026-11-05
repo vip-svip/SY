@@ -4170,3 +4170,35 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 对应提交：`e5c9cb7d44ced68cba6136e191736c01bb9e7a09`（Store codec）、`81609ed4e21f8f1dc9537edd010691bc93b35785`（Activity document picker UI）、`41971a2df424866cef3b5bc1fa450b97344e75c3`（import/export 静态测试）、`d91a6cf71eaba6f0199b8ef6e8a240a188b2eaf7`（package-selector 去重键回归）。
 - 本轮 GKD Actions run `41984962613` 正在运行（触发 head d91a6cf71eab）；截至本次状态更新，尚未取得最新 Android App compile 和 FX GKD unit test 的最终结果。旧 run 曾因后续 push 被 concurrency 取消；不能据此宣称构建失败或通过。
 - 尚未完成：上游订阅管理、规则组/分类/排除项、规则刷新与版本、复杂动作、触发记录/日志、快照与 AI Provider、Room 数据迁移、Shizuku/AIDL、后台/开机/通知/Tile 生命周期。当前导入/导出仅是 FX 自有本地 JSON 格式，不兼容宣称为 GKD 原版备份文件。
+
+
+## 2026-11-05 — 六 Tab 原生操作分组与 Settings 边界布局
+
+### 本批源码实现
+- 新增 `addNativeActionGroup(LinearLayout)` 统一分组卡片 helper：按 FX 当前 Skin 读取卡片表面/描边，保留调用方设置的横向或纵向排列；子按钮仍由 `FxNativeSkin` 样式适配。
+- Ad：本地 Hosts 操作、订阅与过滤规则、广告过滤完整功能三个 action group 已分组显示；Hosts、规则、外部编辑、Ad Activity 的原有动作回调没有改变。
+- 隐私：Root/LSPosed/Remote Files 状态操作按钮使用独立 group；各隐私保护页面仍通过原 Hook 目标配置导航。
+- 脚本：新增/导入/导出/刷新/日志/MITM 证书相关操作按钮放入统一 group。
+- VPN：节点订阅的“添加订阅 / 节点”“更新全部”操作加入统一卡片，但保留水平布局和原回调；订阅列表动态行仍使用自己的卡片，不改变启停、更新、详情和删除操作。
+- 设置：许可证、模块运行状态与诊断、系统授权、运行日志分为四个全局设置 group；备份、壁纸、五种模式继续保持在 Settings；没有恢复“迁移应用”入口。
+- `scripts/tests/fx-unified-navigation-regression.sh`：增加 Ad Hosts/订阅/完整功能 group、Privacy/Script group、Settings 四组、VPN 横向订阅操作卡片的静态结构断言。
+
+### 相关提交
+- 新增统一原生操作分组 helper，接入 Ad / 隐私 / 脚本：`92d6a13d4c76bcede6fef71e1aadda432f73faeb`。
+- Ad / 隐私 / 脚本操作分组回归：`ddf55b2745fcddf3c203945a008829bd7e35cb8a`。
+- 保留调用方方向、接入 VPN 订阅操作卡：`bfe13a3f01216e08ef80390abe9e2552dc0ebb73`。
+- VPN 订阅卡片回归：`035506d9e247d3773b370c514810b88a16d5d430`。
+- Settings 系统级分组：`e58246adf378d3dc29a9013c14e64623b8286f07`。
+- Settings 分组与无迁移入口回归：`ad2c8539973b14f370bc7f8694d8a210cbf0d1b7`。
+
+### CI 与验证等级
+- GitHub Actions Host job `41985075861`：HEAD `ddf55b2745fcddf3c203945a008829bd7e35cb8a`，`host-regressions = success`。该成功点覆盖 Ad / 隐私 / 脚本分组及当时的统一导航回归，不包含之后新增的 VPN 订阅横向卡和 Settings 四组。
+- 随后连续 push 的旧 Actions runs 被取消，包括 `41985258983`、`41985232321` 等；这些不是 PASS。
+- 记录时最新分支 HEAD：`ad2c8539973b14f370bc7f8694d8a210cbf0d1b7`；对应 Targeted Host Regression run `41985280861` 状态为 `queued`，无结论。下一窗口应检查该 run 是否完成，并确认最新 commit 对应 job 是否包含本批回归。
+- 本地未执行 Gradle compile、Android 单测、APK assemble、安装或真机 UI 测试。不得把 Host job success 扩大解释成完整 APK / 设备验证。
+- 分组是 UI 布局收敛，不代表各业务能力功能已全部迁移或后端已完整实现。
+
+### 下一批直接实施
+1. 将同一分组容器延伸到 VPN 高级配置/节点列表与 Hook 应用列表中的重复操作区，保持横向/纵向布局和动作语义。
+2. 逐页审计导入的 Ad / Shield Activity：确认它们的卡片/分组背景实际通过共享 Skin Host 适配；对自定义状态色、危险操作、未知 Drawable 保持保护。
+3. 检查五 Skin 切换是否保存当前 Tab/页面滚动/编辑草稿，且不重启 VPN、DNS、Root proxy、Hook 和 Script 服务；补适配回归。
