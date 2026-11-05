@@ -38,6 +38,9 @@ assert 'APKSIGNER="$SDK_ROOT/build-tools/36.0.0/apksigner"' in package_workflow,
 assert "gradle-version: '9.3.1'" in workflow
 assert "packages: platform-tools platforms;android-37.0 build-tools;36.0.0" in workflow
 assert "gradle --no-daemon -Pandroid.useAndroidX=true -p adhook :app:testDebugUnitTest :app:assembleDebug" in workflow
+assert "name: Upload verified FX Hook APK" in workflow
+assert "FXUnifiedHook-debug-APK" in workflow
+assert "path: adhook/app/build/outputs/apk/debug/app-debug.apk" in workflow
 assert "github.event_name != 'workflow_dispatch' || inputs.migration_complete == true" in workflow, "branch pushes must compile the debug APK"
 assert "github.event_name == 'workflow_dispatch' && inputs.migration_complete == true" not in workflow, "debug compile must not be disabled on ordinary pushes"
 assert "github.event_name == 'workflow_dispatch' && inputs.migration_complete == true" in package_workflow, "final package remains migration-gated"
