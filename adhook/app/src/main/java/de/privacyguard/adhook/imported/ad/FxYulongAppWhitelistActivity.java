@@ -174,8 +174,8 @@ public final class FxYulongAppWhitelistActivity extends de.privacyguard.adhook.F
         LinearLayout header = new LinearLayout(this);
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(10), dp(6), dp(12), dp(6));
-        header.addView(button("‹ 返回", this::finish));
-        header.addView(text("游龙广告插件 · 应用白名单", 18, 0xff17212b, true),
+        header.addView(button("‹ 返回 Ad", this::finish));
+        header.addView(text("Ad · 应用白名单", 18, 0xff17212b, true),
                 new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
 
