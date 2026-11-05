@@ -6289,3 +6289,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 首次测试修订将动态脚本名误放在 prefix 子串中检查，CI 指出后已修正为在 helper 的 allowlist 中验证。
 - GitHub Actions：`FX Targeted Host Regression` 在 `740ab969` 成功（run `42105645188`，job `127519614084`）；日志确认 `fx-yulong-dns-cache-regression.sh` 实际执行，DNS cache flush 顺序、失败传播、forward-only、锁所有权和共享 Root path/allowlist 静态断言均通过。
 - 该改动只更新测试契约；共享 Root builder 的生产实现由此前 `00b291ce` 集中化提交提供。
+
+
+## 2026-11-06 — Security Shield 前台事件驱动与低频 UsageStats 兜底
+
+- 功能提交：`1d6fa8d39cdcbbe27ffa91695404f9c2f0c28a25`。
+- `FxYulongProtectionService` 原先固定每 2.5 秒轮询 UsageStats。现在保留前台包名 Accessibility 广播的即时评估路径，并在收到首次有效前台事件后将 UsageStats 兜底轮询放宽到 15 秒；尚未收到事件时使用 5 秒兜底，避免依赖 Accessibility 权限才能运行。
+- 新增 `lastForegroundSignalAt` 与 `nextPollDelay()`；不改变用户主动启用保护、Usage Access 撤销处理、白名单判断、摇动传感器或通知冷却策略。
+- `fx-yulong-shield-native-regression.sh` 增加 5s/15s 调度、前台事件时间戳和动态调度调用断言。
+- GitHub Actions：`FX Targeted Host Regression` 在 `1d6fa8d` 成功（run `42105958892`，job `127520719701`）；日志确认 Shield native、六 Tab 与 worker bounds 回归均通过。
+- 这是源代码/Host 回归验证，不是实机电池测量；实际功耗和不同 ROM 的 Accessibility 广播稳定性仍待设备验证。
