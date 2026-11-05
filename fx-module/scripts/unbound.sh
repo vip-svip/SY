@@ -156,6 +156,13 @@ _stop() {
     _remove_pid_marker_if_matches "$_stale"
     return 0
   fi
+  # Revalidate ownership immediately before signalling: the PID may have
+  # exited and been reused after the first /proc/cmdline check.
+  _same=$(_owned_pid 2>/dev/null) || _same=''
+  if [ "$_same" != "$_p" ]; then
+    _log "refusing to signal PID $_p because process ownership changed before TERM"
+    return 1
+  fi
   kill -TERM "$_p" 2>/dev/null || :
   _i=0
   while [ "$_i" -lt 20 ] && kill -0 "$_p" 2>/dev/null; do
