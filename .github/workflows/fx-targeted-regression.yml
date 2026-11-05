@@ -99,6 +99,10 @@ jobs:
             ran=1
           }
 
+          if [[ "$changed" == "ALL" ]] || grep -Eq '(^|/)\.gitmodules$|(^|/)vendor/GKD-XA(/|$)|FX_GKD_XA_1\.4\.8_INTEGRATION_PLAN\.md|fx-gkd-xa-source-lock-regression\.sh' <<<"$changed"; then
+            run_sh scripts/tests/fx-gkd-xa-source-lock-regression.sh
+          fi
+
           if [[ "$changed" == "ALL" || "$changed" =~ (FxDiaFridaActivity|FxDiaScriptLibraryActivity|FxDiaCodeEditorActivity|fx-dia-frida-) ]]; then
             run_sh scripts/tests/fx-dia-frida-script-library-saf-regression.sh
             run_sh scripts/tests/fx-dia-frida-binary-import-regression.sh
