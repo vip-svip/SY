@@ -450,6 +450,7 @@ fx_arb_json() {
   case "$FX_ARB_SLOT_USED" in true|false) _slot_json=$FX_ARB_SLOT_USED ;; *) _slot_json=null ;; esac
   printf '"vpn_service_slot_used":%s,' "$_slot_json"
   printf '"dns":{"port":%s,"owner":"%s"},"dns_filter":{"port":%s,"owner":"%s"},"proxy":{"port":%s,"owner":"%s"},' "$(fx_arb_json_port "$FX_ARB_DNS_PORT")" "$FX_ARB_DNS_OWNER" "$(fx_arb_json_port "$FX_ARB_FILTER_DNS_PORT")" "$FX_ARB_FILTER_DNS_OWNER" "$(fx_arb_json_port "$FX_ARB_PROXY_PORT")" "$FX_ARB_PROXY_OWNER"
+  printf '"config_conflicts":"%s",' "$FX_ARB_CONFIG_CONFLICTS"
   printf '"dataplane":"kernel","route_probe":"unverified","reasons":"%s"}\n' "$_san"
 }
 
