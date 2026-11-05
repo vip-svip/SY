@@ -38,6 +38,12 @@ final class CupertinoSkinTokens {
         static final int CARD_RADIUS_DP = 16;
         static final int SECTION_RADIUS_DP = 14;
         static final int ACTION_RADIUS_DP = 18;
+        static final int RISK_CERTAIN_SURFACE = 0xfffff2f2;
+        static final int RISK_CERTAIN_STROKE = 0xffefc1c1;
+        static final int RISK_CERTAIN_TEXT = 0xffa32620;
+        static final int RISK_SUSPECT_SURFACE = 0xfffff5e8;
+        static final int RISK_SUSPECT_STROKE = 0xffead2a8;
+        static final int RISK_SUSPECT_TEXT = 0xff8a5b12;
         static final int LIST_ROW_RADIUS_DP = 12;
         private CupertinoShapeTokens() { }
     }
