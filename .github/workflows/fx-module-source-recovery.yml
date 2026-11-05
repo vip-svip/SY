@@ -33,6 +33,8 @@ jobs:
           [[ -n "$module_prop" ]] || { echo "::error::No module.prop in the published FX module archive"; exit 1; }
           source_root="$(dirname "$module_prop")"
           [[ -d "$source_root/scripts" ]] || { echo "::error::Published FX module has no scripts directory"; exit 1; }
+          [[ -s "$source_root/scripts/vpn-external-watchdog.sh" ]] || { echo "::error::Published FX external VPN watchdog is missing"; exit 1; }
+          sha256sum "$source_root/scripts/vpn-external-watchdog.sh"
           cp -a "$source_root/scripts" recovered-fx-module/
           for file in module.prop customize.sh service.sh post-fs-data.sh uninstall.sh; do
             [[ ! -f "$source_root/$file" ]] || cp -a "$source_root/$file" recovered-fx-module/
