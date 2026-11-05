@@ -28,6 +28,28 @@ internal data class FxComposeShellTokens(
     val useLiquidTabsRenderer: Boolean
 )
 
+internal object FxDefaultComposeTokens {
+    fun create() = FxComposeShellTokens(
+        pageBackground = Color(0xFFF7F8FC),
+        wallpaperOverlay = Color(0xFFF7F8FC).copy(alpha = 0.24f),
+        barBackground = Color(0xFFFFFFFF),
+        barBorder = Color(0xFFE0E6EF),
+        accent = Color(0xFF315B9A),
+        selectedText = Color(0xFF315B9A),
+        inactiveText = Color(0xFF687789),
+        selectedTabBackground = Color(0x1F315B9A),
+        barCornerRadiusDp = 18,
+        tabCornerRadiusDp = 14,
+        tabBarHeightDp = 66,
+        tabItemHeightDp = 58,
+        horizontalInsetDp = 8,
+        verticalInsetDp = 4,
+        itemSpacingDp = 2,
+        labelSizeSp = 13,
+        useLiquidTabsRenderer = false
+    )
+}
+
 internal object FxClassicComposeTokens {
     fun create() = FxComposeShellTokens(
         pageBackground = Color(0xFFF4F6F8),
@@ -153,6 +175,8 @@ internal fun fxComposeShellTokens(
     miuixInactiveText: Color,
     miuixSelectedSurface: Color
 ): FxComposeShellTokens = when (mode) {
+    "default" -> FxDefaultComposeTokens.create()
+    "classic" -> FxClassicComposeTokens.create()
     "glass" -> FxLiquidComposeTokens.create()
     "miuix" -> FxMiuixComposeTokens.create(
         miuixBackground, miuixSurface, miuixPrimary,
@@ -160,5 +184,5 @@ internal fun fxComposeShellTokens(
     )
     "huawei" -> FxHarmonyComposeTokens.create()
     "ios" -> FxCupertinoComposeTokens.create()
-    else -> FxClassicComposeTokens.create()
+    else -> FxDefaultComposeTokens.create()
 }
