@@ -6270,3 +6270,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - GitHub 回读确认 `enqueueLatest`、`poll`、`execute` 均已存在。
 - GitHub Actions：`FX Targeted Host Regression` 在 `3e02e954` 成功（run `42105155375`，job `127517900195`）；日志确认执行了 `fx-yulong-ad-dns-summary-regression.sh`，静态请求队列/配置解析/隐私字段断言通过。该 Host-only lane 明确跳过依赖 Release 模块归档的 AdGuard YAML runtime 渲染测试；不将此项报告为已通过。
 - 尚未执行 Android Gradle 编译或设备端 Root/DNS 运行验证。
+
+
+## 2026-11-06 — VPN 共存快照权限修复与运行回归证据
+
+- POSIX 私有临时目录版本的状态发布器回归已通过：FX Targeted Host Regression run `42104828405`，checkout `61436e014303688d8374c3f0d04cb53d3133e4ba`，结论 SUCCESS。日志明确包含 case 6b（临时文件 `chmod` 失败时旧快照保持不变）、旧快照 0600 权限保持、失败临时文件清理，并最终输出 `PASS: coexistence status is published atomically, 0600, fail-open and never overclaims`。
+- UI / DNS 端口状态接线随同一提交进入分支：5353 上游 DNS、53 客户端过滤 DNS、7890 代理状态进入发布快照；未知字段回退为 unknown，原生共存卡显示空闲/已占用/未知。Host 的状态发布回归通过；六模式/UI 总体流程仍按各自 run 单独记录，不以此 Host 结果代替 Gradle APK 构建。
+- FX Module Runtime Regression run `42104989565`（checkout `4b7c816005273dbc79c45356dcb8aa900ee376c3`）中，Release 模块恢复、VPN/DNS/Root Proxy patch 步骤 SUCCESS；外部 VPN/TUN/DNS/watchdog 回归步骤 SUCCESS；Root Proxy/native VPN 集成回归步骤也 SUCCESS。但 workflow 最终结论是 CANCELLED（被后续 push 中断），故只记录上述步骤通过，不记录为完整 Module Runtime SUCCESS。
+- FX VPN shell regression run `42104989387` 在同一 checkout 上为 SUCCESS；其中 Root Proxy 真实脚本 Host fixture 验证双栈规则、路由/UID 证明、状态路径符号链接保护、独立 DNS ownership 和 fail-open rollback。
+- 验证等级仍不包含 Android Gradle 最终 APK 构建、KernelSU ZIP 生成/安装、真实设备 SELinux enforcement、Android Framework 多 VpnService、第三方 VPN 实机链式路由或运营商 IPv6 兼容性测试。
