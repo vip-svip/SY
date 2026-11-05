@@ -260,7 +260,7 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
         blacklistScroll.addView(content);
         root.addView(blacklistScroll);
 
-        setContentViewWithNativeTabs(root, 5);
+        setContentViewWithNativeTabs(root, 2);
         if (savedInstanceState != null) {
             blacklistSearchInput.setText(blacklistQuery);
             // setText invokes the watcher; restore the saved result page afterwards.
