@@ -6596,3 +6596,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 
 - 并行协作对齐：另一 AI 已先提交相同根因的 canonical 修复 `fec78b13e31c707c44701eae88ac4294a0fc9788`（直接使用 Python raw string 比较 Java 源码转义字面量）。为避免保留两套互不一致的测试策略，本轮后续提交 `e57f626be3769115fb764d8e5fee37bb183a2297` 已将测试块对齐到该 raw-string 契约；最终测试 blob 为 `5c5beb124589ea393d3bf7ce386ad06038dbbda3`。从 GitHub 回读的 MainActivity 源码上，10 个契约 token 均匹配。Actions 仍未获得可确认的成功结果。
+
+
+## 2026-11-06 — Dia Frida failed-start PID record cleanup
+
+- 随机认领的低冲突任务：Dia Frida server 生命周期。修改前核对分支 HEAD、目标源码和 Host 回归文件；避开其他 AI 正在处理的 VPN、KernelSU 安装器和 Ad 页面文件。
+- 修复 FxDiaFridaActivity.startServer() 的失败回滚：如果 FX 已原子写入 server PID 记录，但启动后的进程身份/存活校验失败，cleanup_start 现在仅在 PID 文件为普通非符号链接文件、且完整四字段记录（PID、可执行文件路径、监听端口、/proc starttime）与本次启动完全一致时移除该记录；随后仍按原有 PID/starttime/可执行文件身份校验决定是否发送 TERM。
+- 成功启动时会先清空 spawned_pid / spawned_start，因此正常退出 trap 不会移除有效会话记录。旧记录、其他进程记录、符号链接和身份不匹配记录均不被处理。
+- 扩展 scripts/tests/fx-dia-frida-server-lifecycle-regression.sh，检查失败启动清理的文件类型、完整记录归属和删除顺序。
+- 未执行 Android 设备上的 Frida server 启停测试；不声称真机验证。CI 结果以提交后的 GitHub Actions 实际状态为准。
