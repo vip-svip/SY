@@ -3,12 +3,18 @@ package de.privacyguard.adhook
 import android.content.Context
 
 /**
- * The five app-wide visual skins. These are presentation modes only:
+ * The independent default renderer and five app-wide visual skins. These are presentation modes only:
  * changing a skin must never start/stop VPN, DNS, proxy, Hook or script services.
  *
  * Legacy storage IDs are retained so existing 1.0.0 installations migrate in place.
  */
 enum class FxUiMode(
+    DEFAULT_STANDARD(
+        "default",
+        "默认模式 · Default",
+        "FX 标准原生界面：独立于五种皮肤的基础 renderer，首次安装默认使用。",
+        Renderer.NATIVE_DEFAULT
+    ),
     val storageId: String,
     val title: String,
     val description: String,
@@ -45,7 +51,7 @@ enum class FxUiMode(
         Renderer.NATIVE_CUPERTINO
     );
 
-    enum class Renderer { WEB_COMPAT, NATIVE_LIQUID, NATIVE_MIUIX, NATIVE_HARMONY, NATIVE_CUPERTINO }
+    enum class Renderer { NATIVE_DEFAULT, WEB_COMPAT, NATIVE_LIQUID, NATIVE_MIUIX, NATIVE_HARMONY, NATIVE_CUPERTINO }
 
     companion object {
         private const val PREFS = "fx_ui"
@@ -53,13 +59,15 @@ enum class FxUiMode(
 
         @JvmStatic
         fun fromStorageId(value: String?): FxUiMode = when (value) {
+            "default", "FXDefault", "fx_default" -> DEFAULT_STANDARD
             "glass", "FXLiquidNative", "fx_liquid_native" -> FX_LIQUID_NATIVE
             "miuix", "MiuixStyle", "miuix_style" -> MIUIX_STYLE
             "huawei", "HarmonyStyle", "HUAWEI HarmonyStyle", "harmony", "harmony_style" -> HUAWEI_HARMONY_STYLE
             "ios", "CupertinoStyle", "iOS CupertinoStyle", "cupertino", "cupertino_style" -> IOS_CUPERTINO_STYLE
             // "web" was an experimental alias; map it to the explicit compatibility mode.
-            "classic", "web", "ClassicWebCompat", "classic_web_compat", null -> CLASSIC_WEB_COMPAT
-            else -> CLASSIC_WEB_COMPAT
+            "classic", "web", "ClassicWebCompat", "classic_web_compat" -> CLASSIC_WEB_COMPAT
+            null -> DEFAULT_STANDARD
+            else -> DEFAULT_STANDARD
         }
 
         @JvmStatic
@@ -68,7 +76,7 @@ enum class FxUiMode(
         @JvmStatic
         fun read(context: Context): FxUiMode {
             val value = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                .getString(KEY_MODE, CLASSIC_WEB_COMPAT.storageId)
+                .getString(KEY_MODE, DEFAULT_STANDARD.storageId)
             return fromStorageId(value)
         }
 
