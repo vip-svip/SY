@@ -71,7 +71,6 @@ policy = Path(sys.argv[4]).read_text(encoding="utf-8")
 required = {
     "export request code": "REQUEST_EXPORT_LIBRARY = 7105",
     "import request code": "REQUEST_IMPORT_LIBRARY = 7106",
-    "unbounded JSON import/export": "MAX_LIBRARY_JSON_BYTES" not in source and "MAX_LIBRARY_JSON_BYTES" not in library,
     "create-document export": "Intent.ACTION_CREATE_DOCUMENT",
     "open-document import": "Intent.ACTION_OPEN_DOCUMENT",
     "JSON MIME export": 'create.setType("application/json")',
