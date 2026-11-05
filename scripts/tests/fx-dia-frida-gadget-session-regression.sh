@@ -3,14 +3,17 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 ACTIVITY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaFridaActivity.java"
 SESSION_LOG="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaSessionLogActivity.java"
+ROOT_ACCESS="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/RootAccess.java"
 [ -s "$ACTIVITY" ] || { echo "FAIL: Dia Frida Activity source missing" >&2; exit 1; }
 [ -s "$SESSION_LOG" ] || { echo "FAIL: Dia Frida session log Activity source missing" >&2; exit 1; }
+[ -s "$ROOT_ACCESS" ] || { echo "FAIL: RootAccess source missing" >&2; exit 1; }
 
-python3 - "$ACTIVITY" "$SESSION_LOG" <<'PY'
+python3 - "$ACTIVITY" "$SESSION_LOG" "$ROOT_ACCESS" <<'PY'
 from pathlib import Path
 import sys
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
 session_log = Path(sys.argv[2]).read_text(encoding="utf-8")
+root_access = Path(sys.argv[3]).read_text(encoding="utf-8")
 session_log_compact = " ".join(session_log.split())
 assert "new ThreadPoolExecutor( 1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(1)" in session_log_compact, "session log reads must use a single bounded worker"
 assert "new ThreadPoolExecutor.AbortPolicy()" in session_log, "session log worker must reject overload explicitly"
@@ -36,6 +39,8 @@ required = {
     "process UID comes from proc status": r'\"$proc_root/$pid/status\"',
     "Frida script execution size is bounded": "sourceBytes.length > MAX_FRIDA_SOURCE_BYTES",
     "Frida source ceiling is 8 MiB": "MAX_FRIDA_SOURCE_BYTES = 8 * 1024 * 1024",
+    "Root stdin writer failure cannot report success": "if (code == 0) code = 5;" in root_access,
+    "already-running Gadget path drains streamed source": "cat >/dev/null; echo FX_GADGET_SESSION_ALREADY_RUNNING" in source,
     "large Frida source streams through RootAccess stdin": "RootAccess.executeWithInput(command, input, timeout",
     "Frida script rejects NUL": "source.indexOf(0) >= 0",
     "Gadget script uses random private temp": '.gadget-$port.XXXXXX',

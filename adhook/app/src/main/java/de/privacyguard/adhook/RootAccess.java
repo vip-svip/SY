@@ -90,6 +90,11 @@ public final class RootAccess {
             }
             try { process.getOutputStream().close(); } catch (Exception ignored) { }
             joinQuietly(writer, 1500L);
+            if (writer.isAlive()) {
+                writeFailure.compareAndSet(null, new java.io.IOException("stdin writer did not finish"));
+                try { process.getOutputStream().close(); } catch (Exception ignored) { }
+                joinQuietly(writer, 1000L);
+            }
             joinQuietly(drain, 2000L);
             if (drain.isAlive()) {
                 closeOutputQuietly(process);
@@ -99,8 +104,11 @@ public final class RootAccess {
             String text;
             synchronized (output) { text = output.toString(); }
             Exception failed = writeFailure.get();
-            if (failed != null) text = text + (text.isEmpty() ? "" : "\n")
-                    + "Root stdin 写入失败：" + failed.getClass().getSimpleName();
+            if (failed != null) {
+                if (code == 0) code = 5;
+                text = text + (text.isEmpty() ? "" : "\n")
+                        + "Root stdin 写入失败：" + failed.getClass().getSimpleName();
+            }
             String lower = text.toLowerCase();
             boolean denied = code != 0 && (lower.contains("denied")
                     || lower.contains("拒绝") || lower.contains("permission"));

@@ -2967,7 +2967,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 + "[ \"$old_pkg\" = \"$pkg\" ] && [ \"$old_port\" = \"$port\" ] && [ \"$old_cli_path\" = \"$cli\" ] && [ \"$old_process\" = \"$process\" ] || { echo FX_GADGET_SESSION_TARGET_CONFLICT; exit 30; }; "
                 + "session_pid_active() { case \"$1\" in ''|*[!0-9]*) return 1;; esac; state=$(sed 's/^.*) //' \"/proc/$1/stat\" 2>/dev/null | cut -d ' ' -f1); case \"$state\" in Z|X|x) return 1;; esac; kill -0 \"$1\" 2>/dev/null; }; " + "if session_pid_active \"$old_cli\"; then "
                 + "old_cmd=$(tr '\\000' ' ' < /proc/\"$old_cli\"/cmdline 2>/dev/null || :); "
-                + "case \"$old_cmd\" in *\"$old_cli_path\"*\"-H\"*\"127.0.0.1:$port\"*\"-n\"*\"Gadget\"*\"-l\"*\"$script\"*) echo FX_GADGET_SESSION_ALREADY_RUNNING; exit 0;; "
+                + "case \"$old_cmd\" in *\"$old_cli_path\"*\"-H\"*\"127.0.0.1:$port\"*\"-n\"*\"Gadget\"*\"-l\"*\"$script\"*) cat >/dev/null; echo FX_GADGET_SESSION_ALREADY_RUNNING; exit 0;; "
                 + "*) echo FX_GADGET_SESSION_PID_CONFLICT; exit 23;; esac; fi; "
                 + "if [ -n \"$old_feed\" ] && session_pid_active \"$old_feed\"; then "
                 + "feed_cmd=$(tr '\\000' ' ' < /proc/\"$old_feed\"/cmdline 2>/dev/null || :); "
