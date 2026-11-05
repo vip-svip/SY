@@ -5915,3 +5915,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 保存前现在逐级要求三个父目录均存在且不是符号链接；之后设置 `umask 077` 创建私有临时文件，启用退出清理 trap，并再次要求临时文件是非符号链接普通文件，才写入 Base64 解码内容并交给 `fileedit.sh replacepage`。
 - 更新 `fx-native-managed-lists-regression.sh`，静态验证父目录 guard、私有 umask、mktemp、临时文件类型检查与执行顺序。Hosts 后端事务锁/并发回归保持不变。
 - 本批源码与回归已提交；Android Gradle 编译、模拟器、设备文件系统权限/SELinux 路径验证未运行。
+
+
+## 2026-11-06 — Yulong DNS 页面 Root 模块路径防护
+
+- DNS 查询日志页此前通过 `module.prop` 的 `id=privacyguard` 宽松定位模块，Root 命令未验证 `/data`、`/data/adb`、modules 根目录、候选模块目录、module.prop、scripts 目录和控制脚本是否为真实非符号链接文件。
+- 现与 Ad 主控制/总结页对齐：验证数据根目录、modules 与 modules_update 父路径类型，精确匹配 `id=privacyguard` / `version=1.0.0`，逐级拒绝模块、module.prop、scripts 与 `yulong-ad-control.sh` 的符号链接。
+- DNS Activity 的 Root 操作参数收紧为 `dns-log-tail`、`cache-flush`、`dns-log-clear` 三项明确 allowlist；不接受其他参数拼入 Root shell 命令。
+- 更新 `fx-yulong-dns-cache-regression.sh`，覆盖模块发现和操作 allowlist。未进行 Root 设备路径攻击模拟、APK 构建或真机 DNS 测试；等待新 Host/Runtime CI。

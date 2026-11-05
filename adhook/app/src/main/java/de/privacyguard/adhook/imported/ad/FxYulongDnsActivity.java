@@ -72,10 +72,23 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         b.setOnClickListener(v -> action.run()); return b;
     }
     private String shell(String args) {
-        return "MP=''; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard "
+        if (!"dns-log-tail".equals(args) && !"cache-flush".equals(args)
+                && !"dns-log-clear".equals(args)) {
+            throw new IllegalArgumentException("Unsupported Yulong DNS operation.");
+        }
+        return "[ -d '/data' ] && [ ! -L '/data' ] && [ -d '/data/adb' ] "
+                + "&& [ ! -L '/data/adb' ] && [ -d '/data/adb/modules' ] && [ ! -L '/data/adb/modules' ] "
+                + "&& [ ! -L '/data/adb/modules_update' ] && { [ ! -e '/data/adb/modules_update' ] || [ -d '/data/adb/modules_update' ]; } || exit 71; "
+                + "MP=''; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard "
                 + "/data/adb/modules/privacy_guard /data/adb/modules/pg; do "
-                + "if [ -s \"$d/module.prop\" ] && grep -q '^id=privacyguard$' \"$d/module.prop\"; "
-                + "then MP=\"$d\"; break; fi; done; "
+                + "if [ -d \"$d\" ] && [ ! -L \"$d\" ] "
+                + "&& [ -f \"$d/module.prop\" ] && [ ! -L \"$d/module.prop\" ] "
+                + "&& grep -qx 'id=privacyguard' \"$d/module.prop\" "
+                + "&& grep -qx 'version=1.0.0' \"$d/module.prop\" "
+                + "&& [ -d \"$d/scripts\" ] && [ ! -L \"$d/scripts\" ] "
+                + "&& [ -f \"$d/scripts/yulong-ad-control.sh\" ] "
+                + "&& [ ! -L \"$d/scripts/yulong-ad-control.sh\" ]; then "
+                + "MP=\"$d\"; break; fi; done; "
                 + "[ -n \"$MP\" ] || exit 20; sh \"$MP/scripts/yulong-ad-control.sh\" " + args;
     }
     private void root(String command, java.util.function.Consumer<RootAccess.Result> done) {

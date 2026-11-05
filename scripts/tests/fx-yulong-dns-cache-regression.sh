@@ -28,6 +28,29 @@ assert "DNS 可能短暂中断" in source, "the UI must disclose local DNS resta
 assert "不会清理 Android 系统 DNS 缓存" in source, "the UI must not imply system-wide cache clearing"
 assert 'output.contains("cache=flushed")' in source, "success UI is not bound to the backend result"
 assert 'output.contains("dns-engine-disabled")' in source, "disabled-engine state is not reported separately"
+module_start = source.index("private String shell(")
+module_end = source.index("private void root(", module_start)
+module_lookup = source[module_start:module_end]
+for token in (
+    "[ -d '/data' ] && [ ! -L '/data' ]",
+    "[ -d '/data/adb' ]",
+    "&& [ ! -L '/data/adb' ]",
+    "&& [ -d '/data/adb/modules' ]",
+    "&& [ ! -L '/data/adb/modules' ]",
+    "&& [ ! -L '/data/adb/modules_update' ]",
+    "[ ! -e '/data/adb/modules_update' ] || [ -d '/data/adb/modules_update' ]",
+    r'if [ -d \"$d\" ] && [ ! -L \"$d\" ]',
+    r'&& [ -f \"$d/module.prop\" ] && [ ! -L \"$d/module.prop\" ]',
+    "grep -qx 'id=privacyguard'",
+    "grep -qx 'version=1.0.0'",
+    r'&& [ -d \"$d/scripts\" ] && [ ! -L \"$d/scripts\" ]',
+    r'&& [ -f \"$d/scripts/yulong-ad-control.sh\" ]',
+    r'&& [ ! -L \"$d/scripts/yulong-ad-control.sh\" ]',
+):
+    assert token in module_lookup, "DNS Root module discovery must enforce: " + token
+assert '"dns-log-tail".equals(args)' in module_lookup, "DNS log read must be an allowlisted operation"
+assert '"cache-flush".equals(args)' in module_lookup, "DNS cache flush must be an allowlisted operation"
+assert '"dns-log-clear".equals(args)' in module_lookup, "DNS log clear must be an allowlisted operation"
 PY
 
 T=$(mktemp -d "${TMPDIR:-/tmp}/fx-yulong-dns-cache.XXXXXX")
