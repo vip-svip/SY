@@ -6244,3 +6244,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Expanded `fx-system-app-overlay-boot-regression.sh` to exercise retry-temp and deployment-marker-temp symlink protection with the real FX state/app paths. The test fixtures publish the shell PID, then create the matching symlink before allowing the verifier to proceed.
 - GitHub Actions run `42104541678` (`FX System App Install Stage`, HEAD `899ae53d`) completed successfully: patcher idempotence, installer behavior, shell validity, early-boot digest/SELinux/marker regression and packaging integration all passed.
 - These are Host/CI results only. No Android Gradle APK build, KernelSU ZIP build, LSPosed injection, root-device SELinux verification or real-device VPN/DNS test is claimed.
+
+## 2026-11-06 — dual-stack Root Proxy DNS health gate
+
+- Root Proxy previously activated both IPv4 and IPv6 DNS DNAT rules after probing only 127.0.0.1. A broken/missing AdGuard IPv6 loopback listener could therefore leave IPv6 clients redirected to ::1 without a verified resolver.
+- The runtime health gate now requires a valid DNS answer through both 127.0.0.1 and ::1 before attaching either OUTPUT redirect generation. The shipped AdGuard runtime config already binds both loopback addresses; failure of either probe triggers the existing fail-open rollback.
+- Extended the Root Proxy runtime fixture to record both probe destinations and inject an IPv6-only probe failure. The regression verifies both loopback families are queried and the IPv6 failure path is rejected.
+- Verification: FX Targeted Host Regression #1304 SUCCESS on commit 4b7c816005273dbc79c45356dcb8aa900ee376c3; FX VPN shell regression #34 SUCCESS on the same commit. The Root Proxy runtime regression reported PASS for dual-stack rules, route/UID proofs, symlink guards, independent DNS ownership and fail-open rollback.
+- The test is a host-side mocked resolver test; actual Android IPv6 routing, device resolver binding and carrier-specific IPv6 behavior still require device validation.
+
