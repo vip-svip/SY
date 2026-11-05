@@ -5994,18 +5994,20 @@ public final class MainActivity extends ComponentActivity {
                 (target.flags & ApplicationInfo.FLAG_SYSTEM) != 0);
 
         section("自定义规则");
+        LinearLayout ruleActionGroup = new LinearLayout(this);
+        ruleActionGroup.setOrientation(LinearLayout.VERTICAL);
         TextView ruleNote = new TextView(this);
         ruleNote.setText("每个目标应用最多 64 条规则。规则保存到当前应用的独立配置；完成编辑后使用页面底部“保存并发布”将规则配置发布到 FX Hook。规则 ID 在同一目标内必须唯一。");
         ruleNote.setTextColor(0xff697681);
         ruleNote.setPadding(dp(18), dp(2), dp(18), dp(8));
-        content.addView(ruleNote);
+        ruleActionGroup.addView(ruleNote);
 
         Button addRule = new Button(this);
         addRule.setAllCaps(false);
         addRule.setText("新增自定义 Hook 规则");
         addRule.setEnabled(true);
         addRule.setOnClickListener(v -> showCustomRuleDialog());
-        content.addView(addRule);
+        ruleActionGroup.addView(addRule);
 
         LinearLayout tools = new LinearLayout(this);
         tools.setOrientation(LinearLayout.HORIZONTAL);
@@ -6024,13 +6026,14 @@ public final class MainActivity extends ComponentActivity {
         tools.addView(groups, new LinearLayout.LayoutParams(0, -2, 1));
         tools.addView(importRules, new LinearLayout.LayoutParams(0, -2, 1));
         tools.addView(exportRules, new LinearLayout.LayoutParams(0, -2, 1));
-        content.addView(tools);
+        ruleActionGroup.addView(tools);
 
         Button observeLogs = new Button(this);
         observeLogs.setAllCaps(false);
         observeLogs.setText("查看 OBSERVE 方法日志");
         observeLogs.setOnClickListener(v -> showCustomHookObservationLogs());
-        content.addView(observeLogs);
+        ruleActionGroup.addView(observeLogs);
+        addNativeActionGroup(ruleActionGroup);
 
         renderCustomRules(targetDebuggable);
 
@@ -6044,13 +6047,16 @@ public final class MainActivity extends ComponentActivity {
             }
             publishConfig();
         });
-        content.addView(publish, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout footerGroup = new LinearLayout(this);
+        footerGroup.setOrientation(LinearLayout.VERTICAL);
+        footerGroup.addView(publish, new LinearLayout.LayoutParams(-1, -2));
 
         Button back = new Button(this);
         back.setAllCaps(false);
         back.setText(customHookReturnToTarget ? "返回应用 Hook 配置" : "返回 Hook 应用列表");
         back.setOnClickListener(v -> leaveCustomHookRulesPage());
-        content.addView(back, new LinearLayout.LayoutParams(-1, -2));
+        footerGroup.addView(back, new LinearLayout.LayoutParams(-1, -2));
+        addNativeActionGroup(footerGroup);
         if (customRuleEditorRestorePending) {
             int restoreSlot = customRuleEditorEditingSlot;
             String restorePreset = customRuleEditorPresetDescriptor;
@@ -7525,13 +7531,15 @@ public final class MainActivity extends ComponentActivity {
         }
         groupFilter.setSelection(restoredGroupPosition);
 
+        LinearLayout filterGroup = new LinearLayout(this);
+        filterGroup.setOrientation(LinearLayout.VERTICAL);
+        filterGroup.addView(groupFilter);
         EditText searchFilter = new EditText(this);
         searchFilter.setSingleLine(true);
         searchFilter.setHint("搜索规则 ID、方法签名、动作、常量或分组");
         searchFilter.setText(customHookRuleSearchQuery);
         customHookRuleSearchFilterView = searchFilter;
-        content.addView(groupFilter);
-        content.addView(searchFilter);
+        filterGroup.addView(searchFilter);
         Button clearFilters = new Button(this);
         clearFilters.setAllCaps(false);
         clearFilters.setText("清除分组和搜索筛选");
@@ -7540,12 +7548,13 @@ public final class MainActivity extends ComponentActivity {
             searchFilter.setText("");
             groupFilter.setSelection(0);
         });
-        content.addView(clearFilters, new LinearLayout.LayoutParams(-1, -2));
+        filterGroup.addView(clearFilters, new LinearLayout.LayoutParams(-1, -2));
 
         TextView summary = new TextView(this);
         summary.setTextColor(0xff617080);
         summary.setPadding(dp(18), dp(5), dp(18), dp(5));
-        content.addView(summary);
+        filterGroup.addView(summary);
+        addNativeActionGroup(filterGroup);
 
         LinearLayout ruleRows = new LinearLayout(this);
         ruleRows.setOrientation(LinearLayout.VERTICAL);
