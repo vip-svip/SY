@@ -33,7 +33,7 @@ permissions:
 
 concurrency:
   group: fx-system-app-install-stage-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   install-stage:
