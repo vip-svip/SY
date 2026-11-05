@@ -29,7 +29,7 @@ assert "migrationChildActive = true;" not in source
 def method(signature):
     start = source.find(signature)
     assert start >= 0, f"missing method: {signature}"
-    end = source.find("\\n    }", start)
+    end = source.find("\n    }", start)
     assert end >= 0, f"method body is not closed: {signature}"
     return source[start:end + 6]
 
