@@ -332,7 +332,11 @@ for scenario in route route2 package-manager unbound adguard probe route-recheck
     route) if run_proxy "$CASE_DIR" MOCK_ROUTE_FAIL=1 >/dev/null 2>&1; then fail "wrong tunnel route accepted"; fi ;;
     route2) if run_proxy "$CASE_DIR" MOCK_ROUTE_FAIL_SECOND=1 >/dev/null 2>&1; then fail "second root route mismatch accepted"; fi ;;
     package-manager) if run_proxy "$CASE_DIR" MOCK_PM_FAIL=1 >/dev/null 2>&1; then fail "failed UID snapshot accepted"; fi ;;
-    unbound) if run_proxy "$CASE_DIR" MOCK_UNBOUND_FAIL=1 >/dev/null 2>&1; then fail "Unbound failure accepted"; fi ;;
+    unbound)
+      if run_proxy "$CASE_DIR" MOCK_UNBOUND_FAIL=1 MOCK_UNBOUND_INDEPENDENT=0 >/dev/null 2>&1; then fail "Unbound failure accepted"; fi
+      # This startup-failure case has no independently owned resolver to preserve.
+      MOCK_UNBOUND_INDEPENDENT=0; export MOCK_UNBOUND_INDEPENDENT
+      ;;
     adguard) if run_proxy "$CASE_DIR" MOCK_ADGUARD_FAIL=1 >/dev/null 2>&1; then fail "AdGuard failure accepted"; fi ;;
     probe) if run_proxy "$CASE_DIR" MOCK_DNS_PROBE_FAIL=1 >/dev/null 2>&1; then fail "DNS probe failure accepted"; fi ;;
     route-recheck)
@@ -344,6 +348,7 @@ for scenario in route route2 package-manager unbound adguard probe route-recheck
   esac
   assert_stopped "$CASE_DIR" "$scenario fail-open"
 done
+MOCK_UNBOUND_INDEPENDENT=1; export MOCK_UNBOUND_INDEPENDENT
 
 prepare_case ipv6-attach
 if run_proxy "$CASE_DIR" MOCK_FAIL_IPV6_ATTACH=1 >/dev/null 2>&1; then fail "IPv6 attach failure was accepted"; fi
