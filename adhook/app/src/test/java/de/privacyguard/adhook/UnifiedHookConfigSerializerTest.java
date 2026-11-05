@@ -151,6 +151,26 @@ public class UnifiedHookConfigSerializerTest {
     }
 
     @Test
+    public void parserAndSerializerRoundTripMoreThanSixtyFourDeveloperRules() {
+        StringBuilder config = new StringBuilder(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=0\n[list:targets]\n"
+                        + "com.example.vpn,dev_hook_enabled=1");
+        for (int i = 1; i <= 96; i++) {
+            config.append(",dev_rule_").append(i).append("=rule").append(i)
+                    .append("|com.example.vpn.Rule").append(i)
+                    .append("#isEnabled()Z|OBSERVE|").append(i);
+        }
+        config.append('\n');
+
+        UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(config.toString());
+        assertEquals(96, parsed.targets.get("com.example.vpn").developerRules.size());
+        String serialized = UnifiedHookConfigSerializer.serialize(false, false, parsed.targets);
+        assertTrue(serialized.contains("dev_rule_b64_96="));
+        UnifiedHookConfigParser.Result roundTrip = UnifiedHookConfigParser.parse(serialized);
+        assertEquals(96, roundTrip.targets.get("com.example.vpn").developerRules.size());
+    }
+
+    @Test
     public void roundTripsAllIndependentMasterSwitchCombinations() {
         boolean[][] combinations = {
                 {true, false}, {false, true}, {false, false}, {true, true}
