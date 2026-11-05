@@ -131,6 +131,13 @@ if [ -L "$_PG_LOCALDNS_EARLY/localdns-watchdog.pid" ]; then
   _mitm_warn "local DNS watchdog PID record is a symlink; aborting uninstall before firewall cleanup and preserving $_PG_LOCALDNS_EARLY"
   exit 1
 fi
+# The stop helper is executable code too: never follow an aliased path outside MODDIR.
+_WD_HELPER="$MODDIR/scripts/localdns-watchdog.sh"
+if [ -L "$_WD_HELPER" ] || { [ -e "$_WD_HELPER" ] && [ ! -f "$_WD_HELPER" ]; }; then
+  PG_KEEP_DATA=1
+  _mitm_warn "local DNS watchdog helper is a symlink or non-regular file; aborting uninstall before firewall cleanup and preserving $_PG_LOCALDNS_EARLY"
+  exit 1
+fi
 # FX_LOCALDNS_WATCHDOG_SYMLINK_GUARD_END
 '''
 if _watchdog_anchor in source and _symlink_guard_marker not in source:
