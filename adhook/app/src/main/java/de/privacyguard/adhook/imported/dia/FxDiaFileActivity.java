@@ -106,8 +106,8 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
         LinearLayout root = new LinearLayout(this); root.setOrientation(1); root.setBackgroundColor(0xfff7f8fa);
         LinearLayout header = new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(10), dp(6), dp(12), dp(6));
-        header.addView(button("‹ 返回", this::finish));
-        header.addView(text("Dia 23.11 · 文件与 so 库", 18, 0xff17212b, true), new LinearLayout.LayoutParams(0, -2, 1));
+        header.addView(button("‹ 返回 Hook", this::finish));
+        header.addView(text("Hook · 文件与 so 库", 18, 0xff17212b, true), new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
         pageScroll = new ScrollView(this); pageScroll.setFillViewport(true);
         LinearLayout body = new LinearLayout(this); body.setOrientation(1); body.setPadding(0, dp(4), 0, dp(18));
