@@ -900,7 +900,12 @@ public final class MainActivity extends ComponentActivity {
      */
     private void addNativeActionGroup(LinearLayout group) {
         if (group == null) return;
-        group.setPadding(dp(12), dp(8), dp(12), dp(8));
+        int horizontal = "huawei".equals(uiMode) ? HarmonySkinTokens.HarmonySpacingTokens.CARD_HORIZONTAL_PADDING_DP
+                : "ios".equals(uiMode) ? CupertinoSkinTokens.CupertinoSpacingTokens.CARD_HORIZONTAL_PADDING_DP : 12;
+        int vertical = "huawei".equals(uiMode) ? HarmonySkinTokens.HarmonySpacingTokens.CARD_VERTICAL_PADDING_DP
+                : "ios".equals(uiMode) ? CupertinoSkinTokens.CupertinoSpacingTokens.CARD_VERTICAL_PADDING_DP : 8;
+        group.setTag("fx-card-group");
+        group.setPadding(dp(horizontal), dp(vertical), dp(horizontal), dp(vertical));
         group.setBackground(uiPanelDrawable());
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
         params.setMargins(dp(12), dp(4), dp(12), dp(8));
@@ -911,12 +916,17 @@ public final class MainActivity extends ComponentActivity {
         LinearLayout card = new LinearLayout(this);
         card.setTag("fx-card");
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(16), dp(12), dp(16), dp(8));
+        int cardHorizontal = "huawei".equals(uiMode) ? HarmonySkinTokens.HarmonySpacingTokens.CARD_HORIZONTAL_PADDING_DP
+                : "ios".equals(uiMode) ? CupertinoSkinTokens.CupertinoSpacingTokens.CARD_HORIZONTAL_PADDING_DP : 16;
+        int cardVertical = "huawei".equals(uiMode) ? HarmonySkinTokens.HarmonySpacingTokens.CARD_VERTICAL_PADDING_DP
+                : "ios".equals(uiMode) ? CupertinoSkinTokens.CupertinoSpacingTokens.CARD_VERTICAL_PADDING_DP : 12;
+        card.setPadding(dp(cardHorizontal), dp(cardVertical), dp(cardHorizontal), dp(Math.max(6, cardVertical - 4)));
         card.setBackground(uiPanelDrawable());
         TextView title = new TextView(this);
         title.setTag("fx-card-title");
         title.setText(heading);
-        title.setTextSize(15);
+        title.setTextSize("huawei".equals(uiMode) ? HarmonySkinTokens.HarmonyTypographyTokens.CARD_TITLE_SP
+                : "ios".equals(uiMode) ? CupertinoSkinTokens.CupertinoTypographyTokens.CARD_TITLE_SP : 15);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         title.setTextColor(uiPrimaryTextColor());
         TextView detail = new TextView(this);
@@ -937,12 +947,17 @@ public final class MainActivity extends ComponentActivity {
         LinearLayout card = new LinearLayout(this);
         card.setTag("fx-setting-card");
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(14), dp(10), dp(14), dp(10));
+        int cardHorizontal = "huawei".equals(uiMode) ? HarmonySkinTokens.HarmonySpacingTokens.CARD_HORIZONTAL_PADDING_DP
+                : "ios".equals(uiMode) ? CupertinoSkinTokens.CupertinoSpacingTokens.CARD_HORIZONTAL_PADDING_DP : 14;
+        int cardVertical = "huawei".equals(uiMode) ? HarmonySkinTokens.HarmonySpacingTokens.CARD_VERTICAL_PADDING_DP
+                : "ios".equals(uiMode) ? CupertinoSkinTokens.CupertinoSpacingTokens.CARD_VERTICAL_PADDING_DP : 10;
+        card.setPadding(dp(cardHorizontal), dp(cardVertical), dp(cardHorizontal), dp(cardVertical));
         card.setBackground(uiPanelDrawable());
         TextView title = new TextView(this);
         title.setTag("fx-card-title");
         title.setText(heading);
-        title.setTextSize(15);
+        title.setTextSize("huawei".equals(uiMode) ? HarmonySkinTokens.HarmonyTypographyTokens.CARD_TITLE_SP
+                : "ios".equals(uiMode) ? CupertinoSkinTokens.CupertinoTypographyTokens.CARD_TITLE_SP : 15);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         title.setTextColor(0xff17212b);
         TextView description = new TextView(this);
@@ -4531,21 +4546,27 @@ public final class MainActivity extends ComponentActivity {
         return 0xff66727e;
     }
     private GradientDrawable roundedDrawable(int color, int strokeColor) {
-        GradientDrawable d = new GradientDrawable();
-        d.setColor(color);
         int radius = "glass".equals(uiMode) ? 24
                 : "miuix".equals(uiMode) ? 20
                 : "huawei".equals(uiMode) ? HarmonySkinTokens.HarmonyShapeTokens.CARD_RADIUS_DP
                 : "ios".equals(uiMode) ? CupertinoSkinTokens.CupertinoShapeTokens.CARD_RADIUS_DP : 8;
-        d.setCornerRadius(dp(radius));
+        return roundedDrawable(color, strokeColor, radius);
+    }
+    private GradientDrawable roundedDrawable(int color, int strokeColor, int radiusDp) {
+        GradientDrawable d = new GradientDrawable();
+        d.setColor(color);
+        d.setCornerRadius(dp(Math.max(0, radiusDp)));
         if (strokeColor != 0) d.setStroke(dp(1), strokeColor);
         return d;
     }
     private android.graphics.drawable.Drawable uiPanelDrawable() {
+        int surface = "huawei".equals(uiMode) ? HarmonySkinTokens.HarmonyColorTokens.CARD_SURFACE
+                : "ios".equals(uiMode) ? CupertinoSkinTokens.CupertinoColorTokens.CARD_SURFACE
+                : uiSurfaceColor();
         int stroke = "glass".equals(uiMode) ? 0x66ffffff
-                : "huawei".equals(uiMode) ? HarmonySkinTokens.HarmonyColorTokens.DIVIDER
-                : "ios".equals(uiMode) ? CupertinoSkinTokens.CupertinoColorTokens.DIVIDER : 0;
-        return roundedDrawable(uiSurfaceColor(), stroke);
+                : "huawei".equals(uiMode) ? HarmonySkinTokens.HarmonyColorTokens.CARD_STROKE
+                : "ios".equals(uiMode) ? CupertinoSkinTokens.CupertinoColorTokens.CARD_STROKE : 0;
+        return roundedDrawable(surface, stroke);
     }
     private void applyWebUiMode() {
         if (webView == null || !webUiReady) return;
@@ -4570,10 +4591,34 @@ public final class MainActivity extends ComponentActivity {
     }
     private TextView title(String value, int size) {
         TextView t = new TextView(this);
-        t.setTag("fx-title:" + size);
-        t.setText(value); t.setTextSize(size);
-        t.setTypeface(Typeface.DEFAULT, Typeface.BOLD); t.setTextColor(uiPrimaryTextColor());
-        t.setPadding(dp(18), dp(14), dp(18), dp(10)); return t;
+        boolean pageHeading = size >= 18;
+        t.setTag(pageHeading ? "fx-page-title" : "fx-section-title");
+        t.setText(value);
+        float textSize = size;
+        int horizontal = 18;
+        int vertical = pageHeading ? 14 : 10;
+        if ("huawei".equals(uiMode)) {
+            textSize = pageHeading ? HarmonySkinTokens.HarmonyTypographyTokens.PAGE_TITLE_SP
+                    : HarmonySkinTokens.HarmonyTypographyTokens.SECTION_TITLE_SP;
+            horizontal = pageHeading ? HarmonySkinTokens.HarmonySpacingTokens.TITLE_HORIZONTAL_PADDING_DP
+                    : HarmonySkinTokens.HarmonySpacingTokens.SECTION_HORIZONTAL_PADDING_DP;
+            vertical = pageHeading ? HarmonySkinTokens.HarmonySpacingTokens.TITLE_VERTICAL_PADDING_DP
+                    : HarmonySkinTokens.HarmonySpacingTokens.SECTION_VERTICAL_PADDING_DP;
+            if (pageHeading) t.setBackgroundColor(HarmonySkinTokens.HarmonyColorTokens.TOP_BAR_BACKGROUND);
+        } else if ("ios".equals(uiMode)) {
+            textSize = pageHeading ? CupertinoSkinTokens.CupertinoTypographyTokens.PAGE_TITLE_SP
+                    : CupertinoSkinTokens.CupertinoTypographyTokens.SECTION_TITLE_SP;
+            horizontal = pageHeading ? CupertinoSkinTokens.CupertinoSpacingTokens.TITLE_HORIZONTAL_PADDING_DP
+                    : CupertinoSkinTokens.CupertinoSpacingTokens.SECTION_HORIZONTAL_PADDING_DP;
+            vertical = pageHeading ? CupertinoSkinTokens.CupertinoSpacingTokens.TITLE_VERTICAL_PADDING_DP
+                    : CupertinoSkinTokens.CupertinoSpacingTokens.SECTION_VERTICAL_PADDING_DP;
+            if (pageHeading) t.setBackgroundColor(CupertinoSkinTokens.CupertinoColorTokens.TOP_BAR_BACKGROUND);
+        }
+        t.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, textSize);
+        t.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        t.setTextColor(uiPrimaryTextColor());
+        t.setPadding(dp(horizontal), dp(vertical), dp(horizontal), dp(Math.max(4, vertical - 4)));
+        return t;
     }
     private void base(String heading) {
         root = new LinearLayout(this);
@@ -8028,7 +8073,7 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void section(String s) {
-        TextView t=title(s,16);
+        TextView t = title(s, 16);
         int surface = "miuix".equals(uiMode) ? 0xffe5ecf8
                 : "glass".equals(uiMode) ? 0xccefffff
                 : "huawei".equals(uiMode) ? HarmonySkinTokens.HarmonyColorTokens.SURFACE_VARIANT
@@ -8036,11 +8081,19 @@ public final class MainActivity extends ComponentActivity {
         int stroke = "glass".equals(uiMode) ? 0x66ffffff
                 : "huawei".equals(uiMode) ? HarmonySkinTokens.HarmonyColorTokens.DIVIDER
                 : "ios".equals(uiMode) ? CupertinoSkinTokens.CupertinoColorTokens.DIVIDER : 0;
-        t.setBackground(roundedDrawable(surface, stroke));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1,-2);
+        int radius = "huawei".equals(uiMode) ? HarmonySkinTokens.HarmonyShapeTokens.SECTION_RADIUS_DP
+                : "ios".equals(uiMode) ? CupertinoSkinTokens.CupertinoShapeTokens.SECTION_RADIUS_DP
+                : ("miuix".equals(uiMode) ? 20 : "glass".equals(uiMode) ? 24 : 8);
+        int horizontal = "huawei".equals(uiMode) ? HarmonySkinTokens.HarmonySpacingTokens.SECTION_HORIZONTAL_PADDING_DP
+                : "ios".equals(uiMode) ? CupertinoSkinTokens.CupertinoSpacingTokens.SECTION_HORIZONTAL_PADDING_DP : 18;
+        int vertical = "huawei".equals(uiMode) ? HarmonySkinTokens.HarmonySpacingTokens.SECTION_VERTICAL_PADDING_DP
+                : "ios".equals(uiMode) ? CupertinoSkinTokens.CupertinoSpacingTokens.SECTION_VERTICAL_PADDING_DP : 10;
+        t.setPadding(dp(horizontal), dp(vertical), dp(horizontal), dp(Math.max(4, vertical - 2)));
+        t.setBackground(roundedDrawable(surface, stroke, radius));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.setMargins(dp(12), dp(10), dp(12), dp(4));
         t.setTag("fx-section:" + s);
-        content.addView(t,lp);
+        content.addView(t, lp);
     }
     private void refreshLocationSimulationConflictStatus(TextView status) {
         if (status == null) return;
