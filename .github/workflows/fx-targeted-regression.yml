@@ -121,6 +121,10 @@ jobs:
             run_py scripts/tests/fx-system-app-install-stage-patcher-regression.py
           fi
 
+          if [[ "$changed" == "ALL" || "$changed" =~ (fx_system_app_post_fs_data|fx-system-app-overlay-boot|post-fs-data) ]]; then
+            run_sh scripts/tests/fx-system-app-overlay-boot-regression.sh
+          fi
+
           if [[ "$changed" == "ALL" || "$changed" =~ (FxGkd|GkdSelector|gkd-selector|GKD-XA|fx-gkd|FxAccessibilityService|FxGkdAutomationActivity|MainActivity\.java|AndroidManifest\.xml|settings\.gradle|app/build\.gradle) ]]; then
             run_sh scripts/tests/fx-gkd-selector-integration-regression.sh
             run_sh scripts/tests/fx-gkd-automation-regression.sh
