@@ -1,0 +1,3 @@
+[submodule "vendor/GKD-XA"]
+	path = vendor/GKD-XA
+	url = https://github.com/84593320z/GKD-XA.git
