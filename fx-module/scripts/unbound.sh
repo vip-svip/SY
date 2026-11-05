@@ -52,7 +52,7 @@ _new_private_temp() {
   _temp_path=$(umask 077; mktemp "$_temp_template") || return 1
   [ -f "$_temp_path" ] && [ ! -L "$_temp_path" ] || return 1
   chmod 600 "$_temp_path" 2>/dev/null || { rm -f "$_temp_path"; return 1; }
-  printf '%s\\n' "$_temp_path"
+  printf '%s\n' "$_temp_path"
 }
 _prepare_state_dirs() {
   _path_components_are_safe "$PG" || { echo "unsafe Unbound parent state path" >&2; return 1; }
@@ -277,7 +277,7 @@ _ensure() {
   nohup "$BIN" -d -c "$CFG" >/dev/null 2>&1 &
   _new=$!
   _pid_tmp=$(_new_private_temp "$STATE/managed.pid.tmp.XXXXXX") || { kill "$_new" 2>/dev/null || :; return 1; }
-  printf '%s\\n' "$_new" > "$_pid_tmp" || { rm -f "$_pid_tmp"; kill "$_new" 2>/dev/null || :; return 1; }
+  printf '%s\n' "$_new" > "$_pid_tmp" || { rm -f "$_pid_tmp"; kill "$_new" 2>/dev/null || :; return 1; }
   mv -f "$_pid_tmp" "$PIDFILE" || { rm -f "$_pid_tmp"; kill "$_new" 2>/dev/null || :; return 1; }
   _i=0; _same=''
   while [ "$_i" -lt 20 ]; do
