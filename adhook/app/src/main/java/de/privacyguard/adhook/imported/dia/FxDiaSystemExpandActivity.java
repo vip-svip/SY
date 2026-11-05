@@ -119,7 +119,7 @@ public final class FxDiaSystemExpandActivity extends de.privacyguard.adhook.FxNa
     }
 
     private void unavailable(String title, String summary) {
-        new AlertDialog.Builder(this)
+        fxDialogBuilder()
                 .setTitle(title)
                 .setMessage(summary)
                 .setPositiveButton("知道了", null)
@@ -217,7 +217,7 @@ public final class FxDiaSystemExpandActivity extends de.privacyguard.adhook.FxNa
                         @Override public void afterTextChanged(Editable value) { }
                     });
                     if (!queryToRestore.isEmpty()) search.setText(queryToRestore);
-                    AlertDialog pickerDialog = new AlertDialog.Builder(this)
+                    AlertDialog pickerDialog = fxDialogBuilder()
                             .setTitle("选择要授权的安装来源")
                             .setView(picker)
                             .setNegativeButton("取消", null)
@@ -236,7 +236,7 @@ public final class FxDiaSystemExpandActivity extends de.privacyguard.adhook.FxNa
                         pickerDialog.dismiss();
                         openInstallSourceSettings(selected.packageName);
                     });
-                    pickerDialog.show();
+                    showFxDialog(pickerDialog);
                 });
             });
         } catch (RejectedExecutionException full) {
@@ -346,7 +346,7 @@ public final class FxDiaSystemExpandActivity extends de.privacyguard.adhook.FxNa
     }
 
     private void confirmPackageInstallerRestart(String packageName) {
-        new AlertDialog.Builder(this)
+        fxDialogBuilder()
                 .setTitle("重启 Package Installer？")
                 .setMessage("已确认当前没有活动、已提交或待应用的安装会话。FX 将使用 Root 强制停止：\n"
                         + packageName + "\nAndroid 会在下一次安装操作时重新启动该处理程序。")
