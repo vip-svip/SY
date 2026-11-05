@@ -1,11 +1,13 @@
 package de.privacyguard.adhook;
 
 import android.accessibilityservice.AccessibilityService;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.SystemClock;
 import android.view.KeyEvent;
 import android.view.accessibility.AccessibilityEvent;
+import android.view.accessibility.AccessibilityNodeInfo;
 
 /**
  * Optional user-enabled accessibility integration.
@@ -24,25 +26,69 @@ public final class FxAccessibilityService extends AccessibilityService {
 
     public static boolean isConnected() { return connected; }
 
+    /**
+     * Called after the user changes local GKD rules. The existing service owns
+     * the single Accessibility lifecycle; this only invalidates its in-memory
+     * compiled-rule cache and never starts another service.
+     */
+    public static void requestReconfigure(Context context) {
+        if (context == null) return;
+        FxGkdAutomationRuntime.invalidateRules();
+    }
+
     @Override public void onAccessibilityEvent(AccessibilityEvent event) {
-        if (event == null || event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return;
+        if (event == null) return;
+        final int eventType = event.getEventType();
+        final boolean foregroundChanged = eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED;
+        final boolean automationEvent = foregroundChanged
+                || eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+                || eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED;
+        if (!automationEvent) return;
+
         CharSequence packageName = event.getPackageName();
         if (packageName == null) return;
         String pkg = packageName.toString().trim();
-        if (pkg.isEmpty() || pkg.equals(getPackageName()) || pkg.equals(lastForegroundPackage)) return;
-        lastForegroundPackage = pkg;
+        if (pkg.isEmpty() || pkg.equals(getPackageName())) return;
 
-        long now = System.currentTimeMillis();
-        getSharedPreferences("fx_accessibility", MODE_PRIVATE).edit()
-                .putString("last_foreground_package", pkg)
-                .putLong("last_foreground_at", now).apply();
-        Intent changed = new Intent(ACTION_FOREGROUND_PACKAGE_CHANGED);
-        changed.setPackage(getPackageName());
-        changed.putExtra("package_name", pkg);
-        changed.putExtra("event_time", now);
-        sendBroadcast(changed);
-        de.privacyguard.adhook.imported.shield.FxYulongRiskScanDispatcher
-                .onForegroundPackageChanged(this, pkg);
+        if (foregroundChanged && !pkg.equals(lastForegroundPackage)) {
+            lastForegroundPackage = pkg;
+            long now = System.currentTimeMillis();
+            getSharedPreferences("fx_accessibility", MODE_PRIVATE).edit()
+                    .putString("last_foreground_package", pkg)
+                    .putLong("last_foreground_at", now).apply();
+            Intent changed = new Intent(ACTION_FOREGROUND_PACKAGE_CHANGED);
+            changed.setPackage(getPackageName());
+            changed.putExtra("package_name", pkg);
+            changed.putExtra("event_time", now);
+            sendBroadcast(changed);
+            de.privacyguard.adhook.imported.shield.FxYulongRiskScanDispatcher
+                    .onForegroundPackageChanged(this, pkg);
+        }
+
+        // The GKD master switch is OFF by default. Only a locally configured,
+        // enabled rule for this exact installed package may read an Accessibility
+        // tree and execute its user-authored action.
+        if (!FxGkdRuleStore.hasEnabledRule(this, pkg)) return;
+        AccessibilityNodeInfo root = null;
+        try {
+            root = getRootInActiveWindow();
+            if (root == null) return;
+            CharSequence rootPackage = root.getPackageName();
+            if (rootPackage == null || !pkg.equals(rootPackage.toString())) {
+                try { root.recycle(); } catch (RuntimeException ignored) {}
+                return;
+            }
+            // process() takes ownership of and recycles this root on every path.
+            FxGkdAutomationRuntime.process(this, pkg, root);
+            root = null;
+        } catch (RuntimeException unavailable) {
+            // Accessibility providers can detach a window between the event and
+            // root lookup. Do not crash the shared FX service.
+        } finally {
+            if (root != null) {
+                try { root.recycle(); } catch (RuntimeException ignored) {}
+            }
+        }
     }
 
     @Override public boolean onKeyEvent(KeyEvent event) {
