@@ -6,6 +6,8 @@ fail(){ echo "FAIL: $*" >&2; exit 1; }
 [ -s "$SOURCE" ] || fail "Root Proxy source missing"
 sh -n "$SOURCE" || fail "Root Proxy shell syntax invalid"
 
+T=$(mktemp -d "${TMPDIR:-/tmp}/fx-yulong-root-proxy.XXXXXX")
+trap 'rm -rf "$T"' EXIT HUP INT TERM
 # Exercise the production IPv4 validator directly; a syntactically numeric
 # address is not necessarily a usable unicast tunnel source.
 IPV4_VALIDATOR="$T/ipv4-validator.sh"
@@ -18,8 +20,6 @@ done
 for address in 0.0.0.0 0.1.2.3 127.0.0.1 169.254.1.1 224.0.0.1 239.1.2.3 240.0.0.1 255.255.255.255 256.0.0.1 10.01.2.3 1.2.3; do
   if _valid_ipv4 "$address"; then fail "invalid VPN egress IPv4 address accepted: $address"; fi
 done
-T=$(mktemp -d "${TMPDIR:-/tmp}/fx-yulong-root-proxy.XXXXXX")
-trap 'rm -rf "$T"' EXIT HUP INT TERM
 : > "$T/settings.log"
 MOCK_SETTINGS_LOG="$T/settings.log"; export MOCK_SETTINGS_LOG
 MOCK_PRIVATE_DNS_MODE=hostname; export MOCK_PRIVATE_DNS_MODE
