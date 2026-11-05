@@ -11,9 +11,9 @@ if not target.is_file():
 source = target.read_text(encoding="utf-8")
 marker = "# FX_SUBFETCH_FILE_LOCK_V2"
 required_lock_tokens = (
-    'if [ "$_sl_release_owner" = "$" ]; then',
-    '_sl_release="$LOCK.release.$"',
-    '_sl_stale="$LOCK.stale.$.$_sl_try"',
+    'if [ "$_sl_release_owner" = "$$" ]; then',
+    '_sl_release="$LOCK.release.$$"',
+    '_sl_stale="$LOCK.stale.$$.$_sl_try"',
     'if [ "$_sl_moved_owner" = "$_sl_owner" ]',
     'if [ "$_sl_again" = "$_sl_owner" ]; then',
 )
