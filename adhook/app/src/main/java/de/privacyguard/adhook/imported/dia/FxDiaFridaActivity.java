@@ -214,8 +214,10 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 offset += count;
             }
             writer.flush();
-            pendingRootInputFiles.add(staged);
-            complete = true;
+        }
+        pendingRootInputFiles.add(staged);
+        complete = true;
+        try {
             return staged;
         } finally {
             if (!complete) staged.delete();
@@ -2968,14 +2970,6 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
             setStatus(invalid.getMessage());
             return;
         }
-        final File sourceInput;
-        try {
-            sourceInput = stageFridaRootInput(source);
-        } catch (Exception error) {
-            setStatus("无法暂存 Frida 源码：" + error.getClass().getSimpleName());
-            return;
-        }
-
         final String logPath = gadgetSessionLogPath(port);
         final String scriptPath = "/data/adb/privacyguard/dia-frida/logs/gadget-" + port + ".js";
         final String pidPath = "/data/adb/privacyguard/dia-frida/logs/gadget-" + port + ".pid";
@@ -3034,6 +3028,13 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 + "tail -n 40 \"$log\"; kill \"$cli_pid\" \"$feed_pid\" 2>/dev/null || :; rm -f \"$pidfile\" \"$pipe\"; echo FX_GADGET_SESSION_START_FAILED; exit 25; fi; "
                 + "lock_held=0; rmdir \"$start_lock\"; "
                 + "printf 'FX_GADGET_SESSION_STARTED\\ncli_pid=%s\\nfeeder_pid=%s\\ncli_version=%s\\nprocess=%s\\n' \"$cli_pid\" \"$feed_pid\" \"$cli_version\" \"$process\"";
+        final File sourceInput;
+        try {
+            sourceInput = stageFridaRootInput(source);
+        } catch (Exception error) {
+            setStatus("无法暂存 Frida 源码：" + error.getClass().getSimpleName());
+            return;
+        }
         runRootWithInput(command, sourceInput, 20000L, result -> {
             if (result.exitCode == 0 && result.output != null
                     && (result.output.contains("FX_GADGET_SESSION_STARTED")
@@ -3272,13 +3273,6 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
             setStatus("frida-inject 路径无效。");
             return;
         }
-        final File sourceInput;
-        try {
-            sourceInput = stageFridaRootInput(source);
-        } catch (Exception error) {
-            setStatus("无法暂存 Frida 源码：" + error.getClass().getSimpleName());
-            return;
-        }
         String scriptPath = "/data/adb/privacyguard/dia-frida/" + targetPackage + ".js";
         String logPath = sessionLogPath();
         String selected = String.join(" ", selectedProcessPids);
@@ -3319,6 +3313,13 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 + "else rc=$?; failed=1; echo attach-failed pid=$pid exit=$rc >> " + quote(logPath) + "; fi; "
                 + "done; echo attached_processes=$injected; "
                 + "[ \"$injected\" -gt 0 ] || exit 4; [ \"$failed\" -eq 0 ] || exit 5";
+        final File sourceInput;
+        try {
+            sourceInput = stageFridaRootInput(source);
+        } catch (Exception error) {
+            setStatus("无法暂存 Frida 源码：" + error.getClass().getSimpleName());
+            return;
+        }
         runRootWithInput(command, sourceInput, 90000L, result ->
                 setStatus("多进程注入退出码 " + result.exitCode + "\\n日志文件：" + logPath
                         + "\\n" + result.output));
