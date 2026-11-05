@@ -6313,9 +6313,9 @@ public final class MainActivity extends ComponentActivity {
                 if (validCustomRuleGroupName(group)) groups.add(group.trim());
             }
         }
-        for (int i = 1; i <= 64; i++) {
+        for (int slot : getCustomRuleSlots(selectedPackage)) {
             String group = getPreferences(0).getString(
-                    selectedPackage + ":dev_rule_group_" + i, "默认");
+                    selectedPackage + ":dev_rule_group_" + slot, "默认");
             if (validCustomRuleGroupName(group)) groups.add(group.trim());
         }
         return groups;
@@ -6520,7 +6520,7 @@ public final class MainActivity extends ComponentActivity {
         groups.remove(oldName);
         groups.add(normalized);
         java.util.Map<String, String> assignments = new java.util.HashMap<>();
-        for (int slot = 1; slot <= 64; slot++) {
+        for (int slot : getCustomRuleSlots(selectedPackage)) {
             String key = selectedPackage + ":dev_rule_group_" + slot;
             String assigned = getPreferences(0).getString(key, "默认");
             // Older releases could persist surrounding whitespace even though
@@ -6597,7 +6597,7 @@ public final class MainActivity extends ComponentActivity {
         if (!groups.contains(groupName)) return;
         groups.remove(groupName);
         java.util.Map<String, String> assignments = new java.util.HashMap<>();
-        for (int slot = 1; slot <= 64; slot++) {
+        for (int slot : getCustomRuleSlots(selectedPackage)) {
             String key = selectedPackage + ":dev_rule_group_" + slot;
             String assigned = getPreferences(0).getString(key, "默认");
             if (assigned != null && groupName.equals(assigned.trim()))
