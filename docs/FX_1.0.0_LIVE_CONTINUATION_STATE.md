@@ -4107,3 +4107,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 1. 以 Ad 和隐私页面为样本，将 Android 原生页面的卡片/列表/表单/弹窗从色值替换推进到统一 renderer/组件适配；先保证真实控件操作与状态不变。
 2. 补五 Skin × 六 Tab renderer coverage 静态矩阵和 Android UI 自动化/截图基线；实际运行前注明可用 SDK/设备环境。
 3. 按业务页逐项检查 Ad、VPN、隐私、Hook、脚本按钮是否已连接真实服务/Repository；优先消除无后端空操作与假状态，不恢复来源应用入口。
+
+## 2026-11-05 — Targeted Host 回归结论补记与下一条 UI 实施线
+
+- 最新分支 HEAD（读取时）：e5c9cb7d44ced68cba6136e191736c01bb9e7a09
+- Targeted Host run：41984541289，job host-regressions = success。
+- 该 run 的实际 changed paths 只有 scripts/tests/fx-global-ui-modes-regression.sh，因此它执行的是五 Skin 全局样式/控件/壁纸相关回归；没有执行 fx-gkd-automation-regression.sh、fx-gkd-selector-integration-regression.sh 或 fx-unified-navigation-regression.sh。不能扩张解释为这些脚本通过。
+- 先前 Targeted Host run 41984271284 在 GKD automation regression 的 Python 检查处失败（日志报告内联检查器 line 34）。失败 HEAD 当时的 AccessibilityService 源码确实包含 disabled 分支撤销 FLAG_REPORT_VIEW_IDS 的表达式；随后规则仓库和测试的 package-scoped API 断言经并行提交修订。最新 HEAD 的 GKD 源码对 45 项对应静态契约逐条回读匹配，但尚未取得该修订版本实际运行 GKD regression 的 CI 结果。下一次触发 GKD 相关路径时必须读完整 job 输出再关闭问题。
+- 导航重构：MainActivity 六 Tab、Ad canonical WebUI route、Settings 不含 source app hub、旧 migration router 不存在、Hook/VPN/Settings Back 顺序等 15 项源码回读检查全部 PASS。测试文件已修正，但本轮 Host success 未触发 fx-unified-navigation-regression.sh，因此该脚本本批仍未取得 CI 执行证明。
+- 下一条实际开发线：继续五 Skin 的独立 Design Tokens / Renderer 与页面控件派发，优先 Harmony/Cupertino，覆盖六 Tab 内真实控件，而不是重复增加文档或只改主壳颜色。编译、UI 自动化、模拟器和真机视觉验收仍未完成。
