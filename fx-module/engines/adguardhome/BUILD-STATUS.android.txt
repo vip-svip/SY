@@ -1,0 +1,5 @@
+Build target: Android arm64 (GOOS=android GOARCH=arm64), Android NDK r26b, API level 24.
+Source: official AdGuard Home v0.107.79.
+CI verifies AArch64 ELF and Android /system/bin/linker64 interpreter.
+This verifies the build target, not runtime operation on a rooted OnePlus 12.
+Before enabling FX DNS redirects, test startup/shutdown, loopback bind, UDP/TCP DNS, upstream resolution, IPv6, SELinux, VPN coexistence and fail-open rollback on-device.
