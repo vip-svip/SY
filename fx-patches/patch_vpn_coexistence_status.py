@@ -75,7 +75,10 @@ fx_coexist_status_write() {
   fi
 
   _fx_cs_route_probe=${_fx_cs_route_probe:-unverified}
-  case "$_fx_cs_slot" in true|false|null) ;; *) _fx_cs_slot="unknown" ;; esac
+  case "$_fx_cs_slot" in
+    true|false|null) _fx_cs_slot_json=$_fx_cs_slot ;;
+    *) _fx_cs_slot="unknown"; _fx_cs_slot_json=null ;;
+  esac
   case "$_fx_cs_dns_port" in ""|*[!0-9]*) _fx_cs_dns_port=5353 ;; esac
   case "$_fx_cs_filter_dns_port" in ""|*[!0-9]*) _fx_cs_filter_dns_port=53 ;; esac
   case "$_fx_cs_proxy_port" in ""|*[!0-9]*) _fx_cs_proxy_port=7890 ;; esac
