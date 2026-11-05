@@ -4908,3 +4908,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 已回读验证 root installer 与 packaged installer 完全一致，blob SHA 均为 `3c4af6e698ab6dfcb9c1eebbc61b12c0b41573ba`；测试文件 blob SHA 为 `3da57d1247031b6905577e35b4a81906730f4f23`。这属于 GitHub 源码回读，不代表 Shell regression 已执行。
 - `fx-targeted-regression.yml` 的 push path filter 包含 `scripts/tests/**`，本批测试提交应触发 Host regression；当前可用 GitHub 状态接口未返回该提交的 check status（空 statuses），因此尚不能报告 CI PASS。Android Gradle 构建、KernelSU ZIP 安装、PackageManager 系统应用识别、SELinux 与卸载行为仍需真机/ROM 验证。
 - 当前 CI APK 使用 debug signing identity，不能作为已验证的生产升级签名。发布前必须配置稳定 FX release keystore，并验证旧版/新 APK signing certificate 一致；不能通过自动卸载系统包来规避签名不匹配。
+
+
+## 2026-11-05 — Root Proxy status fail-open reconciliation completed
+
+- Updated fx-module/scripts/yulong-root-proxy.sh: every failed active-state proof now runs _stop_locked() while the existing Root Proxy lock is held, then reports active=0 and the original failure reason. Covered disabled configuration, absent/orphan state, invalid or incomplete markers, invalid chain names/metadata, egress marker mismatch, lost/changed VPN route, missing IPv4/IPv6 OUTPUT redirect and failed local DNS probe.
+- Cleanup uses the existing FX-owned FXYRP chain names and _stop_engines() policy. It does not flush global OUTPUT/NAT tables or alter Android Private DNS. Independently enabled Unbound and AdGuard Home remain running; engines not independently enabled are stopped.
+- Extended scripts/tests/fx-yulong-root-proxy-runtime-regression.sh with executable cases for missing IPv4 redirect, missing IPv6 redirect, unavailable VPN route, failed DNS probe, disabled proxy and orphaned hooks without state markers. Each case verifies state markers and both family hooks are removed and independent DNS engines are preserved.
+- Initial regression run 42014045380 failed because the newly added shell assertions printed a literal backslash-n; corrected the test's printf escape and reran. Do not count the initial failed run as passing.
+- Source commit: 8e00bd764aa48a9b1c8f06dd682ea7d33be90693 — fix(vpn): reconcile stale Root Proxy redirects on failed status proofs.
+- Regression commit: 8bda5a259ae64d1ded008094d893775c4679c90a — test(vpn): fix newline assertions in status fail-open regression.
+- GitHub Actions run 42014171517 completed successfully; host-regressions = success. Log reports: PASS: Root Proxy runtime route/UID proofs, dual-stack rules, state-path symlink guards, independent DNS ownership and fail-open rollback.
+- This is host-side shell integration with mocked Android commands and iptables/ip6tables. It does not establish real device VPN recovery, kernel TUN behavior, OEM firewall compatibility, SELinux policy behavior or uninterrupted network service on Android hardware.
