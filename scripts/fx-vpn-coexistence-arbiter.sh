@@ -154,8 +154,22 @@ fx_arb_slot_used() {
 
   _hit=0
   _missing=0
+  # Keep the core dataplane entry points mandatory: an incomplete module must
+  # never be certified as slot-independent.
   for _f in "$_root/scripts/apply.sh" "$_root/scripts/vpncore.sh" \
             "$_root/scripts/yulong-root-proxy.sh" "$_root/scripts/yulong-vpn-control.sh"; do
+    if [ -L "$_f" ] || [ ! -f "$_f" ] || [ ! -r "$_f" ]; then
+      _missing=1
+    fi
+  done
+
+  # Also inspect every top-level module shell script. Checking only the four
+  # historical entry points allowed a newly added dataplane helper to call
+  # VpnService.prepare()/Builder and still be reported as slot-independent.
+  _scan_count=0
+  for _f in "$_root"/scripts/*.sh; do
+    [ -e "$_f" ] || continue
+    _scan_count=$((_scan_count + 1))
     if [ -L "$_f" ] || [ ! -f "$_f" ] || [ ! -r "$_f" ]; then
       _missing=1
       continue
@@ -164,9 +178,11 @@ fx_arb_slot_used() {
       _hit=1
     fi
   done
+  [ "$_scan_count" -gt 0 ] || _missing=1
 
   # A positive API match is decisive even if another scanned file is absent.
-  # A negative result is valid only when every required dataplane file exists.
+  # A negative result is valid only when every required and discovered shell
+  # source is a readable regular file and the scan is non-empty.
   if [ "$_hit" = "1" ]; then
     printf 'true'
   elif [ "$_missing" = "1" ]; then
