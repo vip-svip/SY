@@ -34,6 +34,51 @@ ANCHOR = 'set_perm_recursive "$MODPATH/webroot" 0 0 0755 0644'
 BEGIN = "# >>> fx-system-app-install-stage (managed by fx-patches/patch_system_app_install_stage.py)"
 END = "# <<< fx-system-app-install-stage"
 
+POST_FS_OVERLAY_BEGIN = '# >>> fx-system-app-overlay-verify (managed by fx-patches/patch_system_app_install_stage.py)'
+POST_FS_OVERLAY_END = '# <<< fx-system-app-overlay-verify'
+
+# The boot stage owns overlay verification/labelling. A published archive may
+# ship a handler that predates the system-app overlay, so the stage is appended
+# to it instead of replacing it: the shipped handler also performs hosts mount
+# and global resetprop spoofing, which must not be dropped.
+POST_FS_OVERLAY_BLOCK = '# >>> fx-system-app-overlay-verify (managed by fx-patches/patch_system_app_install_stage.py)\n# Verify and label the FX systemless APK overlay before PackageManager scans\n# system applications. FX is a system app, not a privileged app.\nset -u\nAPP_DIR=/system/app/FX\nAPK_PATH="$APP_DIR/FX.apk"\nSUM_PATH="$APP_DIR/FX.apk.sha256"\nSTATE_DIR=/data/adb/privacyguard\nLOG_DIR="$STATE_DIR/logs"\nLOG_FILE="$LOG_DIR/system-app-overlay.log"\nDEPLOYMENT_MARKER="$STATE_DIR/system-app-apk.sha256"\nRETRY_MARKER="$STATE_DIR/system-app-retry"\n\nlog(){\n  [ ! -L "$STATE_DIR" ] || return 0\n  mkdir -p "$LOG_DIR" 2>/dev/null || return 0\n  [ -d "$LOG_DIR" ] && [ ! -L "$LOG_DIR" ] || return 0\n  chmod 0700 "$LOG_DIR" 2>/dev/null || :\n  printf \'%s\\n\' "$*" >> "$LOG_FILE" 2>/dev/null || :\n}\nretry(){\n  log "RETRY: $*"\n  [ ! -L "$STATE_DIR" ] || exit 0\n  mkdir -p "$STATE_DIR" 2>/dev/null || exit 0\n  [ -d "$STATE_DIR" ] && [ ! -L "$STATE_DIR" ] && [ ! -L "$RETRY_MARKER" ] || exit 0\n  ( umask 077; printf \'%s\\n\' "$(date \'+%m-%d %H:%M:%S\' 2>/dev/null)" > "$RETRY_MARKER.tmp.$$" ) 2>/dev/null &&\n    mv -f "$RETRY_MARKER.tmp.$$" "$RETRY_MARKER" 2>/dev/null || rm -f "$RETRY_MARKER.tmp.$$" 2>/dev/null || :\n  exit 0\n}\n\n[ -d "$APP_DIR" ] && [ ! -L "$APP_DIR" ] || exit 0\n[ -f "$APK_PATH" ] && [ ! -L "$APK_PATH" ] || exit 0\n[ -f "$SUM_PATH" ] && [ ! -L "$SUM_PATH" ] || retry "overlay checksum sidecar is missing or unsafe"\ncommand -v sha256sum >/dev/null 2>&1 || retry "sha256sum is unavailable; overlay digest cannot be verified"\n\n_expected=$(awk \'NR==1 {print $1}\' "$SUM_PATH" 2>/dev/null)\ncase "$_expected" in *[!0-9a-fA-F]*|\'\') retry "overlay checksum sidecar is malformed" ;; esac\n[ "${#_expected}" -eq 64 ] || retry "overlay checksum sidecar has an invalid digest length"\n_actual=$(sha256sum "$APK_PATH" 2>/dev/null | awk \'NR==1 {print $1}\')\n[ -n "$_actual" ] && [ "$_actual" = "$_expected" ] || retry "overlay APK digest does not match its checksum sidecar"\n\n# The install hook writes this marker. If it could not (for example, recovery\n# storage was temporarily unavailable), reconstruct it only from the verified\n# APK and its packaged checksum; never trust an old or symlinked marker.\nmkdir -p "$STATE_DIR" 2>/dev/null || retry "cannot create deployment state directory"\n[ ! -L "$STATE_DIR" ] && [ ! -L "$DEPLOYMENT_MARKER" ] || retry "deployment state path is a symlink"\nif [ -s "$DEPLOYMENT_MARKER" ]; then\n  _recorded=$(awk \'NR==1 {print $1}\' "$DEPLOYMENT_MARKER" 2>/dev/null)\n  [ "$_recorded" = "$_actual" ] || retry "deployment marker does not match the mounted overlay"\nelse\n  ( umask 077; printf \'%s\\n\' "$_actual" > "$DEPLOYMENT_MARKER.tmp.$$" ) 2>/dev/null &&\n    chmod 0600 "$DEPLOYMENT_MARKER.tmp.$$" 2>/dev/null &&\n    mv -f "$DEPLOYMENT_MARKER.tmp.$$" "$DEPLOYMENT_MARKER" 2>/dev/null ||\n    retry "cannot commit verified deployment marker"\nfi\n\nchown 0:0 "$APP_DIR" "$APK_PATH" 2>/dev/null || log "WARN: could not normalize system-app overlay ownership"\nchmod 0755 "$APP_DIR" 2>/dev/null || log "WARN: could not normalize system-app directory mode"\nchmod 0644 "$APK_PATH" "$SUM_PATH" 2>/dev/null || log "WARN: could not normalize APK/checksum mode"\n\nif command -v restorecon >/dev/null 2>&1; then\n  restorecon -RF "$APP_DIR" >/dev/null 2>&1 || log "WARN: restorecon could not label /system/app/FX"\nfi\n\n# Some recovery/KernelSU builds omit restorecon; use Android\'s standard\n# system_file type as a best-effort fallback, never changing device policy.\n_fx_context=$(ls -Zd "$APK_PATH" 2>/dev/null | awk \'{print $1}\')\ncase "$_fx_context" in\n  u:object_r:system_file:s0) ;;\n  *)\n    if command -v chcon >/dev/null 2>&1; then\n      chcon u:object_r:system_file:s0 "$APP_DIR" "$APK_PATH" 2>/dev/null ||\n        log "WARN: SELinux system_file context could not be applied"\n    else\n      log "WARN: neither restorecon nor chcon could apply system_file context"\n    fi\n    ;;\nesac\n\n_fx_context=$(ls -Zd "$APK_PATH" 2>/dev/null | awk \'{print $1}\')\nif [ "$_fx_context" = "u:object_r:system_file:s0" ]; then\n  rm -f "$RETRY_MARKER" "$RETRY_MARKER.tmp."* 2>/dev/null || :\n  log "OK: verified APK digest, deployment marker, ownership, mode and SELinux context"\nelse\n  retry "system_file SELinux context is not active (context=${_fx_context:-unknown})"\nfi\nexit 0\n# <<< fx-system-app-overlay-verify\n'
+
+UNINSTALL_REMOVER_BEGIN = "# >>> fx-uninstall-remover-contract (managed by fx-patches/patch_system_app_install_stage.py)"
+UNINSTALL_REMOVER_END = "# <<< fx-uninstall-remover-contract"
+
+# The published archive invokes the remover with a literal path and the legacy
+# $PG variable. The ownership-safe uninstall contract is $REMOVER plus an
+# explicit $STATE_DIR, so the restored hook is promoted in place instead of
+# being replaced: the archive hook still performs the full PrivacyGuard teardown.
+UNINSTALL_REMOVER_LEGACY = (
+    'if [ -f "$MODDIR/scripts/remove_adhook_app.sh" ]; then\n'
+    '  if ! sh "$MODDIR/scripts/remove_adhook_app.sh" "$MODDIR" "$PG"; then'
+)
+UNINSTALL_REMOVER_CANONICAL = (
+    UNINSTALL_REMOVER_BEGIN + "\n"
+    'REMOVER="$MODDIR/scripts/remove_adhook_app.sh"\n'
+    'STATE_DIR="${STATE_DIR:-$PG}"\n'
+    + UNINSTALL_REMOVER_END + "\n"
+    'if [ -f "$REMOVER" ]; then\n'
+    '  if ! sh "$REMOVER" "$MODDIR" "$STATE_DIR"; then'
+)
+UNINSTALL_REMOVER_CONTRACT = 'sh "$REMOVER" "$MODDIR" "$STATE_DIR"'
+
+POST_FS_OVERLAY_REQUIRED = (
+    'restorecon -RF "$APP_DIR"',
+    "chcon u:object_r:system_file:s0",
+    'chown 0:0 "$APP_DIR" "$APK_PATH"',
+    'chmod 0644 "$APK_PATH"',
+    'SUM_PATH="$APP_DIR/FX.apk.sha256"',
+    'sha256sum "$APK_PATH"',
+    'DEPLOYMENT_MARKER="$STATE_DIR/system-app-apk.sha256"',
+    'RETRY_MARKER="$STATE_DIR/system-app-retry"',
+    "deployment marker does not match the mounted overlay",
+    'rm -f "$RETRY_MARKER"',
+    '[ ! -L "$STATE_DIR" ] || exit 0',
+    '[ -d "$LOG_DIR" ] && [ ! -L "$LOG_DIR" ]',
+)
+
 BLOCK = r'''
 # >>> fx-system-app-install-stage (managed by fx-patches/patch_system_app_install_stage.py)
 # FX 1.0.0: 安装期把随包 APK 部署为系统应用（可恢复的 systemless overlay）。
@@ -256,6 +301,11 @@ def sync_packaged_installer(root: Path) -> None:
     target_dir = root / "scripts"
     if target_dir.resolve() == canonical_dir.resolve():
         return
+    if not target_dir.is_dir():
+        # Minimal fixture trees carry no packaged scripts at all; the real
+        # packaging lane always restores fx-module/scripts from the archive.
+        print("fx-module/scripts not present in this tree; canonical installer sync skipped")
+        return
     if not canonical_dir.is_dir():
         raise SystemExit("canonical scripts directory is missing; refusing to package a stale installer")
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -276,9 +326,98 @@ def sync_packaged_installer(root: Path) -> None:
         target.write_text(payload, encoding="utf-8")
 
 
+def ensure_post_fs_data_overlay(root: Path) -> None:
+    """Give the boot stage its system-app overlay verification/labelling.
+
+    The KernelSU payload is restored from a previously published archive whose
+    ``post-fs-data.sh`` predates install-time system-app deployment. That handler
+    still owns hosts mounting and global resetprop spoofing, so it is never
+    replaced; the overlay stage is appended to it instead. When the tracked
+    handler already carries the contract the file is left untouched.
+    """
+    target = root / "post-fs-data.sh"
+    if not target.exists():
+        # Minimal fixture trees (patcher unit tests) carry no boot handler.
+        # A packaged module is separately gated by the required-file check.
+        print("fx-module/post-fs-data.sh not present in this tree; overlay stage skipped")
+        return
+    if target.stat().st_size == 0:
+        raise SystemExit("FX post-fs-data.sh is empty; refusing to package an unverified overlay")
+    original = target.read_text(encoding="utf-8")
+    text = original
+
+    # Idempotence: drop a previously managed block before deciding.
+    if POST_FS_OVERLAY_BEGIN in text or POST_FS_OVERLAY_END in text:
+        if POST_FS_OVERLAY_BEGIN not in text or POST_FS_OVERLAY_END not in text:
+            raise SystemExit("post-fs-data.sh overlay markers are inconsistent; refusing to patch")
+        start = text.index(POST_FS_OVERLAY_BEGIN)
+        end = text.index(POST_FS_OVERLAY_END, start) + len(POST_FS_OVERLAY_END)
+        text = (text[:start] + text[end:]).rstrip("\n") + "\n"
+
+    if all(anchor in text for anchor in POST_FS_OVERLAY_REQUIRED):
+        if text != original:
+            target.write_text(text, encoding="utf-8")
+        print("fx-module/post-fs-data.sh already verifies the system-app overlay")
+        return
+
+    if not text.endswith("\n"):
+        text += "\n"
+    text = text + "\n" + POST_FS_OVERLAY_BLOCK.strip("\n") + "\n"
+    target.write_text(text, encoding="utf-8")
+
+    written = target.read_text(encoding="utf-8")
+    for anchor in POST_FS_OVERLAY_REQUIRED:
+        if anchor not in written:
+            raise SystemExit(
+                f"post-fs-data.sh overlay stage is incomplete: missing {anchor!r}"
+            )
+    if written.count(POST_FS_OVERLAY_BEGIN) != 1 or written.count(POST_FS_OVERLAY_END) != 1:
+        raise SystemExit("post-fs-data.sh overlay stage must appear exactly once")
+    if "pm grant" in written or "privapp-permissions" in written:
+        raise SystemExit("unprivileged system app must not receive fabricated privileged grants")
+    print("Appended the system-app overlay stage to fx-module/post-fs-data.sh")
+
+
+def ensure_uninstall_remover_contract(root: Path) -> None:
+    """Make the uninstall hook invoke the ownership-safe remover portably.
+
+    The KernelSU payload is restored from an older Release archive whose
+    ``uninstall.sh`` calls the remover with a literal script path and ``$PG``.
+    That hook owns the whole PrivacyGuard teardown, so it is promoted in place
+    rather than replaced.
+    """
+    target = root / "uninstall.sh"
+    if not target.exists():
+        print("fx-module/uninstall.sh not present in this tree; remover contract skipped")
+        return
+    if target.stat().st_size == 0:
+        raise SystemExit("FX uninstall.sh is empty; refusing to package an ownership-unsafe remover")
+    text = target.read_text(encoding="utf-8")
+
+    if UNINSTALL_REMOVER_CONTRACT in text:
+        print("fx-module/uninstall.sh already invokes the ownership-safe remover")
+        return
+
+    if UNINSTALL_REMOVER_LEGACY not in text:
+        raise SystemExit(
+            "uninstall.sh remover call site changed; refusing to guess the ownership-safe invocation"
+        )
+    text = text.replace(UNINSTALL_REMOVER_LEGACY, UNINSTALL_REMOVER_CANONICAL, 1)
+    target.write_text(text, encoding="utf-8")
+
+    written = target.read_text(encoding="utf-8")
+    for required in (UNINSTALL_REMOVER_CONTRACT, 'REMOVER="$MODDIR/scripts/remove_adhook_app.sh"',
+                     'STATE_DIR="${STATE_DIR:-$PG}"'):
+        if required not in written:
+            raise SystemExit(f"uninstall.sh remover contract is incomplete: missing {required!r}")
+    print("Promoted fx-module/uninstall.sh to the ownership-safe remover contract")
+
+
 def main() -> None:
     root = Path(sys.argv[1] if len(sys.argv) > 1 else "fx-module")
     sync_packaged_installer(root)
+    ensure_post_fs_data_overlay(root)
+    ensure_uninstall_remover_contract(root)
     customize = root / "customize.sh"
     if not customize.is_file():
         raise SystemExit("FX customize.sh is missing")
