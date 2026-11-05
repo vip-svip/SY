@@ -36,6 +36,12 @@ printf '%s\n   0: 0100007F:14E9 00000000:0000 0A 00000000:00000000 00:00000000 0
   "$HDR" > "$TMP/net_dns_busy/tcp"
 for f in tcp6 udp udp6; do printf '%s\n' "$HDR" > "$TMP/net_dns_busy/$f"; done
 
+# net_udp_busy: port 5353 (0x14E9) bound by UDP (Linux /proc/net/udp state 07)
+mkdir -p "$TMP/net_udp_busy"
+for f in tcp tcp6 udp6; do printf '%s\\n' "$HDR" > "$TMP/net_udp_busy/$f"; done
+printf '%s\\n   0: 0100007F:14E9 00000000:0000 07 00000000:00000000 00:00000000 00000000  1000        0 2 1\\n' \
+  "$HDR" > "$TMP/net_udp_busy/udp"
+
 # run_arb <link-output> <vpinfo> <procnet> <modroot> [extra env...]
 # prints "<exit>|<json>"
 run_arb() {
@@ -113,6 +119,14 @@ rc=${r%%|*}; out=${r#*|}
 [ "$(field "$out" "['verdict']")" = "partial" ] || fail "expected partial, got $(field "$out" "['verdict']")"
 [ "$(field "$out" "['dns']['owner']")" = "other" ] || fail "dns owner must be other"
 pass "partial on port conflict"
+
+echo "== case 4b: external VPN + UDP DNS port bound -> partial =="
+r=$(run_arb "$LINKS_TUN" "tun0|10123" "$TMP/net_udp_busy" "$TMP/mod_clean")
+rc=${r%%|*}; out=${r#*|}
+[ "$rc" -eq 0 ] || fail "expected rc=0, got $rc: $out"
+[ "$(field "$out" "['verdict']")" = "partial" ] || fail "UDP DNS bind was incorrectly reported free: $out"
+[ "$(field "$out" "['dns']['owner']")" = "other" ] || fail "UDP DNS owner must be other"
+pass "partial on UDP port conflict"
 
 echo "== case 5: link inventory unavailable -> unknown, fail-safe rc=2 =="
 r=$(run_arb "" "" "$TMP/net_free" "$TMP/mod_clean")
