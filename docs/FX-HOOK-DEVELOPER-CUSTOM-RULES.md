@@ -4,7 +4,7 @@ The custom rule engine is for an explicitly selected developer-owned application
 
 ## Rule syntax
 
-A target row can contain any number of valid developer rules, subject to the enclosing configuration/import payload limits and available device storage. Slot identifiers are positive decimal integers and may be sparse; each rule is a comma-delimited config field whose value uses pipe separators:
+A target row can contain any number of valid developer rules. There is no fixed per-target rule-count cap or product-level JSON import character/byte ceiling; practical limits are available device memory/storage and parser cost. Slot identifiers are positive decimal integers and may be sparse; each rule is a comma-delimited config field whose value uses pipe separators:
 
 ```ini
 schema_version=1

@@ -374,6 +374,6 @@ Checkpoint: `9ab5a4af827b3958e325d414dd2509d5b7b60b14`.
 
 - The per-target Developer Hook rule-count cap of 64 has been removed from parser, serializer and native UI. Preference-backed slot enumeration now covers editor, group operations, import/export, rollback, rendering and config publication; sparse legacy slot IDs remain readable.
 - Validation: Targeted Host run `42047046509` completed SUCCESS on HEAD `058e5683`; it passed the dynamic UI lifecycle check, 96-rule parser/serializer round-trip, streamed publication/rollback and 2,500-target parser stress checks.
-- The JSON import payload is still size-bounded (16,384 editor characters / 64 KiB UTF-8); only the rule-count cap was removed.
+- The former 16,384-character / 64 KiB JSON import ceiling has also been removed; custom Hook draft persistence is debounced at 400 ms and flushed on dialog close/submit and Activity lifecycle transitions. Developer rules have no fixed per-target count cap and use dynamically enumerated sparse-compatible slots.
 - The manual APK gate remains closed. Do not set `migration_complete=true` until Dia 23.11, Yulong AdBlock 7.0.1 and Yulong Shield 9.9.60 source-to-behavior acceptance gates close. Remaining priorities: Dia Frida listener/message lifecycle, original AdBlock Trie/Bloom runtime and genuine per-app DNS query counts, and original Shield Stellar Binder transport / ProtectService parity.
 - The Module Runtime workflow for HEAD `058e5683` was still in progress when this note was written. No APK build or physical-device validation is claimed.
