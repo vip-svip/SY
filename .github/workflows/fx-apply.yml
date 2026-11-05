@@ -1,0 +1,28 @@
+name: FX Apply
+on:
+  workflow_dispatch:
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fx-v1.0.0-unified-hook-integration
+      - name: Write files
+        run: |
+          mkdir -p module/fx-system/bin
+          cat > module/fx-system/module.prop << 'EOF'
+          id=fx-system
+          name=FX 1.0.0 System App
+          version=1.0.0
+          versionCode=10000
+          EOF
+          # 其余文件同理...
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "feat(module): auto-deploy FX as system app"
+          branch: fx-v1.0.0-unified-hook-integration
+
