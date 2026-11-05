@@ -6593,3 +6593,6 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 修复提交：`347945fceea63e9152e282c2021b8aef88323d31`；随后将转义规范化改成无歧义的 `chr(92) + '"'` 写法，提交 `ce0f9d4dd3a588df1df0287c802f781788ddbac7`。
 - 本地对从目标分支读取的 `writeHostsPage()` 源码执行等价 token 验证，10 项契约均匹配；最终测试文件已回读，blob `ed7bb1734fd210d25bced59dbe28cb758fa03aca`。
 - 尚未确认该修复后的 GitHub Actions 运行结果；必须等待 `build-fx-adhook.yml` migration lane 实际运行，不能将源码 token 检查等价为完整 workflow / APK 构建通过。设备级验证仍未执行。
+
+
+- 并行协作对齐：另一 AI 已先提交相同根因的 canonical 修复 `fec78b13e31c707c44701eae88ac4294a0fc9788`（直接使用 Python raw string 比较 Java 源码转义字面量）。为避免保留两套互不一致的测试策略，本轮后续提交 `e57f626be3769115fb764d8e5fee37bb183a2297` 已将测试块对齐到该 raw-string 契约；最终测试 blob 为 `5c5beb124589ea393d3bf7ce386ad06038dbbda3`。从 GitHub 回读的 MainActivity 源码上，10 个契约 token 均匹配。Actions 仍未获得可确认的成功结果。
