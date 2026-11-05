@@ -93,6 +93,22 @@ if "fx_select_vpn_effective_mode() {" not in a:
 elif "external_android_vpn_tun_to_redirect" not in a:
     raise SystemExit("apply has an incomplete effective-mode patch")
 
+# The legacy PGVPN/PGVPN6 chains are REDIRECT dataplanes and must never
+# be installed while sing-box owns TUN packet capture. Guard every chain
+# activation in this section, not just the generic transparent-proxy hook.
+vpn_section_start = a.find("# ---------- 2c. VPN")
+vpn_section_end = a.find("# ---------- 2c-2.", vpn_section_start)
+if vpn_section_start < 0 or vpn_section_end < 0:
+    raise SystemExit("apply: VPN REDIRECT section boundaries are missing")
+vpn_section = a[vpn_section_start:vpn_section_end]
+old_nat_guard = 'if [ "$VPN_ON" = "1" ]; then'
+new_nat_guard = 'if [ "$VPN_ON" = "1" ] && [ "$VPN_MODE" != "tun" ]; then'
+if old_nat_guard in vpn_section:
+    vpn_section = vpn_section.replace(old_nat_guard, new_nat_guard)
+elif new_nat_guard not in vpn_section:
+    raise SystemExit("apply: PGVPN REDIRECT chain lacks a TUN exclusion guard")
+a = a[:vpn_section_start] + vpn_section + a[vpn_section_end:]
+
 pending_anchor = 'VPN_ON=0\nVPN_LP=""\n'
 pending = '''VPN_ON=0
 VPN_LP=""
