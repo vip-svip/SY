@@ -48,17 +48,19 @@ public final class FxYulongShieldActivity extends de.privacyguard.adhook.FxNativ
     }
     private Button action(String label, Runnable click) {
         Button button = new Button(this);
+        button.setTag("fx-action-row");
         button.setAllCaps(false); button.setText(label);
         button.setOnClickListener(v -> click.run());
         return button;
     }
     private void card(String title, String detail, View... controls) {
         LinearLayout panel = new LinearLayout(this);
+        panel.setTag("fx-card");
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setPadding(dp(14), dp(10), dp(14), dp(10));
         panel.setBackgroundColor(0xfff0f3f7);
-        panel.addView(text(title, 16, 0xff17212b, true));
-        panel.addView(text(detail, 13, 0xff617080, false));
+        TextView heading = text(title, 16, 0xff17212b, true); heading.setTag("fx-card-title"); panel.addView(heading);
+        TextView description = text(detail, 13, 0xff617080, false); description.setTag("fx-card-detail"); panel.addView(description);
         for (View control : controls) panel.addView(control);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.setMargins(dp(12), dp(5), dp(12), dp(5));
