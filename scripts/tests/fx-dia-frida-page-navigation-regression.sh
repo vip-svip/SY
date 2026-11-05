@@ -7,8 +7,9 @@ EDITOR="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDia
 LIBRARY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaScriptLibraryActivity.java"
 SESSION="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaSessionLogActivity.java"
 MONITOR="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaMonitorEventsActivity.java"
-[ -s "$MAIN" ] && [ -s "$ACTIVITY" ] && [ -s "$EDITOR" ] && [ -s "$LIBRARY" ] && [ -s "$SESSION" ] && [ -s "$MONITOR" ] || { echo "FAIL: Dia source files missing" >&2; exit 1; }
-python3 - "$MAIN" "$ACTIVITY" "$EDITOR" "$LIBRARY" "$SESSION" "$MONITOR" <<'PY'
+SKIN="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeSkin.java"
+[ -s "$MAIN" ] && [ -s "$ACTIVITY" ] && [ -s "$EDITOR" ] && [ -s "$LIBRARY" ] && [ -s "$SESSION" ] && [ -s "$MONITOR" ] && [ -s "$SKIN" ] || { echo "FAIL: Dia source files missing" >&2; exit 1; }
+python3 - "$MAIN" "$ACTIVITY" "$EDITOR" "$LIBRARY" "$SESSION" "$MONITOR" "$SKIN" <<'PY'
 from pathlib import Path
 import sys
 main = Path(sys.argv[1]).read_text(encoding="utf-8")
@@ -17,6 +18,7 @@ editor = Path(sys.argv[3]).read_text(encoding="utf-8")
 library = Path(sys.argv[4]).read_text(encoding="utf-8")
 session = Path(sys.argv[5]).read_text(encoding="utf-8")
 monitor = Path(sys.argv[6]).read_text(encoding="utf-8")
+skin = Path(sys.argv[7]).read_text(encoding="utf-8")
 hook_hub_start = main.index("private void showHookHub()")
 hook_hub_end = main.index("private void refreshHookHubAuthorizationStates()", hook_hub_start)
 hook_hub = main[hook_hub_start:hook_hub_end]
@@ -73,6 +75,10 @@ for token in (
 ):
     if token not in monitor:
         raise SystemExit(f"FAIL: monitor event page is missing Skin role {token}")
+if "public final class FxNativeSkin" not in skin:
+    raise SystemExit("FAIL: shared Skin facade must be public to integrated dia subpackages")
+if "public static void showDialog(Activity activity, Dialog dialog)" not in skin:
+    raise SystemExit("FAIL: shared dialog renderer must be public to integrated dia subpackages")
 checks = {
 
     "target picker open state saved": "outState.putBoolean(STATE_TARGET_PICKER_OPEN" in frida,
