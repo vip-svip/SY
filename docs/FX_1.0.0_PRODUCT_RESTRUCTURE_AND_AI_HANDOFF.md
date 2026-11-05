@@ -5,7 +5,7 @@
 > 分支：`fx-v1.0.0-unified-hook-integration`
 > 产品版本固定：FX 1.0.0（versionName=1.0.0、versionCode=10000；修改前必须核实）
 > 本文件用途：让新的 AI 在不依赖当前聊天上下文的情况下，理解产品目标、边界、页面结构、技术路线、验收标准，并直接接管实施。
-> 当前唯一可直接复制的跨 AI 总接管提示词：docs/FX_1.0.0_MASTER_AI_HANDOFF_PROMPT.md。新接手 AI 必须先读取该文件；若本文历史提示词/旧段落与总提示词冲突，以总提示词和实时状态文件为准。
+> 当前唯一可直接复制的跨 AI 总接管提示词：docs/FX_1.0.0_AUTONOMOUS_CROSS_AI_HANDOFF_PROMPT.md。新接手 AI 必须先读取该文件；若本文历史段落与该提示词或实时状态文件冲突，以提示词中的 UI/功能边界和实时状态事实为准。
 >
 ---
 
@@ -501,93 +501,7 @@ FX 必须内置可用的默认网络内核，同时提供可切换的内核管�
 
 # 9. 可直接交给其他 AI 的完整接管提示词
 
-将下面整段复制给其他 AI。它必须把本文件当作产品需求基线，实际读取仓库、源码并提交代码，而不是只回复计划。
-
-```text
-你现在是 FX 1.0.0 / FX Hook 项目的主开发 AI。你的任务是接管并实际推进代码，不是写建议或只做架构讨论。
-
-【唯一仓库】
-Repository: vip-svip/SY
-Branch: fx-v1.0.0-unified-hook-integration
-Version: FX 1.0.0；versionName=1.0.0、versionCode=10000（先读取 Gradle 核实，不得擅自升级版本）。
-
-【第一优先级：读取事实】
-1. 先读取当前分支最新 HEAD、最近提交、docs/FX_1.0.0_LIVE_CONTINUATION_STATE.md 和本文件。
-2. 读取资料库 /FX 中已有的项目接管总档、快速推进档、UI 优先执行档和 UI 提速提示词；若找不到某份，记录缺失，不能假装读过。
-3. 不重复全仓库盘点。按当前状态只读下一批需要的源码、Manifest、资源、测试和历史 APK 对照。
-4. 核实游龙工具_10.0.2.apk 是否可访问。若可访问，计算 SHA-256，分析包名/版本/签名、Manifest、资源、布局、assets、Smali，建立旧网页 UI 和壁纸功能的准确映射；若不可访问，列为唯一明确阻塞，不要猜测原界面。
-5. 检查五份 APK 源码 intake workflow 是否已成功运行。若 artifact 存在，读取 intake-report.md 和解压源码；重点识别游龙 10.10.62、GKD-XA 1.4.8 与旧版本差异。不能只看到 workflow 文件就声称已解压。
-6. 所有外部源码/依赖先核对许可、来源、签名和安全性；不复制未知来源的二进制或私有资源。
-
-【产品目标】
-把 FX 做成单 APK、单入口、统一业务层的 Android 工具套件。五种全局 UI 模式：
-A. 老版本网页界面：以游龙工具_10.0.2.apk 的实际 UI 为依据，保留经典交互和兼容桥接；
-B. 原生液态玻璃：FX 默认原生设计，半透明、背景模糊、高光、层次卡片，低性能设备可降级；
-C. Miuix/小米澎湃风格：以开源可合法集成组件/设计规范实现，非小米设备也必须可运行。
-D. HUAWEI HarmonyStyle：在 Android APK 内实现 HarmonyOS 视觉风格 Skin，不得宣称是 HarmonyOS 原生应用。使用 Kotlin + Jetpack Compose 建立独立 HarmonyColorTokens、HarmonyShapeTokens、HarmonyTypographyTokens、HarmonySpacingTokens 和 Harmony Renderer；实现卡片/服务入口层级、宽松留白、统一图标与字号网格、TopBar、BottomBar、Card、ListItem、Dialog、Sheet、Switch、Search、空/加载/错误状态。遵循 WindowInsets、WindowSizeClass、手势返回、深浅色、字体缩放和无障碍；只使用 Android 公共 API，HMS/HarmonyOS 私有能力只能作为可选探测适配器，缺失时必须正常回退。
-E. iOS CupertinoStyle：在 Android APK 内实现 Cupertino 视觉与交互风格，不得宣称是 iOS 原生客户端，也不得调用 Apple 私有 API。建立 CupertinoColorTokens、CupertinoShapeTokens、CupertinoTypographyTokens、CupertinoSpacingTokens 和独立 Renderer；使用 FX 自有 Compose 组件实现 NavigationBar、TabBar、InsetGroupedList、FormRow、Toggle、Alert、ActionSheet、BottomSheet 和层级模糊。遵循公开 Apple Human Interface Guidelines 的交互原则；SF Symbols、字体及系统资源必须使用合法授权替代资源，不得打包未经许可的 Apple 资产。不得声称获得 iOS 权限、后台生命周期或 Network Extension 能力。
-五种模式只切换 Presentation，不复制业务逻辑、服务、数据、权限和配置。设置里提供模式切换、壁纸、主题、模糊、遮罩、动效和预览。设置不提供迁移应用入口；所有来源应用能力按业务域归入五个业务 Tab。
-
-壁纸：系统 Photo Picker/SAF 选图、预览裁剪、缩放定位、模糊/遮罩、浅深色适配、URI 持久授权、失效回退、重启升级恢复、本地清除。壁纸不能影响 VPN/过滤/证书/Hook 服务。
-
-固定六 Tab（顺序不可更改）：VPN、Ad、隐私、脚本、Hook、设置。Hook 第五，设置第六。不要新增第二入口，不得把其他业务塞进设置。
-
-【必须实现的功能大纲】
-1. 广告拦截：本地 DNS、真实系统 hosts 重定向/编辑、应用层 Hook、Accessibility 用户授权辅助、共享 TUN 代理层；完整迁移游龙广告插件所有实际功能（Ad、General、Summary、Stats、Whitelist、DNS、Firewall、订阅、Tile、Widget、Tasker、计划任务、Root Proxy 等），以 7.0.1/9.9.60/10.10.62 源码逐项比对，不能漏掉版本差异。
-2. VPN：与 Ad 共用单个 VpnService/TUN ingress，但有独立 pipeline；实现常见 Shadowrocket 类能力：节点/订阅、代理协议、直连/全局/规则、应用分流、DNS、规则集、日志、连接控制、导入导出、自动重连；防泄漏验收包括 DNS/IPv4/IPv6/WebRTC/断线，并把 https://who.1ms.dog/zh-cn/ 纳入人工测试。优化 Always-on 和待机耗电，不得承诺 iOS 同等生命周期或零耗电。MITM/HTTPS CA 必须有生成、安装、信任检查、轮换、撤销、卸载、回滚；脚本支持 MITM request/response。不得承诺所有应用都信任系统/用户 CA，证书锁定和自定义信任库必须如实处理。
-3. 隐私：迁移现有 FX 隐私功能和游龙安全护盾所有页面/功能；Root、模块、LSPosed 隐藏/兼容按应用配置、真实状态回读、可撤销；不保证绝对隐身，不破坏系统安全。
-4. Hook：广告 Hook、Dia 功能、GKD-XA 功能、应用更新 Hook、VPN/隐私检测、开屏广告、用户授权的位置模拟和自定义规则；所有执行通道 Root/LSPosed/Accessibility 分开报告真实状态。VIP 只实现合法会员功能和用户自有应用测试，不得伪造付费资格或绕过授权。
-5. 脚本与规则：多生态真实执行，目标包括 Surge、Quantumult X、Loon、Shadowrocket、Stash、Egern、Surfboard、Clash/Mihomo、sing-box、Tampermonkey/Violentmonkey/Greasemonkey UserScript；过滤规则支持 AdGuard、uBlock Origin、Adblock Plus、Hosts、PAC、DNS blocklist、CIDR/IP/domain 和 URL Rewrite。建立 QuickJS 等 runtime、平台 API adapter、parser/validator/serializer 和逐版本兼容矩阵。6. 网络内核：必须内置至少一个经过测试的默认内核，并支持 sing-box、Mihomo、Xray-core、V2Fly/v2ray-core、dae、Leaf、Brook 等候选内核/引擎适配，以及用户上传/自定义内核导入、校验、能力探测、切换、更新、回滚。Hysteria 2、TUIC、VLESS/VMess、Trojan、Shadowsocks、SOCKS、HTTP(S) 等作为协议能力逐内核登记，不得误列为独立内核。网络内核 Provider 与脚本 Runtime 分离。MITM 脚本接入所选内核真实 TLS hook；浏览器 UserScript/扩展按浏览器真实 API 实现；提供沙箱、权限、超时、取消、日志、导入导出。
-
-【HUAWEI 与 iOS Skin 的强制实施细则】
-- 不得把两种新模式只写进需求文档或只加模式按钮。必须实际修改 FxUiMode.kt、FxDesignModePanel.kt、FxNativeAppShell.kt/统一 Skin Host，以及六 Tab 页面 renderer。
-- 为 HUAWEI 与 iOS 分别建立稳定 storage ID（建议 huawei、ios），兼容未知/旧 ID 回退；模式状态只能由统一 FxUiMode 读写，禁止页面各自保存主题。
-- HUAWEI：建立 Harmony*Tokens 与 Harmony*Renderer/组件适配层；覆盖 TopBar、BottomBar、卡片、列表、表单、弹窗、Sheet、搜索、空态、加载态、错误态；适配华为 Android 设备与非华为 Android 设备。不得依赖 HMS 私有 API 才能启动，不复制未授权华为系统图标/资源。
-- iOS：建立 Cupertino*Tokens 与 Cupertino*Renderer/组件适配层；覆盖导航栏、TabBar、InsetGroupedList、FormRow、Toggle、Alert、ActionSheet、BottomSheet；按公开 HIG 实现交互细节。不得依赖 Apple 私有 API，不得将 Android Skin 描述为 iOS 客户端，不得使用未经授权的 SF Symbols/字体/系统资源。
-- 五种模式必须共享同一业务状态、ViewModel/Repository、数据库、权限和服务生命周期。换肤不得停止/重启 VPN、Root 内核级代理、DNS、Hosts、Hook、Frida 或脚本运行时。
-- 五种模式必须逐页适配六个 Tab；禁止只让主壳换色而内部页面仍使用同一套默认 Material 控件就声称完成。
-- 增加 FxUiMode 单测、稳定 ID/旧值迁移测试、renderer 路由回归、六 Tab 覆盖回归；加入截图或 UI 自动化测试。验证需分层记录：静态检查、单测、Gradle 编译、UI 自动化、华为/非华为 Android 设备、iOS 风格视觉验收。真实 iOS 客户端不属于当前 Android APK 交付范围。
-- 截至 2026-11-05，源码已接入五种模式的稳定 ID/别名映射、五项模式选择器、全局 Compose Shell 五种基础外观分支，并通过 FxNativeSkin 向 MainActivity 与迁入 Activity 的原生页面应用基础配色和透明背景适配。HUAWEI/iOS 已有全局导航/页面表面基础 Skin，但尚未完成所有页面的独立组件 tokens/renderer 与逐页截图验收；不得宣称完整视觉重构已完成。
-
-【架构要求】
-- Presentation：ClassicWebCompat / FXLiquidNative / MiuixStyle / HUAWEI HarmonyStyle / iOS CupertinoStyle 五种 skin。
-- Domain：Ad、VPN、Privacy、Hook、Script、Settings；Source Intake 仅是研发工作流，不得生成应用内 Migration 页面或设置入口。
-- Data：统一仓库、版本化 schema、迁移/备份/回滚。
-- Platform：Root broker、内核级代理数据面（policy routing/iptables/nftables/TPROXY 等受支持后端）、DNS、Hosts writer、可选备用 VpnService/TUN、Accessibility、LSPosed bridge、证书管理。
-- FX 内核级代理主路径不得占用 Android VPN 槽；备用 VpnService 只能在未有第三方 VPN 占槽时启动。
-- Runtime：QuickJS、规则引擎、受控 Hook/Frida 生命周期。
-- 业务状态与 Skin 解耦，切换主题不得重启或改变网络服务。
-- Android 同一用户/配置文件只有一个活动 VPN 槽；禁止多个 VpnService 互抢。FX 主代理走 Root/系统网络栈级数据面，与第三方应用 VPN 并行/链式兼容；不得把备用 VpnService 冒充内核级代理。
-- Root 命令固定白名单、路径规范化、拒绝符号链接、最小权限、超时、审计。
-- 本地 hosts 与订阅规则分开；Hosts 必须编辑真实系统文本文件并支持外部修改回读、原子写入和回滚。
-
-【执行顺序】
-P0：恢复最新仓库状态、源码证据和 APK 10.0.2 UI/壁纸映射。
-P1：六 Tab + 五 Skin 架构（ClassicWebCompat、FXLiquidNative、MiuixStyle、HUAWEI HarmonyStyle、iOS CupertinoStyle）+ 模式切换 + 壁纸功能。
-P2：Dia/游龙各版本/安全护盾/GKD 页面与功能矩阵，按完整页面组迁移。
-P3：DNS/Hosts/广告过滤多层真实链路和共享 TUN。
-P4：VPN 节点/规则/DNS/防泄漏/MITM/证书/脚本 runtime。
-P5：隐私、安全护盾、Root/LSP 兼容、Hook 和 GKD。
-P6：整合验收、耗电/防泄漏/升级/回滚/真机验证。
-每批只选 1–3 个紧密相关页面/功能组，完成后直接进入下一批。P0 安全/断网/数据损坏风险可插队。
-
-【开发纪律】
-- 直接修改代码并提交到指定分支；不要只给计划。
-- 修改前读取最新 HEAD 和目标文件 SHA；分支前进就重新读取后重放，禁止强制覆盖。
-- 不生成编号备份、不创建无意义分支、不改版本号。
-- 独立文件可以并行读取/实现；共享文件（MainActivity、Manifest、Gradle、统一状态）必须顺序整合。没有真正多 Agent 时，不得谎称已启动多 Agent。
-- 先做 UI 页面覆盖，再接真实后端；未接通的控件明确显示未接入/不可用，绝不伪造成功。
-- 不要反复盘点、不要每个小改动都跑全套 Actions、不要以测试数量代替功能进度。每批做最小针对性验证，阶段节点做模块回归。
-- 同一失败路线连续失败两次必须换方法，读取真实日志定位根因。
-- 每批有效代码提交后同步更新 docs/FX_1.0.0_LIVE_CONTINUATION_STATE.md，记录当前 HEAD、commit、变更路径、页面映射、真实功能、验证等级、未验证项、失败路线和下一批 1–3 个具体任务。
-- 最终 APK/KernelSU ZIP 只有在功能和验收达到要求后才生成。静态检查、单测、构建、安装、真机测试必须分开写；没有真机就写“真机未验证”。
-
-【验收与诚实性】
-不能因为页面存在、按钮可点、配置写入、源码有类、旧 Actions 成功或单一防泄漏网站通过，就声称功能完成。每项标记：未检查/缺失/部分实现/已实现未验证/已验证/有意不迁移（原因）。明确记录 Android 版本、目标应用、权限、网络环境和失败条件。
-现在读取仓库最新状态并开始 P0/P1 的实际工作；完成一批就继续，不要等待我逐项安排，也不要只汇报计划。
-```
-
----
+**唯一正式提示词：** `docs/FX_1.0.0_AUTONOMOUS_CROSS_AI_HANDOFF_PROMPT.md`。请将该文件全文交给新接手 AI；本文件只保留产品规格、架构和验收依据，不再复制维护第二份提示词。
 
 ## 10. 本文件更新规则
 
