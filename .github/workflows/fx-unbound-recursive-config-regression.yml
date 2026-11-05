@@ -1,0 +1,32 @@
+name: FX Unbound Recursive Config Regression
+
+on:
+  push:
+    branches:
+      - fx-v1.0.0-unified-hook-integration
+    paths:
+      - "fx-module/scripts/unbound.sh"
+      - "fx-module/scripts/tests/v1.0.0-unbound-recursive-config-regression.sh"
+      - ".github/workflows/fx-unbound-recursive-config-regression.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fx-unbound-recursive-config-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  recursive-config:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate and exercise the host-side resolver config contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          sh -n fx-module/scripts/unbound.sh
+          sh -n fx-module/scripts/tests/v1.0.0-unbound-recursive-config-regression.sh
+          sh fx-module/scripts/tests/v1.0.0-unbound-recursive-config-regression.sh
