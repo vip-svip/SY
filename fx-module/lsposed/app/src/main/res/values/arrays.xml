@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      默认作用域：只有 android（即 system_server 进程）。
+
+      为什么保持最小：
+        * MainHook 会强制跳过 system_server（NEVER_HOOK 里含 "android"），
+          所以这个默认作用域实际上等于「默认不 Hook 任何进程」——模块装上
+          不会影响任何普通应用的运行，是最安全的新装状态。
+        * 破坏性 Hook（block_pm_query / block_mounts / hide_su / fs_* 等）只在
+          用户把某个 App 手动勾进作用域后才会作用到它。若默认就勾上一堆 App，
+          新装用户会在不知情的情况下把 App 弄坏（GitHub/银行类 App 闪退的典型
+          成因之一）。
+        * Hook 强度由设置项 lsposed_profile 控制（compat/standard/aggressive）：
+          compat = 零破坏（默认），standard = 仅隐藏 root 痕迹，
+          aggressive = 全开。默认值在 scripts/default.conf 里。
+
+      建议：让用户在 LSPosed 管理器里只勾选自己确实需要防护的 App，
+      并保持 lsposed_profile=compat。
+    -->
+    <string-array name="xposed_scope">
+        <item>android</item>
+    </string-array>
+</resources>

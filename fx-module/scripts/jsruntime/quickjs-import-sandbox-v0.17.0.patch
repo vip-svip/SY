@@ -1,0 +1,75 @@
+--- a/qjs.c
++++ b/qjs.c
+@@ -660,6 +660,11 @@
+                 goto fail;
+         }
+ 
++        /* The host prelude captured its private std/os references above. Block
++           subsequent script imports, including cache hits for those modules. */
++        if (load_std)
++            JS_SetModuleImportSandbox(rt, true);
++
+         if (standalone) {
+             JSValue ns = load_standalone_module(ctx);
+             if (JS_IsException(ns))
+--- a/quickjs.c
++++ b/quickjs.c
+@@ -405,6 +405,7 @@
+     } u;
+     JSModuleCheckSupportedImportAttributes *module_check_attrs;
+     void *module_loader_opaque;
++    bool disable_privileged_module_imports; /* FX CLI sandbox toggle */
+     /* timestamp for internal use in module evaluation */
+     int64_t module_async_evaluation_next_timestamp;
+ 
+@@ -30588,6 +30589,12 @@
+     rt->normalize_u.module_normalize_func2 = module_normalize;
+ }
+ 
++void JS_SetModuleImportSandbox(JSRuntime *rt, bool enabled)
++{
++    if (rt)
++        rt->disable_privileged_module_imports = enabled;
++}
++
+ int JS_SetModulePrivateValue(JSContext *ctx, JSModuleDef *m, JSValue val)
+ {
+     set_value(ctx, &m->private_value, val);
+@@ -30787,6 +30794,24 @@
+     if (!cname)
+         return NULL;
+ 
++    /* Check before the module cache: qjs:std/os/bjson were loaded by --std
++       for the trusted host prelude, but must not be imported by user scripts. */
++    if (rt->disable_privileged_module_imports) {
++        const char *suffix = strrchr(cname, '.');
++        bool native_module = suffix && !strcmp(suffix, ".so");
++        bool privileged_module = !strcmp(cname, "qjs:std") ||
++                                 !strcmp(cname, "qjs:os") ||
++                                 !strcmp(cname, "qjs:bjson") ||
++                                 !strcmp(cname, "std") ||
++                                 !strcmp(cname, "os") ||
++                                 !strcmp(cname, "bjson");
++        if (native_module || privileged_module) {
++            JS_ThrowReferenceError(ctx, "privileged/native module import disabled by FX: %s", cname);
++            js_free(ctx, cname);
++            return NULL;
++        }
++    }
++
+     module_name = JS_NewAtom(ctx, cname);
+     if (module_name == JS_ATOM_NULL) {
+         js_free(ctx, cname);
+--- a/quickjs.h
++++ b/quickjs.h
+@@ -1228,6 +1228,10 @@
+                                        JSModuleCheckSupportedImportAttributes *module_check_attrs,
+                                        void *opaque);
+ 
++/* FX hardening: prevent scripts from importing privileged stdlib/native modules.
++   The CLI enables this only after its trusted host prelude has initialized. */
++JS_EXTERN void JS_SetModuleImportSandbox(JSRuntime *rt, bool enabled);
++
+ /* Set an attributes-aware module normalizer. Call after JS_SetModuleLoaderFunc2. */
+ JS_EXTERN void JS_SetModuleNormalizeFunc2(JSRuntime *rt,
+                                           JSModuleNormalizeFunc2 *module_normalize);

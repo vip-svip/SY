@@ -1,0 +1,336 @@
+status	type	path	detail
+PASS	HTML inline JavaScript	webroot/index.html	block 1/32 compiled with new Function
+PASS	HTML inline JavaScript	webroot/index.html	block 2/32 compiled with new Function
+PASS	HTML inline JavaScript	webroot/index.html	block 3/32 compiled with new Function
+PASS	HTML inline JavaScript	webroot/index.html	block 4/32 compiled with new Function
+PASS	HTML inline JavaScript	webroot/index.html	block 5/32 compiled with new Function
+PASS	HTML inline JavaScript	webroot/index.html	block 6/32 compiled with new Function
+PASS	HTML inline JavaScript	webroot/index.html	block 7/32 compiled with new Function
+PASS	HTML inline JavaScript	webroot/index.html	block 8/32 compiled with new Function
+PASS	HTML inline JavaScript	webroot/index.html	block 9/32 compiled with new Function
+PASS	HTML inline JavaScript	webroot/index.html	block 10/32 compiled with new Function
+PASS	HTML inline JavaScript	webroot/index.html	block 11/32 compiled with new Function
+PASS	HTML inline JavaScript	webroot/index.html	block 12/32 compiled with new Function
+PASS	HTML inline JavaScript	webroot/index.html	block 13/32 compiled with new Function
+PASS	HTML inline JavaScript	webroot/index.html	block 14/32 compiled with new Function
+PASS	HTML inline JavaScript	webroot/index.html	block 15/32 compiled with new Function
+PASS	HTML inline JavaScript	webroot/index.html	block 16/32 compiled with new Function
+PASS	HTML inline JavaScript	webroot/index.html	block 17/32 compiled with new Function
+PASS	HTML inline JavaScript	webroot/index.html	block 18/32 compiled with new Function
+PASS	HTML inline JavaScript	webroot/index.html	block 19/32 compiled with new Function
+PASS	HTML inline JavaScript	webroot/index.html	block 20/32 compiled with new Function
+PASS	HTML inline JavaScript	webroot/index.html	block 21/32 compiled with new Function
+PASS	HTML inline JavaScript	webroot/index.html	block 22/32 compiled with new Function
+PASS	HTML inline JavaScript	webroot/index.html	block 23/32 compiled with new Function
+PASS	HTML inline JavaScript	webroot/index.html	block 24/32 compiled with new Function
+PASS	HTML inline JavaScript	webroot/index.html	block 25/32 compiled with new Function
+PASS	HTML inline JavaScript	webroot/index.html	block 26/32 compiled with new Function
+PASS	HTML inline JavaScript	webroot/index.html	block 27/32 compiled with new Function
+PASS	HTML inline JavaScript	webroot/index.html	block 28/32 compiled with new Function
+PASS	HTML inline JavaScript	webroot/index.html	block 29/32 compiled with new Function
+PASS	HTML inline JavaScript	webroot/index.html	block 30/32 compiled with new Function
+PASS	HTML inline JavaScript	webroot/index.html	block 31/32 compiled with new Function
+PASS	HTML inline JavaScript	webroot/index.html	block 32/32 compiled with new Function
+PASS	JavaScript syntax	scripts/jsruntime/host.js	node --check
+PASS	JavaScript syntax	scripts/jsruntime/privileged-import-smoke.js	node --check
+PASS	JavaScript syntax	scripts/tests/v1.0.0-singbox-json-uri-regression.js	node --check
+PASS	JavaScript syntax	scripts/tests/v1.0.0-singbox-reality-validation-regression.js	node --check
+PASS	JavaScript syntax	scripts/tests/v1.0.0-singbox-required-credentials-regression.js	node --check
+PASS	JavaScript syntax	scripts/tests/v1.0.0-singbox-transport-loss-regression.js	node --check
+PASS	JavaScript syntax	scripts/vpn-singbox-json.js	node --check
+PASS	Shell syntax	action.sh	sh -n
+PASS	Shell syntax	customize.sh	sh -n
+PASS	Shell syntax	post-fs-data.sh	sh -n
+PASS	Shell syntax	scripts/adguardhome.sh	sh -n
+PASS	Shell syntax	scripts/applist.sh	sh -n
+PASS	Shell syntax	scripts/apply.sh	sh -n
+PASS	Shell syntax	scripts/cert-apex-ns.sh	sh -n
+PASS	Shell syntax	scripts/certcopy.sh	sh -n
+PASS	Shell syntax	scripts/certmarker.sh	sh -n
+PASS	Shell syntax	scripts/certmgr.sh	sh -n
+PASS	Shell syntax	scripts/crashreport.sh	sh -n
+PASS	Shell syntax	scripts/dnscheck.sh	sh -n
+PASS	Shell syntax	scripts/external-vpn-probe.sh	sh -n
+PASS	Shell syntax	scripts/fileedit.sh	sh -n
+PASS	Shell syntax	scripts/gen_xposed_conf.sh	sh -n
+PASS	Shell syntax	scripts/install_adhook_app.sh	sh -n
+PASS	Shell syntax	scripts/jsruntime/http.sh	sh -n
+PASS	Shell syntax	scripts/jsruntime/runner.sh	sh -n
+PASS	Shell syntax	scripts/jsruntime/scheduler.sh	sh -n
+PASS	Shell syntax	scripts/jsruntime/sync-subs.sh	sh -n
+PASS	Shell syntax	scripts/localdns-watchdog.sh	sh -n
+PASS	Shell syntax	scripts/mitm-audit.sh	sh -n
+PASS	Shell syntax	scripts/mitm-engine.sh	sh -n
+PASS	Shell syntax	scripts/mitm-listener-health.sh	sh -n
+PASS	Shell syntax	scripts/mitm-redirect-watch.sh	sh -n
+PASS	Shell syntax	scripts/mitm-redirect.sh	sh -n
+PASS	Shell syntax	scripts/modconvert.sh	sh -n
+PASS	Shell syntax	scripts/remove_adhook_app.sh	sh -n
+PASS	Shell syntax	scripts/status.sh	sh -n
+PASS	Shell syntax	scripts/subfetch.sh	sh -n
+PASS	Shell syntax	scripts/subread.sh	sh -n
+PASS	Shell syntax	scripts/substatus.sh	sh -n
+PASS	Shell syntax	scripts/sync-mitm-hosts.sh	sh -n
+PASS	Shell syntax	scripts/sync-urlrewrite.sh	sh -n
+PASS	Shell syntax	scripts/tests/adhook-app-installer-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-ad-dns-backend-contract-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-ad-master-early-hosts-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-ad-master-rule-control-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-ad-protection-master-gates-engines-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-ad-rule-live-sync-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-ad-rule-overview-boundary-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-ad-rule-overview-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-ad-ui-master-removal-and-overview-top-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-adguardhome-manager-runtime-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-adguardhome-optin-lifecycle-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-adult-site-ad-cosmetic-safety-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-adult-site-ad-domain-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-applist-no-fake-fallback-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-apply-task-lifecycle-all-exits-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-blocklist-quality-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-builtin-host-rules-vpnroute-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-builtin-privacy-blocklist-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-ca-mitm-lifecycle-integration-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-cache-sha256-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-cert-apex-namespace-ui-truth-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-cert-collision-no-openssl-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-cert-full-fingerprint-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-cert-legacy-mount-migration-reboot-guard-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-cert-selinux-label-fail-closed-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-compat-profile-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-core-config-transaction-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-cosmetic-upstream-subscription-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-custom-dns-tcp-fallback-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-customize-preserves-rulesets-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-dns-custom-disabled-exception-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-dns-exception-address-validation-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-dns-firewall-transaction-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-dns-ipv6-literal-validation-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-dns-lifecycle-failopen-uninstall-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-dns-probe-negative-result-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-dns-redirect-precedence-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-dns-resolver-ipv4-validation-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-dns-status-requires-output-hook-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-dns-udp-redirect-no-breakage-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-download-status-not-applied-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-engine-install-permissions-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-external-vpn-dns-failopen-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-external-vpn-hide-transaction-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-external-vpn-probe-owner-ui-consistency-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-external-vpn-probe-ui-fail-safe-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-fileedit-apply-and-readonly-cache-integration-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-fileedit-backup-atomicity-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-fileedit-bounds-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-fileedit-find-error-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-fileedit-find-hit-bound-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-fileedit-find-total-bound-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-fileedit-insert-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-fileedit-no-side-effect-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-fileedit-page-byte-truncation-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-fileedit-transform-failure-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-fileedit-transform-no-override-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-firewall-fallback-and-vpn-leak-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-firewall-partial-batch-rollback-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-firewall-queue-activation-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-firewall-queue-write-failure-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-firewall-queue-write-status-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-fx-action-semantics-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-fx-branding-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-fx-bundled-source-lifecycle-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-fx-firewall-rule-diagnostics-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-fx-hosts-mount-ownership-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-fx-master-gates-vpn-routes-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-fx-missing-builtin-source-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-fx-missing-source-editable-override-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-fx-purpose-source-boundary-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-fx-rule-application-diagnostics-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-fx-rule-bootstrap-persistence-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-fx-rule-section-separation-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-fx-safe-default-whitelist-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-global-final-reject-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-hook-waf-claims-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-hosts-baseline-backup-recovery-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-hosts-bindmount-fail-safe-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-hosts-cache-concurrency-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-hosts-fast-apply-source-fingerprint-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-hosts-ipv6-local-mapping-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-hosts-subscription-separation-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-hosts-transactional-commit-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-hosts-whitelist-priority-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-http-fetch-integrity-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-ipv6-firewall-jump-cleanup-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-ipv6-pghide-rollback-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-js-mitm-runtime-controls-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-js-subscription-lifecycle-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-js-subscription-sync-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-jsruntime-argv-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-jsruntime-diagnostics-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-jsruntime-http-no-wget-downgrade-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-jsruntime-isolated-result-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-jsruntime-no-done-fails-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-jsruntime-privileged-import-block-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-jsruntime-utils-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-k-task-toggle-backend-consistency-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-kernel-editor-template-truthfulness-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-large-ruleset-safety-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-list-section-merge-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-local-hosts-file-source-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-local-hosts-legacy-migration-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-local-hosts-streaming-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-local-recursive-dns-config-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-local-upstream-rules-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-localdns-watchdog-chain-health-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-localdns-watchdog-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-lsposed-ad-hook-apk-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-lsposed-ad-hook-target-scope-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-lsposed-remote-file-config-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-lsposed-remote-status-ui-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-lsposed-ui-single-apply-pipeline-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-managed-core-ensure-failure-disables-redirection-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-migration-missing-block-section-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-mitm-host-allowlist-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-mitm-listener-readiness-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-mitm-runtime-ca-child-sync-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-mitm-sni-mismatch-single-response-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-mitm-status-collision-slot-apex-namespace-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-mitm-trust-preflight-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-module-urlrewrite-action-safety-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-module-urlrewrite-scope-and-script-dedupe-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-nat-commit-failure-no-hook-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-paginated-text-editor-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-persist-log-tag-snapshot-restore-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-pghks-commit-idempotency-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-pghks-firewall-query-failure-safe-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-pghks-referenced-chain-safety-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-pgnat-failed-commit-cleanup-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-pguard-dualstack-activation-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-privacy-feature-claims-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-property-spoof-snapshot-failure-skips-mutation-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-quickjs-runtime-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-raw-netfilter-flush-before-hook-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-raw-netfilter-rebuild-reference-safety-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-rule-catalog-migration-recovery-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-rule-compat-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-rule-import-block-action-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-rule-list-migration-runtime-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-rule-source-catalog-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-rule-status-after-parse-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-rule-toggle-auto-apply-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-ruleset-cache-route-integration-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-runtime-entrypoint-permissions-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-runtime-manifest-refresh-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-splash-watermark-engine-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-subfetch-concurrency-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-subfetch-content-validation-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-subscription-cache-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-subscription-cache-status-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-subscription-source-size-guard-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-substatus-summary-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-third-party-api-compat-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-third-party-rule-pipeline-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-third-party-runtime-sync-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-third-party-vpn-hide-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-third-party-vpn-uid-unknown-safe-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-third-party-vpn-uid-unknown-stale-cleanup-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-third-party-vpn-unknown-cleanup-verification-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-ui-config-save-queue-runtime-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-ui-config-write-transaction-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-ui-config-write-transaction-runtime-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-ui-fx-rule-scope-separation-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-ui-no-fake-success-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-ui-performance-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-ui-shell-navigation-recovery-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-ui-startup-layout-integration-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-ui-vpn-mode-auto-apply-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-ui-vpn-responsive-controls-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-unbound-manager-runtime-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-uninstall-chain-absence-verification-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-uninstall-cleanup-status-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-uninstall-firewall-incomplete-preserves-retry-state-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-uninstall-firewall-query-failure-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-uninstall-incomplete-preserves-certificate-overlay-sources-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-uninstall-magisk-resetprop-subcommand-fallback-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-uninstall-missing-firewall-tool-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-uninstall-no-pkill-fallback-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-uninstall-preserves-referenced-firewall-chain-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-uninstall-property-restore-failure-preserves-snapshot-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-uninstall-scheduler-pid-reuse-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-uninstall-settings-restore-failure-preserves-snapshot-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-uninstall-single-vpncore-stop-path-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-uninstall-stops-localdns-watchdog-before-firewall-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-uninstall-stops-owned-vpn-core-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-uninstall-stops-unbound-after-adguard-failure-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-upgrade-preserves-user-network-config-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-urlrewrite-import-runtime-bridge-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vless-tls-default-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vmess-json-escaping-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpn-auto-update-success-stamp-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpn-coexistence-auto-route-guard-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpn-coexistence-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpn-core-listener-required-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpn-core-pid-ownership-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpn-core-pid-reuse-ensure-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpn-direct-firewall-verification-failure-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpn-direct-ipv6-residual-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpn-direct-no-node-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpn-external-state-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpn-external-watchdog-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpn-external-watchdog-runtime-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpn-hide-dot-priority-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpn-hide-level-choice-ui-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpn-hide-level-inline-choice-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpn-hide-udp-block-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpn-interface-probe-failure-safe-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpn-interval-inline-choice-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpn-local-port-validation-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpn-nat-hook-commit-failure-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpn-node-endpoint-route-guard-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpn-overlay-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpn-owned-pid-no-listener-restart-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpn-pickparams-select-controls-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpn-port-probe-fail-closed-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpn-status-requires-output-hook-and-redirect-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpn-status-runtime-live-state-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpn-sub-commit-marker-rollback-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpn-subscription-import-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpn-subscription-transaction-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpn-testurl-inline-presets-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpn-toggle-ui-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpncore-binary-integrity-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpncore-bind-interface-config-generation-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpncore-stop-failure-preserves-pid-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-vpninfo-authoritative-interface-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-webui-editor-keyboard-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-whitelist-apply-rollback-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-whitelist-domain-validation-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-whitelist-manager-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-whitelist-transaction-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.0.0-yaml-uri-escaping-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.10.77-host-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.10.78-host-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.10.79-host-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.10.80-host-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.10.81-host-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.10.82-host-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.10.83-host-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.10.84-host-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.10.85-host-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.10.86-host-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.10.87-host-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.10.89-host-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.10.90-host-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.10.91-host-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.10.92-host-regression.sh	sh -n
+PASS	Shell syntax	scripts/tests/v1.10.93-rule-coverage-regression.sh	sh -n
+PASS	Shell syntax	scripts/unbound.sh	sh -n
+PASS	Shell syntax	scripts/util.sh	sh -n
+PASS	Shell syntax	scripts/vpn-auto-update.sh	sh -n
+PASS	Shell syntax	scripts/vpn-external-watchdog.sh	sh -n
+PASS	Shell syntax	scripts/vpn-overlay-check.sh	sh -n
+PASS	Shell syntax	scripts/vpncore.sh	sh -n
+PASS	Shell syntax	scripts/vpnrule.sh	sh -n
+PASS	Shell syntax	scripts/vpnsub.sh	sh -n
+PASS	Shell syntax	scripts/vpntest.sh	sh -n
+PASS	Shell syntax	scripts/whitelist.sh	sh -n
+PASS	Shell syntax	service.sh	sh -n
+PASS	Shell syntax	uninstall.sh	sh -n
