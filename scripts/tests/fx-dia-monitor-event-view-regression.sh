@@ -87,7 +87,7 @@ grep -Fq 'STATE_SCROLL_Y' "$SESSION" || fail "session-log scroll position is not
 grep -Fq 'restorePendingScrollPosition()' "$SESSION" || fail "session-log scroll restore hook missing"
 grep -Fq 'loadGeneration++;' "$EVENTS" || fail "Activity teardown generation invalidation missing"
 grep -Fq 'isSafePackageName(targetPackage)' "$EVENTS" || fail "target package validation missing"
-grep -Fq '[ ! -L ' "$EVENTS" || fail "symlink log path guard missing"
+grep -Fq 'if [ -L' "$EVENTS" || fail "symlink log path guard missing"
 grep -Fq 'dia-frida/logs/' "$ACTIVITY" || fail "Frida log directory contract missing"
 grep -Fq 'dia-frida/logs/' "$EVENTS" || fail "native event page log directory mismatch"
 grep -Fq 'private String checkedSessionLogDirectoryPrefix()' "$ACTIVITY" || fail "Frida clear-log action must validate every parent directory"
