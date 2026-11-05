@@ -65,7 +65,7 @@ public final class StellarPermissionRequestActivity extends Activity {
     }
     private String safe(String value, String fallback, int limit) {
         if (value == null || value.trim().isEmpty()) return fallback;
-        String normalized = value.replace("\\r", "").replace("\\n", " ").trim();
+        String normalized = value.replace("\r", "").replace("\n", " ").trim();
         return normalized.length() > limit ? normalized.substring(0, limit) : normalized;
     }
 
@@ -113,10 +113,10 @@ public final class StellarPermissionRequestActivity extends Activity {
         body.setPadding(dp(12), dp(4), dp(12), dp(14));
         scroll.addView(body);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        card(body, "请求应用", label + "\\n" + sourcePackage
-                + "\\nUID：" + uid + " · PID：" + pid);
-        card(body, "请求权限", permission + "\\n请求代码：" + requestCode
-                + "\\n请求 ID：" + requestId);
+        card(body, "请求应用", label + "\n" + sourcePackage
+                + "\nUID：" + uid + " · PID：" + pid);
+        card(body, "请求权限", permission + "\n请求代码：" + requestCode
+                + "\n请求 ID：" + requestId);
         status = text("请确认是否允许此应用请求该权限。关闭或超时均默认拒绝。", 12, 0xff8a5b12, true);
         body.addView(status);
 
