@@ -6635,3 +6635,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Artifact：`fx-unbound-android-arm64-v1.26.2`，ID `13454875393`，大小约 9.5 MB；Actions artifact ZIP SHA-256 `0bfd30034cae8597d4e006acdb63decbea22e6da9bd3c92ed490309192d8d600`。
 - 配置回归通过：loopback-only recursive cache、DNSSEC trust anchor、bundled root hints。
 - 限制：当前证明的是交叉编译、ELF、依赖和配置检查；没有证明移动网络可直连根 DNS/权威 DNS，也没有真机网络运行结果。后续必须保留 runtime probe、VPN egress 绑定和 fail-open 回滚。
+
+
+## 2026-11-06 — 共享缓存补丁 Hosts owner-read 锚点修复
+
+- Hook migration run `42110597398` 在完整 Release-source 回归中继续暴露第二个补丁器问题：Hosts owner-read anchor 的 Python 字符串把换行写成了字面 `\\n`，导致原始与已修补锚点都无法匹配。
+- 修复提交：`8fa0bbabeb6efed5c567f4c3fadab429582f31cf`，将四个 Hosts owner / stale-owner anchor 改为真实换行转义；保留 subfetch V2 的单独完整性验证。
+- 新提交 `8fa0bbab` 已触发 Hook migration、Targeted Host、Module Runtime 和 Six UI Modes 工作流；当前均未全部完成，尚不报告通过。
