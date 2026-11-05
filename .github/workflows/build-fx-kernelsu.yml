@@ -175,7 +175,7 @@ jobs:
           install -D -m 0755 scripts/tests/v1.0.0-subfetch-concurrency-regression.sh fx-module/scripts/tests/v1.0.0-subfetch-concurrency-regression.sh
           python3 fx-patches/patch_vpn_apps.py fx-module
           sh fx-module/scripts/tests/v1.0.0-yulong-per-app-vpn-regression.sh
-          python3 fx-patches/patch_yulong_ad_master.py fx-module
+          python3 fx-patches/patch_yulong_ad_master.py fx-module && python3 fx-patches/patch_vpn_coexistence_status.py fx-module && python3 scripts/tests/fx-vpn-coexistence-status-regression.py
           python3 fx-patches/patch_yulong_dns_upstreams.py fx-module
           python3 fx-patches/patch_yulong_app_firewall.py fx-module .
           sh scripts/tests/fx-yulong-app-firewall-regression.sh fx-module
