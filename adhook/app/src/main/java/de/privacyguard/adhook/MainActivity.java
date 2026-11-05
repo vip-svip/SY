@@ -310,8 +310,8 @@ public final class MainActivity extends ComponentActivity {
                 customHookRulesTargetPackage = state.getString("fx_selected_package");
                 customRuleEditorRestorePending = state.getBoolean("fx_custom_rule_editor_open", false);
                 customRuleEditorDialogOpen = customRuleEditorRestorePending;
-                customRuleEditorEditingSlot = Math.max(-1, Math.min(64,
-                        state.getInt("fx_custom_rule_editor_slot", -1)));
+                customRuleEditorEditingSlot = Math.max(-1,
+                        state.getInt("fx_custom_rule_editor_slot", -1));
                 customRuleEditorPresetDescriptor = state.getString("fx_custom_rule_editor_preset");
                 customRuleImportRestorePending = state.getBoolean("fx_custom_rule_import_open", false);
                 customRuleImportDialogOpen = customRuleImportRestorePending;
@@ -6162,7 +6162,7 @@ public final class MainActivity extends ComponentActivity {
         LinearLayout ruleActionGroup = new LinearLayout(this);
         ruleActionGroup.setOrientation(LinearLayout.VERTICAL);
         TextView ruleNote = new TextView(this);
-        ruleNote.setText("每个目标应用最多 64 条规则。规则保存到当前应用的独立配置；完成编辑后使用页面底部“保存并发布”将规则配置发布到 FX Hook。规则 ID 在同一目标内必须唯一。");
+        ruleNote.setText("规则保存到当前应用的独立配置；完成编辑后使用页面底部“保存并发布”将规则配置发布到 FX Hook。规则 ID 在同一目标内必须唯一。");
         ruleNote.setTextColor(0xff697681);
         ruleNote.setPadding(dp(18), dp(2), dp(18), dp(8));
         ruleActionGroup.addView(ruleNote);
@@ -6667,8 +6667,41 @@ public final class MainActivity extends ComponentActivity {
         showCustomRuleDialog(presetDescriptor, -1);
     }
 
+    private java.util.List<Integer> getCustomRuleSlots(String packageName) {
+        String prefix = packageName + ":dev_rule_";
+        java.util.TreeSet<Integer> slots = new java.util.TreeSet<>();
+        for (String key : getPreferences(0).getAll().keySet()) {
+            if (!key.startsWith(prefix)) continue;
+            String suffix = key.substring(prefix.length());
+            if (!suffix.matches("[0-9]+")) continue;
+            try {
+                int slot = Integer.parseInt(suffix);
+                if (slot > 0) slots.add(slot);
+            } catch (NumberFormatException ignored) {
+                // Ignore malformed preference keys without preventing other rules from loading.
+            }
+        }
+        return new java.util.ArrayList<>(slots);
+    }
+
+    private java.util.Set<String> getCustomRulePreferenceKeys(String packageName, int additionalSlots) {
+        String prefix = packageName + ":dev_rule_";
+        java.util.Set<String> keys = new java.util.HashSet<>();
+        for (String key : getPreferences(0).getAll().keySet()) {
+            if (!key.startsWith(prefix)) continue;
+            String suffix = key.substring(prefix.length());
+            if (suffix.matches("[0-9]+(?:_base|_group)?")) keys.add(key);
+        }
+        for (int slot = 1; slot <= additionalSlots; slot++) {
+            keys.add(prefix + slot);
+            keys.add(prefix + slot + "_base");
+            keys.add(prefix + slot + "_group");
+        }
+        return keys;
+    }
+
     private void showEditCustomRuleDialog(int slot) {
-        if (slot < 1 || slot > 64) return;
+        if (slot < 1) return;
         String stored = getPreferences(0).getString(selectedPackage + ":dev_rule_" + slot, null);
         String[] parts = stored == null ? new String[0] : stored.split("\\|", -1);
         if (parts.length != 4 && parts.length != 5) {
