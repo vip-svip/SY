@@ -1,0 +1,6 @@
+id=pg_https_ca
+name=PrivacyGuard HTTPS Root CA（系统级）
+version=v1.7.0
+versionCode=17
+author=PrivacyGuard
+description=由 PrivacyGuard 主模块释放的公开 CA 证书（系统级信任，默认禁用）。此子模块仅包含公开证书，不包含私钥，不能单独签发证书，也不提供 HTTPS 解密能力。可在主模块 WebUI 中启用或移除信任。

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="de.privacyguard.hook">
+
+    <uses-sdk android:minSdkVersion="27" android:targetSdkVersion="34" />
+
+    <application
+        android:label="PrivacyGuard Hook"
+        android:icon="@android:drawable/ic_lock_lock"
+        android:allowBackup="false">
+
+        <!-- LSPosed / Xposed 模块声明 -->
+        <meta-data android:name="xposedmodule" android:value="true" />
+        <meta-data android:name="xposedminversion" android:value="93" />
+        <meta-data android:name="xposeddescription" android:value="PrivacyGuard 应用层隐私防护: 设备伪装/剪贴板/应用列表/定位/相机麦克风/Root 痕迹隐藏。默认 lsposed_profile=compat（零破坏），破坏性 Hook 需显式选择 standard/aggressive" />
+        <meta-data android:name="xposedscope" android:resource="@array/xposed_scope" />
+        <!-- 作用域默认只含 android，但 MainHook 会跳过 system_server，
+             所以默认等价于「不 Hook 任何进程」。用户需在 LSPosed 管理器里
+             手动勾选目标应用才会生效（见 res/values/arrays.xml 注释）。 -->
+    </application>
+</manifest>
