@@ -52,7 +52,14 @@ cp "$TMP/mod/system/app/FX/FX.apk" "$TMP/pm/de.privacyguard.adhook.apk"
 export FX_ADHOOK_FAKE_SYSTEM=1
 sh "$INSTALLER" "$TMP/mod" >/dev/null || fail "system-app verification failed"
 [ ! -s "$TMP/pm/install-calls" ] || fail "system app path must not run pm install"
-unset FX_ADHOOK_FAKE_SYSTEM
+# A changed signer on an updated system app must fail closed. The ordinary-app
+# uninstall -k migration could not safely roll back a system package's base APK.
+printf 'old system-signed update\\n' > "$TMP/pm/de.privacyguard.adhook.apk"
+export FX_ADHOOK_FAKE_SIGNATURE_MISMATCH=1
+if sh "$INSTALLER" "$TMP/mod" >/dev/null 2>&1; then fail "system-app signer mismatch unexpectedly succeeded"; fi
+grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "system-app signer mismatch removed the installed package"
+if grep -Fq -- '-k de.privacyguard.adhook' "$TMP/pm/uninstall-calls" 2>/dev/null; then fail "system-app signer mismatch attempted destructive uninstall -k"; fi
+unset FX_ADHOOK_FAKE_SIGNATURE_MISMATCH FX_ADHOOK_FAKE_SYSTEM
 rm -f "$TMP/state/adhook-apk-fxunifiedhook.sha256" "$TMP/state/adhook-apk-fxunifiedhook.fx-owned" "$TMP/pm/installed" "$TMP/pm/de.privacyguard.adhook.apk"
 : > "$TMP/pm/install-calls"
 echo de.privacyguard.hook > "$TMP/pm/installed"
