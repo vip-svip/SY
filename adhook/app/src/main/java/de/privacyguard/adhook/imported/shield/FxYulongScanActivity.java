@@ -67,7 +67,14 @@ public final class FxYulongScanActivity extends de.privacyguard.adhook.FxNativeT
     private void card(String title,View... controls){
         LinearLayout panel=new LinearLayout(this);panel.setTag("fx-card");panel.setOrientation(LinearLayout.VERTICAL);
         panel.setPadding(dp(14),dp(10),dp(14),dp(10));panel.setBackgroundColor(0xfff0f3f7);
-        TextView heading=text(title,16,0xff17212b,true);heading.setTag("fx-card-title");panel.addView(heading);for(View v:controls)panel.addView(v);
+        TextView heading=text(title,16,0xff17212b,true);heading.setTag("fx-card-title");panel.addView(heading);
+        for(View v:controls){
+            if(v instanceof TextView && !(v instanceof Button)
+                    && !(v instanceof android.widget.CompoundButton)) {
+                v.setTag("fx-card-detail");
+            }
+            panel.addView(v);
+        }
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);
         lp.setMargins(dp(12),dp(5),dp(12),dp(5));body.addView(panel,lp);
     }
