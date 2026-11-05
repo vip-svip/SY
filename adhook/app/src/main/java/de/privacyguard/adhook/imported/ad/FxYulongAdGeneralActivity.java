@@ -436,8 +436,8 @@ public final class FxYulongAdGeneralActivity extends de.privacyguard.adhook.FxNa
             taskerSecurityStatus.setText(message);
         }
         if (!prefs.contains(FxYulongAdTaskerReceiver.PREF_LAST_AT)) {
-            boolean allowed = prefs.getBoolean(FxYulongAdTaskerReceiver.PREF_ALLOW_EXTERNAL, false);
-            taskerResultStatus.setText(allowed
+            boolean persistedAllowed = prefs.getBoolean(FxYulongAdTaskerReceiver.PREF_ALLOW_EXTERNAL, false);
+            taskerResultStatus.setText(persistedAllowed
                     ? "已授权发送方 " + allowedPackage + "（包名/UID/签名固定）；尚未收到执行回执。"
                     : "外部自动化控制当前关闭；未授权广播不会执行 Root 操作。尚无最近执行回执。");
             return;
@@ -502,30 +502,19 @@ public final class FxYulongAdGeneralActivity extends de.privacyguard.adhook.FxNa
             Toast.makeText(this, "当前 Android 版本不支持应用内添加快捷磁贴；请从系统快捷设置编辑器添加。", Toast.LENGTH_LONG).show();
             return;
         }
-        try {
-            ComponentName component = new ComponentName(this, serviceClass);
-            TileService.requestAddTileService(
-                    this,
-                    component,
-                    label,
-                    Icon.createWithResource(this, android.R.drawable.ic_menu_view),
-                    getMainExecutor(),
-                    result -> {
-                        String message;
-                        if (result == TileService.RESULT_TILE_ADDED) {
-                            message = label + "已添加到快捷设置。";
-                        } else if (result == TileService.RESULT_TILE_ALREADY_ADDED) {
-                            message = label + "已经存在，无需重复添加。";
-                        } else if (result == TileService.RESULT_TILE_NOT_ADDED) {
-                            message = "未添加" + label + "；系统或用户取消了请求。";
-                        } else {
-                            message = "系统未能添加" + label + "（结果码 " + result + "）。";
-                        }
-                        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
-                    });
-        } catch (RuntimeException error) {
-            Toast.makeText(this, "无法请求添加快捷磁贴：" + error.getClass().getSimpleName(), Toast.LENGTH_LONG).show();
-        }
+        // requestAddTileService() is an instance method on TileService, not an
+        // Activity API. Do not invoke a nonexistent static overload or claim the
+        // system accepted a request. The service remains registered and usable
+        // once the user adds it from the system Quick Settings editor.
+        String serviceName = serviceClass == null ? "FX 磁贴" : serviceClass.getSimpleName();
+        String message = label + "（" + serviceName + "）已在 FX 中注册。"
+                + "\n请下拉系统快捷设置面板，点“编辑 / 铅笔”，在可用磁贴中找到 FX 的"
+                + label + "并手动添加。添加完成后即可正常使用。";
+        new AlertDialog.Builder(this)
+                .setTitle("添加快捷设置磁贴")
+                .setMessage(message)
+                .setPositiveButton("知道了", null)
+                .show();
     }
 
     private void openPage(String page) {
