@@ -5,8 +5,9 @@ RULE="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/DeveloperHookRule.ja
 HOOK="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
 MAIN="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
 UNIT="$ROOT/adhook/app/src/test/java/de/privacyguard/adhook/DeveloperHookRuleTest.java"
+PARSER_UNIT="$ROOT/adhook/app/src/test/java/de/privacyguard/adhook/UnifiedHookConfigParserTest.java"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
-for file in "$RULE" "$HOOK" "$MAIN" "$UNIT"; do [ -s "$file" ] || fail "missing custom Hook source $file"; done
+for file in "$RULE" "$HOOK" "$MAIN" "$UNIT" "$PARSER_UNIT"; do [ -s "$file" ] || fail "missing custom Hook source $file"; done
 grep -Fq 'RETURN_ARGUMENT_0' "$RULE" || fail "exact argument passthrough parser action missing"
 grep -Fq 'RETURN_THIS' "$RULE" || fail "receiver passthrough parser action missing"
 grep -Fq 'parsed.parameterDescriptors.get(0)' "$RULE" || fail "first argument descriptor equality gate missing"
@@ -27,4 +28,14 @@ grep -Fq '签名尚未通过校验' "$MAIN" || fail "custom Hook editor invalid 
 grep -Fq 'Runnable refreshValidation = () ->' "$MAIN" || fail "custom Hook editor live validation callback missing"
 grep -Fq 'validationStatus.setText("校验通过 · "' "$MAIN" || fail "custom Hook editor valid-signature feedback missing"
 grep -Fq 'refreshValidation.run();' "$MAIN" || fail "custom Hook editor validation refresh missing"
+grep -Fq 'getCustomRuleSlots' "$MAIN" || fail "custom Hook UI does not enumerate persisted rule slots dynamically"
+grep -Fq 'getCustomRulePreferenceKeys' "$MAIN" || fail "custom Hook import/rollback does not enumerate preference keys dynamically"
+if grep -Eq 'for \(int (i|n|slot) = 1; (i|n|slot) <= 64' "$MAIN"; then
+    fail "custom Hook UI still scans a fixed 64-slot range"
+fi
+if grep -Eq '最多 64 条规则|最多配置 64 条自定义规则|当前应用最多保存 64 条规则' "$MAIN"; then
+    fail "custom Hook UI still advertises a 64-rule cap"
+fi
+grep -Fq 'parserAndSerializerRoundTripMoreThanSixtyFourDeveloperRules' "$PARSER_UNIT" || fail "more-than-64 parser/serializer unit coverage missing"
+grep -Fq 'acceptsSparseLegacyDeveloperRuleSlotsAboveSixtyFour' "$PARSER_UNIT" || fail "sparse legacy slot compatibility test missing"
 echo "PASS: custom Hook passthrough actions are exact-type, debuggable-only, explicit-opt-in and fail-closed"
