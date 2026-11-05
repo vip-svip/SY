@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="fx_accessibility_description">FX 可选辅助服务。仅报告服务连接状态，不读取屏幕文本、不点击、不执行手势。</string>
+    <string name="fx_accessibility_description">FX 可选辅助服务。默认仅报告前台应用与服务状态；只有用户在 FX 的 GKD 页面主动启用总开关并配置具体应用规则后，才会在本机读取该应用的无障碍控件树并执行规则允许的点击。密码和可编辑输入框文本不读取，不截图、不上传页面内容。</string>
     <string name="fx_shortcut_toggle_vpn_short">切换 FX VPN</string>
     <string name="fx_shortcut_toggle_vpn">在当前代理模式和直连之间切换 FX VPN</string>
 </resources>
