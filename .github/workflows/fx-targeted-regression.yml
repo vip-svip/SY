@@ -13,7 +13,9 @@ on:
       - 'fx-module/scripts/**'
       - 'fx-patches/**'
       - 'scripts/tests/**'
+      - 'scripts/fx-vpn-coexistence-arbiter.sh'
       - 'scripts/yulong-ad-dns-summary.sh'
+      - 'scripts/fx-vpn-coexistence-arbiter.sh'
   pull_request:
     branches:
       - fx-v1.0.0-unified-hook-integration
