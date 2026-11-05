@@ -145,6 +145,18 @@ if hosts_file_lock_v3:
 else:
     if old_hf_unlock in apply_source:
         replace_once(apply_file, old_hf_unlock, new_hf_unlock, "Hosts lock must release by atomic rename")
+        replace_once(
+            apply_file,
+            '_hf_owner=$(cat "$_hf_lock/pid" 2>/dev/null)\\n',
+            '_hf_owner=$(cat "$_hf_lock/pid" 2>/dev/null || :)\\n',
+            "Hosts lock owner read must tolerate atomic release",
+        )
+        replace_once(
+            apply_file,
+            '_hf_owner2=$(cat "$_hf_lock/pid" 2>/dev/null)\\n',
+            '_hf_owner2=$(cat "$_hf_lock/pid" 2>/dev/null || :)\\n',
+            "Hosts stale-owner recheck must tolerate concurrent release",
+        )
     elif (
         '_hf_release="$_hf_lock.release.' in apply_source
         and 'mv "$_hf_lock" "$_hf_release"' in apply_source
@@ -154,20 +166,11 @@ else:
     ):
         print("Hosts cache lock already uses owner-checked atomic directory release.")
     else:
-        raise SystemExit(f"{apply_file}: Hosts lock must release by atomic rename")
-
-    replace_once(
-        apply_file,
-        '_hf_owner=$(cat "$_hf_lock/pid" 2>/dev/null)\n',
-        '_hf_owner=$(cat "$_hf_lock/pid" 2>/dev/null || :)\n',
-        "Hosts lock owner read must tolerate atomic release",
-    )
-    replace_once(
-        apply_file,
-        '_hf_owner2=$(cat "$_hf_lock/pid" 2>/dev/null)\n',
-        '_hf_owner2=$(cat "$_hf_lock/pid" 2>/dev/null || :)\n',
-        "Hosts stale-owner recheck must tolerate concurrent release",
-    )
+        # This shared patcher no longer owns Hosts lock migration. The dedicated
+        # patch_hosts_file_lock.py stage runs later in both package workflows and
+        # replaces the complete lock block with V3; do not fail or guess at an
+        # unknown release variant here.
+        print("Hosts cache lock variant delegated to the dedicated V3 Hosts lock patcher.")
 
 old_sub_unlock = '''subfetch_unlock() {
   [ "$LOCK_HELD" = 1 ] || return 0
