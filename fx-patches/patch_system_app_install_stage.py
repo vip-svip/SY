@@ -163,10 +163,10 @@ fx_system_app_path_is_safe() {
 }
 
 fx_system_app_stage() {
-  [ ! -L "$fx_system_app_state_dir" ] || {
-    ui_print "  [!] FX 状态目录是符号链接，拒绝写入系统应用部署状态"
+  if ! fx_system_app_path_is_safe "$fx_system_app_state_dir"; then
+    ui_print "  [!] FX 状态目录路径包含符号链接或非法路径，拒绝写入系统应用部署状态"
     return 1
-  }
+  fi
   mkdir -p "$fx_system_app_state_dir" 2>/dev/null || {
     ui_print "  [!] 无法创建 FX 系统应用状态目录"
     return 1
@@ -283,15 +283,19 @@ fx_system_app_stage() {
     fx_system_app_note "WARN: system_file context not applied at install time"
   fi
 
-  # 记录部署摘要：开机阶段核对同一载荷，卸载阶段据此证明 FX 所有权。
-  ( umask 077; printf '%s\n' "$_fx_actual" > "$fx_system_app_marker.tmp.$$" ) 2>/dev/null &&
-    chmod 0600 "$fx_system_app_marker.tmp.$$" 2>/dev/null &&
-    mv -f "$fx_system_app_marker.tmp.$$" "$fx_system_app_marker" 2>/dev/null || {
-      rm -f "$fx_system_app_marker.tmp.$$" 2>/dev/null
-      ui_print "  [!] 无法写入系统应用部署记录"
-      fx_system_app_note "ERROR: cannot commit deployment marker"
-      return 1
-    }
+  # 记录部署摘要：独占创建临时文件，避免预置 symlink 劫持 root 写入。
+  _fx_marker_tmp="$fx_system_app_marker.tmp.$$"
+  if ! fx_system_app_path_is_safe "$_fx_marker_tmp" ||
+     [ -e "$_fx_marker_tmp" ] || [ -L "$_fx_marker_tmp" ] ||
+     ! ( umask 077; set -C; printf '%s\\n' "$_fx_actual" > "$_fx_marker_tmp" ) 2>/dev/null ||
+     ! chmod 0600 "$_fx_marker_tmp" 2>/dev/null ||
+     ! mv -f "$_fx_marker_tmp" "$fx_system_app_marker" 2>/dev/null; then
+    [ -f "$_fx_marker_tmp" ] && [ ! -L "$_fx_marker_tmp" ] && rm -f "$_fx_marker_tmp" 2>/dev/null || :
+    ui_print "  [!] 无法安全写入系统应用部署记录"
+    fx_system_app_note "ERROR: cannot safely commit deployment marker"
+    return 1
+  fi
+
   [ "$(cat "$fx_system_app_marker" 2>/dev/null)" = "$_fx_actual" ] || {
     ui_print "  [!] 系统应用部署记录回读不一致"
     fx_system_app_note "ERROR: deployment marker readback mismatch"
