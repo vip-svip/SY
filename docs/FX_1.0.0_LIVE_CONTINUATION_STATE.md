@@ -6505,3 +6505,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 修复提交：`27288908a794bdbc4f2622c503808f38831c5b6f`。PackageManager fake 输出固定为标准 `package:... uid:...` 行；测试通过 fake provider 的明确路径做自检，同时保留生产 arbiter 通过 PATH 解析 `cmd`/`pm` 的集成路径。
 - 最终 CI：run `42107900674`（同提交）`FX VPN Coexistence Arbiter` 完成，结论 **success**。回归日志确认全部场景通过，包括 Android VpnInfo owner、FX 自身 UID、UID 查询失败 fail-closed、端口冲突、IPv4/IPv6 TCP/UDP、源码递归扫描、符号链接、find 失败 fail-closed 和只读不变量。
 - Live smoke：Ubuntu runner 没有 FX KernelSU 模块目录，裁决器返回 `unknown`、slot `null`、退出码 2；这是预期的 fail-closed 环境限制，不是并行共存成功，也不是真机验证。
+
+
+## 2026-11-06 — IPv6 DNS-filter and proxy port collision coverage
+
+- Regression commit: `b1947d1ac19d4f12a7b7c1061be7a52a884e6034` extends `scripts/tests/fx-vpn-coexistence-arbiter-regression.sh` with an IPv6 TCP/53 fixture for the client-facing DNS filter and an IPv6 UDP/7890 fixture for the local proxy.
+- New assertions require both listeners to be classified as `owner=other`; a clean IPv4 inventory can no longer hide these IPv6 bind conflicts.
+- GitHub readback verified both fixtures/cases in test blob `2fdd858060fbb5feae49572b0be554873c018f30`. The existing workflow watches the regression path and has a push trigger for this branch.
+- Not yet executed locally or by confirmed CI. This is expanded regression coverage, not a claim of live-device IPv6 or VPN coexistence verification.
