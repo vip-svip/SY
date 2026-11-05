@@ -29,7 +29,7 @@ for file in "$plan" "$adapter" "$readme" "$settings" "$root_build" "$app_build" 
 done
 
 grep -Fq '### 已实际接入的第一阶段' "$plan" || fail "GKD integration plan does not record selector stage as implemented"
-grep -Fq '尚未完整迁入' "$plan" || fail "GKD integration plan must retain the remaining-work boundary"
+grep -Fq '### 仍未完成，不能宣称 GKD 已完整迁入' "$plan" || fail "GKD integration plan must retain the remaining-work boundary"
 grep -Fq 'GPL-3.0' "$readme" || fail "GKD selector GPL provenance missing"
 grep -Fq "commonMain/kotlin" "$adapter" || fail "upstream commonMain source set not wired"
 grep -Fq "jvmMain/kotlin" "$adapter" || fail "upstream jvmMain source set not wired"
