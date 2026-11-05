@@ -299,8 +299,7 @@ final class FxNativeSkin {
         // Preserve semantic action buttons. Warning, destructive and success
         // actions use explicit red/amber/green tokens in the source screens;
         // recoloring them as a generic accent button would erase their meaning.
-        if (isSemanticActionColor(button.getCurrentTextColor())
-                || isSemanticActionBackground(button.getBackground())) {
+        if (shouldPreserveSemanticAction(button)) {
             return;
         }
         synchronized (BUTTON_SKINS) {
@@ -330,6 +329,11 @@ final class FxNativeSkin {
                 Math.round(palette.buttonHorizontalPaddingDp * density),
                 Math.round(palette.buttonVerticalPaddingDp * density));
         button.setElevation(Math.round(palette.buttonElevationDp * density));
+    }
+
+    static boolean shouldPreserveSemanticAction(Button button) {
+        return button != null && (isSemanticActionColor(button.getCurrentTextColor())
+                || isSemanticActionBackground(button.getBackground()));
     }
 
     private static boolean isSemanticActionBackground(Drawable background) {
