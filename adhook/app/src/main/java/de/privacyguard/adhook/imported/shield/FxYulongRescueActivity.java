@@ -44,17 +44,23 @@ public final class FxYulongRescueActivity extends de.privacyguard.adhook.FxNativ
     }
     private Button button(String title, Runnable action) {
         Button b = new Button(this);
+        b.setTag("fx-action-row");
         b.setAllCaps(false); b.setText(title);
         b.setOnClickListener(v -> action.run());
         return b;
     }
     private void card(LinearLayout body, String title, String detail, View... controls) {
         LinearLayout p = new LinearLayout(this);
+        p.setTag("fx-card");
         p.setOrientation(LinearLayout.VERTICAL);
         p.setPadding(dp(12), dp(8), dp(12), dp(8));
         p.setBackgroundColor(0xffeef2f6);
-        p.addView(text(title, 15, 0xff17212b, true));
-        p.addView(text(detail, 12, 0xff617080, false));
+        TextView heading = text(title, 15, 0xff17212b, true);
+        heading.setTag("fx-card-title");
+        p.addView(heading);
+        TextView description = text(detail, 12, 0xff617080, false);
+        description.setTag("fx-card-detail");
+        p.addView(description);
         for (View c : controls) p.addView(c);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.setMargins(0, dp(4), 0, dp(4));
@@ -73,8 +79,9 @@ public final class FxYulongRescueActivity extends de.privacyguard.adhook.FxNativ
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(10), dp(6), dp(10), dp(6));
         header.addView(button("‹ 返回隐私", this::returnToShieldHub));
-        header.addView(text("隐私 · 救援中心", 18, 0xff17212b, true),
-                new LinearLayout.LayoutParams(0, -2, 1));
+        TextView pageTitle = text("隐私 · 救援中心", 18, 0xff17212b, true);
+        pageTitle.setTag("fx-title:18");
+        header.addView(pageTitle, new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
 
         ScrollView scroll = new ScrollView(this);
