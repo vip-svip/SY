@@ -260,7 +260,7 @@ public final class FxYulongRescueActivity extends de.privacyguard.adhook.FxNativ
 
     private void confirmUninstall() {
         if (foregroundPackage == null || foregroundPackage.isEmpty()) return;
-        new AlertDialog.Builder(this).setTitle("打开系统卸载确认")
+        fxDialogBuilder().setTitle("打开系统卸载确认")
                 .setMessage("将打开 Android 系统卸载界面。FX 不会自动点击卸载确认按钮。")
                 .setNegativeButton("取消", null)
                 .setPositiveButton("继续", (d, w) -> {
