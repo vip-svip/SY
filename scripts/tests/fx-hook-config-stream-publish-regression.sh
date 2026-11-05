@@ -12,10 +12,10 @@ fail(){ echo "FAIL: $*" >&2; exit 1; }
 for file in "$MAIN" "$PUBLISHER" "$PARSER" "$SERIALIZER" "$LEGACY_PARSER" "$HOOK" "$ROOT_ACCESS"; do
   [ -s "$file" ] || fail "missing Hook config streaming source: $file"
 done
-python3 - "$MAIN" "$PUBLISHER" "$PARSER" "$LEGACY_PARSER" "$HOOK" <<'PY'
+python3 - "$MAIN" "$PUBLISHER" "$PARSER" "$LEGACY_PARSER" "$HOOK" "$SERIALIZER" <<'PY'
 from pathlib import Path
 import sys
-main, publisher, parser, legacy, hook = [Path(p).read_text(encoding="utf-8") for p in sys.argv[1:]]
+main, publisher, parser, legacy, hook, serializer = [Path(p).read_text(encoding="utf-8") for p in sys.argv[1:]]
 for token in ("rows.size()>990", "configBytes.length>65536", "managedBytes.length>65536",
               "android.util.Base64.encodeToString(configBytes"):
     assert token not in main, "MainActivity still embeds an old config publication cap: " + token
@@ -30,6 +30,8 @@ assert "InputStreamReader reader" in hook and "remote config exceeds 64 KiB" not
 assert "content.append(chunk, 0, count);" in hook
 print("PASS: Hook config is streamed, SHA-256 checked, rollback protected and has no config byte/target/line cap")
 assert "MAX_DEVELOPER_RULES_PER_TARGET" not in parser
+assert "MAX_DEVELOPER_RULES_PER_TARGET" not in serializer
+assert "ruleIndex >" not in serializer
 assert "too many developer rules" not in parser
 assert "slot > 64" not in main and "最多 64 条" not in main
 assert "for (int slot = 1; slot <= 64; slot++)" not in main
