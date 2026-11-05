@@ -28,7 +28,8 @@ assert 'g = g.replace("minSdk 28", "minSdk 27")' not in merger, "manifest merger
 assert "jvmTarget = '17'" in app
 assert "android.builtInKotlin=false" in props and "android.newDsl=false" in props, \
     "retain the existing Kotlin 2.4.21 / legacy DSL compatibility while upgrading AGP"
-assert "gradle-version: '9.3.1'" in workflow, "AGP 9.1.1 requires Gradle 9.3.1"
+assert "gradle-version: '9.3.1'" in workflow
+assert "cancel-in-progress: false" in workflow, "active APK validation must finish under concurrent pushes", "AGP 9.1.1 requires Gradle 9.3.1"
 assert "platforms;android-37" in workflow and "build-tools;36.0.0" in workflow
 assert "$SDK_ROOT/build-tools/36.0.0/apksigner" in workflow
 assert "$SDK_ROOT/build-tools/36.0.0/aapt" in workflow
