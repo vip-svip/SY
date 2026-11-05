@@ -23,16 +23,8 @@ def once(text, old, new, label):
 v = vpncore_path.read_text(encoding="utf-8")
 old_a = "pg_get vpn_mode direct 2>/dev/null"
 old_b = "pg_get vpn_mode direct"
-if old_a in v:
-    v = v.replace(old_a, "vpncore_effective_mode()", 4)
-elif v.count("vpncore_effective_mode()") < 4:
-    raise SystemExit("vpncore: missing four effective-mode call sites")
-if old_b in v:
-    v = v.replace(old_b, "vpncore_effective_mode()", 2)
-elif v.count("vpncore_effective_mode()") < 6:
-    raise SystemExit("vpncore: missing two effective-mode call sites")
 helper = '''vpncore_effective_mode() {
-  case "${PG_VPN_MODE_OVERRIDE:-}" in
+  case "@{PG_VPN_MODE_OVERRIDE:-}" in
     direct|redirect|rule|tun) printf '%s\\\\n' "$PG_VPN_MODE_OVERRIDE" ;;
     *) pg_get vpn_mode direct 2>/dev/null ;;
   esac
@@ -40,14 +32,19 @@ helper = '''vpncore_effective_mode() {
 
 '''
 if "vpncore_effective_mode() {" not in v:
+    if v.count(old_a) != 4 or v.count(old_b) != 2:
+        raise SystemExit("vpncore: expected four long and two short vpn_mode reads")
+    v = v.replace(old_a, "vpncore_effective_mode()", 4)
+    v = v.replace(old_b, "vpncore_effective_mode()", 2)
     v = once(v, "vpncore_outer_tunnel_interface() {", helper + "vpncore_outer_tunnel_interface() {", "vpncore helper")
-if v.count("vpncore_effective_mode()") < 7:
-    raise SystemExit("vpncore effective-mode call sites incomplete")
+else:
+    if v.count(old_a) != 1 or v.count("vpncore_effective_mode()") < 7:
+        raise SystemExit("vpncore: existing effective-mode helper is malformed")
 vpncore_path.write_text(v, encoding="utf-8")
 vpncore_path.chmod(0o755)
-
 a = apply_path.read_text(encoding="utf-8")
-old_guard = '''# Root-managed sing-box TUN cannot safely stack with an active/uncertain Android VPN.
+old_guard = '''VPN_MODE=$(pg_get vpn_mode direct)
+# Root-managed sing-box TUN cannot safely stack with an active/uncertain Android VPN.
 # Fail closed before core startup and let direct cleanup remove stale FX interception.
 if [ "$VPN_MODE" = "tun" ] && { [ "$_PG_VPN_INTERCEPTION_BLOCKED" = "1" ] || [ -n "$_PG_EXT_VPN_IF" ]; }; then
   pg_fail vpn "TUN 模式不能与已检测到/状态不明的外部 Android VPN 叠加；已回退直连以保护联网"
@@ -86,6 +83,7 @@ fi
 PG_VPN_MODE_OVERRIDE=$VPN_MODE
 export PG_VPN_MODE_OVERRIDE
 '''
+
 if "fx_select_vpn_effective_mode() {" not in a:
     a = once(a, old_guard, new_guard, "apply TUN guard")
 elif "external_android_vpn_tun_to_redirect" not in a:
@@ -165,11 +163,12 @@ if old_json in s:
     s = once(s, old_json, new_json, "status JSON fields")
 elif new_json not in s:
     raise SystemExit("status JSON fields missing")
-old_args = '  "$VPN_MODE" \\\\\n  "$VPN_ON" \\\\'
-new_args = '  "$VPN_MODE" \\\\\n  "$VPN_EFFECTIVE_MODE" \\\\\n  "$VPN_MODE_FALLBACK_REASON" \\\\\n  "$VPN_ON" \\\\'
+bs = chr(92)
+old_args = '  "$VPN_MODE" ' + bs + '\n  "$VPN_ON" ' + bs
+new_args = '  "$VPN_MODE" ' + bs + '\n  "$VPN_EFFECTIVE_MODE" ' + bs + '\n  "$VPN_MODE_FALLBACK_REASON" ' + bs + '\n  "$VPN_ON" ' + bs
 if old_args in s:
     s = once(s, old_args, new_args, "status JSON args")
-elif '"$VPN_EFFECTIVE_MODE" \\\\' not in s:
+elif '"$VPN_EFFECTIVE_MODE"' not in s:
     raise SystemExit("status JSON arguments missing")
 status_path.write_text(s, encoding="utf-8")
 status_path.chmod(0o755)
