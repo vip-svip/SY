@@ -4772,3 +4772,16 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 对应 FX Targeted Host Regression workflow run 42007424220 已完成，结论 success；运行链接：https://github.com/vip-svip/SY/actions/runs/42007424220
 - 同一分支此前 42007316576（FX 内核代理不占 Android VpnService 名额的断言）和 42007234671（活动 Android VPN transport 诊断断言）也为 success。
 - 验证边界：这些是 Host regression 成功，不是 Android Gradle 编译、APK 构建、模拟器或真机 VPN 共存测试。ConnectivityManager.TRANSPORT_VPN 只能统计当前可见活动 VPN 网络，不能证明具体 VPN 应用身份、UID 路由可兼容或多 TUN 能同时稳定工作。
+## 2026-11-05 — Dia 全局设置回归修复与 Host CI 通过
+
+- 根据 GitHub Actions job log，`scripts/tests/fx-dia-global-settings-registration-regression.sh` 首次失败不是运行时代码缺陷，而是测试断言与当前实现脱节：
+  - `MainActivity.refreshHookHubLsposedStatus()` 中 `active_tip` 的 `getSharedPreferences(...).getBoolean(...)` 调用合法地跨行排版；原断言错误要求连续单行文本。
+  - Dia 全局设置页的真实动作标签是“重启 LSPosed 框架服务”，旧断言仍要求“快速重启系统”，与当前明确的服务级操作名称不符。
+- 已修正测试：将 Java 源码断言改为去除空白后匹配，避免格式差异导致误报；动作断言改为真实 UI 标签，不更改框架重启行为或降低安全检查。
+- 相关提交：
+  - `399c8df4cf43b9a884ac18d49af88164291612f6` — 规范化 active_tip 源码断言。
+  - `885b5e317ad26d508f8903d3e929a5a88348bba6` — 对齐框架重启动作标签。
+  - `9ddb49d8535292a50255c629f795522e1745d008` — 更新 LSPosed 状态提示刷新路径。
+- 最新分支提交 `9ddb49d8535292a50255c629f795522e1745d008` 对应 FX Targeted Host Regression run `42010843009` 已完成，结论 `success`： https://github.com/vip-svip/SY/actions/runs/42010843009
+- Android APK/KernelSU 构建没有在本轮执行：`.github/workflows/build-fx-adhook.yml` 只允许 workflow_dispatch 或 PR 触发，且 APK 构建还受迁移完成验收门控；KernelSU 最终打包 workflow 也要求显式 workflow_dispatch 且 migration_complete=true。不能在未完成全部迁移验收时伪造该输入。
+- 本次 CI 是 Host regression，不等于 Android Gradle compile/assemble、APK 安装、KernelSU/Magisk overlay、SELinux 或真机验证。后续应继续 VPN/本地 DNS 的数据面共存与恢复测试，并完成所有迁移验收后再按仓库工作流授权构建。
