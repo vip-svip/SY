@@ -4878,3 +4878,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - `8dd44801a53cae4fae9d95e9edf2301fd9663a9e` — `test(dns): cover local DNS watchdog uninstall ownership`.
 - The first targeted workflow for the patcher-only commit (`42012964957`) failed because the workflow's changed-source mapping did not yet include this new patcher regression; this was a CI mapping gap, not a test failure. After adding the regression entrypoint, run `42013033671` completed with `host-regressions = success`; its log explicitly reports the local DNS watchdog uninstall regression PASS.
 - This is a host shell fixture test. It does not claim real Android uninstall, KernelSU lifecycle, SELinux, or device DNS continuity verification.
+
+
+## 2026-11-05 — Local DNS watchdog PID ownership regression and current branch verification
+
+- 读取 fx-patches/patch_localdns_uninstall_shutdown.py 与其 Host regression。卸载路径现区分已退出 PID、可验证的 FX watchdog、PID 身份不明/复用及符号链接 PID 文件；无法确认服务停止时在防火墙清理前中止卸载并保留状态目录。
+- 扩展 scripts/tests/v1.0.0-uninstall-stops-localdns-watchdog-before-firewall-regression.sh，增加符号链接 PID 文件目标保持不变的断言。首次测试发现非数字哨兵不能进入数字 PID 校验分支，已改为数字哨兵 99999999，确保真实覆盖 symlink 拒绝路径。
+- 最终提交：6f61211d54066e67dbc3cf8e0ad968e8e91f87aa — test(dns): use numeric sentinel to exercise symlink PID rejection。
+- GitHub Actions run 42013532891：host-regressions = success。该 run 直接执行上述卸载回归脚本，测试进程退出码为 0。
+- 曾有前序失败 run 42012964957：其变更仅触及 fx-patches/patch_localdns_uninstall_shutdown.py，当时 workflow 没有把该 patcher 名称映射到对应测试，因而报告无测试映射。随后独立回归文件变更触发了对应测试；不能把前序失败 run 记为通过。
+- 回读当前分支确认 scripts/install_adhook_app.sh 与 fx-module/scripts/install_adhook_app.sh 当前 blob SHA 相同（3c4af6e698ab6dfcb9c1eebbc61b12c0b41573ba），打包副本同步已在当前分支状态中成立。
+- 新发现、尚未修改的 Root Proxy 风险：_status_locked() 在外层 VPN 路由失效、egress 改变、IPv4/IPv6 redirect 缺失或本地 DNS probe 失败时会报告 active=0，但这些分支本身没有调用 _stop_locked() 清理残留 FXYRP 规则。需要补上锁内 fail-open 清理，并增加状态核验后的规则/marker 清理测试；目前不将其记为已修复。
+- 本轮 Host CI 不代表 Android APK 构建、KernelSU/Magisk 挂载、SELinux 真机验证或 Android 外层 VPN 与 FX TUN/REDIRECT 的设备级共存验证。
