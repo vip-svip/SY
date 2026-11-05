@@ -84,7 +84,7 @@ for token in ('"root_proxy_on"', '"root_proxy_known"', "current.protectedNow()",
     assert token in widget, f"home-screen widget does not consume shared protection state: {token}"
 
 main = MAIN.read_text(encoding="utf-8")
-assert '"$MP/scripts/yulong-vpn-control.sh"' in main
+assert 'sh \\"$MP/scripts/yulong-vpn-control.sh\\"' in main
 assert 'optBoolean("root_proxy_on", false)' in main
 assert 'optBoolean("root_proxy_known", false)' in main
 print("PASS: VPN tile, home widget, main dashboard and release restore patcher share VPN/Root Proxy state")
