@@ -16,6 +16,7 @@ KSU_WORKFLOW="$WORKFLOW_ROOT/.github/workflows/build-fx-kernelsu.yml"
 SERVICE="$WORKFLOW_ROOT/fx-module/service.sh"
 POST_FS_DATA="$WORKFLOW_ROOT/fx-module/post-fs-data.sh"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
+pass(){ echo "  PASS: $*"; }
 [ -s "$INSTALLER" ] && [ -s "$REMOVER" ] || fail "installer/remover missing"
 [ -s "$WORKFLOW" ] || fail "FX APK build workflow missing"
 [ -s "$KSU_WORKFLOW" ] || fail "KernelSU ZIP build workflow missing"
