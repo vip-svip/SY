@@ -54,6 +54,22 @@ class FxNativeSkinPaletteTest {
     }
 
     @Test
+    fun harmonyAndCupertinoAppListRowsUseIndependentGeometryAndTypography() {
+        assertEquals(16, HarmonySkinTokens.HarmonyShapeTokens.LIST_ROW_RADIUS_DP)
+        assertEquals(12, CupertinoSkinTokens.CupertinoShapeTokens.LIST_ROW_RADIUS_DP)
+        assertEquals(56, HarmonySkinTokens.HarmonySpacingTokens.LIST_ROW_MIN_HEIGHT_DP)
+        assertEquals(52, CupertinoSkinTokens.CupertinoSpacingTokens.LIST_ROW_MIN_HEIGHT_DP)
+        assertEquals(15f, HarmonySkinTokens.HarmonyTypographyTokens.LIST_ROW_TITLE_SP, 0f)
+        assertEquals(12f, HarmonySkinTokens.HarmonyTypographyTokens.LIST_ROW_SUBTITLE_SP, 0f)
+        assertEquals(15f, CupertinoSkinTokens.CupertinoTypographyTokens.LIST_ROW_TITLE_SP, 0f)
+        assertEquals(11f, CupertinoSkinTokens.CupertinoTypographyTokens.LIST_ROW_SUBTITLE_SP, 0f)
+        assertNotEquals(
+            HarmonySkinTokens.HarmonyColorTokens.LIST_ROW_SURFACE,
+            CupertinoSkinTokens.CupertinoColorTokens.LIST_ROW_SURFACE
+        )
+    }
+
+    @Test
     fun harmonyAndCupertinoGeometryAndInputsRemainDistinct() {
         val harmony = HarmonySkinRenderer.palette()
         val cupertino = CupertinoSkinRenderer.palette()
