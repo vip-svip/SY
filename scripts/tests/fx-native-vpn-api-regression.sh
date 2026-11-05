@@ -35,6 +35,8 @@ grep -Fq 'android.permission.ACCESS_NETWORK_STATE' "$MANIFEST" || fail "network-
 ! grep -Eq 'android\.net\.VpnService|BIND_VPN_SERVICE' "$MANIFEST" || fail "FX kernel proxy must not register an Android VpnService or consume its system slot"
 grep -Fq 'FX Root 内核代理不占用 VpnService 名额' "$ACTIVITY" || fail "VPN UI does not explain the independent Root proxy data plane"
 ! grep -Fq '第三方 VPN / Root DNS 保护正在运行' "$ACTIVITY" || fail "Root proxy state must not be mislabeled as a third-party VPN"
+! grep -Fq '已通过第三方 VPN / FX Root DNS 启用网络保护' "$ACTIVITY" || fail "Root DNS startup toast must not imply a third-party VPN is connected"
+grep -Fq '已启动 FX Root Proxy DNS 保护（不代表第三方 VPN 已连接）' "$ACTIVITY" || fail "Root DNS startup toast must identify its own service and avoid third-party VPN conflation"
 grep -Fq 'RootAccess.execute(nativeVpnRootCommand("status", "")' "$ACTIVITY" || fail "native VPN status is not read from the root backend"
 grep -Fq 'sh \"$MP/scripts/status.sh\"' "$ACTIVITY" || fail "native VPN status command does not call status.sh"
 grep -Fq 'sh \"$MP/scripts/apply.sh\"' "$ACTIVITY" || fail "native VPN mode/node operations do not apply the module backend"
