@@ -865,15 +865,18 @@ public final class MainActivity extends ComponentActivity {
 
     private void addNativeCard(String heading, String description) {
         LinearLayout card = new LinearLayout(this);
+        card.setTag("fx-card");
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(16), dp(14), dp(16), dp(14));
         card.setBackground(uiPanelDrawable());
         TextView h = new TextView(this);
+        h.setTag("fx-card-title");
         h.setText(heading);
         h.setTextSize(16);
         h.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         h.setTextColor(uiPrimaryTextColor());
         TextView d = new TextView(this);
+        d.setTag("fx-card-detail");
         d.setText(description);
         d.setTextSize(12);
         d.setTextColor(uiSecondaryTextColor());
