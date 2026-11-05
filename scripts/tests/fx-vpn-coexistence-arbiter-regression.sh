@@ -42,6 +42,10 @@ for f in tcp tcp6 udp6; do printf '%s\n' "$HDR" > "$TMP/net_udp_busy/$f"; done
 printf '%s\n   0: 0100007F:14E9 00000000:0000 07 00000000:00000000 00:00000000 00000000  1000        0 2 1\n' \
   "$HDR" > "$TMP/net_udp_busy/udp"
 
+# net_partial: TCP and UDP6 readable, but UDP4 inventory missing.
+mkdir -p "$TMP/net_partial"
+for f in tcp tcp6 udp6; do printf '%s\\n' "$HDR" > "$TMP/net_partial/$f"; done
+
 # run_arb <link-output> <vpinfo> <procnet> <modroot> [extra env...]
 # prints "<exit>|<json>"
 run_arb() {
@@ -171,6 +175,14 @@ rc=${r%%|*}; out=${r#*|}
 [ "$(field "$out" "['verdict']")" = "partial" ] || fail "expected partial when port state unreadable, got $(field "$out" "['verdict']")"
 [ "$(field "$out" "['dns']['owner']")" = "unknown" ] || fail "dns owner must be unknown"
 pass "unreadable proc/net does not masquerade as free"
+
+echo "== case 9b: partial proc/net inventory -> unknown port ownership =="
+r=$(run_arb "$LINKS_TUN" "tun0|10123" "$TMP/net_partial" "$TMP/mod_clean")
+rc=${r%%|*}; out=${r#*|}
+[ "$rc" -eq 0 ] || fail "expected rc=0, got $rc: $out"
+[ "$(field "$out" "['verdict']")" = "partial" ] || fail "partial proc/net inventory was incorrectly trusted: $out"
+[ "$(field "$out" "['dns']['owner']")" = "unknown" ] || fail "missing UDP table must make port ownership unknown"
+pass "partial proc/net inventory fails closed"
 
 echo "== case 10: arbiter is read-only (no netfilter/route mutation) =="
 # Only executable lines count: the header documents the intent using these very
