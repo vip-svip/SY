@@ -1286,7 +1286,7 @@ public final class MainActivity extends ComponentActivity {
                         .setNegativeButton("关闭", null).show();
                 return;
             }
-            String[] lines = (result.output == null ? "" : result.output.trim()).split("\\r?\\n");
+            String[] lines = (result.output == null ? "" : result.output.trim()).split("\\r?\n");
             if (lines.length == 0 || !"FXLIST1".equals(lines[0])) {
                 FxNativeSkin.builder(this).setTitle(title + "读取失败")
                         .setMessage("设备端列表响应格式错误。")
@@ -1314,7 +1314,7 @@ public final class MainActivity extends ComponentActivity {
                     rowNotes.add(note);
                     rowEnabled.add(enabled);
                     labels.add((enabled ? "● " : "○ ") + (note.isEmpty() ? value : note)
-                            + (value.isEmpty() || value.equals(note) ? "" : "\\n" + value));
+                            + (value.isEmpty() || value.equals(note) ? "" : "\n" + value));
                 } catch (NumberFormatException ignored) { }
             }
             String[] items = labels.toArray(new String[0]);
@@ -1578,11 +1578,11 @@ public final class MainActivity extends ComponentActivity {
                         String iface = json.optString("external_if", "");
                         if (!iface.isEmpty()) external += "（" + iface + "）";
                         target.setText("共存等级：" + grade + " · " + verdict
-                                + "\\n" + external + " · " + routeText
-                                + "\\n数据面：" + json.optString("dataplane", "unknown")
+                                + "\n" + external + " · " + routeText
+                                + "\n数据面：" + json.optString("dataplane", "unknown")
                                 + " · 裁决来源：" + json.optString("source", "unknown")
                                 + (json.optBoolean("interception_blocked", false)
-                                        ? "\\nFX 流量拦截当前受限" : ""));
+                                        ? "\nFX 流量拦截当前受限" : ""));
                     } catch (Exception error) {
                         target.setText("共存状态读取失败：" + error.getMessage());
                     }
@@ -1685,7 +1685,7 @@ public final class MainActivity extends ComponentActivity {
                 return;
             }
             try {
-                String[] lines = result.output.split("\\r?\\n");
+                String[] lines = result.output.split("\\r?\n");
                 if (lines.length == 0 || !"FXSCRIPT1".equals(lines[0].trim())) {
                     throw new IllegalStateException("模块返回了无法识别的脚本列表格式");
                 }
@@ -2057,7 +2057,7 @@ public final class MainActivity extends ComponentActivity {
                 return;
             }
             try {
-                String[] lines = result.output.split("\\r?\\n");
+                String[] lines = result.output.split("\\r?\n");
                 if (lines.length == 0 || !"FXSCRIPT1".equals(lines[0].trim())) {
                     throw new IllegalStateException("脚本列表协议不匹配");
                 }
@@ -2236,7 +2236,7 @@ public final class MainActivity extends ComponentActivity {
                         .setNegativeButton("关闭", null).show();
                 return;
             }
-            String[] lines = (result.output == null ? "" : result.output.trim()).split("\\r?\\n");
+            String[] lines = (result.output == null ? "" : result.output.trim()).split("\\r?\n");
             if (lines.length == 0 || !"FXVPNCONF1".equals(lines[0])) {
                 FxNativeSkin.builder(this).setTitle("VPN 高级设置读取失败")
                         .setMessage("设备端配置响应格式错误。")
@@ -3982,7 +3982,7 @@ public final class MainActivity extends ComponentActivity {
                 return;
             }
             try {
-                String[] lines = (config.output == null ? "" : config.output).split("\\r?\\n");
+                String[] lines = (config.output == null ? "" : config.output).split("\\r?\n");
                 if (lines.length == 0 || !"FXVPNAPP1".equals(lines[0].trim())) {
                     throw new IllegalStateException("模块返回了无法识别的分应用列表格式");
                 }
@@ -4091,7 +4091,7 @@ public final class MainActivity extends ComponentActivity {
                     throw new IllegalStateException("无法读取模块真实配置：" + result.output);
                 }
                 java.util.HashMap<String, String> values = new java.util.HashMap<>();
-                String[] lines = (result.output == null ? "" : result.output).split("\\r?\\n");
+                String[] lines = (result.output == null ? "" : result.output).split("\\r?\n");
                 for (String line : lines) {
                     if (line.startsWith("[")) break;
                     int equals = line.indexOf('=');
@@ -4373,7 +4373,7 @@ public final class MainActivity extends ComponentActivity {
         runNativeModuleCommand("find /data/adb/privacyguard -type f -name '*.log' -print 2>/dev/null | head -n 8 | while IFS= read -r f; do [ -f \"$f\" ] || continue; echo \"===== $f =====\"; tail -n 80 \"$f\"; done", 30000L, result -> {
             String output = result.output == null ? "" : result.output.trim();
             if (output.isEmpty()) output = "当前没有可读取的 FX 模块日志。";
-            if (output.length() > 24000) output = output.substring(0, 24000) + "\\n…（已截断）";
+            if (output.length() > 24000) output = output.substring(0, 24000) + "\n…（已截断）";
             ScrollView scroll = new ScrollView(this);
             TextView text = new TextView(this);
             text.setText(output);
@@ -4786,7 +4786,7 @@ public final class MainActivity extends ComponentActivity {
                     String detail = result.output == null || result.output.trim().isEmpty()
                             ? "Root 命令未返回诊断信息。" : result.output.trim();
                     if (detail.length() > 300) detail = detail.substring(0, 300);
-                    state.setText("Root 不可用或请求失败：\\n" + detail);
+                    state.setText("Root 不可用或请求失败：\n" + detail);
                 }
                 if (afterCheck != null) afterCheck.run();
             });
@@ -6426,7 +6426,7 @@ public final class MainActivity extends ComponentActivity {
         if (value == null) return false;
         String name = value.trim();
         return !name.isEmpty() && name.length() <= 24
-                && !name.contains("|") && !name.contains("\\n") && !name.contains("\\r");
+                && !name.contains("|") && !name.contains("\n") && !name.contains("\\r");
     }
 
     private java.util.LinkedHashSet<String> getCustomRuleGroups() {
@@ -7790,9 +7790,9 @@ public final class MainActivity extends ComponentActivity {
                 }
                 state.setText("框架：" + result.frameworkName + " " + result.frameworkVersion
                         + " · Service API " + result.apiVersion
-                        + "\\n当前作用域：" + (result.targetInScope ? "已包含此应用" : "尚未包含此应用")
-                        + "\\n已授权包数量：" + result.scopeCount
-                        + "\\n注意：作用域只代表允许模块加载，不代表目标应用进程已运行或 Hook 已执行。");
+                        + "\n当前作用域：" + (result.targetInScope ? "已包含此应用" : "尚未包含此应用")
+                        + "\n已授权包数量：" + result.scopeCount
+                        + "\n注意：作用域只代表允许模块加载，不代表目标应用进程已运行或 Hook 已执行。");
             });
         });
     }
@@ -8348,7 +8348,7 @@ public final class MainActivity extends ComponentActivity {
                                 .putString("remote_path", remote)
                                 .putLong("published_at", System.currentTimeMillis())
                                 .apply();
-                        FxNativeSkin.builder(this).setMessage("配置发布完成：三份配置文件均已通过 SHA-256 回读校验：\\n"+result.output+"\\n请确认 LSPosed Manager 已启用 FX 并将目标应用加入作用域，然后强制停止并重新打开目标应用。")
+                        FxNativeSkin.builder(this).setMessage("配置发布完成：三份配置文件均已通过 SHA-256 回读校验：\n"+result.output+"\n请确认 LSPosed Manager 已启用 FX 并将目标应用加入作用域，然后强制停止并重新打开目标应用。")
                             .setPositiveButton("知道了",null).show();
                     } else {
                         FxNativeSkin.builder(this).setMessage("Root 发布失败（退出码 "+result.exitCode+"）。"+result.output+"请确认 KernelSU 已授予 FX Hook Root 权限。配置仍保存在本机草稿。")
