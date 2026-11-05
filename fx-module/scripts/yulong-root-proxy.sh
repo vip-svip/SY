@@ -357,8 +357,19 @@ _activate_chains() {
   ip6tables -t nat -I OUTPUT 1 -j "$_n6" || {
     _remove_hook iptables "$_n4"; _clear_chain iptables "$_n4"; _clear_chain ip6tables "$_n6"; return 1;
   }
-  _remove_hook iptables "$_o4"; _remove_hook ip6tables "$_o6"
-  _clear_chain iptables "$_o4"; _clear_chain ip6tables "$_o6"
+  # Do not publish a new active generation while an older OUTPUT jump is
+  # still attached. A stale chain can retain an obsolete VPN UID/whitelist and
+  # redirect the newly active VPN's DNS packets into the local resolver.
+  if ! _remove_hook iptables "$_o4" || ! _remove_hook ip6tables "$_o6"; then
+    _remove_hook iptables "$_n4" || :
+    _remove_hook ip6tables "$_n6" || :
+    _clear_chain iptables "$_n4"
+    _clear_chain ip6tables "$_n6"
+    _log "unable to detach previous DNS redirect generation; refusing activation"
+    return 1
+  fi
+  _clear_chain iptables "$_o4"
+  _clear_chain ip6tables "$_o6"
   _active_tmp=$(mktemp "$ACTIVE.tmp.XXXXXX") || {
     _clear_chain iptables "$_n4"; _clear_chain ip6tables "$_n6"; _log "unable to create active marker temp"; return 1;
   }
