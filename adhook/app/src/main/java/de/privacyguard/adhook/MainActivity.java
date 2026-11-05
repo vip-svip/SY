@@ -893,6 +893,20 @@ public final class MainActivity extends ComponentActivity {
         return button;
     }
 
+    /**
+     * Places related native actions inside one consistent FX surface. Child
+     * Buttons keep their original listeners and are styled by FxNativeSkin.
+     */
+    private void addNativeActionGroup(LinearLayout group) {
+        if (group == null) return;
+        group.setOrientation(LinearLayout.VERTICAL);
+        group.setPadding(dp(12), dp(8), dp(12), dp(8));
+        group.setBackground(uiPanelDrawable());
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
+        params.setMargins(dp(12), dp(4), dp(12), dp(8));
+        content.addView(group, params);
+    }
+
     private void addNativeActionCard(String heading, String description, String actionLabel, Runnable action) {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
@@ -960,7 +974,7 @@ public final class MainActivity extends ComponentActivity {
         hostActions.addView(nativeAction("导出到外部编辑器", this::exportHostsForExternal));
         hostActions.addView(nativeAction("从外部编辑器同步", this::importHostsFromExternal));
         hostActions.addView(nativeAction("查看系统实际生效 Hosts", () -> showHostsEditor("system-hosts", 1)));
-        content.addView(hostActions);
+        addNativeActionGroup(hostActions);
         refreshHostsStatus(hostsStatus);
 
         section("订阅与过滤规则");
@@ -977,7 +991,7 @@ public final class MainActivity extends ComponentActivity {
         ruleActions.addView(nativeAction("查看 FX 内置规则", () -> showNativeListDialog("fx", "FX 内置规则")));
         ruleActions.addView(nativeAction("查看 Hosts 本地条目", () -> showNativeListDialog("hosts_local", "本地 Hosts 条目")));
         ruleActions.addView(nativeAction("应用 Hosts 与过滤规则", this::applyNativeHosts));
-        content.addView(ruleActions);
+        addNativeActionGroup(ruleActions);
 
         section("广告过滤完整功能");
         TextView yulongIntro = new TextView(this);
@@ -1001,7 +1015,7 @@ public final class MainActivity extends ComponentActivity {
                 startActivity(new Intent(this, de.privacyguard.adhook.imported.ad.FxYulongFirewallActivity.class))));
         yulongActions.addView(nativeAction("应用广告过滤白名单", () ->
                 startActivity(new Intent(this, de.privacyguard.adhook.imported.ad.FxYulongAppWhitelistActivity.class))));
-        content.addView(yulongActions);
+        addNativeActionGroup(yulongActions);
     }
 
     private void refreshHostsStatus(TextView target) {
@@ -1376,7 +1390,7 @@ public final class MainActivity extends ComponentActivity {
         actions.addView(nativeAction("打开应用级 Hook 配置", this::showAppList));
         actions.addView(nativeAction("打开 Root / LSPosed 授权中心", this::showHookHub));
         actions.addView(nativeAction("刷新隐私状态", () -> refreshNativePrivacyStatus(state)));
-        content.addView(actions);
+        addNativeActionGroup(actions);
         refreshNativePrivacyStatus(state);
 
         TextView privacyMasterHint = new TextView(this);
@@ -1464,7 +1478,7 @@ public final class MainActivity extends ComponentActivity {
         actions.addView(nativeAction("查看脚本运行日志", this::showNativeScriptLogs));
         actions.addView(nativeAction("查看 MITM / 证书状态", () -> showNativeMitmStatus()));
         actions.addView(nativeAction("管理系统 CA 信任（MITM / HTTPS）", this::showNativeCertificateManager));
-        content.addView(actions);
+        addNativeActionGroup(actions);
         refreshNativeScriptList(rows, status);
     }
 
