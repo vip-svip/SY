@@ -130,6 +130,7 @@ python3 "$PATCHER" "$OLD_FIXTURE" >/dev/null || fail "second previous-marker pat
 grep -Fq 'STOPFILE="$STATE_DIR/scheduler.stop"' "$SOURCE" || fail "cooperative stop marker is missing"
 grep -Fq 'pid_fields "$$" 2>/dev/null' "$SOURCE" || fail "scheduler does not capture its own PID start time"
 grep -Fq "awk '{print \$20}'" "$SOURCE" || fail "scheduler does not capture Linux proc starttime field 22"
+grep -Fq "tr '\\000' '\\n'" "$SOURCE" || fail "scheduler must split NUL-delimited argv before exact token matching"
 grep -Fq 'grep -F -x "$SCRIPT_PATH"' "$SOURCE" || fail "scheduler owner must match exact argv token"
 grep -Fq 'stop_requested()' "$SOURCE" || fail "scheduler does not poll owned stop requests"
 if grep -Fq 'kill -TERM "$_stop_pid"' "$SOURCE"; then fail "scheduler stop still signals a PID"; fi
