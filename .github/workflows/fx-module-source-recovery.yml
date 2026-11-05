@@ -94,10 +94,14 @@ jobs:
           retention-days: 1
       - name: Publish recovered module source for integration
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          # Never overwrite an existing recovery/PR branch. A prior successful
+          # source import remains the canonical integration candidate.
+          if git ls-remote --exit-code --heads origin fx-module-source-recovery >/dev/null 2>&1; then
+            echo "::notice::fx-module-source-recovery already exists; preserving its commits and open review."
+            exit 0
+          fi
           mkdir -p docs/fx-module-recovery
           for file in BIN-MANIFEST.txt RELEASE-ARCHIVE-SHA256.txt SOURCE-SHA256SUMS.txt SOURCE-ORIGIN.txt; do
             [[ ! -s "recovered-fx-module/$file" ]] || {
@@ -117,8 +121,4 @@ jobs:
           git commit -m "chore(module): restore canonical FX 1.0.0 runtime sources"
           # Isolate the large source import from concurrent commits to the shared target.
           git push origin "HEAD:refs/heads/fx-module-source-recovery"
-          gh pr create --repo vip-svip/SY \
-            --base "$GITHUB_REF_NAME" \
-            --head fx-module-source-recovery \
-            --title "Restore canonical FX 1.0.0 module runtime sources" \
-            --body "Restores the complete published FX 1.0.0 module tree, merges current branch-owned fx-module overlays, and preserves source provenance plus SHA-256 manifests. Five Host regressions passed; Android device validation remains separate."
+          echo "::notice::Source branch published. Open/review the integration PR separately."
