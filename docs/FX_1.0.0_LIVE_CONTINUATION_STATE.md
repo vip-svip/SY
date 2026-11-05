@@ -5439,3 +5439,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 - `6ec508f5fd41cf6eeeba97e5bed60ab6ebc0c0e7` 的 Targeted Host Regression run `42091648985`：SUCCESS；FX Six UI Modes run `42091649028`：SUCCESS。
 - 该提交的 Module Runtime Regression run `42091648844` 最终标记 CANCELLED；取消前 TUN/DNS/watchdog 与 Root Proxy/native VPN 两个实测步骤均显示 SUCCESS。故记录为“相关回归步骤通过、workflow 总结状态取消”，不表述为完整 workflow success。
+
+
+## 2026-11-06 — LSPosed 提示补丁器与 Tasker 回归映射修复
+
+- 新增隔离 fixture Host 测试，实际执行 `ensure_lsposed_manager_notice.py`，覆盖 Hook Hub / 配置发布提示插入、重复执行幂等，以及发布按钮锚点丢失时拒绝写入且不留下部分修改。
+- 将该补丁器接入 targeted Host 回归，修复只修改 `fx-patches/ensure_lsposed_manager_notice.py` 时被误判“没有 Host 回归映射”的 CI 阻断。
+- Tasker 回执回归调整为检查实际实现的 `target` 局部变量与 Intent extra，避免依赖旧的内联三元表达式写法；同时明确将 Tasker receiver / General Activity 改动映射到 Tasker 并发回归及 Widget 回归。
+- 本批代码与工作流改动已提交；验证以新提交 Actions 结果为准，未声称 Android 构建或设备端验收。

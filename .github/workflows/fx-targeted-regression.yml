@@ -167,6 +167,15 @@ jobs:
             run_sh scripts/tests/vpncore-default-node-fallback-regression.sh
           fi
 
+          if [[ "$changed" == "ALL" || "$changed" =~ (ensure_lsposed_manager_notice|fx-lsposed-manager-notice-patcher-regression) ]]; then
+            run_py scripts/tests/fx-lsposed-manager-notice-patcher-regression.py
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (FxYulongAdTaskerReceiver|FxYulongAdGeneralActivity|FxYulongTasker|fx-yulong-tasker-receiver-concurrency) ]]; then
+            run_sh scripts/tests/fx-yulong-tasker-receiver-concurrency-regression.sh
+            run_sh scripts/tests/fx-yulong-ad-widget-regression.sh
+          fi
+
           if [[ "$changed" == "ALL" || "$changed" =~ (FxDiaGpsPickerActivity|FxDiaBackupActivity|FxDiaWifiProxyActivity|fx-dia-backup|fx-dia-dialog|fx-dia-wifi-proxy) ]]; then
             run_sh scripts/tests/fx-dia-backup-restore-preflight-regression.sh
             run_sh scripts/tests/fx-dia-dialog-native-regression.sh
