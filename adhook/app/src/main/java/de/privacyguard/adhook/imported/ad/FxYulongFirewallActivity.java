@@ -280,10 +280,20 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
         return (int)(n * getResources().getDisplayMetrics().density + 0.5f);
     }
     private String scriptCommand(String args) {
-        return "MP=''; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard "
+        return "[ -d '/data' ] && [ ! -L '/data' ] && [ -d '/data/adb' ] "
+                + "&& [ ! -L '/data/adb' ] && [ -d '/data/adb/modules' ] && [ ! -L '/data/adb/modules' ] "
+                + "&& [ ! -L '/data/adb/modules_update' ] "
+                + "&& { [ ! -e '/data/adb/modules_update' ] || [ -d '/data/adb/modules_update' ]; } || exit 71; "
+                + "MP=''; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard "
                 + "/data/adb/modules/privacy_guard /data/adb/modules/pg; do "
-                + "if [ -s \"$d/module.prop\" ] && grep -q '^id=privacyguard$' \"$d/module.prop\"; "
-                + "then MP=\"$d\"; break; fi; done; "
+                + "if [ -d \"$d\" ] && [ ! -L \"$d\" ] "
+                + "&& [ -f \"$d/module.prop\" ] && [ ! -L \"$d/module.prop\" ] "
+                + "&& grep -qx 'id=privacyguard' \"$d/module.prop\" "
+                + "&& grep -qx 'version=1.0.0' \"$d/module.prop\" "
+                + "&& [ -d \"$d/scripts\" ] && [ ! -L \"$d/scripts\" ] "
+                + "&& [ -f \"$d/scripts/yulong-app-firewall.sh\" ] "
+                + "&& [ ! -L \"$d/scripts/yulong-app-firewall.sh\" ]; then "
+                + "MP=\"$d\"; break; fi; done; "
                 + "[ -n \"$MP\" ] || exit 20; sh \"$MP/scripts/yulong-app-firewall.sh\" " + args;
     }
     private String quote(String s) {

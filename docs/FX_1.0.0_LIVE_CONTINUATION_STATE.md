@@ -5923,3 +5923,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 现与 Ad 主控制/总结页对齐：验证数据根目录、modules 与 modules_update 父路径类型，精确匹配 `id=privacyguard` / `version=1.0.0`，逐级拒绝模块、module.prop、scripts 与 `yulong-ad-control.sh` 的符号链接。
 - DNS Activity 的 Root 操作参数收紧为 `dns-log-tail`、`cache-flush`、`dns-log-clear` 三项明确 allowlist；不接受其他参数拼入 Root shell 命令。
 - 更新 `fx-yulong-dns-cache-regression.sh`，覆盖模块发现和操作 allowlist。未进行 Root 设备路径攻击模拟、APK 构建或真机 DNS 测试；等待新 Host/Runtime CI。
+
+
+## 2026-11-06 — 游龙防火墙 Root 模块路径验证收紧
+
+- 基于最新分支 HEAD `782fb3fde24ea70e6a2452de32c81fe11613b538` 检查防火墙 Activity 时，发现它仍以 `grep -q '^id=privacyguard$'` 作为唯一模块识别条件；与 Ad 总结页已有的严格 Root 模块发现策略不一致。
+- `FxYulongFirewallActivity.scriptCommand()` 现先验证 `/data`、`/data/adb`、活动模块根和可选更新模块根的目录/符号链接属性；候选模块必须为真实目录，`module.prop`、`scripts` 和 `yulong-app-firewall.sh` 均为非符号链接的正确文件类型，并同时精确匹配 FX id 与 version 1.0.0。
+- 防火墙 Activity 的所有 Root 读取、规则写入、主开关与应用命令共用该入口；发现路径异常时在执行控制脚本前失败关闭。
+- 更新 `scripts/tests/fx-yulong-firewall-activity-regression.sh`，逐项锁定父目录检查、版本匹配与模块 payload symlink 防护。
+- 本批尚未完成 CI 验证；未声称 APK 构建、Root 设备执行或真实防火墙流量验证通过。
