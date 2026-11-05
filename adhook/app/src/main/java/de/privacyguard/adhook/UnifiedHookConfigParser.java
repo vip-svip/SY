@@ -1,6 +1,7 @@
 package de.privacyguard.adhook;
 
 import de.privacyguard.adhook.imported.dia.FxDiaKeyGesturePolicy;
+import de.privacyguard.adhook.imported.dia.FxDiaDialogMatchPolicy;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
