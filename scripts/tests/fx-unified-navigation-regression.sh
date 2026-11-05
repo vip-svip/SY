@@ -127,7 +127,7 @@ script_end = activity.index("private void ", script_start+20)
 assert 'FxDiaScriptLibraryActivity.class' in activity[script_start:script_end]
 assert "FxDiaScriptLibraryActivity.class" not in hook_hub
 assert "FxDiaBackupActivity.class" not in hook_hub
-assert 'text("Ad · 广告过滤控制中心"' in ad_main and 'btn("‹ 返回 Ad"' in ad_main
+assert 'txt("Ad · 广告过滤控制中心"' in ad_main and 'btn("‹ 返回 Ad"' in ad_main
 assert '游龙广告插件 7.0.1' not in ad_main
 assert 'text("Ad · 通用设置与备份恢复"' in ad_general
 assert '游龙广告插件 7.0.1' not in ad_general and '自己的四级页面' not in ad_general
