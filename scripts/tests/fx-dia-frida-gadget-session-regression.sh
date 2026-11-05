@@ -11,8 +11,8 @@ from pathlib import Path
 import sys
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
 session_log = Path(sys.argv[2]).read_text(encoding="utf-8")
-import re
-assert re.search(r"new ThreadPoolExecutor\(\s*1,\s*1,\s*30L,\s*TimeUnit\.SECONDS,\s*new ArrayBlockingQueue<>\(1\)", session_log), "session log reads must use a single bounded worker"
+session_log_compact = " ".join(session_log.split())
+assert "new ThreadPoolExecutor( 1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(1)" in session_log_compact, "session log reads must use a single bounded worker"
 assert "new ThreadPoolExecutor.AbortPolicy()" in session_log, "session log worker must reject overload explicitly"
 assert "catch (RejectedExecutionException full)" in session_log, "session log UI must report queue saturation"
 assert "worker.shutdownNow();" in session_log, "session log worker must stop with Activity lifecycle"
@@ -131,7 +131,8 @@ for label, needle in (
         raise SystemExit(f"FAIL: {label}")
 root_worker = source[source.index("private final ThreadPoolExecutor worker ="):
                       source.index("private void ensureFridaWorkerActive()")]
-if not re.search(r"ThreadPoolExecutor\(\s*1,\s*1,\s*30L", root_worker) or not re.search(r"new ArrayBlockingQueue<>\(\s*12\s*\)", root_worker):
+root_worker_compact = " ".join(root_worker.split())
+if "ThreadPoolExecutor( 1, 1, 30L" not in root_worker_compact or "new ArrayBlockingQueue<>(12)" not in root_worker_compact:
     raise SystemExit("FAIL: Frida Root operations must share one bounded serial worker")
 if "new ThreadPoolExecutor.AbortPolicy()" not in root_worker:
     raise SystemExit("FAIL: Frida Root worker must reject overload explicitly")
