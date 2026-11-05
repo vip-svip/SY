@@ -239,8 +239,13 @@ public final class FxDiaMonitorEventsActivity extends de.privacyguard.adhook.FxN
         if (destroyed || logPath == null) return;
         final int request = ++loadGeneration;
         if (showLoading) status.setText("正在读取最近的结构化监控事件…");
-        final String command = "if [ -f " + shellQuote(logPath) + " ] && [ ! -L "
-                + shellQuote(logPath) + " ] && [ -r " + shellQuote(logPath)
+        final String command = "for d in /data /data/adb /data/adb/privacyguard "
+                + "/data/adb/privacyguard/dia-frida /data/adb/privacyguard/dia-frida/logs; do "
+                + "if [ -L \"$d\" ]; then echo FX_DIA_LOG_PATH_UNTRUSTED; exit 72; fi; "
+                + "if [ ! -d \"$d\" ]; then echo FX_DIA_NO_EVENTS; exit 0; fi; done; "
+                + "if [ -L " + shellQuote(logPath) + " ]; then "
+                + "echo FX_DIA_LOG_PATH_UNTRUSTED; exit 72; "
+                + "elif [ -f " + shellQuote(logPath) + " ] && [ -r " + shellQuote(logPath)
                 + " ] && [ -s " + shellQuote(logPath) + " ]; then tail -n 800 "
                 + shellQuote(logPath) + "; else echo FX_DIA_NO_EVENTS; fi";
         try {

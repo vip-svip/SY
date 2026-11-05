@@ -17,6 +17,11 @@ fail(){ echo "FAIL: $*" >&2; exit 1; }
 grep -Fq 'button("查看结构化监控事件", () -> showMonitorEvents())' "$ACTIVITY" || fail "Frida screen has no native monitor-event browser"
 grep -Fq 'new Intent(this, FxDiaMonitorEventsActivity.class)' "$ACTIVITY" || fail "Frida page does not route to the native event Activity"
 grep -Fq 'tail -n 800' "$EVENTS" || fail "monitor-event reader is not bounded at the source"
+for directory in /data /data/adb /data/adb/privacyguard /data/adb/privacyguard/dia-frida /data/adb/privacyguard/dia-frida/logs; do
+  grep -Fq "$directory" "$EVENTS" || fail "monitor-event reader does not validate parent directory: $directory"
+done
+grep -Fq 'FX_DIA_LOG_PATH_UNTRUSTED' "$EVENTS" || fail "monitor-event reader does not reject symlinked log paths"
+grep -Fq 'if [ -L \\"$d\\" ]' "$EVENTS" || fail "monitor-event reader does not reject symlinked parent directories"
 grep -Fq 'MAX_EVENTS = 300' "$PARSER" || fail "monitor-event parser has no event-count bound"
 grep -Fq 'MAX_LOG_CHARS = 256 * 1024' "$PARSER" || fail "monitor-event parser has no input-size bound"
 grep -Fq 'case "SQL":' "$PARSER" || fail "SQL monitor family is not supported"

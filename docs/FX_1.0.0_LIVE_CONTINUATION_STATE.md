@@ -5381,3 +5381,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动：`adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`、`scripts/tests/fx-vpn-coexistence-ui-regression.py`。
 - 验证状态：源码锚点和回归断言已更新；提交后等待 GitHub Actions Host Regression。尚未进行 Android Gradle 构建、模拟器或真机测试；UI 回归属于源码契约检查，不等于设备端渲染验收。
 - 平台边界不变：该字段仅说明 FX 内核数据面不占普通 VpnService 槽位，不代表 Android Framework 支持多个活动 VpnService。
+
+
+## 2026-11-06 — Dia 结构化监控日志路径防符号链接
+
+- 基于分支 HEAD `6b692997c4cc29e0bbf0024d620abc99dd4ec758` 检查 Frida 结构化事件页时，发现只拒绝最终日志文件符号链接仍不够：父目录若被替换为符号链接，Root 读取仍可能跟随到模块状态目录之外。
+- 读取前现逐级验证 `/data`、`/data/adb`、`/data/adb/privacyguard`、`dia-frida`、`logs` 均为真实目录且非符号链接；日志文件本身也显式拒绝符号链接。缺少尚未创建的日志目录仍返回“暂无事件”，不将正常首次启动误报为安全故障。
+- 更新 `scripts/tests/fx-dia-monitor-event-view-regression.sh`，守护全部父目录检查与符号链接拒绝契约。
+- 本批验证级别：代码/测试契约修改；待本提交 Host Regression 实际执行。尚未运行 Android Gradle 构建或设备端 Frida 注入/日志验证。
