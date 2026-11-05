@@ -381,7 +381,7 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
     private void createFolder() {
         if (treeUri == null) { fileStatus.setText("请先选择目录。"); return; }
         EditText name = new EditText(this); name.setSingleLine(true); name.setHint("文件夹名称");
-        new AlertDialog.Builder(this).setTitle("新建文件夹").setView(name).setNegativeButton("取消", null)
+        fxDialogBuilder().setTitle("新建文件夹").setView(name).setNegativeButton("取消", null)
                 .setPositiveButton("创建", (d, w) -> {
                     String value = name.getText().toString().trim();
                     if (!validName(value)) { fileStatus.setText("文件夹名称无效。"); return; }
@@ -460,7 +460,7 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
                 postUi(() -> {
                     EditText view = new EditText(this);
                     view.setText(shown); view.setMinLines(8); view.setTextIsSelectable(true);
-                    new AlertDialog.Builder(this).setTitle(name).setView(view).setPositiveButton("关闭", null)
+                    fxDialogBuilder().setTitle(name).setView(view).setPositiveButton("关闭", null)
                             .setNeutralButton("复制文本", (d, w) -> {
                                 android.content.ClipboardManager cm =
                                         (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
@@ -499,7 +499,7 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
     }
 
     private void confirmDelete(Entry entry) {
-        new AlertDialog.Builder(this).setTitle("删除文件")
+        fxDialogBuilder().setTitle("删除文件")
                 .setMessage("仅删除所选授权目录中的文件：\n" + entry.name)
                 .setNegativeButton("取消", null)
                 .setPositiveButton("删除", (d, w) -> {
@@ -540,7 +540,7 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
                 }
                 postUi(() -> {
                     if (targets.isEmpty()) { soStatus.setText("没有用户安装的 debuggable 应用。"); return; }
-                    new AlertDialog.Builder(this).setTitle("选择 debuggable 应用")
+                    fxDialogBuilder().setTitle("选择 debuggable 应用")
                             .setItems(labels, (dialog, which) -> inspectSo(targets.get(which)))
                             .setNegativeButton("取消", null).show();
                 });
