@@ -60,7 +60,9 @@ for token in (
     assert token in source, f"five-skin text palette token missing: {token}"
 # Semantic alert colors must remain untouched by the neutral text remapper.
 replacement = source[source.index("private static Integer replacementText"):source.index("\n    }\n}", source.index("private static Integer replacementText"))]
-for alert in ("0xff9b2c2c", "0xffff6", "0xff237347", "0xff24734a"):
+for alert in ("0xff9b2c2c", "0xffa32620", "0xffa12d2d",
+              "0xfffff6e8", "0xff7a4b13", "0xff79552b",
+              "0xff237347", "0xff24734a"):
     assert alert not in replacement, f"alert/success color should not be remapped: {alert}"
 print("PASS: primary, secondary and accent text tokens map across all five skins while alert colors remain semantic.")
 PY
