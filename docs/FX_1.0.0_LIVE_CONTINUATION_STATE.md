@@ -5854,3 +5854,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Ad 总结页 `FxYulongAdSummaryActivity.moduleShell()` 已使用与 Ad 主控制页相同的 fail-closed 模块发现：校验 `/data`、`/data/adb`、modules 根目录、modules_update 类型、模块目录、module.prop、scripts 目录和控制脚本的真实文件类型，并精确匹配 FX id/version。
 - 本批只补充 `fx-yulong-ad-dns-summary-regression.sh` 对该模块发现契约的逐项断言，防止未来某一页面退回到仅 grep id 的宽松 Root 路径解析；产品源码保持不变。
 - 回归与当前 HEAD 的 Targeted Host Regression 一并验证；未宣称 APK 构建、安装或 Root 真机验证。
+
+
+### 共享 UID 防火墙解析 Host fixture 换行修正（2026-11-06）
+
+- 最新 Host run `42099365565` 到达 `fx-yulong-firewall-activity-regression.sh` 的独立 JDK 测试后失败：`FxYulongFirewallListParser` 报 `invalid firewall list header`。
+- 根因是 Host test Java 字符串把换行写成了字面反斜杠+n，导致 parser 收到单行文本；现将 fixture 的双重转义改成 Java 标准换行转义，测试覆盖的有效协议头、master 状态与 malformed cases 保持不变。
+- 未更改 parser、安全策略或设备端防火墙命令；修复后等待新 Host Regression 确认。

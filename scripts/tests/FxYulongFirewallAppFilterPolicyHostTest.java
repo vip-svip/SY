@@ -51,9 +51,9 @@ public final class FxYulongFirewallAppFilterPolicyHostTest {
                 0, new int[]{0, 10123}) == 0, "invalid UID rejected");
         check(true, FxYulongFirewallAppFilterPolicy.countUidMembers(
                 10123, null) == 0, "missing inventory is not treated as a shared UID");
-        String validFirewallList = "FXYULONGFW2\\nmaster=1\\n"
-                + "com.example.one|10123|1|1|0|0|22:00|06:00\\n"
-                + "com.example.two|10123|0|0|1|1|23:00|07:30\\n";
+        String validFirewallList = "FXYULONGFW2\nmaster=1\n"
+                + "com.example.one|10123|1|1|0|0|22:00|06:00\n"
+                + "com.example.two|10123|0|0|1|1|23:00|07:30\n";
         FxYulongFirewallListParser.Snapshot parsed = FxYulongFirewallListParser.parse(validFirewallList);
         check(true, parsed.masterEnabled, "firewall list master state");
         check(true, parsed.rules.size() == 2, "firewall list row count");
@@ -66,24 +66,24 @@ public final class FxYulongFirewallAppFilterPolicyHostTest {
                 && "23:00".equals(two.startTime) && "07:30".equals(two.endTime),
                 "shared UID entries preserve independent saved profiles");
         rejectFirewallList(null, "missing response");
-        rejectFirewallList("master=0\\n", "missing header");
-        rejectFirewallList("FXYULONGFW2\\n", "missing master");
-        rejectFirewallList("FXYULONGFW2\\nmaster=maybe\\n", "invalid master");
-        rejectFirewallList("FXYULONGFW2\\nmaster=0\\nmaster=1\\n", "duplicate master");
-        rejectFirewallList("FXYULONGFW2\\nmaster=0\\nnot-a-rule\\n", "malformed row");
-        rejectFirewallList("FXYULONGFW2\\nmaster=0\\ncom.example.app|0|1|1|1|0|22:00|06:00\\n",
+        rejectFirewallList("master=0\n", "missing header");
+        rejectFirewallList("FXYULONGFW2\n", "missing master");
+        rejectFirewallList("FXYULONGFW2\nmaster=maybe\n", "invalid master");
+        rejectFirewallList("FXYULONGFW2\nmaster=0\nmaster=1\n", "duplicate master");
+        rejectFirewallList("FXYULONGFW2\nmaster=0\nnot-a-rule\n", "malformed row");
+        rejectFirewallList("FXYULONGFW2\nmaster=0\ncom.example.app|0|1|1|1|0|22:00|06:00\n",
                 "zero UID");
-        rejectFirewallList("FXYULONGFW2\\nmaster=0\\ncom.example.app|uid|1|1|1|0|22:00|06:00\\n",
+        rejectFirewallList("FXYULONGFW2\nmaster=0\ncom.example.app|uid|1|1|1|0|22:00|06:00\n",
                 "non-numeric UID");
-        rejectFirewallList("FXYULONGFW2\\nmaster=0\\ncom.example.app|10123|2|1|1|0|22:00|06:00\\n",
+        rejectFirewallList("FXYULONGFW2\nmaster=0\ncom.example.app|10123|2|1|1|0|22:00|06:00\n",
                 "invalid state bit");
-        rejectFirewallList("FXYULONGFW2\\nmaster=0\\ncom.example.app|10123|1|1|1|0|24:00|06:00\\n",
+        rejectFirewallList("FXYULONGFW2\nmaster=0\ncom.example.app|10123|1|1|1|0|24:00|06:00\n",
                 "invalid time");
-        rejectFirewallList("FXYULONGFW2\\nmaster=0\\ncom.example.app|10123|1|1|1|0|22:00|06:00|extra\\n",
+        rejectFirewallList("FXYULONGFW2\nmaster=0\ncom.example.app|10123|1|1|1|0|22:00|06:00|extra\n",
                 "extra field");
-        rejectFirewallList("FXYULONGFW2\\nmaster=0\\ncom.example.app|10123|1|1|1|0|22:00|06:00\\n"
-                + "com.example.app|10123|0|1|1|0|22:00|06:00\\n", "duplicate package");
-        rejectFirewallList("FXYULONGFW2\\nmaster=0\\nFXYULONGFW2\\n", "duplicate header");
+        rejectFirewallList("FXYULONGFW2\nmaster=0\ncom.example.app|10123|1|1|1|0|22:00|06:00\n"
+                + "com.example.app|10123|0|1|1|0|22:00|06:00\n", "duplicate package");
+        rejectFirewallList("FXYULONGFW2\nmaster=0\nFXYULONGFW2\n", "duplicate header");
         System.out.println("PASS: " + assertions + " firewall policy/list protocol assertions");
     }
 }
