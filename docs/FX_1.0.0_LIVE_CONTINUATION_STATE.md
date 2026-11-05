@@ -5804,3 +5804,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Host run `42098602252` 指出上一版测试错误地断言“日常总结只读本地 SharedPreferences/ActivityManager”，但 `FxYulongAdSummaryActivity` 实际需要 Root 读取当前广告过滤配置和 DNS 保留日志数字统计；这属于测试契约错误，不是产品代码缺陷。
 - 恢复对 Summary Activity 的真实边界检查：单执行线程 + 1 个待执行槽位、AbortPolicy、RejectedExecutionException 处理、Activity 销毁 shutdownNow，以及同一刷新代次贯穿 `list` 和 `dns-log-summary` 两次 Root 读取。
 - 同时保留 generation 失效检查，确保过期配置或 DNS 统计不会覆盖新刷新结果；不把 Root 读取伪称为本地-only。
+
+
+### Yulong 应用防火墙 AWK 规则解析语法修复（2026-11-06）
+
+- Host run `42098544790` 在 `fx-yulong-app-firewall-regression.sh` 开始阶段报告系统 AWK 第 14 行存在 `unexpected newline`。已定位到 canonical `scripts/yulong-app-firewall.sh` 的 8 字段周计划校验条件：`else if` 表达式跨行后在系统 awk 中被视为不完整语句。
+- 将 `NF==8` 条件合并为单一逻辑行，保持既有字段/时间验证与 fail-closed 分支不变。KernelSU patcher 会复制 canonical 源文件到恢复后的模块。
+- 本次为源码语法修复；新 Host/Module Runtime 回归结论待提交后确认。未声称设备端 iptables 行为已验证。

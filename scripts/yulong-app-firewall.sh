@@ -125,8 +125,7 @@ list_rows() {
         next
       }
       if (NF==3) print $1 "|" $2 "|" $3 "|1|1|0|22:00|06:00"
-      else if (NF==8 && bit($4) && bit($5) && bit($6)
-               && validtime($7) && validtime($8))
+      else if (NF==8 && bit($4) && bit($5) && bit($6) && validtime($7) && validtime($8))
         print $1 "|" $2 "|" $3 "|" $4 "|" $5 "|" $6 "|" $7 "|" $8
       else bad=1
     }
