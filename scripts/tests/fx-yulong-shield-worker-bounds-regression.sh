@@ -57,6 +57,8 @@ required = (
     r'[ ! -L \"$d/module.prop\" ]',
     r'[ ! -L \"$MP/$f\" ]',
     r'[ ! -L \"$MP/bin/arm64/qjs\" ]',
+    r'[ ! -L \"$MP/disable\" ]',
+    r'[ ! -L \"$MP/remove\" ]',
 )
 for token in required:
     if token not in source:
