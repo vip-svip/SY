@@ -39,6 +39,21 @@ grep -Fq '[ ! -L "$STATE_DIR" ] || exit 0' "$POST_FS_DATA" || fail "post-fs-data
 grep -Fq '[ -d "$LOG_DIR" ] && [ ! -L "$LOG_DIR" ]' "$POST_FS_DATA" || fail "post-fs-data log writer does not reject a symlinked log directory"
 ! grep -Eq 'pm grant|privapp-permissions' "$POST_FS_DATA" || fail "unprivileged system app must not receive fabricated privileged grants"
 grep -Fq 'pm list packages -s "$1"' "$INSTALLER" || fail "installer does not verify PackageManager system classification"
+# The KSU lane restores an older Release ZIP. It must stage the reviewed installer
+# and remover into that module before this test selects its scripts directory.
+python3 - "$KSU_WORKFLOW" <<'PY'
+from pathlib import Path
+import sys
+workflow = Path(sys.argv[1]).read_text(encoding="utf-8")
+patch = workflow.index("python3 fx-patches/patch_system_app_install_stage.py fx-module")
+installer = workflow.index("install -D -m 0755 scripts/install_adhook_app.sh fx-module/scripts/install_adhook_app.sh", patch)
+remover = workflow.index("install -D -m 0755 scripts/remove_adhook_app.sh fx-module/scripts/remove_adhook_app.sh", patch)
+installer_cmp = workflow.index("cmp -s scripts/install_adhook_app.sh fx-module/scripts/install_adhook_app.sh", patch)
+remover_cmp = workflow.index("cmp -s scripts/remove_adhook_app.sh fx-module/scripts/remove_adhook_app.sh", patch)
+regression = workflow.index("sh scripts/tests/adhook-app-installer-regression.sh", patch)
+assert patch < installer < regression and patch < remover < regression, "canonical APK installer/remover must be staged before regression"
+assert installer_cmp < regression and remover_cmp < regression, "KSU package lane must byte-verify installer/remover parity"
+PY
 grep -Fq 'verified FX Hook system app and module APK digest; no PackageManager reinstall required' "$INSTALLER" || fail "system-app overlay verification path missing"
 grep -Fq '_installed_digest=$(sha256sum "$_system_installed_path"' "$INSTALLER" || fail "installer does not verify the PackageManager-resolved system APK digest"
 grep -Fq '_is_system_app=1' "$INSTALLER" || fail "installer does not preserve system-app classification during updates"

@@ -5648,3 +5648,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - KernelSU package run `42096247931` 已通过 DEX 资源暂存、Release 模块恢复及 Yulong 7.0.1 规则解码/导入；在“应用 reviewed FX source compatibility patches”阶段，`adhook-app-installer-regression.sh` 发现恢复版 Release 模块仍携带旧 `fx-module/scripts/install_adhook_app.sh`，缺少新系统应用覆盖层优先策略。
 - 在运行安装器回归之前，KernelSU workflow 现在显式将仓库 canonical `scripts/install_adhook_app.sh` 与 `scripts/remove_adhook_app.sh` 以 0755 暂存到 `fx-module/scripts/`。boot service、uninstall hook 和回归测试因此针对同一份已审阅实现。
 - 不改变 APK 签名、PackageManager 或 SELinux 策略；此改动确保发布模块不会继续打包过期安装器。下一次 KernelSU package run 将继续验证 QuickJS-NG、APK Gradle 构建和最终 ZIP。
+
+
+### KernelSU 安装器系统应用覆盖层回归闭环（2026-11-06）
+
+- KernelSU package run `42096247931` 在 `Apply reviewed FX source compatibility patches` 阶段失败：恢复 Release ZIP 后，`adhook-app-installer-regression.sh` 先读取到旧版 `fx-module/scripts/install_adhook_app.sh`，因此未找到系统应用 overlay 优先逻辑。
+- 仓库 canonical installer 本身已正确选择 `system/app/FX/FX.apk`，并在 PackageManager 不确认 system-app 分类时拒绝回退为普通应用；问题是 KernelSU workflow 未像 APK workflow 一样在回归前同步 canonical installer/remover。
+- KernelSU workflow 现先覆盖同步 `scripts/install_adhook_app.sh` 与 `scripts/remove_adhook_app.sh`，再用 `cmp -s` 验证模块副本逐字节一致，最后才执行安装器回归。回归脚本增加顺序检查，防止以后先测试旧 Release 脚本。
+- 本批没有更改安装器运行逻辑、系统权限或签名策略；等待新 KernelSU package workflow 验证恢复、同步、overlay 检查及后续完整打包阶段。
