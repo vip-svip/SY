@@ -59,7 +59,8 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
     private static final String STATE_FULL_EDITOR_TARGET = "fx_frida_full_editor_target";
     private static final String STATE_FULL_EDITOR_SOURCE_SHA256 = "fx_frida_full_editor_source_sha256";
     private static final String STATE_FULL_EDITOR_SOURCE_FILE = "fx_frida_full_editor_source_file";
-    private static final int MAX_FRIDA_SOURCE_BYTES = 48 * 1024;
+    private static final int MAX_FRIDA_SOURCE_BYTES = 8 * 1024 * 1024;
+    private static final int MAX_FRIDA_INLINE_STATE_BYTES = 48 * 1024;
     private static final int REQUEST_IMPORT_LIBRARY = 7106;
     private static final String STATE_PENDING_LIBRARY_EXPORT = "fx_frida_pending_library_export";
     private static final String PENDING_LIBRARY_EXPORT_PREFIX = "fx-dia-frida-library-";
@@ -198,6 +199,32 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
             });
         });
     }
+    private void runRootWithInput(String command, byte[] input, long timeout,
+                                   java.util.function.Consumer<RootAccess.Result> done) {
+        submitWorker(() -> {
+            final RootAccess.Result result;
+            try {
+                result = RootAccess.executeWithInput(command, input, timeout, 256 * 1024);
+            } catch (RuntimeException error) {
+                java.util.Arrays.fill(input, (byte) 0);
+                runOnUiThread(() -> {
+                    if (!isFinishing() && !isDestroyed()) setStatus("Root 流式脚本传输异常："
+                            + error.getClass().getSimpleName());
+                });
+                return;
+            }
+            java.util.Arrays.fill(input, (byte) 0);
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                if (result == null) {
+                    setStatus("Root 流式传输未返回结果；本次操作未标记为成功。");
+                    return;
+                }
+                done.accept(result);
+            });
+        });
+    }
+
     private void setStatus(String value) {
         status.setText(value == null || value.trim().isEmpty() ? "命令已完成。" : value.trim());
     }
@@ -774,7 +801,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         if (script != null) {
             String source = script.getText().toString();
             int sourceBytes = source.getBytes(StandardCharsets.UTF_8).length;
-            if (sourceBytes <= MAX_FRIDA_SOURCE_BYTES) {
+            if (sourceBytes <= MAX_FRIDA_INLINE_STATE_BYTES) {
                 outState.putString("fx_frida_script", source);
                 deleteTransientFridaScriptDraft();
             } else if (writeTransientFridaScriptDraft(source)) {
@@ -2887,9 +2914,9 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         String source = script == null || script.getText() == null
                 ? "" : script.getText().toString();
         byte[] sourceBytes = source.getBytes(StandardCharsets.UTF_8);
-        if (source.trim().isEmpty() || sourceBytes.length > 48 * 1024 || source.indexOf(0) >= 0) {
+        if (source.trim().isEmpty() || sourceBytes.length > MAX_FRIDA_SOURCE_BYTES || source.indexOf(0) >= 0) {
             java.util.Arrays.fill(sourceBytes, (byte) 0);
-            setStatus("Frida 脚本为空、包含 NUL 字符或超过 48 KiB。");
+            setStatus("Frida 脚本为空、包含 NUL 字符或超过 8 MiB 安全上限。");
             return;
         }
         final int port;
@@ -2900,8 +2927,6 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
             setStatus(invalid.getMessage());
             return;
         }
-        final String encoded = android.util.Base64.encodeToString(sourceBytes, android.util.Base64.NO_WRAP);
-        java.util.Arrays.fill(sourceBytes, (byte) 0);
 
         final String logPath = gadgetSessionLogPath(port);
         final String scriptPath = "/data/adb/privacyguard/dia-frida/logs/gadget-" + port + ".js";
@@ -2948,7 +2973,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 + "elif [ -e \"$pipe\" ]; then echo FX_GADGET_ORPHAN_PIPE_NEEDS_CLEANUP; exit 28; fi; "
                 + "tmp=$(mktemp \"$dir/.gadget-$port.XXXXXX\"); "
                 + "[ -f \"$tmp\" ] && [ ! -L \"$tmp\" ]; "
-                + "printf '%s' " + quote(encoded) + " | base64 -d > \"$tmp\"; chmod 600 \"$tmp\"; "
+                + "cat > \"$tmp\"; chmod 600 \"$tmp\"; "
                 + "mv -f \"$tmp\" \"$script\"; tmp=; chmod 600 \"$script\"; "
                 + ": >> \"$log\"; chmod 600 \"$log\"; mkfifo -m 600 \"$pipe\"; "
                 + "nohup \"$cli\" -H \"127.0.0.1:$port\" -n Gadget -l \"$script\" < \"$pipe\" >> \"$log\" 2>&1 & cli_pid=$!; "
@@ -2961,7 +2986,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 + "tail -n 40 \"$log\"; kill \"$cli_pid\" \"$feed_pid\" 2>/dev/null || :; rm -f \"$pidfile\" \"$pipe\"; echo FX_GADGET_SESSION_START_FAILED; exit 25; fi; "
                 + "lock_held=0; rmdir \"$start_lock\"; "
                 + "printf 'FX_GADGET_SESSION_STARTED\\ncli_pid=%s\\nfeeder_pid=%s\\ncli_version=%s\\nprocess=%s\\n' \"$cli_pid\" \"$feed_pid\" \"$cli_version\" \"$process\"";
-        runRoot(command, 20000L, result -> {
+        runRootWithInput(command, sourceBytes, 20000L, result -> {
             if (result.exitCode == 0 && result.output != null
                     && (result.output.contains("FX_GADGET_SESSION_STARTED")
                         || result.output.contains("FX_GADGET_SESSION_ALREADY_RUNNING"))) {
@@ -3190,8 +3215,10 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
             return;
         }
         String source = script.getText() == null ? "" : script.getText().toString();
-        if (source.trim().isEmpty() || source.length() > 48 * 1024) {
-            setStatus("Frida 脚本为空或超过 48 KiB。");
+        byte[] sourceBytes = source.getBytes(StandardCharsets.UTF_8);
+        if (source.trim().isEmpty() || sourceBytes.length > MAX_FRIDA_SOURCE_BYTES || source.indexOf(0) >= 0) {
+            java.util.Arrays.fill(sourceBytes, (byte) 0);
+            setStatus("Frida 脚本为空、包含 NUL 字符或超过 8 MiB 安全上限。");
             return;
         }
         String injector = currentInjectorPath();
@@ -3199,8 +3226,6 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
             setStatus("frida-inject 路径无效。");
             return;
         }
-        String encoded = android.util.Base64.encodeToString(
-                source.getBytes(StandardCharsets.UTF_8), android.util.Base64.NO_WRAP);
         String scriptPath = "/data/adb/privacyguard/dia-frida/" + targetPackage + ".js";
         String logPath = sessionLogPath();
         String selected = String.join(" ", selectedProcessPids);
@@ -3218,7 +3243,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 + "[ ! -L \"$script\" ] && [ ! -L \"$log\" ] || { echo unsafe-frida-session-file; exit 21; }; "
                 + "tmp=$(mktemp \"$dir/.inject-XXXXXX\"); "
                 + "trap '[ -z \"$tmp\" ] || rm -f \"$tmp\"' EXIT; trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 143' TERM; "
-                + "printf '%s' " + quote(encoded) + " | base64 -d > \"$tmp\"; chmod 600 \"$tmp\"; "
+                + "cat > \"$tmp\"; chmod 600 \"$tmp\"; "
                 + "mv -f \"$tmp\" \"$script\"; tmp=; "
                 + "if [ -e \"$log\" ] && [ ! -f \"$log\" ]; then echo unsafe-frida-log-path; exit 21; fi; "
                 + ": >> \"$log\"; chmod 600 \"$log\"; "
@@ -3241,7 +3266,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 + "else rc=$?; failed=1; echo attach-failed pid=$pid exit=$rc >> " + quote(logPath) + "; fi; "
                 + "done; echo attached_processes=$injected; "
                 + "[ \"$injected\" -gt 0 ] || exit 4; [ \"$failed\" -eq 0 ] || exit 5";
-        runRoot(command, 90000L, result ->
+        runRootWithInput(command, sourceBytes, 90000L, result ->
                 setStatus("多进程注入退出码 " + result.exitCode + "\\n日志文件：" + logPath
                         + "\\n" + result.output));
     }

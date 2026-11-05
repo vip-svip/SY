@@ -34,6 +34,92 @@ public final class RootAccess {
         return execute(command, 20000L, DEFAULT_OUTPUT_LIMIT);
     }
 
+    /** Execute a root command while streaming a bounded payload to its stdin. */
+    public static Result executeWithInput(String command, byte[] input, long timeoutMs, int outputLimit) {
+        if (command == null || command.length() == 0 || command.length() > 131072
+                || input == null || input.length > 8 * 1024 * 1024) {
+            return new Result(2, "Root 命令无效或输入超过 8 MiB 安全上限", false);
+        }
+        Process process = null;
+        Thread drain = null;
+        Thread writer = null;
+        StringBuilder output = new StringBuilder();
+        final int limit = Math.max(1024, Math.min(outputLimit, DEFAULT_OUTPUT_LIMIT));
+        final java.util.concurrent.atomic.AtomicReference<Exception> writeFailure =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        try {
+            process = new ProcessBuilder("su", "-c", command)
+                    .redirectErrorStream(true).start();
+            final Process running = process;
+            drain = new Thread(() -> {
+                try (InputStreamReader reader = new InputStreamReader(
+                        running.getInputStream(), StandardCharsets.UTF_8)) {
+                    char[] chunk = new char[4096];
+                    int count;
+                    while ((count = reader.read(chunk, 0, chunk.length)) != -1) {
+                        synchronized (output) {
+                            if (output.length() < limit) {
+                                output.append(chunk, 0, Math.min(count, limit - output.length()));
+                            }
+                        }
+                    }
+                } catch (Exception ignored) { }
+            }, "fx-root-input-output");
+            drain.setDaemon(true);
+            drain.start();
+            final byte[] payload = input;
+            writer = new Thread(() -> {
+                try (java.io.OutputStream stream = running.getOutputStream()) {
+                    stream.write(payload);
+                    stream.flush();
+                } catch (Exception error) {
+                    writeFailure.set(error);
+                }
+            }, "fx-root-input-writer");
+            writer.setDaemon(true);
+            writer.start();
+
+            boolean finished = process.waitFor(Math.max(1000L, timeoutMs), TimeUnit.MILLISECONDS);
+            if (!finished) {
+                terminateAndReap(process);
+                try { process.getOutputStream().close(); } catch (Exception ignored) { }
+                closeOutputQuietly(process);
+                joinQuietly(writer, 1000L);
+                joinQuietly(drain, 1500L);
+                return new Result(124, "Root 输入命令超时；已请求终止并回收 su 进程。", false);
+            }
+            joinQuietly(writer, 1500L);
+            joinQuietly(drain, 2000L);
+            if (drain.isAlive()) {
+                closeOutputQuietly(process);
+                joinQuietly(drain, 1000L);
+            }
+            int code = process.exitValue();
+            String text;
+            synchronized (output) { text = output.toString(); }
+            Exception failed = writeFailure.get();
+            if (failed != null) text = text + (text.isEmpty() ? "" : "\n")
+                    + "Root stdin 写入失败：" + failed.getClass().getSimpleName();
+            String lower = text.toLowerCase();
+            boolean denied = code != 0 && (lower.contains("denied")
+                    || lower.contains("拒绝") || lower.contains("permission"));
+            return new Result(code, text, denied);
+        } catch (InterruptedException e) {
+            terminateAndReap(process);
+            closeOutputQuietly(process);
+            joinQuietly(writer, 1000L);
+            joinQuietly(drain, 1000L);
+            Thread.currentThread().interrupt();
+            return new Result(130, "Root 输入命令等待被中断；已请求终止并回收 su 客户端。", false);
+        } catch (Exception e) {
+            terminateAndReap(process);
+            closeOutputQuietly(process);
+            joinQuietly(writer, 1000L);
+            joinQuietly(drain, 1000L);
+            return new Result(127, e.getClass().getSimpleName() + ": " + e.getMessage(), false);
+        }
+    }
+
     public static Result execute(String command, long timeoutMs, int outputLimit) {
         if (command == null || command.length() == 0 || command.length() > 131072) {
             return new Result(2, "Root 命令为空或超过 128 KiB 限制", false);
