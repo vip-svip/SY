@@ -48,8 +48,9 @@ grep -Fq "GPL-3.0" "$readme"
 
 manifest="$root/adhook/app/src/main/AndroidManifest.xml"
 test -s "$manifest"
-grep -Fq 'android:name=".FxAccessibilityService"' "$manifest"
-grep -Fq 'android:name=".FxGkdAutomationActivity" android:exported="false"' "$manifest"
+test "$(grep -Fc 'android:name=".FxAccessibilityService"' "$manifest")" -eq 1
+test "$(grep -Fc 'android:name=".FxGkdAutomationActivity" android:exported="false"' "$manifest")" -eq 1
+test "$(grep -Fc 'android.intent.category.LAUNCHER' "$manifest")" -eq 1
 ! grep -Eq 'li\.gkd\.app|gkd\.service\.|gkd\.app\.service|GkdTileService|A11yService' "$manifest" || {
   echo "FAIL: GKD-XA second app/service identity must not be copied into FX Manifest"
   exit 1
