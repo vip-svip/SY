@@ -9,8 +9,8 @@ This suite proves the injected publisher:
 
   1. applies idempotently and keeps apply.sh parseable;
   2. publishes a valid JSON status when no external VPN exists (kernel_only);
-  3. reports full_parallel only when an owner uid is actually known;
-  4. reports chained when a tunnel exists but the uid is unknown;
+  3. reports partial when an external tunnel is known but the data path is unverified;
+  4. never promotes UID discovery to parallel or chained proof;
   5. never fabricates "parallel" from unreadable state (fail-closed wording);
   6. writes the file 0600 and replaces it atomically (no partial JSON);
   7. is fail-open: a write failure must not break the caller;
@@ -143,24 +143,25 @@ def main() -> int:
         check(r.returncode == 0, "writer exit 0")
         _, d = read_status(st)
         if d:
-            check(d["verdict"] == "full_parallel", f"verdict full_parallel (got {d.get('verdict')})")
+            check(d["verdict"] == "partial", f"UID alone must remain partial (got {d.get('verdict')})")
+            check(d["route_probe"] == "unverified", "route probe explicitly unverified")
             check(d["external_uid"] == "10123", "owner uid preserved")
             check(d["external_if"] == "tun0", "outer iface preserved")
 
-        print("== case 3: external VPN without uid -> chained (not parallel) ==")
+        print("== case 3: external VPN without uid -> partial (binding unverified) ==")
         st = tmp / "s3"
         run_writer(pub, tmp, module, st, {"FAKE_EXT_IF": "tun0", "FAKE_EXT_UID": ""})
         _, d = read_status(st)
         if d:
-            check(d["verdict"] == "chained", f"verdict chained (got {d.get('verdict')})")
+            check(d["verdict"] == "partial", f"verdict partial (got {d.get('verdict')})")
 
-        print("== case 4: uid 0 / garbage is not a real owner -> chained ==")
+        print("== case 4: uid 0 / garbage is not a real owner -> partial ==")
         for bad in ("0", "null", "  "):
             st = tmp / f"s4_{bad.strip() or 'blank'}"
             run_writer(pub, tmp, module, st, {"FAKE_EXT_IF": "tun0", "FAKE_EXT_UID": bad})
             _, d = read_status(st)
             if d:
-                check(d["verdict"] == "chained", f"uid {bad!r} must not yield parallel (got {d.get('verdict')})")
+                check(d["verdict"] == "partial", f"uid {bad!r} must not certify routing (got {d.get('verdict')})")
 
         print("== case 5: blocked with no iface -> unknown (never parallel) ==")
         st = tmp / "s5"
@@ -215,8 +216,9 @@ def main() -> int:
         _, d = read_status(st)
         if d:
             check(d["source"] == "local", f"falls back to local grading (got {d.get('source')})")
-            check(d["verdict"] in ("full_parallel", "chained", "unknown"),
+            check(d["verdict"] in ("partial", "unknown"),
                   f"local grading stays conservative (got {d.get('verdict')})")
+            check(d["route_probe"] == "unverified", "local fallback labels route probe unverified")
 
     if failures:
         print(f"\nFAILED: {len(failures)} assertion(s)", file=sys.stderr)
