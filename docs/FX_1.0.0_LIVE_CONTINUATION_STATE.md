@@ -6229,3 +6229,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Earlier System App Install Stage #18/#19 failures were not hidden: their logs exposed the PID suffix regression and the test was corrected to use the actual child-shell PID; subsequent #21 passed.
 - No device install, reboot, PackageManager, or SELinux enforcement test is claimed.
 
+
+
+## 2026-11-06 — VPN 共存快照临时目录权限回归兼容修正
+
+- 前一版权限加固以 `mktemp` 建立状态快照临时文件，但目标 Host/模块回归中的实际执行返回码为 2，导致正常快照未创建；已撤回对 `mktemp` 的依赖。
+- 现使用 POSIX `mkdir` 的原子创建语义：在 `umask 077` 下创建 PID-scoped 私有临时目录，再在目录内以 noclobber 创建状态文件；文件必须通过 `chmod 0600`、非空/JSON 标记检查及原子 `mv` 才能替换正式快照。
+- 任何写入/权限/替换失败均只清理该次临时文件和空目录，不覆盖原快照、不改变 VPN/DNS 路由；chmod 故障注入回归保持启用。新版本的 Host/Module Runtime 结果尚待当前 HEAD 的 Actions 核验。

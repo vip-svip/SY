@@ -130,18 +130,21 @@ fx_coexist_status_write() {
   _fx_cs_ext=false
   [ -n "$_fx_cs_if" ] && _fx_cs_ext=true
 
-  # Create the temp file only after applying a private umask. Redirection on a
-  # subshell itself happens before its body, so umask inside that subshell alone
-  # would be too late. mktemp also prevents predictable PID-path collisions.
-  _fx_cs_tmp=$(umask 077; mktemp "$_fx_cs_json.tmp.XXXXXX" 2>/dev/null) || return 0
-  if [ ! -f "$_fx_cs_tmp" ] || [ -L "$_fx_cs_tmp" ]; then
-    rm -f "$_fx_cs_tmp" 2>/dev/null || :
+  # A private PID-scoped directory is atomically created under umask 077.
+  # This avoids relying on mktemp implementations that differ across Android
+  # and BusyBox; mkdir also refuses to reuse a stale or attacker-created path.
+  _fx_cs_tmp_dir="$_fx_cs_json.tmp.$$"
+  if ! ( umask 077; mkdir "$_fx_cs_tmp_dir" 2>/dev/null ); then
     return 0
   fi
+  _fx_cs_tmp="$_fx_cs_tmp_dir/status"
 
-  # Never publish a snapshot if its required private mode cannot be confirmed.
-  # A failed chmod leaves the previous complete snapshot untouched.
-  if ! {
+  # noclobber prevents following a pre-existing file/symlink inside the new dir.
+  # Never publish unless private mode, complete JSON and atomic replacement all
+  # succeed; on failure retain the previous snapshot and clean only our temp.
+  if ! (
+    umask 077
+    set -C
     printf '{"ok":1,"verdict":"%s","grade_cn":"%s","source":"%s","probe":"%s","route_probe":"%s","external_vpn":%s,"external_if":"%s","external_uid":"%s","dns":{"port":%s,"owner":"%s"},"dns_filter":{"port":%s,"owner":"%s"},"proxy":{"port":%s,"owner":"%s"},"interception_blocked":%s,"dataplane":"kernel","vpn_service_slot_used":%s}\n' \
       "$_fx_cs_verdict" "$_fx_cs_grade" "$_fx_cs_source" "$_fx_cs_probe" "$_fx_cs_route_probe" \
       "$_fx_cs_ext" "$_fx_cs_if" "$_fx_cs_uid" \
@@ -152,9 +155,10 @@ fx_coexist_status_write() {
     [ -s "$_fx_cs_tmp" ] &&
     grep -q '"verdict":"' "$_fx_cs_tmp" &&
     mv -f "$_fx_cs_tmp" "$_fx_cs_json"
-  } 2>/dev/null; then
+  ) 2>/dev/null; then
     rm -f "$_fx_cs_tmp" 2>/dev/null || :
   fi
+  rmdir "$_fx_cs_tmp_dir" 2>/dev/null || :
   return 0
 }
 
