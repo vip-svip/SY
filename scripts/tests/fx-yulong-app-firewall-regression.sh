@@ -73,7 +73,7 @@ case "${3:-}" in
     [ "${4:-}" = OUTPUT ] && [ "${5:-}" = -j ] || exit 1
     printf "delete-fault env=%s target=%s\\n" "${MOCK_FAIL_DELETE_CHAIN:-<unset>}" "${6:-<unset>}" >> "$MOCK_LOG"
     [ "${MOCK_FAIL_DELETE_CHAIN:-}" != ANY ] && [ "${MOCK_FAIL_DELETE_CHAIN:-}" != "${6:-}" ] || exit 1
-    tmp="$MOCK_HOOKS6.tmp.$"; grep -vx "${6:-}" "$MOCK_HOOKS6" > "$tmp" || :; mv -f "$tmp" "$MOCK_HOOKS6"; exit 0 ;;
+    tmp=$(mktemp "$MOCK_HOOKS6.tmp.XXXXXX") || exit 1; grep -vx "${6:-}" "$MOCK_HOOKS6" > "$tmp" || :; mv -f "$tmp" "$MOCK_HOOKS6"; exit 0 ;;
 esac
 exit 0
 IP6TABLES
@@ -224,7 +224,7 @@ cat > "$CONF" <<'BAD_NO_MASTER'
 [list:yulong_app_firewall]
 BAD_NO_MASTER
 if run list > "$TMP/missing-master" 2>&1; then fail "firewall list accepted a missing master section"; fi
-grep -qx 'FXYULONGFW2' "$TMP/$TMP/missing-master" && fail "invalid master emitted a success protocol header"
+grep -qx 'FXYULONGFW2' "$TMP/missing-master" && fail "invalid master emitted a success protocol header"
 cat > "$CONF" <<'BAD_DUP_MASTER'
 [conf:yulong_app_firewall]
 enabled=0
@@ -232,20 +232,20 @@ enabled=0
 enabled=1
 BAD_DUP_MASTER
 if run list > "$TMP/duplicate-master" 2>&1; then fail "firewall list accepted duplicate master sections"; fi
-grep -qx 'FXYULONGFW2' "$TMP/$TMP/duplicate-master" && fail "invalid master emitted a success protocol header"
+grep -qx 'FXYULONGFW2' "$TMP/duplicate-master" && fail "invalid master emitted a success protocol header"
 cat > "$CONF" <<'BAD_INVALID_MASTER'
 [conf:yulong_app_firewall]
 enabled=maybe
 BAD_INVALID_MASTER
 if run list > "$TMP/invalid-master" 2>&1; then fail "firewall list accepted an invalid master value"; fi
-grep -qx 'FXYULONGFW2' "$TMP/$TMP/invalid-master" && fail "invalid master emitted a success protocol header"
+grep -qx 'FXYULONGFW2' "$TMP/invalid-master" && fail "invalid master emitted a success protocol header"
 cat > "$CONF" <<'BAD_DUP_VALUE'
 [conf:yulong_app_firewall]
 enabled=0
 enabled=1
 BAD_DUP_VALUE
 if run list > "$TMP/duplicate-master-value" 2>&1; then fail "firewall list accepted duplicate master keys"; fi
-grep -qx 'FXYULONGFW2' "$TMP/$TMP/duplicate-master-value" && fail "invalid master emitted a success protocol header"
+grep -qx 'FXYULONGFW2' "$TMP/duplicate-master-value" && fail "invalid master emitted a success protocol header"
 
 # An absent list section is a valid empty selection, but duplicate sections are not.
 cat > "$CONF" <<'EMPTY_RULES'
