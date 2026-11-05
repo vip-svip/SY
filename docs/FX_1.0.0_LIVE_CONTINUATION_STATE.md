@@ -5946,3 +5946,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `db737fa8947c7e1c066c619198c7dae42c2cd848` 新增的模块 payload symlink 静态断言把 Java 源码反斜杠转义重复写了一层，测试文本与实际源码不匹配。
 - 现将 Python raw-string 断言调整为单层 `\\"` 源码转义形式，和 `FxYulongFirewallActivity.scriptCommand()` 的真实文本一致；生产 Root 路径验证逻辑保持不变。
 - `db737fa` 对应 Host run 结果以 Actions 回读为准；此修复后的提交需重新跑针对性 Host Regression。
+
+
+### subfetch PID 路径断言修正（2026-11-06）
+
+- 新增 Release patcher Host 检查中的 quarantine 路径模板补齐第二个 `$`，与生产 patcher 实际生成的 `$$` PID 分量完全一致。
+- 仅更新测试字面量，不改变 subfetch 行为；当前分支中 KernelSU 与 APK 构建工作流均已接入该锁迁移步骤。
