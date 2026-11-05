@@ -59,7 +59,6 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
     private static final String STATE_FULL_EDITOR_TARGET = "fx_frida_full_editor_target";
     private static final String STATE_FULL_EDITOR_SOURCE_SHA256 = "fx_frida_full_editor_source_sha256";
     private static final String STATE_FULL_EDITOR_SOURCE_FILE = "fx_frida_full_editor_source_file";
-    private static final int MAX_FRIDA_SOURCE_BYTES = 8 * 1024 * 1024;
     private static final int MAX_FRIDA_INLINE_STATE_BYTES = 48 * 1024;
     private static final int REQUEST_IMPORT_LIBRARY = 7106;
     private static final String STATE_PENDING_LIBRARY_EXPORT = "fx_frida_pending_library_export";
@@ -67,6 +66,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
     private static final String STATE_SCRIPT_DRAFT_FILE = "fx_frida_script_draft_file";
     private static final String SCRIPT_DRAFT_CACHE_NAME = "fx-dia-frida-script-state.js";
     private volatile boolean activityDestroyed;
+    private final java.util.Set<File> pendingRootInputFiles = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
             1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(12),
             r -> { Thread t = new Thread(r, "fx-dia-frida"); t.setDaemon(true); return t; },
@@ -199,33 +199,81 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
             });
         });
     }
-    private void runRootWithInput(String command, byte[] input, long timeout,
+    private File stageFridaRootInput(String source) throws Exception {
+        if (source == null || source.trim().isEmpty() || source.indexOf(0) >= 0)
+            throw new IllegalArgumentException("脚本为空或包含 NUL 字符。");
+        File cache = getCacheDir().getCanonicalFile();
+        File staged = File.createTempFile("fx-dia-frida-input-", ".js", cache);
+        boolean complete = false;
+        try (java.io.Writer writer = new java.io.OutputStreamWriter(
+                new FileOutputStream(staged), StandardCharsets.UTF_8)) {
+            int offset = 0;
+            while (offset < source.length()) {
+                int count = Math.min(16 * 1024, source.length() - offset);
+                writer.write(source, offset, count);
+                offset += count;
+            }
+            writer.flush();
+            pendingRootInputFiles.add(staged);
+            complete = true;
+            return staged;
+        } finally {
+            if (!complete) staged.delete();
+        }
+    }
+
+    private boolean isPrivateFridaRootInput(File staged) {
+        if (staged == null) return false;
+        try {
+            File absolute = staged.getAbsoluteFile();
+            File canonical = staged.getCanonicalFile();
+            return absolute.equals(canonical)
+                    && getCacheDir().getCanonicalFile().equals(canonical.getParentFile())
+                    && canonical.getName().startsWith("fx-dia-frida-input-")
+                    && canonical.isFile() && canonical.canRead();
+        } catch (Exception invalid) {
+            return false;
+        }
+    }
+
+    private void deleteFridaRootInput(File staged) {
+        if (staged == null) return;
+        pendingRootInputFiles.remove(staged);
+        if (isPrivateFridaRootInput(staged)) {
+            //noinspection ResultOfMethodCallIgnored
+            staged.delete();
+        }
+    }
+
+    private void runRootWithInput(String command, File inputFile, long timeout,
                                    java.util.function.Consumer<RootAccess.Result> done) {
+        if (!isPrivateFridaRootInput(inputFile)) {
+            deleteFridaRootInput(inputFile);
+            if (status != null) setStatus("Frida 源码暂存文件无效；Root 操作未执行。");
+            return;
+        }
         try {
             worker.execute(() -> {
-                final RootAccess.Result result;
-                try {
+                RootAccess.Result result;
+                try (InputStream input = new java.io.FileInputStream(inputFile)) {
                     result = RootAccess.executeWithInput(command, input, timeout, 256 * 1024);
-                } catch (RuntimeException error) {
-                    java.util.Arrays.fill(input, (byte) 0);
-                    runOnUiThread(() -> {
-                        if (!isFinishing() && !isDestroyed()) setStatus("Root 流式脚本传输异常："
-                                + error.getClass().getSimpleName());
-                    });
-                    return;
+                } catch (Exception error) {
+                    result = RootAccess.failure(127, "Frida 源码流传输失败：" + error.getClass().getSimpleName());
+                } finally {
+                    deleteFridaRootInput(inputFile);
                 }
-                java.util.Arrays.fill(input, (byte) 0);
+                final RootAccess.Result completed = result;
                 runOnUiThread(() -> {
                     if (isFinishing() || isDestroyed()) return;
-                    if (result == null) {
+                    if (completed == null) {
                         setStatus("Root 流式传输未返回结果；本次操作未标记为成功。");
                         return;
                     }
-                    done.accept(result);
+                    done.accept(completed);
                 });
             });
         } catch (RejectedExecutionException full) {
-            java.util.Arrays.fill(input, (byte) 0);
+            deleteFridaRootInput(inputFile);
             if (status != null) setStatus("后台任务队列繁忙；源码未传输，请稍后重试。");
         }
     }
@@ -2220,10 +2268,6 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                             template = replaceExactlyOnce(template,
                                     "var ALLOW_ANY_PARENT = false;",
                                     "var ALLOW_ANY_PARENT = " + broadScope.isChecked() + ";");
-                            if (template.length() > MAX_FRIDA_SOURCE_BYTES) {
-                                setStatus("生成的弹窗规则脚本超过 48 KiB，未载入。");
-                                return;
-                            }
                             boolean saved = prefs.edit()
                                     .putString("dialog_remove_regex_rules", String.join("\n", regexRules))
                                     .putString("dialog_remove_resource_ids", String.join("\n", resourceRules))
@@ -2913,18 +2957,22 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         }
         String source = script == null || script.getText() == null
                 ? "" : script.getText().toString();
-        byte[] sourceBytes = source.getBytes(StandardCharsets.UTF_8);
-        if (source.trim().isEmpty() || sourceBytes.length > MAX_FRIDA_SOURCE_BYTES || source.indexOf(0) >= 0) {
-            java.util.Arrays.fill(sourceBytes, (byte) 0);
-            setStatus("Frida 脚本为空、包含 NUL 字符或超过 8 MiB 安全上限。");
+        if (source.trim().isEmpty() || source.indexOf(0) >= 0) {
+            setStatus("Frida 脚本为空或包含 NUL 字符。");
             return;
         }
         final int port;
         try {
             port = selectedGadgetPort();
         } catch (IllegalArgumentException invalid) {
-            java.util.Arrays.fill(sourceBytes, (byte) 0);
             setStatus(invalid.getMessage());
+            return;
+        }
+        final File sourceInput;
+        try {
+            sourceInput = stageFridaRootInput(source);
+        } catch (Exception error) {
+            setStatus("无法暂存 Frida 源码：" + error.getClass().getSimpleName());
             return;
         }
 
@@ -2986,7 +3034,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 + "tail -n 40 \"$log\"; kill \"$cli_pid\" \"$feed_pid\" 2>/dev/null || :; rm -f \"$pidfile\" \"$pipe\"; echo FX_GADGET_SESSION_START_FAILED; exit 25; fi; "
                 + "lock_held=0; rmdir \"$start_lock\"; "
                 + "printf 'FX_GADGET_SESSION_STARTED\\ncli_pid=%s\\nfeeder_pid=%s\\ncli_version=%s\\nprocess=%s\\n' \"$cli_pid\" \"$feed_pid\" \"$cli_version\" \"$process\"";
-        runRootWithInput(command, sourceBytes, 20000L, result -> {
+        runRootWithInput(command, sourceInput, 20000L, result -> {
             if (result.exitCode == 0 && result.output != null
                     && (result.output.contains("FX_GADGET_SESSION_STARTED")
                         || result.output.contains("FX_GADGET_SESSION_ALREADY_RUNNING"))) {
@@ -3215,15 +3263,20 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
             return;
         }
         String source = script.getText() == null ? "" : script.getText().toString();
-        byte[] sourceBytes = source.getBytes(StandardCharsets.UTF_8);
-        if (source.trim().isEmpty() || sourceBytes.length > MAX_FRIDA_SOURCE_BYTES || source.indexOf(0) >= 0) {
-            java.util.Arrays.fill(sourceBytes, (byte) 0);
-            setStatus("Frida 脚本为空、包含 NUL 字符或超过 8 MiB 安全上限。");
+        if (source.trim().isEmpty() || source.indexOf(0) >= 0) {
+            setStatus("Frida 脚本为空或包含 NUL 字符。");
             return;
         }
         String injector = currentInjectorPath();
         if (!validPath(injector)) {
             setStatus("frida-inject 路径无效。");
+            return;
+        }
+        final File sourceInput;
+        try {
+            sourceInput = stageFridaRootInput(source);
+        } catch (Exception error) {
+            setStatus("无法暂存 Frida 源码：" + error.getClass().getSimpleName());
             return;
         }
         String scriptPath = "/data/adb/privacyguard/dia-frida/" + targetPackage + ".js";
@@ -3266,7 +3319,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 + "else rc=$?; failed=1; echo attach-failed pid=$pid exit=$rc >> " + quote(logPath) + "; fi; "
                 + "done; echo attached_processes=$injected; "
                 + "[ \"$injected\" -gt 0 ] || exit 4; [ \"$failed\" -eq 0 ] || exit 5";
-        runRootWithInput(command, sourceBytes, 90000L, result ->
+        runRootWithInput(command, sourceInput, 90000L, result ->
                 setStatus("多进程注入退出码 " + result.exitCode + "\\n日志文件：" + logPath
                         + "\\n" + result.output));
     }
@@ -3370,6 +3423,9 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         clearPendingProcessPickerState();
         monitorEventGeneration++;
         worker.shutdownNow();
+        for (File pendingInput : new ArrayList<>(pendingRootInputFiles)) {
+            deleteFridaRootInput(pendingInput);
+        }
         if (isFinishing()) deleteTransientFridaScriptDraft();
         if (isFinishing()) FxDiaCodeEditorTransfer.delete(this, pendingFullEditorSourceFile);
         super.onDestroy();
