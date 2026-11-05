@@ -161,6 +161,10 @@ case "${3:-}" in
     [ "${4:-}" = OUTPUT ] && [ "${5:-}" = -j ] || exit 64
     chain=${6:-}
     [ "${MOCK_FAIL_IPV4_DETACH:-0}" = 1 ] && exit 1
+    if [ "${MOCK_FAIL_IPV4_DETACH_ONCE:-0}" = 1 ] && [ "$chain" = FXYRP4_A ] && [ ! -e "$MOCK_RULE_LOG.detach-once" ]; then
+      : > "$MOCK_RULE_LOG.detach-once"
+      exit 1
+    fi
     grep -Fxq "$chain" "$MOCK_HOOKS4" || exit 1
     tmp="$MOCK_HOOKS4.tmp.$$"; grep -Fxv "$chain" "$MOCK_HOOKS4" > "$tmp" || :; mv -f "$tmp" "$MOCK_HOOKS4"; exit 0 ;;
   *) echo "unexpected iptables invocation: $*" >&2; exit 64 ;;
@@ -285,6 +289,18 @@ assert_stopped(){
     grep -Fq unbound-stop "$case_dir/engines.log" || fail "$2 did not stop non-independent Unbound"
   fi
 }
+
+# A failed detach of the previous generation must abort activation. The
+# transient kernel-command failure is retried by fail-open cleanup, which must
+# remove both generations before returning control to the caller.
+prepare_case stale-generation-detach-failure
+run_proxy "$CASE_DIR" >/dev/null || fail "initial generation setup failed"
+[ "$(cat "$CASE_DIR/hooks4")" = FXYRP4_A ] || fail "initial IPv4 generation was not active"
+if run_proxy "$CASE_DIR" MOCK_FAIL_IPV4_DETACH_ONCE=1 >/dev/null 2>&1; then
+  fail "activation succeeded after previous IPv4 OUTPUT hook failed to detach"
+fi
+assert_stopped "$CASE_DIR" "previous-generation detach failure"
+grep -Fq "unable to detach previous DNS redirect generation" "$CASE_DIR/state/yulong-root-proxy.log" || fail "previous-generation detach failure was not diagnosed"
 
 # CONF overrides cannot redirect whitelist reads or persistent updates outside PG.
 prepare_case conf-override
