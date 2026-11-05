@@ -887,6 +887,7 @@ public final class MainActivity extends ComponentActivity {
 
     private Button nativeAction(String label, Runnable action) {
         Button button = new Button(this);
+        button.setTag("fx-action-row");
         button.setAllCaps(false);
         button.setText(label);
         button.setOnClickListener(v -> { if (action != null) action.run(); });
@@ -908,6 +909,7 @@ public final class MainActivity extends ComponentActivity {
 
     private void addNativeActionCard(String heading, String description, String actionLabel, Runnable action) {
         LinearLayout card = new LinearLayout(this);
+        card.setTag("fx-card");
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(16), dp(12), dp(16), dp(8));
         card.setBackground(uiPanelDrawable());
@@ -931,6 +933,7 @@ public final class MainActivity extends ComponentActivity {
 
     private void addNativeSettingEntry(String heading, String summary, String detail) {
         LinearLayout card = new LinearLayout(this);
+        card.setTag("fx-setting-card");
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(14), dp(10), dp(14), dp(10));
         card.setBackground(uiPanelDrawable());
@@ -4547,12 +4550,15 @@ public final class MainActivity extends ComponentActivity {
         webView.evaluateJavascript(js, null);
     }
     private TextView title(String value, int size) {
-        TextView t = new TextView(this); t.setText(value); t.setTextSize(size);
+        TextView t = new TextView(this);
+        t.setTag("fx-title:" + size);
+        t.setText(value); t.setTextSize(size);
         t.setTypeface(Typeface.DEFAULT, Typeface.BOLD); t.setTextColor(uiPrimaryTextColor());
         t.setPadding(dp(18), dp(14), dp(18), dp(10)); return t;
     }
     private void base(String heading) {
         root = new LinearLayout(this);
+        root.setTag("fx-page-root");
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(uiBackgroundColor());
         ScrollView scroll = new ScrollView(this);
