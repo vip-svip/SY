@@ -65,6 +65,22 @@ fx_coexist_status_write() {
   _fx_cs_route_probe=${_fx_cs_route_probe:-unverified}
   case "$_fx_cs_slot" in true|false|null) ;; *) _fx_cs_slot="unknown" ;; esac
 
+  # The published grade must agree with the slot evidence. A positive API
+  # match is incompatible; absent/null slot evidence cannot certify kernel-only
+  # or partial coexistence because the root dataplane invariant is unverified.
+  case "$_fx_cs_slot" in
+    true)
+      _fx_cs_verdict="incompatible"
+      _fx_cs_grade="不兼容"
+      ;;
+    false) : ;;
+    *)
+      _fx_cs_verdict="unknown"
+      _fx_cs_grade="探测不可用"
+      _fx_cs_probe=${_fx_cs_probe:-unknown}
+      ;;
+  esac
+
   # 本地保守兜底：绝不把未知说成并行。
   _fx_cs_source="local"
   if [ -n "$_fx_cs_verdict" ]; then

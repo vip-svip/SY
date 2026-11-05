@@ -72,25 +72,22 @@ def build_patched(tmp: Path) -> Path:
     for _ in range(2):  # idempotence: installer may re-patch
         subprocess.run([sys.executable, str(PATCHER), str(module)], check=True)
     arbiter = module / "scripts/fx-vpn-coexistence-arbiter.sh"
-    arbiter.write_text(
-        '#!/system/bin/sh\\n'
-        'slot="${FAKE_SLOT:-false}"\\n'
-        'case "$slot" in\\n'
-        '  true) verdict=incompatible; grade=不兼容; rc=3; slot_json=true ;;\\n'
-        '  false)\\n'
-        '    slot_json=false; rc=0\\n'
-        '    if [ -n "${FAKE_EXT_IF:-}" ]; then verdict=partial; grade=部分兼容; '
-        'else verdict=kernel_only; grade=内核级独立; fi\\n'
-        '    if [ "${FAKE_BLOCKED:-0}" = 1 ] && [ -z "${FAKE_EXT_IF:-}" ]; then '
-        'verdict=unknown; grade=探测不可用; rc=2; fi\\n'
-        '    ;;\\n'
-        '  *) verdict=unknown; grade=探测不可用; rc=2; slot_json=null ;;\\n'
-        'esac\\n'
-        'printf \'{"ok":1,"verdict":"%s","grade_cn":"%s","exit":%s,"probe":"ok",'
-        '"route_probe":"unverified","vpn_service_slot_used":%s}\\\\n\' '
-        '"$verdict" "$grade" "$rc" "$slot_json"\\n',
-        encoding="utf-8",
-    )
+    arbiter.write_text("""#!/system/bin/sh
+slot="${FAKE_SLOT:-false}"
+case "$slot" in
+  true) verdict=incompatible; grade=不兼容; rc=3; slot_json=true ;;
+  false)
+    slot_json=false; rc=0
+    if [ -n "${FAKE_EXT_IF:-}" ]; then verdict=partial; grade=部分兼容
+    else verdict=kernel_only; grade=内核级独立; fi
+    if [ "${FAKE_BLOCKED:-0}" = 1 ] && [ -z "${FAKE_EXT_IF:-}" ]; then
+      verdict=unknown; grade=探测不可用; rc=2
+    fi
+    ;;
+  *) verdict=unknown; grade=探测不可用; rc=2; slot_json=null ;;
+esac
+printf '{"ok":1,"verdict":"%s","grade_cn":"%s","exit":%s,"probe":"ok","route_probe":"unverified","vpn_service_slot_used":%s}' "$verdict" "$grade" "$rc" "$slot_json"
+""", encoding="utf-8")
     arbiter.chmod(0o755)
     return module
 

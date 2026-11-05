@@ -36,18 +36,22 @@ def main() -> int:
         failures.append("ok flag must be 1")
     if d.get("dataplane") != "kernel":
         failures.append(f"dataplane must be kernel-level, got {d.get('dataplane')!r}")
-    if d.get("vpn_service_slot_used") is not False:
+    slot = d.get("vpn_service_slot_used")
+    if slot not in (False, None):
         failures.append("kernel dataplane must NOT hold the Android VPN slot")
+    if slot is None and d.get("verdict") != "unknown":
+        failures.append("an unverified module tree must produce an unknown verdict")
     if d.get("verdict") not in ALLOWED:
         failures.append(f"unexpected verdict {d.get('verdict')!r}")
     if d.get("verdict") == "incompatible":
         failures.append("clean host must never be graded incompatible")
 
-    # A clean host with a readable link inventory and no tunnel must be kernel_only.
-    if d.get("probe") == "ok" and d.get("external_vpn") is False:
+    # A clean host with a readable link inventory and no tunnel is kernel_only
+    # only when the module source scan actually verified slot non-use.
+    if d.get("probe") == "ok" and d.get("external_vpn") is False and slot is False:
         if d.get("verdict") != "kernel_only":
             failures.append(
-                f"readable inventory without a tunnel must be kernel_only, got {d.get('verdict')!r}"
+                f"readable inventory without a tunnel and with verified slot-free source must be kernel_only, got {d.get('verdict')!r}"
             )
 
     if failures:

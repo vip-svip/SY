@@ -5582,3 +5582,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 - 将 `FxYulongFirewallAppFilterPolicy` 与其 Host 单测类 `FxYulongFirewallAppFilterPolicyTest` 加入 Targeted Host firewall 回归路径，确保只修改用户/系统应用分类规则时也会执行 `fx-yulong-app-firewall-regression.sh` 与 `fx-yulong-firewall-activity-regression.sh`。
 - 完整闭环已在 `4d996b44` 的 Host/UI/Module Runtime runs 中验证；本次仅扩大后续增量变更的 CI 触发覆盖。
+
+
+### VPN 槽位证据集成回归修正（2026-11-06）
+
+- `53512fa05345` 中新增的 arbiter fixture 核心场景均通过；CI 进一步发现状态发布器测试夹具把 `\\n` 写成了字面字符，导致模拟 arbiter 实际输出不是有效 JSON，7 项状态断言失败。现改为真正的多行 shell fixture 和单行 JSON 输出。
+- 状态发布器增加一致性约束：slot=true 强制 verdict=incompatible；slot=false 才保留 arbiter verdict；slot 缺失/null/非法时强制 verdict=unknown。避免旧版或缺失模块扫描的 arbiter 仍发布 partial/kernel_only。
+- Live arbiter smoke assertion 修正为接受“仓库 checkout 不含完整已安装模块树”时的 `vpn_service_slot_used:null` + verdict unknown；只有扫描证据为 false 时，才要求无隧道/可读接口显示 kernel_only。
+- 上一个提交 `53512fa05345` 的 Arbiter regression 主要场景通过，但 live runner smoke 因未提供完整模块根而返回 exit 2；Module Runtime workflow 在状态发布器回归处失败。上述均为本提交修复对象，不能记为通过。
