@@ -74,6 +74,11 @@ assert "isInstalledUserApplication(context, packageName)" in store
 assert "规则写入失败，原有规则保持不变。" in store
 assert "MIN_COOLDOWN_MS = 1_000L" in store and "MAX_COOLDOWN_MS = 60_000L" in store
 assert "FxGkdSelectorEngine.compile(expression)" in store
+add_rule_start = store.index("fun addRule(")
+add_rule_end = store.index("fun setRuleEnabled(", add_rule_start)
+add_rule = store[add_rule_start:add_rule_end]
+assert "isInstalledUserApplication(context, pkg)" in add_rule, "manual GKD rule creation accepts missing/system packages"
+assert "pkg == context.packageName" in add_rule, "manual GKD rule creation accepts FX itself as a target"
 
 # Snapshot bounds and sensitive text suppression.
 for token in ("MAX_NODES = 700", "MAX_DEPTH = 32", "MAX_CHILDREN_PER_NODE = 80",
