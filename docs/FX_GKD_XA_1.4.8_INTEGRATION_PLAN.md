@@ -72,6 +72,35 @@ GKD-XA 根工程把 Kotlin JVM target 设为 21，并依赖 Compose、Room 3、K
 - 五种 Skin × Hook 核心页面 UI 自动化/截图验收。
 - GPLv3 对应源代码、版权/许可、修改标记和界面法律声明完整。
 
-## 当前状态
+## 当前状态（2026-11-05）
 
-本批只固定了 GKD-XA v1.4.8 来源，并确认模块、许可和构建兼容性边界。**GKD-XA 的运行时、服务、UI、数据库和选择器尚未合并进 FX APK。**下一批必须先完成 Gradle/Manifest compatibility spike，再迁入 selector engine 与 subscription repository，之后才迁入 Compose 子路由和统一 Accessibility runtime。
+### 已实际接入的第一阶段
+
+1. 上游仓库以 Git submodule 锁定在 `8a6ce935da11671dac7e1a7595416ec99ee07436`（GKD-XA v1.4.8），GPL-3.0 许可和原始来源保留。
+2. FX 中只有一个 `:fx-gkd-selector` JVM 17 工程，直接编译上游 `gkd-selector` 的 `commonMain`、`jvmMain`、`commonTest`、`jvmTest`；FX APK 通过 `implementation project(':fx-gkd-selector')` 使用它。未引入上游 `:gkd-app`。
+3. 新增 `FxGkdSelectorRuntime`：
+   - 将 GKD 选择器 parse + type-check，返回结构化错误类别和 source offset。
+   - 把 FX 的 `AccessibilityNodeInfo` 适配为上游 `NodeAdapter`。
+   - 提供只读 `findFirst` / `findAll` 匹配接口。
+   - 设置边界：选择器 8192 字符、节点 child 200、普通遍历 4000 descendants、fast-query 500 results、parent depth 256。
+   - 本 Runtime 不自动点击、不改变目标 App 状态；点击/跳过动作必须由后续用户授权的 FX 规则执行器调度。
+4. 新增 `FxGkdSelectorRuntimeTest`，覆盖可编译语法、属性方法/关系、语法错误位置、未知属性类型检查和输入长度上限。
+5. 独立 CI `.github/workflows/fx-gkd-selector.yml` 使用 JDK 17/Gradle 9.3.1，检出 pinned submodule 并运行上游 selector JVM 测试。Run `41982329993`（commit `2293ff68514a725e69b54fbda6434ff20c3025e7`）已成功，证明 selector JVM module 与其上游测试可构建/运行。
+
+### 仍未完成，不能宣称 GKD 已完整迁入
+
+- 当前 `FxAccessibilityService` 仍只处理前台包名变化和用户配置的音量触发；尚未调用 `FxGkdSelectorRuntime` 扫描事件节点树。
+- 没有 GKD 订阅/本地规则仓库、应用与规则组配置、同步/导入导出、排除项和并发事务。
+- 没有规则优先级、事件触发器、冷却/去重、动作授权、执行队列、重试/超时和防止重复点击机制。
+- 没有 GKD 快照、历史/日志、AI Provider/模型/预算、安全截图处理。
+- 没有在 Hook Tab 中提供 GKD 规则编辑器、订阅管理和运行状态页面。
+- 没有 GKD 特权 AIDL/Shizuku bridge 的 FX 统一接入，也没有合并原服务、通知、Tile、BootReceiver、备份等生命周期。
+- selector JVM 测试通过不代表 APK Gradle 整体构建、真机 Accessibility 事件匹配或自动化动作已验证。
+
+### 下一阶段实施顺序
+
+1. 把 Selector Runtime 接入 FX 自有 Accessibility 事件分发器（先只读匹配），增加节点快照生命周期、线程调度、事件去重、窗口/包边界、内存/时间上限与撤销授权。
+2. 设计并测试 FX GKD subscription/rule repository：数据版本、事务写入、导入/导出、上游订阅兼容、应用范围/排除项。
+3. 先实现明确用户启用的安全动作执行器，默认关闭；规则和目标 App 范围可查看、可撤销。动作前后做 cooldown、幂等与事件去重，保留运行记录。
+4. 移植 snapshots/history/AI providers 及配套权限，再在 Hook Tab 添加统一 Compose 子页面。
+5. 最后逐项整合 Shizuku/AIDL、后台/开机/通知/Tile 生命周期，确保不重复注册第二套服务或入口。
