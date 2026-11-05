@@ -13,7 +13,7 @@ fail(){ echo "FAIL: $*" >&2; exit 1; }
 for file in "$ACTIVITY" "$STORE" "$POLICY" "$MAIN" "$MANIFEST" "$HOST_TEST"; do
   [ -s "$file" ] || fail "Dia script-library source missing: $file"
 done
-grep -Fq 'case "JS 脚本列表":' "$MAIN" || fail "JS script list route is missing"
+grep -Fq 'Frida JavaScript 脚本库' "$MAIN" || fail "native Frida script-library entry is missing"
 grep -Fq 'FxDiaScriptLibraryActivity.class' "$MAIN" || fail "script pages do not route to the dedicated native Activity"
 grep -Fq 'open_new_script' "$MAIN" || fail "script editor route does not open the native editor flow"
 grep -Fq 'android:name=".imported.dia.FxDiaScriptLibraryActivity" android:exported="false"' "$MANIFEST" || fail "private script-library Activity is not registered"
