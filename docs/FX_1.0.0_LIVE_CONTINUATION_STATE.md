@@ -5978,3 +5978,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Targeted Host Regression 在 `fx-dia-monitor-event-view-regression.sh` 失败：`FxDiaSessionLogActivity.checkedDirectoryPrefix()` 已按 `/data`、`/data/adb`、FX/Dia/logs 目录逐级拒绝符号链接，但测试把 `/data/adb` 断言错误写成独立条件开头。
 - 将断言匹配改为同一 `if` 链中的 `|| [ -L '/data/adb' ] || [ ! -d '/data/adb' ]`；同时保留 `/data` 根检查、明确失败 marker、统一 read/clear guard 和最终日志文件 symlink 检查。
 - 本批只修正静态 regression 文本，不修改 Session Log/Frida 运行逻辑；等待新 Host run 验证。
+
+
+## 2026-11-06 — Root Proxy Linux interface-name validation
+
+- 代码提交：`77b044b73b04ca0d5eb5affa15d3fd4475684997`；回归提交：`5285af780e6260792604628a806411272c524f97`；测试用例边界修正：`5343075dcd624248878d05fc2984aaaa075cc194`。
+- `fx-module/scripts/yulong-root-proxy.sh::_valid_if` 现在在原有 ASCII 字符白名单基础上，拒绝超过 Linux `IFNAMSIZ - 1`（15 字节）的接口名，避免把不可能存在的超长接口名传入 `ip` 路由探测；未更改任何第三方路由或防火墙规则。
+- `scripts/tests/fx-yulong-root-proxy-runtime-regression.sh` 从生产脚本提取真实 validator，覆盖常见 VPN/蜂窝/Wi-Fi 接口名、15 字节边界、16 字节拒绝、空值、空格和斜杠拒绝。
+- GitHub 回读验证：生产脚本与测试文件均已按分支 ref 重新读取；生产 validator 与新增测试片段匹配。Gradle/Android 构建未运行；Host 测试尚未由本执行环境直接运行。目标分支的 combined commit status 未返回任何 status 项，不能据此声称 CI 通过或失败；需查看对应 Actions run。
+- 未进行设备真机测试；此项是 Root Proxy 输入验证收紧，不代表第三方 VPN 共存或 DNS 泄漏验收完成。
+- 下一批：继续针对真实 VPN 数据面验证路由/端口/DNS/TUN 交互，并保持 Root Proxy 与独立本地 DNS 的生命周期隔离；随后回到六模式原生页面覆盖与 Hook 运行时完整度。
