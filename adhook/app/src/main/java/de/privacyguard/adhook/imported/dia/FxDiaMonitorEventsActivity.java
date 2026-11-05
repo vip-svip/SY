@@ -96,6 +96,7 @@ public final class FxDiaMonitorEventsActivity extends de.privacyguard.adhook.FxN
 
     private Button button(String label, Runnable action) {
         Button view = new Button(this);
+        view.setTag("fx-action-row");
         view.setAllCaps(false);
         view.setText(label);
         view.setOnClickListener(v -> action.run());
@@ -138,19 +139,23 @@ public final class FxDiaMonitorEventsActivity extends de.privacyguard.adhook.FxN
         header.setPadding(dp(8), dp(4), dp(12), dp(4));
         header.addView(button("‹ 返回 Hook", this::finish));
         TextView title = text("Hook · 结构化监控事件", 18, 0xff17212b, true);
+        title.setTag("fx-title:18");
         header.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
 
         TextView target = text("目标应用：" + targetName + "\n包名：" + targetPackage,
                 12, 0xff526170, false);
+        target.setTag("fx-card-detail");
         target.setPadding(dp(16), dp(3), dp(16), dp(7));
         root.addView(target);
 
         status = text("正在读取 FX 监控事件…", 12, 0xff526170, false);
+        status.setTag("fx-card-detail");
         status.setPadding(dp(16), dp(5), dp(16), dp(5));
         root.addView(status);
 
         LinearLayout controls = new LinearLayout(this);
+        controls.setTag("fx-card-group");
         controls.setOrientation(LinearLayout.VERTICAL);
         controls.setPadding(dp(12), dp(4), dp(12), dp(4));
         controls.setBackgroundColor(0xfff0f3f7);
@@ -158,6 +163,7 @@ public final class FxDiaMonitorEventsActivity extends de.privacyguard.adhook.FxN
         TextView privacy = text(
                 "只显示 FX 内置 [DIA_*] 监控模板产生的白名单元数据；不会显示 SQL 文本、网络正文/请求头、命令内容、调用栈或自定义脚本原文。",
                 12, 0xff617080, false);
+        privacy.setTag("fx-card-detail");
         controls.addView(privacy);
 
         String[] categories = FxDiaMonitorEventParser.getCategories();
@@ -177,10 +183,12 @@ public final class FxDiaMonitorEventsActivity extends de.privacyguard.adhook.FxN
         controls.addView(search);
 
         LinearLayout actions = new LinearLayout(this);
+        actions.setTag("fx-card-group");
         actions.setGravity(Gravity.CENTER_VERTICAL);
         Button refresh = button("立即刷新", () -> loadEvents(true));
         actions.addView(refresh, new LinearLayout.LayoutParams(0, -2, 1));
         autoRefreshSwitch = new Switch(this);
+        autoRefreshSwitch.setTag("fx-switch-row");
         autoRefreshSwitch.setText("每 15 秒自动刷新");
         autoRefreshSwitch.setTextSize(12);
         autoRefreshSwitch.setOnCheckedChangeListener((button, checked) -> {
@@ -196,6 +204,7 @@ public final class FxDiaMonitorEventsActivity extends de.privacyguard.adhook.FxN
         root.addView(controls);
 
         count = text("匹配事件：0", 12, 0xff617080, false);
+        count.setTag("fx-card-detail");
         count.setPadding(dp(16), dp(5), dp(16), dp(5));
         root.addView(count);
 
@@ -284,18 +293,22 @@ public final class FxDiaMonitorEventsActivity extends de.privacyguard.adhook.FxN
             if (!needle.isEmpty() && !display.toLowerCase(Locale.ROOT).contains(needle)) continue;
             matched++;
             if (shown >= 120) continue;
-            TextView row = text(display, 12, 0xff263443, false);
-            row.setPadding(dp(12), dp(8), dp(12), dp(8));
-            row.setBackgroundColor(shown % 2 == 0 ? 0xffffffff : 0xfff2f5f8);
-            row.setOnClickListener(v -> new AlertDialog.Builder(this)
-                    .setTitle("监控事件 · " + event.category)
-                    .setMessage(event.toDisplayString())
-                    .setPositiveButton("关闭", null)
-                    .show());
-            rows.addView(row);
-            View divider = new View(this);
-            divider.setBackgroundColor(0xffe0e5eb);
-            rows.addView(divider, new LinearLayout.LayoutParams(-1, dp(1)));
+            LinearLayout row = new LinearLayout(this);
+            row.setTag("fx-list-row");
+            row.setOrientation(LinearLayout.VERTICAL);
+            TextView eventText = text(display, 12, 0xff263443, false);
+            eventText.setTag("fx-list-subtitle");
+            eventText.setPadding(dp(12), dp(8), dp(12), dp(8));
+            row.addView(eventText);
+            row.setOnClickListener(v -> {
+                AlertDialog dialog = new AlertDialog.Builder(this)
+                        .setTitle("监控事件 · " + event.category)
+                        .setMessage(event.toDisplayString())
+                        .setPositiveButton("关闭", null)
+                        .create();
+                FxNativeSkin.showDialog(this, dialog);
+            });
+            rows.addView(row, new LinearLayout.LayoutParams(-1, -2));
             shown++;
         }
         count.setText("匹配事件：" + matched + " · 当前显示：" + shown
