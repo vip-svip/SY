@@ -1,0 +1,2 @@
+# 空占位：真实 hosts 由 apply.sh 动态生成并 bind mount
+127.0.0.1 localhost
