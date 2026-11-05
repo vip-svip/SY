@@ -15,6 +15,11 @@ cat > "$MOD/scripts/yulong-root-proxy.sh" <<'PROXY'
 printf 'root-proxy:%s\n' "$*" >> "$ORDER_LOG"
 [ "${MOCK_PROXY_FAIL:-0}" = 0 ]
 PROXY
+mkdir -p "$MOD/scripts/jsruntime"
+cat > "$MOD/scripts/jsruntime/scheduler.sh" <<'SCHEDULER'
+#!/bin/sh
+printf 'scheduler:%s\n' "$*" >> "$ORDER_LOG"
+SCHEDULER
 cat > "$MOD/scripts/yulong-app-firewall.sh" <<'FIREWALL'
 #!/bin/sh
 printf 'firewall:%s\n' "$*" >> "$ORDER_LOG"
@@ -32,9 +37,10 @@ printf '%s\n' verified-digest > "$PG/system-app-apk.sha256"
 printf '%s\n' retry > "$PG/system-app-retry"
 printf '%s\n' unrelated > "$PG/unrelated-state"
 ORDER_LOG="$LOG" PG="$PG" MODDIR="$MOD" sh "$MOD/uninstall.sh" > "$T/success.out" 2>&1 || fail "successful Root Proxy shutdown blocked uninstall"
-[ "$(sed -n '1p' "$LOG")" = 'root-proxy:uninstall' ] || fail "Root Proxy was not stopped first"
-[ "$(sed -n '2p' "$LOG")" = 'firewall:uninstall' ] || fail "firewall teardown did not follow Root Proxy shutdown"
-[ "$(sed -n '3p' "$LOG")" = "hook-remover:$MOD $PG" ] || fail "ownership-safe Hook remover did not run after network teardown"
+[ "$(sed -n '1p' "$LOG")" = 'scheduler:uninstall' ] || fail "QuickJS scheduler was not stopped when its state/log directory was absent"
+[ "$(sed -n '2p' "$LOG")" = 'root-proxy:uninstall' ] || fail "Root Proxy was not stopped after the scheduler"
+[ "$(sed -n '3p' "$LOG")" = 'firewall:uninstall' ] || fail "firewall teardown did not follow Root Proxy shutdown"
+[ "$(sed -n '4p' "$LOG")" = "hook-remover:$MOD $PG" ] || fail "ownership-safe Hook remover did not run after network teardown"
 [ ! -e "$PG/system-app-apk.sha256" ] || fail "stale system-app deployment digest survived successful uninstall"
 [ ! -e "$PG/system-app-retry" ] || fail "stale system-app retry marker survived successful uninstall"
 [ "$(cat "$PG/unrelated-state")" = unrelated ] || fail "uninstall removed unrelated PrivacyGuard state"
@@ -70,5 +76,7 @@ if ORDER_LOG="$T/symlink-order.log" PG="$T/state-link" MODDIR="$MOD" sh "$MOD/un
 fi
 [ ! -e "$T/symlink-order.log" ] || fail "uninstall invoked a helper before rejecting the symlinked state root"
 grep -Fq 'state directory is a symlink or non-directory' "$T/symlink.out" || fail "symlinked state root refusal was not reported"
+grep -Fq '_FX_SCHEDULER_LOG=/dev/null' "$SOURCE" || fail "uninstall has no safe fallback when scheduler log directory is absent"
+grep -Fq '[ ! -L "$_FX_SCHEDULER_STATE_DIR/jsruntime" ]' "$SOURCE" || fail "scheduler log writer does not reject a symlinked runtime directory"
 
 echo "PASS: FX uninstall safely validates state root, stops Root Proxy before firewall teardown and retires deployment markers only after successful Hook removal"
