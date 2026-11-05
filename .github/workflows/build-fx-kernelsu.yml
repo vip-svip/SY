@@ -186,7 +186,16 @@ jobs:
           install -D -m 0755 scripts/native-vpn-config.sh fx-module/scripts/native-vpn-config.sh
           install -D -m 0755 scripts/fx-vpn-coexistence-arbiter.sh fx-module/scripts/fx-vpn-coexistence-arbiter.sh
           sh scripts/tests/fx-vpn-coexistence-arbiter-regression.sh fx-module/scripts/fx-vpn-coexistence-arbiter.sh
+          # Release archives may still contain the legacy mkdir-based subfetch lock.
+          # Apply the reviewed lock migration and regenerate stale-lock tests before
+          # executing concurrency checks against the restored module itself.
+          python3 -m py_compile fx-patches/patch_subfetch_file_lock.py fx-patches/patch_subfetch_legacy_lock_tests.py
+          python3 fx-patches/patch_subfetch_file_lock.py fx-module
+          python3 fx-patches/patch_subfetch_legacy_lock_tests.py fx-module
           install -D -m 0755 scripts/tests/v1.0.0-subfetch-concurrency-regression.sh fx-module/scripts/tests/v1.0.0-subfetch-concurrency-regression.sh
+          sh fx-module/scripts/tests/v1.0.0-subfetch-concurrency-regression.sh
+          sh fx-module/scripts/tests/v1.0.0-subfetch-stale-lock-ownership-regression.sh
+          sh fx-module/scripts/tests/v1.0.0-subfetch-stale-lock-reclaim-regression.sh
           python3 fx-patches/patch_vpn_apps.py fx-module
           sh fx-module/scripts/tests/v1.0.0-yulong-per-app-vpn-regression.sh
           python3 fx-patches/patch_yulong_ad_master.py fx-module && python3 fx-patches/patch_vpn_coexistence_status.py fx-module && python3 scripts/tests/fx-vpn-coexistence-status-regression.py

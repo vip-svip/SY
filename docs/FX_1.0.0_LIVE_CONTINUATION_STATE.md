@@ -5885,3 +5885,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 补丁器现在识别带有 `FX_SUBFETCH_CONCURRENCY_CANONICAL_V1` 的仓库规范夹具，逐项验证 transfer gate、单 worker 入场、双进程退出码、两侧输出诊断、串行网络请求、缓存元数据和 lock 清理契约；完整满足时跳过只适用于旧 Release 测试的文字注入。非规范旧夹具仍沿用原始兼容修补流程。
 - `fx-atomic-cache-lock-release-regression.sh` 调整为先复制规范并发夹具，再运行补丁器两次，执行顺序与实际 KernelSU build workflow 对齐。
 - 本批新增规范测试标记并记录 CI 根因；需要当前 HEAD 的 Host 与 KernelSU package CI 重新验证。未声称 APK/ZIP 构建已通过。
+
+
+## 2026-11-06 — KernelSU Release 恢复阶段补齐 subfetch 并发锁迁移
+
+- 包装 run `42099301795`（checkout HEAD `db33b64b`）在完整 FX module Host suite 的 subfetch 并发回归处失败；此前 `patch_subfetch_file_lock.py` 和 `patch_subfetch_legacy_lock_tests.py` 已存在，但 KernelSU workflow 没有在 Release ZIP 恢复后调用它们，旧版 `subfetch.sh` 未迁移到 POSIX noclobber 文件锁。
+- 在 `.github/workflows/build-fx-kernelsu.yml` 恢复模块后，先应用文件锁 patcher，再生成兼容旧 PID 目录锁的 stale-lock 回归；随后安装并立即执行真实并发测试及两项 stale-lock ownership/reclaim 测试。完整模块 Host suite 仍会再次发现并运行这些脚本。
+- 新增 `scripts/tests/fx-subfetch-release-patch-regression.py`：以最小 Release 旧版锁块验证 patcher、幂等性、生成脚本 Shell 语法，并锁定 KernelSU workflow 的补丁/测试顺序。
+- 本批为打包恢复路径补齐，不改变 FX APK/UI 或订阅数据协议。待当前 HEAD 的 Host Regression 与 KernelSU package run 结果确认；未声称真实设备订阅抓取已验收。
