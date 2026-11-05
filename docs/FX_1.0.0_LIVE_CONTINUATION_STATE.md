@@ -4299,7 +4299,7 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 ### 验证等级和限制
 - 已逐文件 GitHub 回读确认 MainActivity/ FxNativeSkin/Hook regression 的新代码存在，且固定列表头部/索引、应用打开、分页和过滤 View 引用仍保留。
-- 当前最新分支 HEAD（记录时）为 `7248b0af3ae171c4b12e5394b085a9313e8bf839`，Targeted Host Regression run `41985996956` 状态为 pending/queued。此前连续 push 对应的中间 runs（含 `41985983455`、`41985940528` 等）被 concurrency cancel；取消不代表失败，也不代表通过。
+- 当前 Hook 源码/测试批次 HEAD `7248b0af3ae171c4b12e5394b085a9313e8bf839` 对应 Targeted Host Regression run `41985996956` 最终为 `cancelled`（GitHub API 最终状态）；未获得该 Hook 回归批次的 CI PASS。此前连续 push 对应中间 runs（含 `41985983455`、`41985940528` 等）也被 concurrency cancel；取消不代表失败，也不代表通过。
 - 本批未在 Android SDK/Gradle 环境执行 Hook regression、Gradle compile、Android JUnit、APK assemble、安装或真机触控/视觉检查。当前只能标为 GitHub 源码回读，等待最新 Host job 结果。
 - 五 Skin 的完整逐应用页视觉验收仍未完成；本批主要建立共享 surface/color 的真实调用和页面分组，不能视为五 Skin × 六 Tab 完成。
 - Root、LSPosed、Accessibility 的状态卡反映对应系统事实；UI 分组本身不代表 Root 授权、LSPosed 批准或目标进程注入已经成功。
@@ -4307,4 +4307,4 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 ### 下一批直接实施
 1. 逐应用目标页的广告识别、隐私 Hook、标识/剪贴板/Wi-Fi/网络类型/设备标识/版本/时区/位置表单，核对 EditText、Spinner、Switch、危险/保存按钮是否覆盖五 Skin renderer；优先补缺失的控件级 Skin 回归。
 2. 继续 Hook 自定义规则列表项、Dialog/Toast/按键页面的组件级 Skin 覆盖，同时保持业务数据/验证与执行安全边界。
-3. 检查 run `41985996956` 的最终 host-regressions job；仅在结果真实完成后更新验证结论，再继续 Ad/Privacy 对应 Activity 的页面级控件适配。
+3. 后续代码批次合并后再读取最新 HEAD 对应 Host run；本 Hook 批次取消，不可写为 CI PASS。继续 Ad/Privacy 对应 Activity 的页面级控件适配。
