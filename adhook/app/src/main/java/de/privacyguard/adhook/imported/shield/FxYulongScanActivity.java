@@ -77,8 +77,8 @@ public final class FxYulongScanActivity extends de.privacyguard.adhook.FxNativeT
         restoredScanScrollY = state == null ? 0 : Math.max(0, state.getInt(STATE_SCAN_SCROLL_Y, 0));
         LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setBackgroundColor(0xfff7f8fa);
         LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);header.setPadding(dp(12),dp(8),dp(12),dp(8));
-        header.addView(action("‹ 返回",this::finish));
-        header.addView(text("已安装应用扫描",19,0xff17212b,true),new LinearLayout.LayoutParams(0,-2,1));
+        header.addView(action("‹ 返回隐私",this::finish));
+        header.addView(text("隐私 · 已安装应用扫描",19,0xff17212b,true),new LinearLayout.LayoutParams(0,-2,1));
         root.addView(header);
         ScrollView scroll=new ScrollView(this);scanScroll=scroll;scroll.setFillViewport(true);
         body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);body.setPadding(0,dp(4),0,dp(20));
