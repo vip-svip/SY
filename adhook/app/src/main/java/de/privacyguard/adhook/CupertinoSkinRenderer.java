@@ -89,6 +89,21 @@ final class CupertinoSkinRenderer {
             section.setMinimumHeight(dp(CupertinoSpacingTokens.ROW_MIN_HEIGHT_DP, density));
             return;
         }
+        if ("fx-card-title".equals(role) && view instanceof TextView) {
+            TextView heading = (TextView) view;
+            heading.setTextColor(CupertinoColorTokens.PRIMARY_TEXT);
+            heading.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+            heading.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,
+                    CupertinoTypographyTokens.CARD_TITLE_SP);
+            return;
+        }
+        if ("fx-card-body".equals(role) && view instanceof TextView) {
+            TextView detail = (TextView) view;
+            detail.setTextColor(CupertinoColorTokens.SECONDARY_TEXT);
+            detail.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 13f);
+            detail.setLineSpacing(dp(2, density), 1.05f);
+            return;
+        }
         if (("fx-card".equals(role) || "fx-setting-card".equals(role)) && view instanceof ViewGroup) {
             ViewGroup card = (ViewGroup) view;
             card.setBackground(rounded(CupertinoColorTokens.CARD_SURFACE,
