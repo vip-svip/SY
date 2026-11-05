@@ -96,10 +96,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Never overwrite an existing recovery/PR branch. A prior successful
-          # source import remains the canonical integration candidate.
+          # If the recovery PR branch already exists, merge the newest shared
+          # integration HEAD into it. This refreshes the PR's merge base without
+          # force-pushing or discarding commits made by parallel agents.
           if git ls-remote --exit-code --heads origin fx-module-source-recovery >/dev/null 2>&1; then
-            echo "::notice::fx-module-source-recovery already exists; preserving its commits and open review."
+            git fetch origin \
+              "+refs/heads/$GITHUB_REF_NAME:refs/remotes/origin/$GITHUB_REF_NAME" \
+              "+refs/heads/fx-module-source-recovery:refs/remotes/origin/fx-module-source-recovery"
+            git checkout -B fx-module-source-recovery origin/fx-module-source-recovery
+            git merge --no-edit "origin/$GITHUB_REF_NAME"
+            git push origin "HEAD:refs/heads/fx-module-source-recovery"
+            echo "::notice::Merged the latest shared integration HEAD into fx-module-source-recovery."
             exit 0
           fi
           mkdir -p docs/fx-module-recovery
