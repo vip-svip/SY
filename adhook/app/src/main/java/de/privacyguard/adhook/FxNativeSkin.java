@@ -181,12 +181,15 @@ final class FxNativeSkin {
             if (replacement != null && replacement != oldColor) text.setTextColor(replacement);
         }
 
-        if (view instanceof Button) {
-            applyButtonSkin(activity, (Button) view, mode, palette);
-        } else if (view instanceof Switch) {
+        // Switch, CheckBox and RadioButton can also match the generic Button
+        // inheritance check. Dispatch the specialized controls first so their
+        // thumb/track or button tint adapters are actually reached.
+        if (view instanceof Switch) {
             applySwitchSkin(activity, (Switch) view, mode, palette);
         } else if (view instanceof android.widget.CompoundButton) {
             applyChoiceControlSkin(activity, (android.widget.CompoundButton) view, mode, palette);
+        } else if (view instanceof Button) {
+            applyButtonSkin(activity, (Button) view, mode, palette);
         }
 
         if (view instanceof ViewGroup) {
