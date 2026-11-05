@@ -12,14 +12,17 @@ if [ "$MODULE" != "$ROOT" ]; then
 fi
 [ -s "$MODULE/uninstall.sh" ] || fail "KernelSU uninstall hook missing"
 grep -Fq 'sh "$REMOVER" "$MODDIR" "$STATE_DIR"' "$MODULE/uninstall.sh" || fail "KernelSU uninstall hook does not invoke ownership-safe remover"
-TMP="${TMPDIR:-/tmp}/fx-unified-installer-$$"; mkdir -p "$TMP/bin" "$TMP/mod/optional" "$TMP/state" "$TMP/tmp" "$TMP/pm"
+TMP="${TMPDIR:-/tmp}/fx-unified-installer-$$"; mkdir -p "$TMP/bin" "$TMP/mod/optional" "$TMP/mod/system/app/FX" "$TMP/state" "$TMP/tmp" "$TMP/pm"
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 printf 'unified apk payload\n' > "$TMP/mod/optional/FXUnifiedHook.apk"; sha256sum "$TMP/mod/optional/FXUnifiedHook.apk" > "$TMP/mod/optional/FXUnifiedHook.apk.sha256"
+cp "$TMP/mod/optional/FXUnifiedHook.apk" "$TMP/mod/system/app/FX/FX.apk"
+sha256sum "$TMP/mod/system/app/FX/FX.apk" > "$TMP/mod/system/app/FX/FX.apk.sha256"
 cat > "$TMP/bin/pm" <<'PM'
 #!/bin/sh
 set -eu
 case "$1" in
  path) grep -Fxq "$2" "$FX_ADHOOK_FAKE_PM_STATE/installed" 2>/dev/null && [ -s "$FX_ADHOOK_FAKE_PM_STATE/$2.apk" ] && echo "package:$FX_ADHOOK_FAKE_PM_STATE/$2.apk" || exit 1;;
+ list) [ "$2" = packages ] && [ "$3" = -s ] || exit 2; if [ "${FX_ADHOOK_FAKE_SYSTEM:-0}" = 1 ] && grep -Fxq "$4" "$FX_ADHOOK_FAKE_PM_STATE/installed" 2>/dev/null; then echo "package:$4"; fi;;
  install) [ "$2" = -r ] || exit 2; case "$3" in */.fx-unified-hook-*.apk) if [ "${FX_ADHOOK_FAKE_SIGNATURE_MISMATCH:-0}" = 1 ]; then echo 'Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE: signatures do not match]' >&2; exit 1; fi;; esac; if ! grep -Fxq de.privacyguard.adhook "$FX_ADHOOK_FAKE_PM_STATE/installed" 2>/dev/null; then [ ! -e "$FX_ADHOOK_STATE_DIR/adhook-apk-fxunifiedhook.fx-owned" ] || { echo "ownership marker was committed before pm install" >&2; exit 4; }; echo de.privacyguard.adhook >> "$FX_ADHOOK_FAKE_PM_STATE/installed"; fi; cp "$3" "$FX_ADHOOK_FAKE_PM_STATE/de.privacyguard.adhook.apk"; echo "$3" >> "$FX_ADHOOK_FAKE_PM_STATE/install-calls";;
  uninstall) if [ "$2" = -k ]; then _pkg=$3; echo "-k $_pkg" >> "$FX_ADHOOK_FAKE_PM_STATE/uninstall-calls"; else _pkg=$2; echo "$_pkg" >> "$FX_ADHOOK_FAKE_PM_STATE/uninstall-calls"; fi; sed "/^$_pkg$/d" "$FX_ADHOOK_FAKE_PM_STATE/installed" > "$FX_ADHOOK_FAKE_PM_STATE/installed.tmp"; mv "$FX_ADHOOK_FAKE_PM_STATE/installed.tmp" "$FX_ADHOOK_FAKE_PM_STATE/installed"; rm -f "$FX_ADHOOK_FAKE_PM_STATE/$_pkg.apk";;
  install-multiple) [ "$2" = -r ] || exit 2; shift 2; _found=0; for _apk in "$@"; do [ -s "$_apk" ] || exit 5; cp "$_apk" "$FX_ADHOOK_FAKE_PM_STATE/de.privacyguard.adhook.apk"; _found=1; done; [ "$_found" = 1 ] || exit 6; echo de.privacyguard.adhook >> "$FX_ADHOOK_FAKE_PM_STATE/installed";;
@@ -28,6 +31,17 @@ esac
 PM
 chmod +x "$TMP/bin/pm"; export PATH="$TMP/bin:$PATH" FX_ADHOOK_FAKE_PM_STATE="$TMP/pm" FX_ADHOOK_STATE_DIR="$TMP/state" FX_ADHOOK_TMP_DIR="$TMP/tmp" FX_ADHOOK_LOG="$TMP/state/install.log"
 : > "$TMP/pm/installed"
+# An updated system app is stored in /data/app but remains classified as a
+# system package by PackageManager. The installer must not reinstall it.
+echo de.privacyguard.adhook > "$TMP/pm/installed"
+cp "$TMP/mod/system/app/FX/FX.apk" "$TMP/pm/de.privacyguard.adhook.apk"
+sha256sum "$TMP/mod/system/app/FX/FX.apk" > "$TMP/state/adhook-apk-fxunifiedhook.sha256"
+export FX_ADHOOK_FAKE_SYSTEM=1
+sh "$INSTALLER" "$TMP/mod" >/dev/null || fail "system-app verification failed"
+[ ! -s "$TMP/pm/install-calls" ] || fail "system app path must not run pm install"
+unset FX_ADHOOK_FAKE_SYSTEM
+rm -f "$TMP/state/adhook-apk-fxunifiedhook.sha256" "$TMP/state/adhook-apk-fxunifiedhook.fx-owned" "$TMP/pm/installed" "$TMP/pm/de.privacyguard.adhook.apk"
+: > "$TMP/pm/install-calls"
 echo de.privacyguard.hook > "$TMP/pm/installed"
 printf "old standalone Hook APK\n" > "$TMP/pm/de.privacyguard.hook.apk"
 sha256sum "$TMP/pm/de.privacyguard.hook.apk" > "$TMP/state/adhook-apk-privacyguardhook.sha256"
@@ -108,4 +122,4 @@ echo de.privacyguard.adhook > "$TMP/pm/installed"
 printf 'user reinstalled replacement APK\n' > "$TMP/pm/de.privacyguard.adhook.apk"
 sh "$REMOVER" "$TMP/mod" "$TMP/state" || fail "cleanup after manual reinstall failed"
 grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "manual reinstall was removed by stale ownership"
-echo "PASS: unified APK, signature safety, ownership-safe uninstall, and stale-marker cleanup"
+echo "PASS: system-app detection, ordinary-app fallback, signature safety, ownership-safe uninstall, and stale-marker cleanup"
