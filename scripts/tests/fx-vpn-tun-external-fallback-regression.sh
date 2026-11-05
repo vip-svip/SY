@@ -89,4 +89,47 @@ for f in "$MOD/scripts/vpncore.sh" "$MOD/scripts/apply.sh" "$MOD/scripts/status.
 done
 [ "$(grep -Fc 'fx_select_vpn_effective_mode() {' "$MOD/scripts/apply.sh")" -eq 1 ] || fail "apply helper duplicated on rerun"
 [ "$(grep -Fc 'vpncore_effective_mode() {' "$MOD/scripts/vpncore.sh")" -eq 1 ] || fail "vpncore helper duplicated on rerun"
+
+# Release lanes pass the restored module directory to verify the actual patched
+# runtime as well as the isolated fixture above.
+MODULE="${1:-}"
+if [ -n "$MODULE" ]; then
+  case "$MODULE" in /*) ;; *) MODULE="$ROOT/$MODULE" ;; esac
+  for f in vpncore.sh apply.sh status.sh; do
+    [ -s "$MODULE/scripts/$f" ] || fail "restored module source missing: $f"
+    sh -n "$MODULE/scripts/$f" || fail "restored patched shell syntax invalid: $f"
+  done
+  grep -Fq 'vpncore_effective_mode' "$MODULE/scripts/vpncore.sh" || fail "restored vpncore has no effective-mode override"
+  grep -Fq 'PG_VPN_MODE_OVERRIDE=$VPN_MODE' "$MODULE/scripts/apply.sh" || fail "restored apply does not export effective mode"
+  grep -Fq 'external_android_vpn_tun_to_redirect' "$MODULE/scripts/apply.sh" || fail "restored apply does not report the TUN fallback reason"
+  grep -Fq '"vpn_effective_mode":"%s"' "$MODULE/scripts/status.sh" || fail "restored status omits effective mode"
+  grep -Fq '"vpn_mode_fallback_reason":"%s"' "$MODULE/scripts/status.sh" || fail "restored status omits fallback reason"
+  python3 - "$MODULE/scripts/vpncore.sh" "$MODULE/scripts/apply.sh" "$T/actual-mode-functions.sh" <<'PY'
+from pathlib import Path
+import sys
+vpncore, apply, output = map(Path, sys.argv[1:])
+v, a = vpncore.read_text(encoding="utf-8"), apply.read_text(encoding="utf-8")
+v_start = v.index("vpncore_effective_mode() {")
+v_end = v.index("\n}\n", v_start) + 3
+a_start = a.index("fx_select_vpn_effective_mode() {")
+a_end = a.index("\n}\n", a_start) + 3
+output.write_text(v[v_start:v_end] + "\n" + a[a_start:a_end] + "\n", encoding="utf-8")
+PY
+  sh -c '
+    set -eu
+    . "$1"
+    PG_VPN_MODE_OVERRIDE=redirect
+    [ "$(vpncore_effective_mode)" = redirect ]
+    unset PG_VPN_MODE_OVERRIDE
+    [ "$(fx_select_vpn_effective_mode tun 1 tun0 0 10042 1 1)" = redirect ]
+    [ "$(fx_select_vpn_effective_mode tun 1 tun0 1 10042 1 1)" = direct ]
+    [ "$(fx_select_vpn_effective_mode tun 1 tun0 0 "" 1 1)" = direct ]
+    [ "$(fx_select_vpn_effective_mode tun 0 "" 0 "" 1 0)" = tun ]
+  ' sh "$T/actual-mode-functions.sh" || fail "restored runtime mode selection failed"
+  mkdir -p "$T/actual-module/scripts"
+  cp "$MODULE/scripts/vpncore.sh" "$MODULE/scripts/apply.sh" "$MODULE/scripts/status.sh" "$T/actual-module/scripts/"
+  python3 "$PATCHER" "$T/actual-module" >/dev/null || fail "restored patch is not idempotent"
+  for f in "$T/actual-module/scripts/"*.sh; do sh -n "$f" || fail "idempotent restored shell syntax invalid: $f"; done
+  echo "PASS: restored release runtime implements verified TUN-to-REDIRECT fallback and status reporting."
+fi
 echo "PASS: TUN-to-REDIRECT fallback requires verified outer VPN interface, owner UID, explicit compatibility and route proof; status distinguishes requested/effective mode."
