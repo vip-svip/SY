@@ -185,6 +185,8 @@ final class FxNativeSkin {
             applyButtonSkin(activity, (Button) view, mode, palette);
         } else if (view instanceof Switch) {
             applySwitchSkin(activity, (Switch) view, mode, palette);
+        } else if (view instanceof android.widget.CompoundButton) {
+            applyChoiceControlSkin(activity, (android.widget.CompoundButton) view, mode, palette);
         }
 
         if (view instanceof ViewGroup) {
@@ -245,7 +247,19 @@ final class FxNativeSkin {
                 mode == FxUiMode.IOS_CUPERTINO_STYLE ? 16 : 15);
         control.setPadding(Math.round(16 * density), Math.round(10 * density),
                 Math.round(16 * density), Math.round(10 * density));
-        control.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+    }
+
+    private static void applyChoiceControlSkin(Activity activity,
+                                                android.widget.CompoundButton control,
+                                                FxUiMode mode, Palette palette) {
+        synchronized (SWITCH_SKINS) {
+            if (SWITCH_SKINS.get(control) == mode) return;
+            SWITCH_SKINS.put(control, mode);
+        }
+        control.setButtonTintList(new ColorStateList(
+                new int[][] { new int[] { android.R.attr.state_checked }, new int[] {} },
+                new int[] { palette.accent, palette.switchOffTrack }));
+        control.setTextColor(palette.primaryText);
     }
 
     private static int withAlpha(int color, int alpha) {
