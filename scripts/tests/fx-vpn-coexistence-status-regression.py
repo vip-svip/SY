@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import stat
 import subprocess
 import sys
@@ -203,6 +204,36 @@ def main() -> int:
             check(mode == 0o600, f"status file mode 0600 (got {oct(mode)})")
             check(d is not None, "status parses as complete JSON")
             check(not list(st.glob("*.tmp.*")), "no leftover temp file")
+
+        print("== case 6b: chmod failure preserves the old private snapshot ==")
+        st = tmp / "s6b"
+        st.mkdir()
+        previous = st / "vpn-coexistence.json"
+        previous.write_text('{"sentinel":true}', encoding="utf-8")
+        os.chmod(previous, 0o600)
+        fake_bin = tmp / "chmod-fail-bin"
+        fake_bin.mkdir()
+        real_chmod = shutil.which("chmod")
+        check(real_chmod is not None, "host chmod executable is available for the fault fixture")
+        if real_chmod:
+            (fake_bin / "chmod").write_text(
+                '#!/bin/sh\n'
+                'case "$*" in *vpn-coexistence.json.tmp.*) exit 1 ;; esac\n'
+                f'exec {real_chmod} "$@"\n',
+                encoding="utf-8",
+            )
+            (fake_bin / "chmod").chmod(0o755)
+            r = run_writer(pub, tmp, module, st, {
+                "FAKE_EXT_IF": "tun0",
+                "PATH": f"{fake_bin}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            })
+            check(r.returncode == 0, "private-mode failure remains fail-open to apply.sh")
+            saved, saved_json = read_status(st)
+            check(saved_json == {"sentinel": True}, "chmod failure leaves the previous snapshot untouched")
+            if saved:
+                check(stat.S_IMODE(saved.stat().st_mode) == 0o600,
+                      "previous status remains private after failed publication")
+            check(not list(st.glob("*.tmp.*")), "failed private-mode write removes its temp file")
 
         print("== case 7: fail-open when the state dir is not writable ==")
         ro = tmp / "readonly"

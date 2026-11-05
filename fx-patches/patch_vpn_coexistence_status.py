@@ -127,22 +127,30 @@ fx_coexist_status_write() {
   _fx_cs_ext=false
   [ -n "$_fx_cs_if" ] && _fx_cs_ext=true
 
-  _fx_cs_tmp="$_fx_cs_json.tmp.$$"
-  ( umask 077
-    printf '{"ok":1,"verdict":"%s","grade_cn":"%s","source":"%s","probe":"%s","route_probe":"%s",' \
-      "$_fx_cs_verdict" "$_fx_cs_grade" "$_fx_cs_source" "$_fx_cs_probe" "$_fx_cs_route_probe"
-    printf '"external_vpn":%s,"external_if":"%s","external_uid":"%s",' \
-      "$_fx_cs_ext" "$_fx_cs_if" "$_fx_cs_uid"
-    case "$_fx_cs_slot" in true|false) _fx_cs_slot_json=$_fx_cs_slot ;; *) _fx_cs_slot_json=null ;; esac
-    printf '"dns":{"port":%s,"owner":"%s"},"dns_filter":{"port":%s,"owner":"%s"},"proxy":{"port":%s,"owner":"%s"},"interception_blocked":%s,"dataplane":"kernel","vpn_service_slot_used":%s}\n' "$_fx_cs_dns_port" "$_fx_cs_dns_owner" "$_fx_cs_filter_dns_port" "$_fx_cs_filter_dns_owner" "$_fx_cs_proxy_port" "$_fx_cs_proxy_owner" "$([ "$_fx_cs_blocked" = "1" ] && echo true || echo false)" "$_fx_cs_slot_json"
-  ) > "$_fx_cs_tmp" 2>/dev/null || { rm -f "$_fx_cs_tmp" 2>/dev/null; return 0; }
+  # Create the temp file only after applying a private umask. Redirection on a
+  # subshell itself happens before its body, so umask inside that subshell alone
+  # would be too late. mktemp also prevents predictable PID-path collisions.
+  _fx_cs_tmp=$(umask 077; mktemp "$_fx_cs_json.tmp.XXXXXX" 2>/dev/null) || return 0
+  if [ ! -f "$_fx_cs_tmp" ] || [ -L "$_fx_cs_tmp" ]; then
+    rm -f "$_fx_cs_tmp" 2>/dev/null || :
+    return 0
+  fi
 
-  # 回读校验后才替换，避免发布半截 JSON。
-  if [ -s "$_fx_cs_tmp" ] && grep -q '"verdict":"' "$_fx_cs_tmp" 2>/dev/null; then
-    chmod 0600 "$_fx_cs_tmp" 2>/dev/null || :
-    mv -f "$_fx_cs_tmp" "$_fx_cs_json" 2>/dev/null || rm -f "$_fx_cs_tmp" 2>/dev/null
-  else
-    rm -f "$_fx_cs_tmp" 2>/dev/null
+  # Never publish a snapshot if its required private mode cannot be confirmed.
+  # A failed chmod leaves the previous complete snapshot untouched.
+  if ! {
+    printf '{"ok":1,"verdict":"%s","grade_cn":"%s","source":"%s","probe":"%s","route_probe":"%s","external_vpn":%s,"external_if":"%s","external_uid":"%s","dns":{"port":%s,"owner":"%s"},"dns_filter":{"port":%s,"owner":"%s"},"proxy":{"port":%s,"owner":"%s"},"interception_blocked":%s,"dataplane":"kernel","vpn_service_slot_used":%s}\n' \
+      "$_fx_cs_verdict" "$_fx_cs_grade" "$_fx_cs_source" "$_fx_cs_probe" "$_fx_cs_route_probe" \
+      "$_fx_cs_ext" "$_fx_cs_if" "$_fx_cs_uid" \
+      "$_fx_cs_dns_port" "$_fx_cs_dns_owner" "$_fx_cs_filter_dns_port" "$_fx_cs_filter_dns_owner" \
+      "$_fx_cs_proxy_port" "$_fx_cs_proxy_owner" \
+      "$([ "$_fx_cs_blocked" = "1" ] && echo true || echo false)" "$_fx_cs_slot_json" > "$_fx_cs_tmp" &&
+    chmod 0600 "$_fx_cs_tmp" &&
+    [ -s "$_fx_cs_tmp" ] &&
+    grep -q '"verdict":"' "$_fx_cs_tmp" &&
+    mv -f "$_fx_cs_tmp" "$_fx_cs_json"
+  } 2>/dev/null; then
+    rm -f "$_fx_cs_tmp" 2>/dev/null || :
   fi
   return 0
 }
