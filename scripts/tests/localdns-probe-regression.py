@@ -20,7 +20,7 @@ def run_case(binary, flags=0x8180, expect=0, mutate=None, truncate=None):
             packet, peer = srv.recvfrom(2048)
             packet = bytearray(packet)
             packet[2:4] = struct.pack("!H", flags)
-            packet[6:12] = b"\\0" * 6
+            packet[6:12] = b"\0" * 6
             if mutate:
                 mutate(packet)
             if truncate is not None:
