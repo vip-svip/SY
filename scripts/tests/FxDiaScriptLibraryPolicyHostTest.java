@@ -31,6 +31,10 @@ public final class FxDiaScriptLibraryPolicyHostTest {
         expect("中".equals(FxDiaScriptLibraryPolicy.decodeUtf8(
                         new byte[]{(byte) 0xE4, (byte) 0xB8, (byte) 0xAD})),
                 "valid multibyte UTF-8 must be preserved");
+        expect("中".equals(FxDiaScriptLibraryPolicy.decodeUtf8(
+                        new byte[]{(byte) 0xEF, (byte) 0xBB, (byte) 0xBF,
+                                (byte) 0xE4, (byte) 0xB8, (byte) 0xAD})),
+                "UTF-8 BOM must be ignored for local JSON imports");
         boolean malformedRejected = false;
         try {
             FxDiaScriptLibraryPolicy.decodeUtf8(new byte[]{(byte) 0xC3, 0x28});
