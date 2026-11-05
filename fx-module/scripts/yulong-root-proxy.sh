@@ -517,6 +517,19 @@ _status_locked() {
   echo "enabled=$(pg_get vpn_external_dns_proxy 1)"
   echo "dns_forward=$(pg_get dns_forward 1)"
   echo "whitelist_count=$(printf '%s\n' "$(_list_whitelist_packages)" | awk 'NF {n++} END {print n+0}')"
+
+  # Never disable or overwrite Android Private DNS. Strict DoT can bypass
+  # port-53 filtering; expose actual coverage instead of claiming full
+  # ad filtering while Android is using a pinned encrypted resolver.
+  _private_dns_mode=$(settings get global private_dns_mode 2>/dev/null || printf unknown)
+  case "$_private_dns_mode" in off|opportunistic|hostname) : ;; *) _private_dns_mode=unknown ;; esac
+  echo "private_dns_mode=$_private_dns_mode"
+  case "$_private_dns_mode" in
+    off) echo "dns_filter_coverage=port53_redirect_active" ;;
+    opportunistic) echo "dns_filter_coverage=opportunistic_private_dns_may_bypass_redirect" ;;
+    hostname) echo "dns_filter_coverage=strict_private_dns_bypasses_redirect" ;;
+    *) echo "dns_filter_coverage=unknown" ;;
+  esac
   if ! _is_enabled; then
     echo "active=0"; echo "reason=disabled"; return 0
   fi
