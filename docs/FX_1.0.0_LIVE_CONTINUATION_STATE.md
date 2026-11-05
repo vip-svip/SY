@@ -6605,3 +6605,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 成功启动时会先清空 spawned_pid / spawned_start，因此正常退出 trap 不会移除有效会话记录。旧记录、其他进程记录、符号链接和身份不匹配记录均不被处理。
 - 扩展 scripts/tests/fx-dia-frida-server-lifecycle-regression.sh，检查失败启动清理的文件类型、完整记录归属和删除顺序。
 - 未执行 Android 设备上的 Frida server 启停测试；不声称真机验证。CI 结果以提交后的 GitHub Actions 实际状态为准。
+
+## 2026-11-06 — Shield 模块完整性检查拒绝符号链接输入
+
+- 随机选择的独立任务：安全护盾“应用签名与模块完整性”只读检查器。为避开并行冲突，本批没有改动 Dia、Hosts、VPN 或 Local DNS 文件。
+- 缺陷：FxYulongIntegrityActivity.moduleCheckCommand() 原先使用 -s / -x 检查模块目录中的 module.prop、关键脚本和 QuickJS 二进制；这些测试会跟随符号链接，可能把链接目标误判为模块自身的可信输入。
+- 修复提交：be26ad215bf7d14837420fa0985e8eb9472b6ca3。模块候选目录必须是非符号链接目录，module.prop 必须是非符号链接普通文件；关键脚本/配置和 QuickJS 也必须是非符号链接普通文件后才报告存在/可执行。
+- 回归提交：bd5ebc88ce8f2ac9a352aefcbb5d5d29ea393e87。扩展 Shield worker 回归，逐项断言模块目录、module.prop、关键输入文件和 qjs 均有 no-follow 检查。
+- GitHub 回读：生产源码与测试脚本均已重新读取；4 个 no-follow 契约 token 在生产源码和回归测试中全部匹配。
+- 验证边界：本轮只完成 GitHub 源码回读和静态契约匹配；尚未执行 Host shell regression、Java/Gradle 编译、APK 构建或 Android 真机验证。不得报告 CI 通过。
+- 下一步：在可执行环境运行 scripts/tests/fx-yulong-shield-worker-bounds-regression.sh，并确认 Shield 相关 workflow 对新提交触发；随后继续从未被其他 AI 修改的 UI 页面组随机挑选任务。
