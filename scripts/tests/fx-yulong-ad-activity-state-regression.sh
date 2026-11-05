@@ -179,13 +179,13 @@ assert "RootAccess" not in summary and "ThreadPoolExecutor" not in summary, \
 
 # Summary combines the active module configuration and local retained DNS
 # counters through Root; stale generations must never overwrite a newer refresh.
-assert 'final int generation = ++loadGeneration;' in summary
-assert 'root("list", generation' in summary and 'root("dns-log-summary", generation' in summary
-assert "generation != loadGeneration" in summary
-assert "loadGeneration++;" in summary
-assert 'if (isFinishing() || isDestroyed()) return;' in summary
-assert "RootAccess" not in summary and "ThreadPoolExecutor" not in summary, \
-    "local-only daily summary must not add unnecessary Root/background work"
+assert 'final int generation = ++loadGeneration;' in ad_summary
+assert 'root("list", generation' in ad_summary and 'root("dns-log-summary", generation' in ad_summary
+assert "generation != loadGeneration" in ad_summary
+assert "loadGeneration++;" in ad_summary
+assert 'if (isFinishing() || isDestroyed()) return;' in ad_summary
+assert "RootAccess" in ad_summary and "ThreadPoolExecutor" in ad_summary, \
+    "Ad protection summary must use its bounded Root-backed config/DNS reader"
 assert "private void submitWorker(Runnable task)" in general, "backup import/export must surface worker rejection"
 for token in (
     "FxYulongAdSnapshotPolicy.parseAdMasterEnabled(snapshot)",

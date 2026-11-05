@@ -5832,3 +5832,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `bb8c815c` 的 Host run `42098758244` 运行到新增 master/list section 场景时发现 AWK `else if` 换行语法错误；提交 `1688fc360405` 已将条件合为单行，保持逻辑不变。
 - `b6c2c4da` 的 Host run `42099086925` 是安装器夹具增量，未运行防火墙专项测试；本次进一步要求每个无效/重复 master fixture 不得输出 `FXYULONGFW2` 成功协议头，并改动 firewall 专项脚本以触发针对性 Host 回归。
 - `b6c2c4da` Module Runtime run `42099086747` 的 TUN/DNS/watchdog 和 Root Proxy/native VPN 两步均完成 SUCCESS，但 workflow 标记 CANCELLED；不记为完整 workflow success。
+
+
+### Ad / Privacy 双 Summary 回归变量隔离（2026-11-06）
+
+- `42099140694`（HEAD `856b1156`）的 Host Regression 失败在 Ad Activity 状态脚本后半段：新测试已分别定义 `summary`（Privacy `FxYulongDailySummaryActivity`）和 `ad_summary`（Ad `FxYulongAdSummaryActivity`），但后续 Root/代次检查仍误引用 `summary`，把 Ad 的 Root 读取要求套到 Privacy 页面。
+- 现将 generation、两阶段配置/DNS Root 请求、销毁时失效检查及 Root/ThreadPoolExecutor 必需性断言全部绑定到 `ad_summary`；Privacy 本地总结继续单独验证 SharedPreferences、两个本机服务状态及无 Root/线程池。
+- 不改两页实现，仅修正 Host 测试变量引用。此前 `b6c2c4da` 的 Host、六套 UI 和 System App Install Stage 回归均通过；本修订等待最新 Host 结果。
