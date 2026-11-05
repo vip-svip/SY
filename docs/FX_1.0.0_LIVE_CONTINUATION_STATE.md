@@ -6669,3 +6669,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Regression `scripts/tests/fx-atomic-cache-lock-release-regression.sh` now checks both the exact PID token and absence of the truncated single-`$` form. Latest-branch GitHub readback confirmed both production and test anchors remain present.
 - Verification level: GitHub source readback/static token assertions passed. The push-triggered migration/runtime workflows include this regression, but no confirmed Actions result is available yet; local Host execution, Gradle/APK build, install, and device validation are not claimed.
 - Branch HEAD observed before this state update: `976cc1223eff14d22121a93490591249914efe84` (parallel collaborators may advance it independently).
+
+
+## 2026-11-06 — FX Hook system-app installer private staging hardening
+
+- 随机选择的独立安全任务：FX Hook 系统应用安装器临时 APK staging；本批避开 VPN/TUN/DNS、Hosts、MainActivity/Manifest 和共享 UI 文件。
+- 问题：安装器此前在共享临时目录中使用可预测的 APK 文件名，先删除再复制；其他本机进程可能在检查与复制之间预置符号链接，导致 Root 的 `cp` 跟随链接写入非预期目标。
+- 修复：改为 `mktemp -d "$TMP_DIR/.fx-unified-hook.XXXXXX"` 原子创建随机私有目录，随后再次验证目录类型/路径并强制 `0700`；APK 仅复制到该目录内部。新增受限清理函数，只删除目录内的普通 APK 文件并尝试 `rmdir`，不递归删除可能被替换的路径。
+- 代码提交：`9e62a254da9f64036a865f1b115dab3e084eac04`。回归测试提交：`ab99b8bde162c125b44ef7022c060cf35c6f1586`；并发协作期间其他提交继续补齐 PID/临时标记契约，未覆盖其修改。
+- 回归覆盖：私有目录创建失败必须 fail-closed；PackageManager fake 验证安装输入目录为非符号链接且权限为 `0700`；测试 fixture 明确模拟已升级到 `/data/app` 的系统应用，确保测试确实走到 staging 分支。
+- GitHub Actions：FX Targeted Host Regression run `42113873013`（head `ab99b8bde162c125b44ef7022c060cf35c6f1586`）SUCCESS；日志明确通过“private staging directory creation failure is fail-closed”，并通过完整 installer/remover 回归。FX System App Install Stage run `42113993210`（head `9bc5eaefbd5513bdc380792b9e605535668efd91`）SUCCESS，覆盖 patcher、安装阶段行为、shell 执行和早期开机 overlay 回归。
+- 验证边界：以上均为 GitHub Linux Host 回归；未执行 Android 真机、KernelSU/Magisk 真实挂载、PackageManager 实机识别或 SELinux 实机标签测试。Hook APK migration/Gradle 构建 workflow 在本记录时仍 pending，不得记为通过。
+- 本批结束时观察到的分支 HEAD：`9bc5eaefbd5513bdc380792b9e605535668efd91`；并行 AI 仍可能继续推进。
