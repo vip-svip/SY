@@ -6,6 +6,34 @@ ASSETS="${TMPDIR:-/tmp}/fx-native-privacy-assets-$$"
 TMP="${TMPDIR:-/tmp}/fx-native-privacy-test-$$"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 trap 'rm -rf "$ASSETS" "$TMP"' EXIT HUP INT TERM
+# This regression has two tiers: always validate app-side status wiring; only
+# run module mutation/rollback checks when the restored release archive exists.
+python3 - "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" <<'PY'
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+start = source.index("private void refreshNativePrivacyStatus(TextView target)")
+end = source.index("\n    private ", start + 1)
+method = source[start:end]
+for required in (
+    'json.has("root")',
+    '"未知（状态接口未提供）"',
+    'isAccessibilityEnabled()',
+    'FxAccessibilityService.isConnected()',
+    'getBoolean("service_connected", false)',
+    'getInt("service_pid", -1) == android.os.Process.myPid()',
+    '"\\nAccessibility：" + accessibilityStatus',
+):
+    assert required in method, "privacy authorization summary missing live-state contract: " + required
+assert 'json.optBoolean("root", false) ? "已授权" : "未授权"' in method, \
+    "reported Root state must remain distinct from unavailable Root state"
+print("PASS: privacy authorization summary distinguishes unknown Root state and reports system-enabled/FX-connected Accessibility state")
+PY
+
+if [ ! -s "$MODULE/webroot/index.html" ] || [ ! -s "$MODULE/scripts/default.conf" ]; then
+  echo "SKIP: module-backed privacy writer checks require restored FX module archive; app-side status contract passed."
+  exit 0
+fi
 if [ ! -s "$MODULE/webroot/index.html" ] || [ ! -s "$MODULE/scripts/default.conf" ]; then
 python3 - "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" <<'PY'
 from pathlib import Path
@@ -183,25 +211,3 @@ set -e
 [ "$rc" -eq 75 ] || fail "active WebUI transaction should return retryable exit 75, got $rc"
 grep -qx "$key=$old" "$PG/settings.conf" || fail "WebUI transaction marker was overwritten"
 echo "PASS: native privacy config persistence, allowlist, apply reporting and transaction guard"
-
-python3 - "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" <<'PY'
-from pathlib import Path
-import sys
-source = Path(sys.argv[1]).read_text(encoding="utf-8")
-start = source.index("private void refreshNativePrivacyStatus(TextView target)")
-end = source.index("\n    private ", start + 1)
-method = source[start:end]
-for required in (
-    'json.has("root")',
-    '"未知（状态接口未提供）"',
-    'isAccessibilityEnabled()',
-    'FxAccessibilityService.isConnected()',
-    'getBoolean("service_connected", false)',
-    'getInt("service_pid", -1) == android.os.Process.myPid()',
-    '"\\nAccessibility：" + accessibilityStatus',
-):
-    assert required in method, "privacy authorization summary missing live-state contract: " + required
-assert 'json.optBoolean("root", false) ? "已授权" : "未授权"' in method, \
-    "reported Root state must remain distinct from unavailable Root state"
-print("PASS: privacy authorization summary distinguishes unknown Root state and reports system-enabled/FX-connected Accessibility state")
-PY
