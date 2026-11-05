@@ -4957,3 +4957,8 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Removed the 512 KiB ceiling from AtomicFile-backed Activity draft persistence; writes remain atomic and corrupt drafts are removed on read failure. Activity state stores only an ownership marker for large drafts, not their full source in the Bundle.
 - Updated the SAF regression to validate actual import/export/cancellation/rotation/overwrite guarantees and reject arbitrary capacity constants instead of requiring old limits.
 - Remaining distinct limitation: full-screen editor Binder/Bundle handoff and Frida runtime command transport still use a 48 KiB guard. File-backed editor handoff and runtime script staging remain the next engineering task; no unlimited runtime injection is claimed.
+
+
+## 2026-11-05 — Remove saved-script name draft truncation
+
+- The first legacy page-navigation CI pass after removing script storage limits found a stale 64-character name truncation in Activity recreation state. Removed it and updated the navigation regression to require complete saved-script name preservation rather than the obsolete bounded-name behavior.

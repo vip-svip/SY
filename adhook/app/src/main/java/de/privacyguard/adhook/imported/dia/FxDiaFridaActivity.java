@@ -741,8 +741,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 outState.putString(STATE_FULL_EDITOR_TARGET, pendingFullEditorTargetPackage);
             outState.putString(STATE_FULL_EDITOR_SOURCE_SHA256, pendingFullEditorSourceSha256);
         }
-        outState.putString(STATE_SAVE_SCRIPT_NAME_DRAFT, saveScriptNameDraft.length() > 64
-                ? saveScriptNameDraft.substring(0, 64) : saveScriptNameDraft);
+        outState.putString(STATE_SAVE_SCRIPT_NAME_DRAFT, saveScriptNameDraft);
         outState.putBoolean(STATE_TARGET_PICKER_OPEN,
                 targetPickerOpen || targetLoading || restoreTargetPickerPending);
         outState.putString(STATE_TARGET_PICKER_QUERY, targetPickerSearch == null

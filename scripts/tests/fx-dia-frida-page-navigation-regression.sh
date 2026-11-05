@@ -124,10 +124,9 @@ checks = {
     "guard stale scroll restoration": 'pageScroll == scroll && scroll.getParent() != null' in frida,
     "save-script dialog pending state saved": "outState.putBoolean(STATE_SAVE_SCRIPT_DIALOG_PENDING, restoreSaveScriptDialog)" in frida,
     "save-script dialog pending state restored": "state.getBoolean(STATE_SAVE_SCRIPT_DIALOG_PENDING, false)" in frida,
-    "save-script name draft saved": "outState.putString(STATE_SAVE_SCRIPT_NAME_DRAFT, saveScriptNameDraft.length() > 64" in frida,
+    "save-script name draft saved without truncation": "outState.putString(STATE_SAVE_SCRIPT_NAME_DRAFT, saveScriptNameDraft)" in frida,
     "save-script dialog name restored": "name.setText(saveScriptNameDraft);" in frida,
     "save-script dialog reopens after page creation": "scroll.post(this::showSaveFridaScriptDialog)" in frida,
-    "save-script name bounded": "new android.text.InputFilter.LengthFilter(64)" in frida,
     "rotation does not clear pending save dialog": "if (!isChangingConfigurations()) clearSaveScriptDialogState();" in frida,
     "run log page opens target log": 'body.post(() -> {\n                if (targetPackage == null) chooseTarget();\n                else showSessionLog();\n            });' in frida,
     "script editor page opens full-screen editor": 'else if ("脚本编辑器".equals(title)) {\n            body.post(this::openFullScreenCodeEditor);' in frida,
@@ -144,6 +143,8 @@ checks = {
 for label, ok in checks.items():
     if not ok:
         raise SystemExit(f"FAIL: {label}")
+if "new android.text.InputFilter.LengthFilter(64)" in frida or "saveScriptNameDraft.length() > 64" in frida:
+    raise SystemExit("FAIL: legacy Frida saved-script name still has an arbitrary 64-character cap")
 # AppEntry observer is now a Frida-tool subpage inside FX Hook, not a
 # source-app migration-menu item in MainActivity.
 if 'addNativeActionCard("Frida 环境与注入"' not in hook_hub:
