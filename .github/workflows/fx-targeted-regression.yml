@@ -204,12 +204,13 @@ jobs:
             run_sh scripts/tests/fx-native-script-scheduler-regression.sh
           fi
 
-          if [[ "$changed" == "ALL" || "$changed" =~ (fx-module/scripts/|patch_atomic_cache_lock_release|patch_localdns_uninstall_shutdown|patch_yulong_root_proxy|patch_vpn_tun_external_fallback) ]]; then
+          if [[ "$changed" == "ALL" || "$changed" =~ (fx-module/scripts/|patch_atomic_cache_lock_release|patch_localdns_uninstall_shutdown|patch_yulong_root_proxy|patch_vpn_tun_external_fallback|patch_vpn_external_watchdog) ]]; then
             run_sh scripts/tests/fx-atomic-cache-lock-release-regression.sh
             run_sh scripts/tests/v1.0.0-uninstall-stops-localdns-watchdog-before-firewall-regression.sh
             run_sh fx-module/scripts/tests/v1.0.0-yulong-root-proxy-lock-regression.sh
             run_sh scripts/tests/fx-yulong-root-proxy-runtime-regression.sh
             run_sh scripts/tests/fx-vpn-tun-external-fallback-regression.sh
+            run_sh scripts/tests/fx-vpn-external-watchdog-regression.sh
           fi
 
           # If only an individual regression file changed, execute that file directly.
