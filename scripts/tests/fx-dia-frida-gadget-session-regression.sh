@@ -590,7 +590,26 @@ public final class RootAccessStreamHostTest {
         RootAccess.Result failed = RootAccess.executeWithInput("cat >/dev/null", broken, 10000L, 4096);
         if (failed.exitCode == 0 || failed.output == null || !failed.output.contains("Root stdin 写入失败"))
             throw new AssertionError("stdin writer failure was reported as success: " + failed.exitCode + " " + failed.output);
-        System.out.println("PASS: RootAccess streams and verifies a 9 MiB payload and fails closed on InputStream errors");
+        Path capturedOutput = dir.resolve("root-output-over-one-mib.bin");
+        RootAccess.Result captured = RootAccess.executeToFile(
+                "head -c 2097152 /dev/zero", 30000L, capturedOutput.toFile());
+        if (captured.exitCode != 0 || !Files.isRegularFile(capturedOutput)
+                || Files.size(capturedOutput) != 2L * 1024L * 1024L) {
+            throw new AssertionError("RootAccess did not stream >1 MiB stdout to a file: "
+                    + captured.exitCode + " " + captured.output);
+        }
+        try (InputStream input = Files.newInputStream(capturedOutput)) {
+            byte[] buffer = new byte[8192];
+            int count;
+            while ((count = input.read(buffer)) != -1) {
+                for (int i = 0; i < count; i++) {
+                    if (buffer[i] != 0) {
+                        throw new AssertionError("file-backed Root stdout corrupted output bytes");
+                    }
+                }
+            }
+        }
+        System.out.println("PASS: RootAccess streams a 9 MiB stdin payload, fails closed on writer errors, and captures >1 MiB stdout to a file");
     }
 }
 JAVA
