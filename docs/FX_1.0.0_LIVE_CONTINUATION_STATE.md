@@ -3809,3 +3809,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 之后 Privacy 返回文案和对应回归断言又有提交；当前 branch HEAD 需要等待最新 Targeted Host run 完成后再更新本节的最新验证结论。
 - 曾观察到的失败已按具体原因处理：Rescue footer 标签断言未同步、FxNativeSkin 变更缺少 Targeted Host mapping；不能把这些失败隐藏或折算为通过。
 - 这仍是源码/Host 静态与主机回归，不是 Gradle `testDebugUnitTest`、APK `assembleDebug`、安装或真机测试。五种 Skin 的逐页设计、完整功能迁移、系统级 VPN 共存、防泄漏、证书无感等仍有大量待办。
+
+
+
+## 2026-11-05 — 修复全局 Skin 的 Switch/CompoundButton 分派顺序
+
+- `FxNativeSkin.transformKnownLegacyTokens()` 原来先匹配 `Button`，再匹配 `Switch` 和 `CompoundButton`。Switch/CheckBox/RadioButton 属于复合按钮类型，可能先命中通用 Button 分支，造成专用 tint 适配器不可达。
+- 已改为 Switch → CompoundButton → Button：Switch 保留 Thumb/Track 颜色，复选/单选控件使用 `setButtonTintList`，普通按钮仍走独立的背景/Ripple 主题。
+- `fx-global-ui-modes-regression.sh` 新增分支顺序与专用 tint 可达性检查。
+- 源码提交、回归提交：稍后写入实际 SHA；尚未完成 Gradle 编译/真机控件验收。
+
+- 提交：FxNativeSkin `95212688f0e75c760ed32ee899c32e2b7a4be64e`；回归脚本 `4bcbe3f51c81f2b82493805e14af4afc18873a93`。
