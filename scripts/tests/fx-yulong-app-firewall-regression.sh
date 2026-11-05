@@ -45,7 +45,7 @@ case "${3:-}" in
   -I) [ "${4:-}" = OUTPUT ] && [ "${5:-}" = 1 ] && [ "${6:-}" = -j ] || exit 1; printf '%s\n' "${7:-}" >> "$MOCK_HOOKS4"; exit 0 ;;
   -D)
     [ "${4:-}" = OUTPUT ] && [ "${5:-}" = -j ] || exit 1
-    [ "${MOCK_FAIL_DELETE_CHAIN:-}" != "${6:-}" ] || exit 1
+    [ "${MOCK_FAIL_DELETE_CHAIN:-}" != ANY ] && [ "${MOCK_FAIL_DELETE_CHAIN:-}" != "${6:-}" ] || exit 1
     tmp=$(mktemp "$MOCK_HOOKS4.tmp.XXXXXX") || exit 1; grep -vx "${6:-}" "$MOCK_HOOKS4" > "$tmp" || :; mv -f "$tmp" "$MOCK_HOOKS4"; exit 0 ;;
 esac
 exit 0
@@ -70,7 +70,7 @@ case "${3:-}" in
     printf '%s\n' "${7:-}" >> "$MOCK_HOOKS6"; exit 0 ;;
   -D)
     [ "${4:-}" = OUTPUT ] && [ "${5:-}" = -j ] || exit 1
-    [ "${MOCK_FAIL_DELETE_CHAIN:-}" != "${6:-}" ] || exit 1
+    [ "${MOCK_FAIL_DELETE_CHAIN:-}" != ANY ] && [ "${MOCK_FAIL_DELETE_CHAIN:-}" != "${6:-}" ] || exit 1
     tmp="$MOCK_HOOKS6.tmp.$"; grep -vx "${6:-}" "$MOCK_HOOKS6" > "$tmp" || :; mv -f "$tmp" "$MOCK_HOOKS6"; exit 0 ;;
 esac
 exit 0
@@ -408,7 +408,7 @@ unset MOCK_PACKAGE_LIST_FAIL
 # so a later disable retry can identify and clean the still-attached rules.
 active_chain=$(cat "$ACTIVE")
 case "$active_chain" in FXYUL_A|FXYUL_B) : ;; *) fail "active firewall chain marker is invalid before teardown test" ;; esac
-export MOCK_FAIL_DELETE_CHAIN="$active_chain"
+export MOCK_FAIL_DELETE_CHAIN=ANY
 grep -qx "$active_chain" "$MOCK_HOOKS4" || fail "active IPv4 hook is absent before failure injection"
 grep -qx "$active_chain" "$MOCK_HOOKS6" || fail "active IPv6 hook is absent before failure injection"
 if run master 0 > "$TMP/disable-detach-failed.out" 2>&1; then
