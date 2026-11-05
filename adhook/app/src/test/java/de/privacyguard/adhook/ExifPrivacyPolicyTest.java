@@ -27,6 +27,12 @@ public class ExifPrivacyPolicyTest {
         assertTrue(ExifPrivacyPolicy.shouldRedactTag("Artist"));
         assertTrue(ExifPrivacyPolicy.shouldRedactTag("Copyright"));
         assertTrue(ExifPrivacyPolicy.shouldRedactTag("Software"));
+        assertTrue(ExifPrivacyPolicy.shouldRedactTag("MakerNote"));
+        assertTrue(ExifPrivacyPolicy.shouldRedactTag("HostComputer"));
+        assertTrue(ExifPrivacyPolicy.shouldRedactTag("RelatedSoundFile"));
+        assertTrue(ExifPrivacyPolicy.shouldRedactTag("UserComment"));
+        assertTrue(ExifPrivacyPolicy.shouldRedactTag("DocumentName"));
+        assertTrue(ExifPrivacyPolicy.shouldRedactTag("ImageDescription"));
         assertTrue(ExifPrivacyPolicy.shouldRedactTag("XPAuthor"));
         assertTrue(ExifPrivacyPolicy.shouldRedactTag("XPComment"));
         assertTrue(ExifPrivacyPolicy.shouldRedactTag("XPKeywords"));
