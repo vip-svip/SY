@@ -27,6 +27,10 @@ else
   echo "SKIP: canonical FX WebUI asset is not staged in the Host-only lane; package lane validates these WebUI contracts after Release restore."
 fi
 grep -Fq 'private void syncNativeVpnControls()' "$ACTIVITY" || fail "native VPN state synchronization missing"
+grep -Fq 'private void refreshAndroidVpnNetworkStatus()' "$ACTIVITY" || fail "active Android VPN network diagnostic missing"
+grep -Fq 'NetworkCapabilities.TRANSPORT_VPN' "$ACTIVITY" || fail "native VPN UI does not detect active VpnService networks"
+grep -Fq 'FX Root 内核代理不占用 VpnService 名额' "$ACTIVITY" || fail "VPN UI does not explain the independent Root proxy data plane"
+! grep -Fq '第三方 VPN / Root DNS 保护正在运行' "$ACTIVITY" || fail "Root proxy state must not be mislabeled as a third-party VPN"
 grep -Fq 'RootAccess.execute(nativeVpnRootCommand("status", "")' "$ACTIVITY" || fail "native VPN status is not read from the root backend"
 grep -Fq 'sh \"$MP/scripts/status.sh\"' "$ACTIVITY" || fail "native VPN status command does not call status.sh"
 grep -Fq 'sh \"$MP/scripts/apply.sh\"' "$ACTIVITY" || fail "native VPN mode/node operations do not apply the module backend"
