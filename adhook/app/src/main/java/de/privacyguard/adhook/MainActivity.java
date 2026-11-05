@@ -443,6 +443,7 @@ public final class MainActivity extends ComponentActivity {
 
     @Override protected void onResume() {
         super.onResume();
+        if (hookHubVisible) refreshDiaActivationStatusBanner();
         registerPackageChangeReceiver();
         if (webView != null && !hookUiVisible && !settingsUiVisible) {
             webView.onResume();
@@ -3189,6 +3190,36 @@ public final class MainActivity extends ComponentActivity {
         });
     }
 
+    private void refreshDiaActivationStatusBanner() {
+        if (!hookHubVisible || content == null) return;
+        View existing = content.findViewWithTag("fx-dia-active-tip");
+        boolean enabled = getSharedPreferences("digXposed", MODE_PRIVATE)
+                .getBoolean("active_tip", true);
+        if (!enabled) {
+            if (existing != null) content.removeView(existing);
+            return;
+        }
+        boolean connected = FxLsposedScopeBridge.isConnected();
+        String state = connected ? "已连接" : "未连接";
+        String message = "LSPosed 官方服务" + state
+                + "。服务连接状态不等同于目标进程注入状态，不代表 FX Hook 已注入。"
+                + "目标应用作用域仍须在 LSPosed Manager 中确认。";
+        if (existing instanceof TextView) {
+            ((TextView) existing).setText(message);
+            return;
+        }
+        TextView banner = new TextView(this);
+        banner.setTag("fx-dia-active-tip");
+        banner.setText(message);
+        banner.setTextSize(12);
+        banner.setTextColor(uiSecondaryTextColor());
+        banner.setBackground(uiPanelDrawable());
+        banner.setPadding(dp(14), dp(10), dp(14), dp(10));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
+        params.setMargins(dp(12), dp(4), dp(12), dp(8));
+        content.addView(banner, Math.min(2, content.getChildCount()), params);
+    }
+
     private void showHookHub() {
         if (isHookAppListVisible()) captureHookAppListState();
         if (!hookUiVisible && !settingsUiVisible) captureNativePageScrollPosition();
@@ -3208,6 +3239,7 @@ public final class MainActivity extends ComponentActivity {
         intro.setPadding(dp(18), dp(8), dp(18), dp(16));
         intro.setTextColor(0xff536170);
         content.addView(intro);
+        refreshDiaActivationStatusBanner();
         section("Hook 工具与调试");
         addNativeActionCard("GKD 选择器自动化",
                 "在 FX Hook 内管理 GKD 本地选择器规则。只有你主动启用总开关并限定具体用户应用后，才会匹配可见控件；首批支持本地规则与 Click。",
