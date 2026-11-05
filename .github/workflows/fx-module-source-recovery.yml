@@ -101,6 +101,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Refresh the target-based PR branch from the latest integration HEAD on each recovery run.
           # Keep the historical recovery branch untouched: it predates the
           # integration branch and has unrelated Git history. Publish the
           # recovered source on a dedicated PR branch rooted at the current
