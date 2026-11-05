@@ -6737,3 +6737,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 这两项合并收紧了外部 VPN DNS 的 IPv4/IPv6 出站边界：只在已验证 IPv4 出口下允许 Unbound 递归上游流量，避免未验证 IPv6 旁路；并加强 VPN 路由/源地址的多目的地证明。
 - 当前限制：该 Root Proxy 出口证明仍是 IPv4 模式；不宣称支持 IPv6-only VPN 隧道，也未将 IPv6 根服务器路由纳入已验证范围。若未来实现 IPv6 tunnel source，需要独立的 IPv6 地址解析、路由验证、Unbound 多地址绑定和回滚流程。
 - 按用户要求，本批未执行 Shell 静态检查、构建、回归、真机网络验证或 Actions。
+
+
+## 2026-11-06 — Unbound PID ownership argv boundary
+
+- Commit: `2008184a8f0cc54ada4d0115eeac363ee60ca608` (`fx-module/scripts/unbound.sh`).
+- `_owned_pid()` now reads `/proc/PID/cmdline` as NUL-delimited argv entries and requires exact entries for the managed Unbound executable and configuration path. It no longer accepts a flattened command line where an unrelated argument merely contains those paths as substrings.
+- No shell checks, regression tests, build, CI, or device validation were run in this batch, per the current request.
