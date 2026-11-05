@@ -607,7 +607,7 @@ public final class FxDiaActivityBrowserActivity extends de.privacyguard.adhook.F
                 button.setEnabled(true);
             };
             final boolean[] operationAccepted = {false};
-            AlertDialog dialog = new AlertDialog.Builder(this)
+            AlertDialog dialog = fxDialogBuilder()
                     .setTitle(wanted ? "启用 Activity？" : "禁用 Activity？")
                     .setMessage("这会修改目标应用的组件状态。禁用启动入口可能导致目标应用无法正常打开；可返回 FX 再次启用。")
                     .setNegativeButton("取消", (ignored, which) -> rollback.run())
@@ -648,7 +648,7 @@ public final class FxDiaActivityBrowserActivity extends de.privacyguard.adhook.F
             dialog.setOnCancelListener(ignored -> {
                 if (!operationAccepted[0]) rollback.run();
             });
-            dialog.show();
+            showFxDialog(dialog);
         });
         row.addView(name);
         row.addView(meta);
