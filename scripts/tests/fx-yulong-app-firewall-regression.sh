@@ -421,6 +421,7 @@ fi
 unset MOCK_FAIL_DELETE_CHAIN
 [ -s "$ACTIVE" ] || fail "failed teardown discarded the active marker"
 grep -qx "$active_chain" "$MOCK_HOOKS4" || fail "failed teardown lost the still-attached IPv4 hook"
+grep -qx "$active_chain" "$MOCK_HOOKS6" || fail "failed teardown lost the still-attached IPv6 hook"
 grep -Fq "cannot detach FX firewall OUTPUT hook: $active_chain" "$TMP/disable-detach-failed.out" || fail "failed teardown did not report the hook deletion failure"
 
 run uninstall
