@@ -187,6 +187,12 @@ grep -Fq 'FxUiMode.read(this).getStorageId()' "$activity"
 grep -Fq 'FxUiMode.write(MainActivity.this' "$activity"
 grep -Fq 'applyWebUiMode();' "$activity"
 grep -Fq 'FxNativeSkin.watch(this, pageContent);' "$host" || { echo "FAIL: imported native screens do not receive shared Skin tokens"; exit 1; }
+grep -Fq 'static void showDialog(Activity activity, AlertDialog dialog)' "$skin" || { echo "FAIL: shared native dialog renderer missing"; exit 1; }
+grep -Fq 'applyComponents(activity, decor);' "$skin" || { echo "FAIL: dialog renderer does not skin the inflated decor tree"; exit 1; }
+grep -Fq 'decor.post(() ->' "$skin" || { echo "FAIL: dialog renderer does not reapply after first layout"; exit 1; }
+grep -Fq 'FxNativeSkin.showDialog(this, managedDialog);' "$activity" || { echo "FAIL: Ad rule add/edit dialogs bypass the shared Skin"; exit 1; }
+grep -Fq 'FxNativeSkin.showDialog(this, nativeCertificateDialog);' "$activity" || { echo "FAIL: system CA dialog bypasses the shared Skin"; exit 1; }
+grep -Fq 'FxNativeSkin.showDialog(this, dialog);' "$activity" || { echo "FAIL: Hosts/wallpaper dialogs bypass the shared Skin"; exit 1; }
 grep -Fq 'FxNativeSkin.watch(this, pageContent);' "$activity" || { echo "FAIL: MainActivity native pages do not receive shared Skin tokens"; exit 1; }
 grep -Fq 'static void applyComponents(Activity activity, View content)' "$skin" || { echo "FAIL: detached dialog component Skin entry is missing"; exit 1; }
 grep -Fq 'FxNativeSkin.applyComponents(this, panel);' "$activity" || { echo "FAIL: dynamic privacy dialog must use the detached component-only renderer"; exit 1; }
