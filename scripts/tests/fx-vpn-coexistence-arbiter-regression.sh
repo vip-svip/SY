@@ -703,19 +703,23 @@ case "$tout" in *"partial"*) ;; *) fail "--text did not render conservative verd
 pass "--text mode consistent"
 
 echo "== case 12: production ignores caller-forged module root =="
-# Place the executable under a real module root containing a deliberate
-# VpnService violation. A caller-supplied clean root must not hide that source.
-mkdir -p "$TMP/mod_real/scripts"
-cp -a "$TMP/mod_bad/." "$TMP/mod_real/"
-cp "$ARB" "$TMP/mod_real/scripts/fx-vpn-coexistence-arbiter.sh"
+# The actual installed script lives in a module tree that contains a VpnService
+# API. A caller-supplied clean tree must not hide that positive violation.
+mkdir -p "$TMP/mod_actual/scripts"
+printf 'id=privacyguard\nname=FX\nversion=1.0.0\n' > "$TMP/mod_actual/module.prop"
+printf '#!/system/bin/sh\n' > "$TMP/mod_actual/scripts/apply.sh"
+printf '%s\n' 'if (VpnService.prepare(context) != null) { /* slot */ }' > "$TMP/mod_actual/scripts/vpncore.sh"
+printf '#!/system/bin/sh\n' > "$TMP/mod_actual/scripts/yulong-root-proxy.sh"
+printf '#!/system/bin/sh\n' > "$TMP/mod_actual/scripts/yulong-vpn-control.sh"
+cp "$ARB" "$TMP/mod_actual/scripts/fx-vpn-coexistence-arbiter.sh"
 _out=$(env -u FX_ARB_TESTING FX_ARB_MODULE_ROOT="$TMP/mod_clean" \
   FX_ARB_LINK_FILE="$TMP/links.txt" FX_ARB_VPNINFO_FILE="$TMP/info.txt" \
   FX_ARB_SELF_UID=10000 FX_ARB_PROC_NET_DIR="$TMP/net_free" \
-  sh "$TMP/mod_real/scripts/fx-vpn-coexistence-arbiter.sh" 2>&1)
+  sh "$TMP/mod_actual/scripts/fx-vpn-coexistence-arbiter.sh" 2>&1)
 rc=$?
-[ "$rc" -eq 3 ] || fail "production must ignore caller-supplied clean module root and detect its own VpnService violation, got rc=$rc: $_out"
-[ "$(field "$_out" "['verdict']")" = "incompatible" ] || fail "forged module root hid the real module slot violation: $_out"
-[ "$(field "$_out" "['vpn_service_slot_used']")" = "True" ] || fail "real module root must be scanned despite caller override"
-pass "caller-controlled module root cannot hide a real VpnService violation"
+[ "$rc" -eq 3 ] || fail "production must ignore caller-supplied clean module root and detect actual VpnService usage, got rc=$rc: $_out"
+[ "$(field "$_out" "['verdict']")" = "incompatible" ] || fail "forged module root hid the actual VpnService API: $_out"
+[ "$(field "$_out" "['vpn_service_slot_used']")" = "True" ] || fail "production scan did not use its own installed module root: $_out"
+pass "caller-controlled clean module root cannot hide the installed VpnService API"
 
 echo "PASS: coexistence arbiter grades all levels, fails safe, and never mutates network state"
