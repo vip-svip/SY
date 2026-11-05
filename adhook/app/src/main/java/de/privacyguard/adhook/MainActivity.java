@@ -199,6 +199,7 @@ public final class MainActivity extends ComponentActivity {
     private String uiMode = "classic";
     private int selectedBottomTab = 0;
     private int lastWebTabIndex = 0;
+    private boolean nativeVpnAppManagerVisible;
     private boolean webViewLoaded;
     private boolean webUiReady;
     private String pendingWebPage;
@@ -268,6 +269,7 @@ public final class MainActivity extends ComponentActivity {
         uiMode = FxUiMode.read(this).getStorageId();
         boolean restoreHookScreen = false;
         boolean restoreSettingsScreen = false;
+        boolean restoreVpnAppManager = false;
         String restoreHookKind = "";
         if (state != null) {
             lastWebTabIndex = Math.max(0, Math.min(5,
@@ -298,6 +300,7 @@ public final class MainActivity extends ComponentActivity {
             hookAppListVisibleCount = Math.max(MAX_APP_ROWS_PER_PAGE,
                     Math.min(10000, state.getInt(STATE_HOOK_APP_LIST_VISIBLE_COUNT, MAX_APP_ROWS_PER_PAGE)));
             restoreSettingsScreen = state.getBoolean("fx_settings_screen", false);
+            restoreVpnAppManager = state.getBoolean("fx_native_vpn_app_manager_visible", false);
             restoreHookKind = state.getString("fx_hook_screen", "list");
             hookCustomRulesPageVisible = "target_custom_rules".equals(restoreHookKind);
             customHookReturnToTarget = state.getBoolean("fx_hook_custom_return_to_target", false);
@@ -347,6 +350,8 @@ public final class MainActivity extends ComponentActivity {
         } else if (restoreSettingsScreen) {
             clearMigrationNavigation();
             showSettings();
+        } else if (restoreVpnAppManager) {
+            showImportedVpnAppManager();
         } else {
             showDashboard();
         }
@@ -502,6 +507,7 @@ public final class MainActivity extends ComponentActivity {
         outState.putBoolean("fx_pending_dia_dex_hook_picker", pendingDiaDexHookPicker);
         outState.putBoolean("fx_pending_native_script_export", "pending".equals(pendingNativeScriptExport));
         outState.putBoolean("fx_settings_screen", settingsUiVisible);
+        outState.putBoolean("fx_native_vpn_app_manager_visible", nativeVpnAppManagerVisible);
         outState.putBoolean("fx_hook_screen_visible", hookUiVisible);
         if (hookUiVisible) {
             if (isHookAppListVisible()) captureHookAppListState();
@@ -630,6 +636,7 @@ public final class MainActivity extends ComponentActivity {
 
     private void showWebDashboard() {
         clearMigrationNavigation();
+        nativeVpnAppManagerVisible = false;
         cancelHookStatusRefresh();
         cancelAppIconLoad();
         settingsUiVisible = false;
@@ -2045,6 +2052,8 @@ public final class MainActivity extends ComponentActivity {
                         this::showNativeVpnAdvancedEditor));
                 addNativeSettingsCategory("DNS、分流与连接策略", "vpnPanel");
                 buildNativeVpnSubscriptionPanel();
+                section("应用分流");
+                content.addView(nativeAction("管理分应用 VPN 路由", this::showImportedVpnAppManager));
                 addNativeSettingEntry("连接诊断", "VPN 服务、核心进程、DNS 转发与规则状态", "状态以模块 status.sh 的实时结果为准；配置已保存不等于 VPN 已运行。");
                 syncNativeVpnControls();
                 startNativeVpnPolling();
@@ -2979,6 +2988,7 @@ public final class MainActivity extends ComponentActivity {
 
     private void handleNativeTabSelection(int index) {
         if (index < 0 || index > 5) return;
+        nativeVpnAppManagerVisible = false;
         // A direct top-level tab selection leaves any nested per-app Custom Hook
         // route. Activity recreation restores that route through onCreate instead.
         hookCustomRulesPageVisible = false;
@@ -4081,12 +4091,14 @@ public final class MainActivity extends ComponentActivity {
         hookUiVisible = false;
         hookTargetVisible = false;
         hookHubVisible = false;
-        settingsUiVisible = true;
-        selectedBottomTab = 5;
-        base("游龙广告插件 · 应用管理");
+        settingsUiVisible = false;
+        nativeVpnAppManagerVisible = true;
+        selectedBottomTab = 0;
+        lastWebTabIndex = 0;
+        base("VPN · 分应用路由");
 
         TextView intro = new TextView(this);
-        intro.setText("管理指定应用是否加入 FX 分应用 VPN 路由列表。FX 继续使用唯一的 VPN/TUN；不会启动游龙第二个 VpnService。此页面只设置路由范围，不等同于阻断移动数据/Wi-Fi 的独立防火墙。");
+        intro.setText("管理指定应用是否加入 FX 分应用 VPN 路由列表。FX 继续使用唯一的 VPN/TUN；不会启动第二个 VpnService。此页面只设置路由范围，不等同于阻断移动数据/Wi-Fi 的独立防火墙。");
         intro.setTextColor(0xff66727e);
         intro.setPadding(dp(16), dp(8), dp(16), dp(12));
         content.addView(intro);
@@ -4329,7 +4341,7 @@ public final class MainActivity extends ComponentActivity {
         });
 
         content.addView(nativeAction("重新读取应用路由状态", this::showImportedVpnAppManager));
-        content.addView(nativeAction("返回游龙广告插件应用管理", () -> showImportedSuiteCategory("yulong-ad", "应用管理")));
+        content.addView(nativeAction("返回 VPN 控制中心", this::showDashboard));
     }
 
     private void showImportedSuitePendingPage(String suite, String category, String page, String detail) {
@@ -5001,6 +5013,7 @@ public final class MainActivity extends ComponentActivity {
     @Override public void onBackPressed() {
         if (hookCustomRulesPageVisible && hookTargetVisible) { leaveCustomHookRulesPage(); return; }
         if (hookTargetVisible) { showAppList(activePrivacySection); return; }
+        if (nativeVpnAppManagerVisible) { showWebDashboard(); return; }
         if (migrationChildActive && migrationSuite != null && migrationCategory != null) {
             migrationChildActive = false;
             migrationLevel = 2;
