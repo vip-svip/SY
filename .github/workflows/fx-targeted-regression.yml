@@ -125,7 +125,7 @@ jobs:
             run_py scripts/tests/fx-dia-frida-target-loader-regression.py
           fi
 
-          if [[ "$changed" == "ALL" || "$changed" =~ (MainActivity\.java|FxNativeSkin|fx-hook-native-ui|fx-dia-native-tab|fx-dia-custom-hook|patch_hook_privacy_controls) ]]; then
+          if [[ "$changed" == "ALL" || "$changed" =~ (MainActivity\.java|FxNativeSkin|FxComposeSkinTokens|fx-hook-native-ui|fx-dia-native-tab|fx-dia-custom-hook|patch_hook_privacy_controls) ]]; then
             run_sh scripts/tests/fx-global-ui-modes-regression.sh
             run_sh scripts/tests/fx-unified-navigation-regression.sh
             run_sh scripts/tests/fx-hook-native-ui-regression.sh
