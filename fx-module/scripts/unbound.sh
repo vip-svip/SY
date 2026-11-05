@@ -24,8 +24,56 @@ LOG="$STATE/engine.log"
 PATH=/system/bin:/system/xbin:/sbin:/vendor/bin:/usr/bin:/bin
 export PATH
 
+_path_components_are_safe() {
+  _safe_path=$1
+  case "$_safe_path" in /*) : ;; *) return 1 ;; esac
+  case "$_safe_path" in *//*|*/../*|*/..|*/./*|*/.) return 1 ;; esac
+  _safe_rest=${_safe_path#/}
+  _safe_walk=
+  while [ -n "$_safe_rest" ]; do
+    case "$_safe_rest" in
+      */*) _safe_part=${_safe_rest%%/*}; _safe_rest=${_safe_rest#*/} ;;
+      *) _safe_part=$_safe_rest; _safe_rest= ;;
+    esac
+    case "$_safe_part" in ''|.|..) return 1 ;; esac
+    _safe_walk="$_safe_walk/$_safe_part"
+    [ ! -L "$_safe_walk" ] || return 1
+  done
+  return 0
+}
+_safe_file_or_absent() {
+  _safe_file=$1
+  [ ! -L "$_safe_file" ] || return 1
+  [ ! -e "$_safe_file" ] || [ -f "$_safe_file" ]
+}
+_prepare_state_dirs() {
+  _path_components_are_safe "$PG" || { echo "unsafe Unbound parent state path" >&2; return 1; }
+  [ -d "$PG" ] && [ ! -L "$PG" ] || { echo "Unbound parent state directory is missing or unsafe" >&2; return 1; }
+  _path_components_are_safe "$STATE" && _path_components_are_safe "$WORK" || {
+    echo "unsafe Unbound state path" >&2; return 1;
+  }
+  if [ -e "$STATE" ]; then
+    [ -d "$STATE" ] && [ ! -L "$STATE" ] || { echo "Unbound state path is not a real directory" >&2; return 1; }
+  else
+    (umask 077; mkdir "$STATE") || return 1
+  fi
+  if [ -e "$WORK" ]; then
+    [ -d "$WORK" ] && [ ! -L "$WORK" ] || { echo "Unbound work path is not a real directory" >&2; return 1; }
+  else
+    (umask 077; mkdir "$WORK") || return 1
+  fi
+  chmod 700 "$STATE" "$WORK" 2>/dev/null || :
+  for _safe_candidate in "$CFG" "$PIDFILE" "$LOG" "$STATE/root.key"; do
+    _safe_file_or_absent "$_safe_candidate" || {
+      echo "Unbound refuses a symlink or non-regular state file: $_safe_candidate" >&2
+      return 1
+    }
+  done
+  return 0
+}
 _log() {
-  mkdir -p "$STATE" 2>/dev/null || :
+  _path_components_are_safe "$STATE" || return 0
+  [ -d "$STATE" ] && [ ! -L "$STATE" ] && _safe_file_or_absent "$LOG" || return 0
   printf '[%s] unbound: %s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$*" >> "$LOG" 2>/dev/null || :
 }
 _is_uint() { case "${1:-}" in ''|*[!0-9]*) return 1;; *) return 0;; esac; }
@@ -63,11 +111,14 @@ _check_files() {
 _remove_pid_marker_if_matches() {
   _expected=$1
   [ -n "$_expected" ] || return 0
+  _safe_file_or_absent "$PIDFILE" || return 1
+  [ -f "$PIDFILE" ] || return 0
   _current=$(cat "$PIDFILE" 2>/dev/null)
   [ "$_current" = "$_expected" ] || return 0
   rm -f "$PIDFILE" 2>/dev/null || :
 }
 _owned_pid() {
+  _safe_file_or_absent "$PIDFILE" && [ -f "$PIDFILE" ] || return 1
   _p=$(cat "$PIDFILE" 2>/dev/null)
   _is_uint "$_p" || return 1
   [ "$_p" -gt 1 ] 2>/dev/null || return 1
@@ -150,6 +201,7 @@ _probe() {
   "$PROBE" 127.0.0.1 5353 5 >> "$LOG" 2>&1
 }
 _stop() {
+  _safe_file_or_absent "$PIDFILE" || { _log 'refusing to stop through an unsafe PID marker'; return 1; }
   _p=$(_owned_pid 2>/dev/null) || _p=''
   if [ -z "$_p" ]; then
     _stale=$(cat "$PIDFILE" 2>/dev/null)
@@ -186,8 +238,7 @@ _stop() {
   return 0
 }
 _ensure() {
-  mkdir -p "$STATE" "$WORK" || return 1
-  chmod 700 "$STATE" "$WORK" 2>/dev/null || :
+  _prepare_state_dirs || { _log 'refusing startup because private state paths are unsafe'; return 1; }
   _check_files || { _stop || :; return 1; }
   if [ ! -s "$STATE/root.key" ] || ! grep -Eq '^\.[[:space:]]+IN[[:space:]]+DNSKEY[[:space:]]+257[[:space:]]+3[[:space:]]+8[[:space:]]' "$STATE/root.key" 2>/dev/null; then
     _tmp_key="$STATE/root.key.tmp.$$"
