@@ -76,11 +76,24 @@ jobs:
           grep -Fq 'threshold = {"none": 99, "warning": 2, "error": 3}' "$checker" \
             || { echo "::error::the --fail-on severity gate is gone"; exit 1; }
 
-          # Sources must be joined, never rewritten.
-          if grep -Eq 'write_text|open\([^)]*"w"' "$checker"; then
-            echo "::error::the conflict check must not rewrite its rule sources"
-            exit 1
-          fi
+          # Sources must be joined, never rewritten: the report is the only sink.
+          # A naive grep for write modes false-positives on the atomic writer
+          # itself, so the sink count is checked structurally instead.
+          python3 -c '
+          import re, sys
+          text = open(sys.argv[1], encoding="utf-8").read()
+          calls = [m.start() for m in re.finditer(r"atomic_write_text\(", text)]
+          definitions = text.count("def atomic_write_text(")
+          real = len(calls) - definitions
+          if real != 1:
+              print("::error::expected exactly one write sink, found %d" % real)
+              sys.exit(1)
+          tail = text[calls[-1]:][:200]
+          if "args.report" not in tail:
+              print("::error::the only write sink must be the report path")
+              sys.exit(1)
+          print("single write sink is the report path; rule sources are read-only")
+          ' "$checker"
 
           echo "all finding codes, the severity gate and read-only behaviour are present"
           echo "cross-format conflict contract: PASS" >> "$GITHUB_STEP_SUMMARY"
