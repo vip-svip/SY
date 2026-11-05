@@ -81,12 +81,15 @@ for signature in (
     "protected void onDestroy()",
 ):
     start = source.index(signature)
-    next_override = source.find("\n    @Override", start + len(signature))
-    if next_override < 0:
-        next_override = len(source)
-    assert "flushCustomRuleImportDraftWrite();" in source[start:next_override], (
-        "pending import draft is not flushed from " + signature
+    assert "flushCustomRuleImportDraftWrite();" in source[start:start + 240], (
+        "pending import draft is not flushed at entry to " + signature
     )
+assert source.count("flushCustomRuleImportDraftWrite();") >= 6, (
+    "dialog cancel/submit and Activity lifecycle do not all flush the pending draft"
+)
+assert "removeCallbacks(customRuleImportDraftSaveRunnable)" in source, (
+    "flush does not cancel the pending debounce callback before writing"
+)
 print("PASS: large custom Hook JSON drafts persist with a 400 ms debounce and lifecycle flush")
 PY
 
