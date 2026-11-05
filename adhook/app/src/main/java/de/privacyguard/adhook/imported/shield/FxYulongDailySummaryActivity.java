@@ -109,6 +109,6 @@ public final class FxYulongDailySummaryActivity extends de.privacyguard.adhook.F
         card(body,"统计口径",
                 "计数仅来自 FX 已迁入的本机扫描和管控提醒事件。没有记录到的事件不会推算；本页不访问第三方统计服务器。");
         body.addView(button("打开完整应用扫描",()->startActivity(new Intent(this,FxYulongScanActivity.class))));
-        body.addView(button("返回安全护盾首页",this::finish));
+        body.addView(button("返回隐私首页",this::finish));
     }
 }
