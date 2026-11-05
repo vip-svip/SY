@@ -187,7 +187,7 @@ assert "onBackPressed()" in rescue and "returnToShieldHub();" in rescue, \
     "System Back must use the same caller-aware route as the header button"
 assert 'button("‹ 返回隐私", this::returnToShieldHub)' in rescue, \
     "Rescue header Back must use the unified FX Privacy route"
-assert 'button("返回安全护盾主页", this::returnToShieldHub)' in rescue, \
+assert 'button("返回隐私防护中心", this::returnToShieldHub)' in rescue, \
     "Rescue footer Back must use the caller-aware route"
 assert "private ScrollView shieldScroll;" in hub, "Shield hub scroll container must survive Activity recreation"
 assert 'STATE_SCROLL_Y = "fx_yulong_shield_scroll_y"' in hub, "Shield hub scroll state key is missing"
