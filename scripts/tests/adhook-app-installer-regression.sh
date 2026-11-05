@@ -390,4 +390,14 @@ grep -Fxq "$REMOVE_DIGEST" "$PATH_GUARD/remove-marker-target/digest" || fail "re
 grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "remover uninstalled package from symlinked ownership metadata"
 [ ! -s "$TMP/pm/uninstall-calls" ] || fail "remover called PackageManager for symlinked ownership metadata"
 
+
+# The Root uninstall entry point must reject relative state paths rather than
+# resolving ownership markers against the caller's working directory.
+: > "$TMP/pm/uninstall-calls"
+if FX_ADHOOK_LOG="$TMP/state/install.log" sh "$REMOVER" "$TMP/mod" "relative-remove-state" >/dev/null 2>&1; then
+  fail "remover accepted a relative ownership state path"
+fi
+[ ! -s "$TMP/pm/uninstall-calls" ] || fail "remover reached PackageManager with a relative state path"
+pass "remover rejects relative state paths"
+ 
 echo "PASS: system-overlay fail-closed deployment, legacy fallback, system-app detection, overlay-safe uninstall, signature safety, ownership-safe cleanup, and stale-marker handling"
