@@ -47,6 +47,14 @@ grep -Fq 'NAV_BAR_RADIUS_DP = 24' "$cupertino_tokens" || { echo "FAIL: Cupertino
 grep -Fq 'NAV_HEIGHT_DP = 76' "$cupertino_tokens" || { echo "FAIL: Cupertino tab-bar height token missing"; exit 1; }
 grep -Fq 'return HarmonySkinRenderer.palette();' "$skin" || { echo "FAIL: Android Views do not use the Harmony renderer"; exit 1; }
 grep -Fq 'return CupertinoSkinRenderer.palette();' "$skin" || { echo "FAIL: Android Views do not use the Cupertino renderer"; exit 1; }
+grep -Fq 'applyTextInputSkin(activity, (EditText) view, mode, palette)' "$skin" || { echo "FAIL: EditText controls must use skin hint tokens"; exit 1; }
+grep -Fq 'applySpinnerSkin(activity, (Spinner) view, mode, palette)' "$skin" || { echo "FAIL: Spinner controls must use skin selection tokens"; exit 1; }
+grep -Fq 'control.setHintTextColor(palette.secondaryText)' "$skin" || { echo "FAIL: EditText placeholder color is not skin-aware"; exit 1; }
+grep -Fq 'palette.inputBorder' "$skin" || { echo "FAIL: focused/unfocused form border token is missing"; exit 1; }
+grep -Fq 'INPUT_BORDER = 0xffb7cce5' "$harmony_tokens" || { echo "FAIL: Harmony form border token missing"; exit 1; }
+grep -Fq 'INPUT_BORDER = 0xffc6c6cc' "$cupertino_tokens" || { echo "FAIL: Cupertino form border token missing"; exit 1; }
+grep -Fq 'control.setMinimumHeight(Math.max(control.getMinimumHeight()' "$skin" || { echo "FAIL: native form controls lack minimum touch height"; exit 1; }
+
 grep -Fq 'webView.setVisibility(View.VISIBLE)' "$activity" || { echo "FAIL: ClassicWebCompat WebView not mounted"; exit 1; }
 grep -Fq 'navigateWebPage(webPageForBottomTab(index))' "$activity" || { echo "FAIL: ClassicWebCompat tab routing missing"; exit 1; }
 grep -Fq 'FxUiMode.read(this).getStorageId()' "$activity"
