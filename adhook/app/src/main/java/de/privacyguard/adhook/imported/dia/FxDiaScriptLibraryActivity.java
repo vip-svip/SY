@@ -292,7 +292,7 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
             }
             @Override public void afterTextChanged(Editable value) { }
         });
-        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("新建 Frida JavaScript")
+        AlertDialog dialog = fxDialogBuilder().setTitle("新建 Frida JavaScript")
                 .setMessage("新脚本会先打开本地编辑器。保存回传后才写入私有脚本库，不会自动注入目标进程。")
                 .setView(input)
                 .setNegativeButton("取消", (d, which) -> clearCreateScriptDialogState())
@@ -314,7 +314,7 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
                         openEditor(name, "");
                         return;
                     }
-                    new AlertDialog.Builder(this).setTitle("脚本名称已存在")
+                    fxDialogBuilder().setTitle("脚本名称已存在")
                             .setMessage("“" + name + "”已存在。继续编辑会在保存时覆盖该脚本。")
                             .setNegativeButton("取消", null)
                             .setPositiveButton("编辑现有脚本", (existingDialog, w) ->
@@ -323,7 +323,7 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
         dialog.setOnCancelListener(ignored -> {
             if (!isChangingConfigurations()) clearCreateScriptDialogState();
         });
-        dialog.show();
+        showFxDialog(dialog);
     }
 
     private void openEditor(String name, String source) {
@@ -342,7 +342,7 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
     }
 
     private void confirmDelete(String name) {
-        new AlertDialog.Builder(this).setTitle("删除脚本？")
+        fxDialogBuilder().setTitle("删除脚本？")
                 .setMessage("确认从 FX 本地 Frida 脚本库删除“" + name + "”？此操作不会影响已导出的 JSON 文件。")
                 .setNegativeButton("取消", null)
                 .setPositiveButton("删除", (dialog, which) -> submitIo(() -> {
@@ -505,7 +505,7 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
                                     0, Math.min(5, preview.overwrittenNames.size())));
                     if (preview.overwrittenNames.size() > 5) message += " 等";
                 }
-                new AlertDialog.Builder(this).setTitle("确认导入脚本库")
+                fxDialogBuilder().setTitle("确认导入脚本库")
                         .setMessage(message + "\n不会自动执行导入的脚本。")
                         .setNegativeButton("取消", (dialog, which) -> clearPendingImportUri())
                         .setPositiveButton("验证并导入", (dialog, which) -> {
