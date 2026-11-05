@@ -166,10 +166,10 @@ public final class FxDiaActivityBrowserActivity extends de.privacyguard.adhook.F
         LinearLayout header = new LinearLayout(this);
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(10), dp(6), dp(12), dp(6));
-        header.addView(button("‹ 返回", this::finish));
+        header.addView(button("‹ 返回 Hook", this::finish));
         header.addView(text(launcherOnly
-                        ? "Dia 23.11 · 隐藏应用"
-                        : "Dia 23.11 · Activity 入口与禁用",
+                        ? "Hook · 隐藏应用"
+                        : "Hook · Activity 入口与禁用",
                 18, 0xff17212b, true), new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
 
@@ -248,7 +248,7 @@ public final class FxDiaActivityBrowserActivity extends de.privacyguard.adhook.F
                         : "显示目标应用声明的 Activity、导出属性、Manifest 状态和系统当前组件状态。列表最多每页显示 80 项。",
                 activitySearch, activityCount, activityRows, activityPager);
 
-        setContentViewWithNativeTabs(root, 5);
+        setContentViewWithNativeTabs(root, 4);
         if (restoredScrollY > 0) {
             final int restoreY = restoredScrollY;
             scroll.post(() -> {
