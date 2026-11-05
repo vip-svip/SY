@@ -53,6 +53,7 @@ public final class FxYulongIntegrityActivity extends de.privacyguard.adhook.FxNa
     }
     private Button button(String label, Runnable click) {
         Button view = new Button(this);
+        view.setTag("fx-action-row");
         view.setAllCaps(false);
         view.setText(label);
         view.setOnClickListener(v -> click.run());
@@ -69,8 +70,9 @@ public final class FxYulongIntegrityActivity extends de.privacyguard.adhook.FxNa
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(10), dp(6), dp(10), dp(6));
         header.addView(button("‹ 返回隐私", this::finish));
-        header.addView(text("隐私 · 应用签名与完整性", 18, 0xff17212b, true),
-                new LinearLayout.LayoutParams(0, -2, 1));
+        TextView pageTitle = text("隐私 · 应用签名与完整性", 18, 0xff17212b, true);
+        pageTitle.setTag("fx-title:18");
+        header.addView(pageTitle, new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
 
         ScrollView scroll = new ScrollView(this);
@@ -81,16 +83,24 @@ public final class FxYulongIntegrityActivity extends de.privacyguard.adhook.FxNa
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
 
         signerReport = buildSignerReport();
-        body.addView(text("FX 当前安装包签名指纹", 18, 0xff17212b, true));
+        TextView signerHeading = text("FX 当前安装包签名指纹", 18, 0xff17212b, true);
+        signerHeading.setTag("fx-section:签名指纹");
+        body.addView(signerHeading);
         TextView signer = text(signerReport, 13, 0xff334155, false);
+        signer.setTag("fx-card-body");
         signer.setTextIsSelectable(true);
         body.addView(signer);
         body.addView(button("复制签名报告", () -> copy(signerReport)));
 
-        body.addView(text("FX KernelSU 模块完整性", 18, 0xff17212b, true));
-        body.addView(text("只读核对模块身份、版本、启用标记、关键迁移脚本和 Shell 语法；不会自动修复、重启、授予权限或修改目标应用。",
-                12, 0xff687681, false));
+        TextView moduleHeading = text("FX KernelSU 模块完整性", 18, 0xff17212b, true);
+        moduleHeading.setTag("fx-section:模块完整性");
+        body.addView(moduleHeading);
+        TextView moduleDescription = text("只读核对模块身份、版本、启用标记、关键迁移脚本和 Shell 语法；不会自动修复、重启、授予权限或修改目标应用。",
+                12, 0xff687681, false);
+        moduleDescription.setTag("fx-card-body");
+        body.addView(moduleDescription);
         moduleStatus = text("尚未检查。", 13, 0xff334155, false);
+        moduleStatus.setTag("fx-card-detail");
         moduleStatus.setTextIsSelectable(true);
         body.addView(moduleStatus);
         checkButton = button("检查模块完整性", this::checkModule);
@@ -98,9 +108,12 @@ public final class FxYulongIntegrityActivity extends de.privacyguard.adhook.FxNa
         body.addView(button("复制模块检查报告", () -> copy(
                 moduleStatus.getText() == null ? "" : moduleStatus.getText().toString())));
 
-        body.addView(text("迁移边界", 16, 0xff17212b, true));
-        body.addView(text("来源应用的固定签名指纹不能直接用于 FX：合并后包名与签名证书已变化，沿用旧指纹会误报 FX 安装包。本页仅报告当前安装包签名与完整性状态。来源版本中的强停、冻结、自动重新启用、无障碍权限恢复和自动修复仍属于未迁移能力，不能把本页状态报告视为这些能力已启用。",
-                12, 0xff8a5b12, false));
+        TextView boundaryHeading = text("迁移边界", 16, 0xff17212b, true);
+        boundaryHeading.setTag("fx-section:迁移边界");
+        body.addView(boundaryHeading);
+        TextView boundaryNote = text("来源应用的固定签名指纹不能直接用于 FX：合并后包名与签名证书已变化，沿用旧指纹会误报 FX 安装包。本页仅报告当前安装包签名与完整性状态。来源版本中的强停、冻结、自动重新启用、无障碍权限恢复和自动修复仍属于未迁移能力，不能把本页状态报告视为这些能力已启用。",
+                12, 0xff8a5b12, false);
+        body.addView(boundaryNote);
 
         setContentViewWithNativeTabs(root, 2);
         checkModule();
