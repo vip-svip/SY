@@ -42,7 +42,6 @@ required = {
     "Frida source is written in bounded UTF-8 chunks": "writer.write(source, offset, count)",
     "staged source is read as a private file stream": "new java.io.FileInputStream(inputFile)",
     "large Frida source streams through RootAccess stdin": "RootAccess.executeWithInput(command, input, timeout",
-    "RootAccess accepts InputStream payloads": "executeWithInput(String command, java.io.InputStream input",
     "RootAccess writes payload in bounded chunks": "byte[] buffer = new byte[64 * 1024]",
     "Frida script rejects NUL": "source.indexOf(0) >= 0",
     "Gadget script uses random private temp": '.gadget-$port.XXXXXX',
@@ -78,6 +77,9 @@ required = {
 for label, needle in required.items():
     if needle not in source:
         raise SystemExit(f"FAIL: {label}: missing {needle!r}")
+root_access_compact = " ".join(root_access.split())
+if "executeWithInput(String command, java.io.InputStream input" not in root_access_compact:
+    raise SystemExit("FAIL: RootAccess accepts InputStream payloads: missing streaming overload")
 for label, needle in {
     "staged source is tracked for cleanup": "pendingRootInputFiles.add(staged)",
     "failed staging removes partial files": "if (!complete) staged.delete()",
