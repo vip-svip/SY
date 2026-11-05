@@ -307,7 +307,7 @@ replace it with a package-only summary or revert to empty menu scaffolding.
   controls, local QuickJS script UI, Hosts/rules UI and runtime log UI.
 - Added multiple-format custom Hook rule management in the native Hook target page:
   Java exact signature, legacy `Class#method()Z` and Smali/JVM descriptors;
-  priority; per-rule OBSERVE/OFF; 64-rule limit; JSON bulk import/export.
+  priority; per-rule OBSERVE/OFF; dynamically enumerated rule slots without a fixed per-target rule-count cap; JSON bulk import/export (the pasted JSON payload remains size-bounded).
 - All custom rules remain exact-package scoped and read-only. The runtime does not
   rewrite production app authorization, account, login or membership decisions.
 - Added an internal Frida manager that can start/stop an already-installed
@@ -523,7 +523,7 @@ After each implementation batch:
 - FxDiaSignatureActivity reads package version metadata, signing-certificate history/current signers and SHA-256/SHA-1/MD5 X.509 fingerprints.
 - Frida manager remains a real Frida path, not QuickJS relabeled as Frida: it checks user-supplied frida-server/frida-inject, binds the server to 127.0.0.1:27042, and limits attach targets to user-installed debuggable apps.
 - Frida templates now include HTTP, SQLite, algorithm, HPROF, Intent, View click, ViewGroup, Fragment lifecycle, Thread start, Activity stack and Runtime/Process launch observation. Metadata templates omit text, extras, command contents, argument values and return values.
-- Custom Hook UI accepts Java exact method signatures, JVM/Smali descriptors and legacy zero-argument boolean descriptors. It supports up to 64 per-target entries, priority, OBSERVE/OFF state and JSON import/export. The runtime remains read-only and debuggable-target scoped; method-return replacement is not exposed as a working capability.
+- Custom Hook UI accepts Java exact method signatures, JVM/Smali descriptors and legacy zero-argument boolean descriptors. It supports dynamically enumerated per-target entries without a fixed rule-count cap, priority, OBSERVE/OFF state and JSON import/export; pasted JSON remains bounded by the UI payload-size limit. The runtime remains read-only and debuggable-target scoped; method-return replacement is not exposed as a working capability.
 - Still not migrated one-to-one: Dia's full original module/Hook inventory, automatic process-start tracking and universal script unload/reload lifecycle, complete rule-group backend, whole-program class-loader/call-graph analysis, and all original backup/monitor adapters. Gadget WAIT/RESUME and multi-process `frida-inject` source paths now exist, but a visible control or template is not device-level runtime evidence.
 
 ### Yulong AdBlock 7.0.1 — new integrated runtime and DNS surfaces
@@ -817,7 +817,7 @@ After each implementation batch:
 
 - Compared the original Dia DEX inventory, which includes `RuleGroupDataStore`, `RuleGroupListActivity` and `modify_rule_group`, with FX's per-app custom Hook group implementation.
 - FX already supported group creation, moving rules, deletion-to-default and JSON import/export, but the management dialog lacked the original rename operation.
-- Added a rename action for non-default groups. The rename validates the 24-character group-name contract, rejects duplicates and the reserved `默认` name, updates all 64 possible rule-slot assignments, and commits the group index and rule mappings with one SharedPreferences editor transaction.
+- Added a rename action for non-default groups. The rename validates the 24-character group-name contract, rejects duplicates and the reserved `默认` name, updates every persisted rule-slot assignment discovered from SharedPreferences, and commits the group index and rule mappings with one SharedPreferences editor transaction.
 - Deletion retains the existing behavior (rules move to `默认` rather than being deleted) and now persists that reassignment plus group-index removal in one commit with an explicit failure message.
 - Added and registered a focused source regression for add/rename/delete, duplicate/default guards, full-slot reassignment and preservation of per-rule moves. CI validation is pending; this is not device verification of LSPosed injection.
 
@@ -851,7 +851,7 @@ After each implementation batch:
 
 ## 2026-11-04 — Dia legacy rule-group whitespace normalization
 
-- Custom Hook group rename and delete now compare each of the 64 per-rule group assignments using the normalized trimmed value, matching the behavior of the group-index loader.
+- Custom Hook group rename and delete now enumerate every persisted per-rule group assignment using the normalized trimmed value, matching the behavior of the group-index loader.
 - This repairs older preference entries where a group name was persisted with leading/trailing whitespace: rename now moves those rules to the normalized new name, and delete moves them to `默认` rather than leaving an orphaned assignment.
 - The rule-group regression now asserts both legacy whitespace cases. This is source/host regression coverage; persistence behavior on a running LSPosed target remains device-pending.
 

@@ -369,3 +369,11 @@ Checkpoint: `9ab5a4af827b3958e325d414dd2509d5b7b60b14`.
 2. Continue Yulong AdBlock's original trie/bloom runtime parity and per-app DNS query counters; UID traffic-byte totals must not be presented as DNS query counts.
 3. Continue Yulong Shield's original Stellar Binder daemon/protocol parity and remaining ProtectService self-defense semantics. The FX Messenger transport is not the original daemon.
 4. Do not set `migration_complete=true` or run the final paired APK/KernelSU packaging workflows until the source-migration acceptance gates genuinely close.
+
+## 2026-11-05 — Developer Hook rule-slot capacity update
+
+- The per-target Developer Hook rule-count cap of 64 has been removed from parser, serializer and native UI. Preference-backed slot enumeration now covers editor, group operations, import/export, rollback, rendering and config publication; sparse legacy slot IDs remain readable.
+- Validation: Targeted Host run `42047046509` completed SUCCESS on HEAD `058e5683`; it passed the dynamic UI lifecycle check, 96-rule parser/serializer round-trip, streamed publication/rollback and 2,500-target parser stress checks.
+- The JSON import payload is still size-bounded (16,384 editor characters / 64 KiB UTF-8); only the rule-count cap was removed.
+- The manual APK gate remains closed. Do not set `migration_complete=true` until Dia 23.11, Yulong AdBlock 7.0.1 and Yulong Shield 9.9.60 source-to-behavior acceptance gates close. Remaining priorities: Dia Frida listener/message lifecycle, original AdBlock Trie/Bloom runtime and genuine per-app DNS query counts, and original Shield Stellar Binder transport / ProtectService parity.
+- The Module Runtime workflow for HEAD `058e5683` was still in progress when this note was written. No APK build or physical-device validation is claimed.

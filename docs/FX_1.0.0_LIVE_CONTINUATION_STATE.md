@@ -5083,3 +5083,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - FX Module Runtime Regression run 42043603180 completed/success；VPN/DNS runtime regressions 18/18 passed，后续 TUN fallback、Unbound VPN-bound IPv4 egress、Root Proxy dual-stack/UID proof 与独立 DNS 锁回归通过。
 - 当前剩余容量项：每个目标的 Developer Hook 自定义规则仍限制 64 条（parser、serializer、MainActivity slots、导入/导出逻辑都依赖此范围）；需单独迁移为动态 slot/key 遍历和兼容旧 dev_rule_N 字段后才能安全解除。本条不宣称 64 条限制已移除。
 - 尚未运行 Android Gradle 构建、安装 APK 或真机验证；小火箭 _10.10.62_src.zip 原始源码仍未取得。
+
+## 2026-11-05 — Developer Hook per-target rule count cap removed
+
+- Branch HEAD before this state update: `058e56830c0c7d26b57d9291aed9412a99eba8d9`.
+- Removed the fixed per-target 64-rule count cap from the versioned Hook parser and serializer. Positive decimal legacy `dev_rule_N` and encoded `dev_rule_b64_N` slot keys are accepted above 64; duplicate slots and invalid/non-positive slots remain rejected. Serialization emits every parsed rule in sequence.
+- MainActivity now discovers persisted numeric slots from SharedPreferences for editor duplicate checks and allocation, grouping, group rename/delete, JSON export/import, rollback cleanup, list rendering and final config publication. Sparse legacy slots are readable; import compacts the accepted set transactionally and restores the previous key set if commit fails.
+- Capacity qualification: there is no fixed per-target rule-count cap, but the pasted JSON editor remains bounded to 16,384 characters and the UTF-8 JSON payload remains limited to 64 KiB; enclosing configuration size and device storage still apply.
+- Added parser/serializer JUnit coverage for 96 rules and sparse legacy slots 65 / 4096. The streaming Host regression directly compiles parser plus serializer and round-trips 96 rules. The custom Hook Host regression checks that editor, grouping, import/export, render and publish paths enumerate slots dynamically.
+- FX Targeted Host Regression run `42047046509` completed SUCCESS on this HEAD. Logs show: dynamic custom-rule lifecycle regression PASS; Hook config streaming/hash/rollback PASS; 96-rule parser/serializer round-trip PASS; 2,500-target current/legacy parser stress PASS.
+- FX Module Runtime Regression run `42047046721` was still in progress at this state snapshot. The most recent completed successful Module Runtime run is `42046551304` on earlier HEAD `281e47d6`; it is not a current-HEAD result.
+- The APK build gate remains closed: `.github/workflows/build-fx-adhook.yml` only runs Gradle/package steps on manual dispatch with `migration_complete=true`. That boolean is a human attestation, not automated proof of full source parity. Do not set it yet: Dia Frida listener/message lifecycle and remaining editor behavior, Yulong AdBlock original Trie/Bloom runtime plus true per-app DNS query counters, and original Shield Stellar Binder transport / remaining ProtectService semantics remain open.
+- Still unverified: Android Gradle full APK build, APK install, KernelSU/Magisk deployment, LSPosed Remote Files loading and target injection, ROM SELinux behavior, third-party VPN inner traffic, device IPv4/IPv6 leakage and power behavior.
