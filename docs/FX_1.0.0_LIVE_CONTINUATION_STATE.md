@@ -6307,3 +6307,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 通过项覆盖：TUN UP/DOWN 检测与外部 VPN 冲突保护；sing-box DNS exact/suffix/whitelist 语义；VpnInfo 唯一 owner UID 与活动隧道验证；三轮 VPN connect/disconnect 状态切换；watchdog 数据面健康检查、恢复限频和 fail-safe；TUN 到 REDIRECT fallback 的外层 VPN 接口/UID/路由证明；Unbound VPN-bound IPv4 egress；Root Proxy 双栈 DNS 规则、状态路径 symlink 防护、独立 DNS 引擎所有权和 fail-open rollback；Hosts cache 锁、同 URL fetch gate、顺序提交及 SHA-256 sidecar。
 - 该运行还通过 Hosts 缓存与 Root Proxy 原子锁、并发串行化、symlink/FIFO 拒绝回归。
 - 验证等级为 GitHub Module Runtime/Host 仿真；不代表 Android Framework 的 VpnService slot、不同 ROM 路由策略、真实 TUN 包流或外部 VPN App 白名单组合已在设备上通过。
+
+
+## 2026-11-06 — VPN 共存裁决器扩大 VpnService 静态扫描范围
+
+- 功能提交：`73a338a93d7a5614624e3b6d835babcda7be65a5`。
+- 回归提交：`5ca33f3f2d41556c17f73563c9b9f146842585ef`。
+- 问题：原 `fx_arb_slot_used()` 只检查 `apply.sh`、`vpncore.sh`、`yulong-root-proxy.sh`、`yulong-vpn-control.sh` 四个固定入口。以后新增的模块 shell helper 若调用 `VpnService.prepare()` / `VpnService.Builder`，旧检测器可能仍把 FX 数据面报告为不占 Android VPN 槽。
+- 修复：保留四个核心入口的完整性要求，并扫描模块 `scripts/*.sh` 全部顶层 shell 源文件；发现 VpnService API 即判定 slot-used，发现符号链接、不可读/非普通文件或空扫描则 fail-closed 为 unknown。没有执行网络命令，也没有改变任何路由或防火墙规则。
+- 新增回归：在四个既有入口均干净时，额外注入 `new-dataplane-helper.sh` 调用 `VpnService.prepare()`，断言裁决器返回不兼容且 `vpn_service_slot_used=true`。
+- GitHub 回读：两份文件已从目标分支重新读取；源码 blob `c3d52a993bf7dd0f5a168b35653f2c05d8ac3a32`，测试 blob `c36520a090bfdd2cd353d15dd1e9f7c6cdc973b0`。
+- 验证等级：GitHub 提交成功、源码/测试回读确认。当前连接器未提供该分支的一般 Actions run 列表，且新提交的 combined status 为空；因此本批 Host regression / CI 尚未确认通过。未运行本地完整回归、Android Gradle 构建或真机测试。
+- 限制：此检查只覆盖模块 `scripts/*.sh` 顶层脚本中的静态 API 特征；不能证明运行时没有动态加载、二进制或 APK 内部创建 VpnService，也不能证明第三方 VPN 流量路径共存。真实数据面仍须设备级测试。
