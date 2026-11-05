@@ -129,7 +129,7 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
         header.addView(backBtn);
 
         TextView title = new TextView(this);
-        title.setText("管控应用的列表");
+        title.setText("隐私管控名单");
         title.setTextColor(Color.WHITE);
         title.setTextSize(20);
         title.setTypeface(null, Typeface.BOLD);
@@ -214,7 +214,7 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
 
         // 说明文字
         TextView hint = new TextView(this);
-        hint.setText("管控中的应用将启动安全护盾拦截\n不显示系统应用");
+        hint.setText("管控名单中的应用将由 FX 隐私防护策略处理。系统应用默认不显示。");
         hint.setTextColor(0xFF999999);
         hint.setTextSize(13);
         hint.setGravity(Gravity.CENTER);
