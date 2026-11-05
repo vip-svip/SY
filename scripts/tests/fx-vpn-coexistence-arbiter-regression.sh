@@ -131,13 +131,21 @@ pass "incomplete module source fails closed"
 
 # The production default derives the module root from scripts/<arbiter> path.
 cp "$ARB" "$TMP/mod_clean/scripts/fx-vpn-coexistence-arbiter.sh"
-printf '%s\\n' "$LINKS_NO_TUN" > "$TMP/auto-links.txt"
+printf '%s\n' "$LINKS_NO_TUN" > "$TMP/auto-links.txt"
 : > "$TMP/auto-info.txt"
 _auto_out=$(FX_ARB_LINK_FILE="$TMP/auto-links.txt" \
   FX_ARB_VPNINFO_FILE="$TMP/auto-info.txt" FX_ARB_PROC_NET_DIR="$TMP/net_free" FX_ARB_MODULE_ROOT= \
   sh "$TMP/mod_clean/scripts/fx-vpn-coexistence-arbiter.sh")
 [ "$(field "$_auto_out" "['vpn_service_slot_used']")" = "False" ] || fail "arbiter did not verify slot status from its installed module path"
 pass "production arbiter auto-discovers its module root"
+
+# Legacy command-valued environment variables are ignored; test injection is data-only.
+_injection_marker="$TMP/arbiter-command-must-not-run"
+FX_ARB_LINK_CMD="touch '$_injection_marker'" FX_ARB_VPNINFO_CMD="touch '$_injection_marker'" \
+  FX_ARB_LINK_FILE="$TMP/links.txt" FX_ARB_VPNINFO_FILE="$TMP/info.txt" \
+  FX_ARB_PROC_NET_DIR="$TMP/net_free" FX_ARB_MODULE_ROOT="$TMP/mod_clean" sh "$ARB" >/dev/null 2>&1 || :
+[ ! -e "$_injection_marker" ] || fail "arbiter executed a command from environment input"
+pass "legacy command environment injection is never executed"
 
 echo "== case 1: no external VPN, ports free -> kernel_only, slot not used =="
 r=$(run_arb "$LINKS_NO_TUN" "" "$TMP/net_free" "$TMP/mod_clean")
