@@ -10,9 +10,18 @@ if not target.is_file():
 
 source = target.read_text(encoding="utf-8")
 marker = "# FX_SUBFETCH_FILE_LOCK_V2"
-if marker in source:
-    print("Subscription cache already uses the POSIX atomic file lock.")
+required_lock_tokens = (
+    'if [ "$_sl_release_owner" = "$" ]; then',
+    '_sl_release="$LOCK.release.$"',
+    '_sl_stale="$LOCK.stale.$.$_sl_try"',
+    'if [ "$_sl_moved_owner" = "$_sl_owner" ]',
+    'if [ "$_sl_again" = "$_sl_owner" ]; then',
+)
+if marker in source and all(token in source for token in required_lock_tokens):
+    print("Subscription cache already uses the complete POSIX atomic file lock.")
     raise SystemExit(0)
+if marker in source:
+    print("Existing V2 subscription lock is incomplete; repairing the entire lock block.")
 
 start_token = 'LOCK="$SUBDIR/.lock.$_key"\n'
 end_token = '# 只有显式 --local 才允许「没缓存就报错」'
