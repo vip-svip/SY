@@ -17,6 +17,12 @@ on:
       - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAutomationRuntime.kt'
       - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdRuleStore.kt'
       - 'adhook/app/src/test/java/de/privacyguard/adhook/FxGkdSelectorEngineTest.kt'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAutomationActivity.java'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/FxAccessibilityService.java'
+      - 'adhook/app/src/main/AndroidManifest.xml'
+      - 'adhook/app/src/main/res/xml/fx_accessibility_service.xml'
+      - 'adhook/app/src/main/res/values/fx_strings.xml'
+      - 'scripts/tests/fx-gkd-automation-regression.sh'
   pull_request:
     branches:
       - fx-v1.0.0-unified-hook-integration
@@ -33,6 +39,12 @@ on:
       - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAutomationRuntime.kt'
       - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdRuleStore.kt'
       - 'adhook/app/src/test/java/de/privacyguard/adhook/FxGkdSelectorEngineTest.kt'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAutomationActivity.java'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/FxAccessibilityService.java'
+      - 'adhook/app/src/main/AndroidManifest.xml'
+      - 'adhook/app/src/main/res/xml/fx_accessibility_service.xml'
+      - 'adhook/app/src/main/res/values/fx_strings.xml'
+      - 'scripts/tests/fx-gkd-automation-regression.sh'
   workflow_dispatch:
 
 permissions:
@@ -86,6 +98,11 @@ jobs:
             ln -s android-37.0 "$sdk_root/platforms/android-37"
           fi
           test -s "$sdk_root/platforms/android-37/android.jar"
+      - name: Verify GKD local automation privacy and routing contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          sh scripts/tests/fx-gkd-automation-regression.sh
       - name: Compile FX app and the GKD Accessibility adapter
         shell: bash
         run: |
