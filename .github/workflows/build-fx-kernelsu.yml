@@ -432,7 +432,7 @@ jobs:
       - name: Set up Gradle to rebuild modern FX Hook APK
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.13'
+          gradle-version: '9.3.1'
       - name: Install Android SDK packages for FX Hook APK
         shell: bash
         run: |
@@ -444,7 +444,7 @@ jobs:
           fi
           test -n "$SDKMANAGER" && test -x "$SDKMANAGER"
           yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses >/dev/null || true
-          "$SDKMANAGER" --sdk_root="$SDK_ROOT" "platforms;android-36" "build-tools;34.0.0" "build-tools;36.0.0"
+          "$SDKMANAGER" --sdk_root="$SDK_ROOT" "platforms;android-37" "build-tools;36.0.0"
       - name: Run focused LSPosed Remote Files regressions
         shell: bash
         env:
@@ -457,7 +457,7 @@ jobs:
           sh scripts/tests/vpncore-default-node-fallback-regression.sh
           sh fx-module/scripts/tests/v1.0.0-vpn-off-requires-core-stop-success-regression.sh
           SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
-          APKSIGNER="$SDK_ROOT/build-tools/34.0.0/apksigner"
+          APKSIGNER="$SDK_ROOT/build-tools/36.0.0/apksigner"
 
           # SY_BUILD_TOKEN is the single existing GitHub fine-grained PAT.
           # Use it to protect a one-time generated PKCS12 signing identity in
