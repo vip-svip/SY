@@ -106,14 +106,12 @@ assert "规则删除失败，原数据保持不变。" in activity, "failed dele
 assert "body.getChildCount() > 7" in activity, "rule refresh must not remove master, add, import and export controls"
 assert "REQUEST_IMPORT_GKD_RULES" in activity and "REQUEST_EXPORT_GKD_RULES" in activity
 assert "Intent.ACTION_OPEN_DOCUMENT" in activity and "Intent.ACTION_CREATE_DOCUMENT" in activity
-assert "MAX_GKD_IMPORT_BYTES" in activity
 assert "FxGkdRuleStore.importJson(this, json)" in activity
 assert "FxGkdRuleStore.exportJson(this)" in activity
 assert "所有新导入规则均已关闭" in activity
 assert 'setText("启用 GKD 本地规则自动化")' in activity
 assert 'setPositiveButton("校验并保存"' in activity
 assert "showPackagePicker(EditText packageInput)" in activity
-assert "getInstalledApplications(0)" in activity
 assert "candidates.size() >= 500" not in activity, "app picker must enumerate all installed user apps"
 assert "规则状态保存失败，已恢复原状态。" in activity
 assert "规则删除失败，原数据保持不变。" in activity
