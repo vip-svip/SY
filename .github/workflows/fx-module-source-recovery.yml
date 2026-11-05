@@ -101,6 +101,8 @@ jobs:
           # recovered source on a dedicated PR branch rooted at the current
           # integration HEAD, preserving normal fast-forward ancestry.
           recovery_branch=fx-module-source-recovery-integration
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin "+refs/heads/$GITHUB_REF_NAME:refs/remotes/origin/$GITHUB_REF_NAME"
           if git ls-remote --exit-code --heads origin "$recovery_branch" >/dev/null 2>&1; then
             git fetch origin "+refs/heads/$recovery_branch:refs/remotes/origin/$recovery_branch"
