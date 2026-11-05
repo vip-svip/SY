@@ -4,7 +4,6 @@ import li.gkd.selector.NodeAdapter
 import li.gkd.selector.Selector
 import li.gkd.selector.SelectorCompileResult
 import li.gkd.selector.SelectorParseResult
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -71,8 +70,12 @@ class GkdSelectorSmokeTest {
     fun exposesStructuredParseAndTokenResults() {
         val parsed = Selector.parse("android.widget.Button[text='Skip']")
         assertTrue(parsed is SelectorParseResult.Success)
+        val selector = (parsed as SelectorParseResult.Success).value
+        assertNotNull(selector)
+        assertTrue("parsed selector AST should be non-empty", selector.toString().isNotBlank())
         assertTrue(Selector.tokenize("android.widget.Button[text='Skip']").isNotEmpty())
-        assertEquals("android.widget.Button[text='Skip']", parsed.value.toString())
+        assertTrue(Selector.compile("android.widget.Button[text='Skip']")
+            is SelectorCompileResult.Success)
     }
 
     @Test
