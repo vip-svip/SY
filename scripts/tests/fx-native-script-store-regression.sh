@@ -124,4 +124,19 @@ grep -Fq 'storeNativeScriptFile(staged, displayName, "1"' "$MAIN" || fail "file 
 grep -Fq 'storeNativeScriptValue(value, name, enabled' "$MAIN" || fail "JSON imports do not use the file-backed store transport"
 if grep -Fq 'total > 1024 * 1024' "$MAIN"; then fail "Android file import still has a 1 MiB cap"; fi
 if grep -Fq 'MAX_NATIVE_SCRIPT_EXPORT_BYTES' "$MAIN"; then fail "Android script export still has a fixed payload cap"; fi
+python3 - "$SCRIPT" <<'PY'
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+assert "add|add-file|update|toggle|delete)" in source, "file-backed action is not routed through the locked store"
+start = source.index("      add-file)")
+end = source.index("\n      update)", start)
+branch = source[start:end]
+assert 'first_line=$(sed -n \'1{p;q;}\' "$VALUE_FILE")' in branch, "file import must classify using a bounded first-line read"
+assert 'base64 < "$VALUE_FILE" | tr -d \'\\n\' >> "$ROWS"' in branch, "local source must stream from the staged file into the config row"
+assert 'value=$(cat "$VALUE_FILE")' not in branch, "local JS payload is still copied wholesale into a shell variable"
+assert '/data/user/[0-9]*/de.privacyguard.adhook/cache/fx-native-script-*' in branch, "app-cache source path must match the exact FX package across Android users"
+print("PASS: file-backed local source import stays streaming and accepts only FX app-cache staging paths")
+PY
+
 echo "PASS: native script-list backend supports CRUD, preserves unrelated config, round-trips multiline source and installs the local runner"

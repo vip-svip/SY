@@ -95,7 +95,7 @@ case "$ACTION" in
         [ "$#" -eq 3 ] || { echo "ERROR add-file expects source_path note64 enabled"; exit 64; }
         source_path=$1
         case "$source_path" in
-          /data/user/0/*/cache/fx-native-script-*|/data/data/*/cache/fx-native-script-*|"$PG"/jsruntime/staging/fx-native-script-*) ;;
+          /data/user/[0-9]*/de.privacyguard.adhook/cache/fx-native-script-*|/data/data/de.privacyguard.adhook/cache/fx-native-script-*|"$PG"/jsruntime/staging/fx-native-script-*) ;;
           *) echo "ERROR source file is outside an approved staging area"; exit 65 ;;
         esac
         [ -f "$source_path" ] && [ ! -L "$source_path" ] || { echo "ERROR staged script file is missing or unsafe"; exit 65; }
@@ -105,15 +105,19 @@ case "$ACTION" in
         [ "${#note}" -le 512 ] || { echo "ERROR script name exceeds 512 characters"; exit 65; }
         cp "$source_path" "$VALUE_FILE" || { echo "ERROR unable to snapshot staged script"; exit 1; }
         [ -s "$VALUE_FILE" ] || { echo "ERROR script value is empty"; exit 64; }
-        value=$(cat "$VALUE_FILE") || { echo "ERROR unable to read staged script"; exit 1; }
-        case "$value" in
+        # Read one line for transport classification only. Local source bytes stay
+        # file-backed all the way through base64 encoding; never copy the full
+        # JavaScript payload into a shell variable.
+        first_line=$(sed -n '1{p;q;}' "$VALUE_FILE")
+        case "$first_line" in
           https://*)
+            value=$(cat "$VALUE_FILE") || { echo "ERROR unable to read HTTPS subscription"; exit 1; }
             case "$value" in *[[:space:]]*) echo "ERROR invalid HTTPS subscription URL"; exit 65 ;; esac
             value=$(encode_script_value "$value") || { echo "ERROR invalid HTTPS subscription URL"; exit 65; }
             printf '%s|%s|%s\n' "$value" "$(sanitize_field "$note")" "$enabled" >> "$ROWS"
             ;;
           *)
-            if printf '%s' "$value" | grep -Eq '^[A-Za-z][A-Za-z0-9+.-]*://'; then
+            if printf '%s' "$first_line" | grep -Eq '^[A-Za-z][A-Za-z0-9+.-]*://'; then
               echo "ERROR only HTTPS subscriptions or local JS source are supported"; exit 65
             fi
             note=$(sanitize_field "$note")
