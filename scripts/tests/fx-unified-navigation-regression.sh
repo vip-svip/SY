@@ -129,6 +129,13 @@ for filename, tokens in ad_pages.items():
         assert token in page, f"{filename} is not integrated as an Ad subpage: {token}"
     assert "游龙广告插件" not in page, f"{filename} still exposes the source app identity"
 
+ad_main = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java")
+ad_general = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdGeneralActivity.java")
+ad_summary = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdSummaryActivity.java")
+ad_dns = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongDnsActivity.java")
+ad_firewall = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongFirewallActivity.java")
+ad_whitelist = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAppWhitelistActivity.java")
+
 # Ad control center, DNS log and firewall dialogs must use the shared five-Skin modal renderer.
 assert "fxDialogBuilder()" in ad_main, "Ad control center still creates unskinned AlertDialogs"
 assert "new AlertDialog.Builder(this)" not in ad_main
@@ -173,12 +180,6 @@ for name, page in shield_modal_pages.items():
     assert "new AlertDialog.Builder(this)" not in page
     assert "new android.app.AlertDialog.Builder(this)" not in page
 assert "showFxDialog(dialog);" in shield_modal_pages["Blacklist"], "Blacklist custom OnShow dialog bypasses shared renderer"
-ad_main = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java")
-ad_general = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdGeneralActivity.java")
-ad_summary = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdSummaryActivity.java")
-ad_dns = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongDnsActivity.java")
-ad_firewall = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongFirewallActivity.java")
-ad_whitelist = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAppWhitelistActivity.java")
 dia_dex = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaDexBrowserActivity.java")
 assert 'FxYulongShieldActivity.class' in activity[activity.index("private void buildNativePrivacyPage()"):activity.index("private void refreshNativePrivacyStatus(")]
 assert 'section("安全防护中心")' in activity
