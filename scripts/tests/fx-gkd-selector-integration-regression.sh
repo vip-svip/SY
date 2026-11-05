@@ -25,7 +25,11 @@ grep -Fq "jvmMain/kotlin" "$module"
 grep -Fq "commonTest/kotlin" "$module"
 grep -Fq "jvmTest/kotlin" "$module"
 grep -Fq "vendor/GKD-XA/gkd-selector/src" "$module"
-! grep -Eq 'gkd-selector-adapter|project\(\x27:gkd-selector\x27\)|project\(\x27:gkd-app\x27\)' "$app_build" "$settings"
+! grep -Fq 'gkd-selector-adapter' "$app_build" "$settings"
+! grep -Fq "project(':gkd-selector')" "$app_build" "$settings"
+! grep -Fq "project(':gkd-app')" "$app_build" "$settings"
+[[ ! -e "$root/adhook/gkd-selector" ]]
+[[ ! -e "$root/adhook/gkd-selector-adapter" ]]
 
 grep -Fq "Selector.compile(normalized)" "$engine"
 grep -Fq "selector.validateType(typeModel)" "$engine"
@@ -49,6 +53,7 @@ grep -Fq "GPL-3.0" "$readme"
 manifest="$root/adhook/app/src/main/AndroidManifest.xml"
 test -s "$manifest"
 test "$(grep -Fc 'android:name=".FxAccessibilityService"' "$manifest")" -eq 1
+test "$(grep -Fc 'android:name=".FxGkdAutomationActivity"' "$manifest")" -eq 1
 test "$(grep -Fc 'android:name=".FxGkdAutomationActivity" android:exported="false"' "$manifest")" -eq 1
 test "$(grep -Fc 'android.intent.category.LAUNCHER' "$manifest")" -eq 1
 ! grep -Eq 'li\.gkd\.app|gkd\.service\.|gkd\.app\.service|GkdTileService|A11yService' "$manifest" || {
