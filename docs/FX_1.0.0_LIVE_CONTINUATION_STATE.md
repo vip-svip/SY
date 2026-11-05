@@ -5576,3 +5576,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `scripts/tests/fx-atomic-cache-lock-release-regression.sh` 的 Host-only 分支现在会运行 `fx-hosts-cache-lock-regression.sh` 的合成生产函数夹具；Host run `42093993446` 日志确认 `PASS: Hosts cache lock cleanup removes only empty/PID-only locks and refuses FIFO, symlink and unknown contents`。
 - Ad 防火墙分类回归路径在 `4d996b44` 修复为显式传入 `FxYulongFirewallAppFilterPolicyTest.java`，不再从 Java 源文件路径反推测试目录。最新 4d996b44 Host run 全量通过。
 - 验证边界：以上为 GitHub Actions Host 自动化、六套 UI 源码契约和恢复版模块运行测试；仍未完成 Android Gradle 最终 APK 构建、最终 KernelSU ZIP 生成、设备安装/升级/卸载或真机 VPN/TUN 测试。`migration_complete` 仍保持人工门控，不为绕过未完成迁移而触发最终包构建。
+
+
+### 应用防火墙策略源文件回归映射（2026-11-06）
+
+- 将 `FxYulongFirewallAppFilterPolicy` 与其 Host 单测类 `FxYulongFirewallAppFilterPolicyTest` 加入 Targeted Host firewall 回归路径，确保只修改用户/系统应用分类规则时也会执行 `fx-yulong-app-firewall-regression.sh` 与 `fx-yulong-firewall-activity-regression.sh`。
+- 完整闭环已在 `4d996b44` 的 Host/UI/Module Runtime runs 中验证；本次仅扩大后续增量变更的 CI 触发覆盖。
