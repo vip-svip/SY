@@ -300,7 +300,7 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
                     FxGkdRule saved = FxGkdRuleStore.addRule(
                             this, pkg, selector, cooldownSeconds * 1000L);
                     if (saved == null) {
-                        Toast.makeText(this, "保存失败：规则数量可能已达上限，或存储不可写。", Toast.LENGTH_LONG).show();
+                        Toast.makeText(this, "保存失败：请检查规则格式或本地存储是否可写。", Toast.LENGTH_LONG).show();
                         return;
                     }
                     FxGkdAutomationRuntime.invalidateRules();
