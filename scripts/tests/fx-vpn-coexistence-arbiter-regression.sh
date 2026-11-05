@@ -38,8 +38,8 @@ for f in tcp6 udp udp6; do printf '%s\n' "$HDR" > "$TMP/net_dns_busy/$f"; done
 
 # net_udp_busy: port 5353 (0x14E9) bound by UDP (Linux /proc/net/udp state 07)
 mkdir -p "$TMP/net_udp_busy"
-for f in tcp tcp6 udp6; do printf '%s\\n' "$HDR" > "$TMP/net_udp_busy/$f"; done
-printf '%s\\n   0: 0100007F:14E9 00000000:0000 07 00000000:00000000 00:00000000 00000000  1000        0 2 1\\n' \
+for f in tcp tcp6 udp6; do printf '%s\n' "$HDR" > "$TMP/net_udp_busy/$f"; done
+printf '%s\n   0: 0100007F:14E9 00000000:0000 07 00000000:00000000 00:00000000 00000000  1000        0 2 1\n' \
   "$HDR" > "$TMP/net_udp_busy/udp"
 
 # run_arb <link-output> <vpinfo> <procnet> <modroot> [extra env...]
