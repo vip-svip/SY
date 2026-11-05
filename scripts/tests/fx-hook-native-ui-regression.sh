@@ -58,6 +58,37 @@ grep -Fq 'getApplicationIcon(ai)' "$ROOT/adhook/app/src/main/java/de/privacyguar
 if sed -n '/private void appendAppRows/,/private void loadMissingAppIconsAsync/p' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" | grep -q 'getApplicationIcon'; then fail "Hook app row rendering decodes icons on the UI thread"; fi
 grep -Fq 'appIconLoadGeneration' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "stale app icon results are not generation-guarded"
 grep -q "return size() > 80;" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "Hook app icon cache is not memory-bounded"
+python3 - "$main_activity" <<'PY'
+from pathlib import Path
+import sys
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+hub_start = source.index("private void showHookHub()")
+hub_end = source.index("private void refreshHookHubAuthorizationStates()", hub_start)
+hub = source[hub_start:hub_end]
+for group in ("publishGroup", "remoteGroup", "rootGroup", "lsposedGroup", "accessibilityGroup"):
+    assert f"addNativeActionGroup({group})" in hub, f"Hook authorization Hub group missing: {group}"
+for token in ("refreshHookRemoteStatus(remoteStatus)", "checkRoot(rootState, false)",
+              "refreshHookHubLsposedStatus(ls)", "refreshHookHubAccessibilityStatus(accessibility)",
+              "openLsposedManager()", "showAppList()"):
+    assert token in hub, f"Hook authorization status/action callback missing: {token}"
+
+list_start = source.index("private void showAppList(String privacySection)")
+list_end = source.index("private void captureHookAppListState()", list_start)
+app_list = source[list_start:list_end]
+for token in ("search.setBackground(uiPanelDrawable())", "hint.setBackground(uiPanelDrawable())",
+              "loading.setBackground(uiPanelDrawable())", "hookAppListQuery = s == null ?",
+              "if (appsLoaded) renderApps(hookAppListQuery)", "loadAppsAsync()"):
+    assert token in app_list, f"Hook app-list Skin/search wiring missing: {token}"
+assert "while (content.getChildCount() > 5) content.removeViewAt(5);" in source,     "Hook search rerender must preserve its fixed title/home/search/hint header"
+rows_start = source.index("private void appendAppRows(")
+rows_end = source.index("private void loadMissingAppIconsAsync()", rows_start)
+rows = source[rows_start:rows_end]
+for token in ("row.setOnClickListener(v -> {", "showTarget(ai)", "MAX_APP_ROWS_PER_PAGE",
+              "appendAppRows(end, nextEnd)"):
+    assert token in rows, f"Hook result-row interaction/pagination missing: {token}"
+print("PASS: Hook authorization groups and app-list Skin surfaces preserve authorization, search, target routing and pagination.")
+PY
 grep -q "Locale.ROOT" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "case-insensitive app search is locale-dependent"
 grep -q "sym_def_app_icon" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "removed-package icon fallback missing"
 grep -q "getApplicationInfo(ai.packageName, 0)" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "stale app rows are not revalidated before opening Hook settings"
