@@ -3978,3 +3978,22 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 2. 按 Ad / VPN / 隐私 / Hook / 脚本检查对应原来源功能页是否真实接到 FX Repository/Service；优先修复无后端按钮、虚假状态和缺失权限。
 3. 针对本批导航脚本做一次定向执行；若 Actions 自动运行，读取结果并严格区分 Host 静态回归、Gradle、安装和真机层级。
 
+
+
+## 2026-11-05 — GKD 本地规则运行链首批打通（仍非全量迁移）
+
+- 将 pinned GKD-XA v1.4.8 上游 selector/parser 接入 FX 自有节点模型，新增本地规则存储、受限 Accessibility Snapshot、本地选择器匹配和 Click-only 规则执行器。
+- 新增 Hook 内部页面 `FxGkdAutomationActivity`，由 Hook Tab 的“GKD 选择器自动化”卡片进入；支持用户创建目标应用+选择器+冷却规则、逐条启停/删除和独立总开关。
+- 复用 FX 唯一的 `FxAccessibilityService`：默认只订阅窗口变化；总开关启用且存在目标规则时，动态加入 window-content-changed/view-scrolled。不会添加 GKD 第二服务、第二 Launcher 或第二 APK。
+- 隐私/安全门：总开关默认关闭；包名逐应用白名单；普通用户应用校验；root window 包名精确匹配；Snapshot 上限 700 节点/32 深度/每节点 80 子节点/每文本 256 字；不读取 password/editable 文本或描述，不截图、不上传、不记录页面文本；仅允许可见且可点击的非密码/非编辑节点 ACTION_CLICK；点击前再次核验服务连接、总开关、规则启用和前台包名；单线程任务门与 250ms 全局扫描间隔、每规则 1–60 秒冷却。
+- 修复规则列表重绘错误：保留前 6 个固定控件（两张说明卡、状态卡、系统授权按钮、总开关、添加规则按钮），只替换规则列表区域。
+- 新增静态回归 `scripts/tests/fx-gkd-automation-regression.sh`，并接入 Host lane 与 GKD App compile lane；GKD compile workflow 改为运行正确的 `FxGkdSelectorEngineTest`。
+- 相关提交：`35999243035c5f2de92604b4166d9c61a57b00e0`、`3478def751630ad2d0e7c2313c4577a340492ee8`、`5e3db8b41092820f516525c6bf66b72bd91b731d`、`d222597890770d1ad3263a70cf585245334f3771`、`7e708a2714644d31c0103d2d22356cbf2538ad5c`、`7c372a215eff741116f03174697cea9d7f3b2534`、`a786a06ce9c628e46c35cafae1f1ec65b989f469`、`a65b06f92b634289b10f6f09687dd877e4fed869`、`4a8ad38b05dd71d16c8c1bbd571328e14f15ba9e`、`1757c40d2c2bb9fa89f9848c48ce58e713739670`、`24075c97a954e086fd00f0cd0a409ab9d0a9210a`、`783e015636ab4848b958bfc4871b76c439f6d2df`、`cbbbca432a88ae28c5f0544f1e1a082869f4ac5b`、`f6d14fdd81df49ea4953c7353ad8e0c34d1068a2`、`ae398aa120e6acd07cc6deac6fd240ddc9fb1402`。
+- 当前 GKD CI run `41983507306` 在上游 selector JVM 测试阶段进行；尚无本轮 App Java/Kotlin compile、GKD unit test 的最终结果。本轮未声称 Gradle 构建已通过、未声称真机验证。
+- 未完成：订阅/规则组/排除项/导入导出/触发历史与日志/快照与 AI/数据库迁移/备份恢复/Shizuku-AIDL/开机通知 Tile 全生命周期；此为第一期本地手动规则 Click 试点，不等于 GKD 全功能迁移。
+
+### 后续优先顺序
+1. 读取 Actions run `41983507306` 的最新结果和失败日志；先修真正的编译/单测失败。
+2. 实机验证 Android 无障碍授权、窗口树包名边界、动作冷却、前台切换取消、开关关闭立即停用和耗电/内存。
+3. 增加事件去重/每事件预算/动作结果状态，再做规则组/排除项和订阅存储。
+4. 再迁移 GKD snapshot/history/AI providers、数据备份和特权/后台生命周期。
