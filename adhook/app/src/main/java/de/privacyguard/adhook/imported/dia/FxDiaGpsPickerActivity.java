@@ -83,8 +83,8 @@ public final class FxDiaGpsPickerActivity extends de.privacyguard.adhook.FxNativ
         LinearLayout header = new LinearLayout(this);
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(10), dp(4), dp(12), dp(4));
-        header.addView(button("‹ 返回", this::finish));
-        header.addView(label("Dia · GPS 地图选点", 18, 0xff17212b, true),
+        header.addView(button("‹ 返回 Hook", this::finish));
+        header.addView(label("Hook · GPS 地图选点", 18, 0xff17212b, true),
                 new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
 
