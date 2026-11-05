@@ -16,43 +16,73 @@ actual_gitlink="$(git -C "$root" ls-tree HEAD vendor/GKD-XA)"
 [[ "$actual_gitlink" == "$expected_gitlink" ]] || fail "GKD-XA gitlink is not pinned to v1.4.8: $actual_gitlink"
 
 plan="$root/docs/FX_GKD_XA_1.4.8_INTEGRATION_PLAN.md"
-adapter="$root/adhook/fx-gkd-selector/build.gradle"
+module="$root/adhook/fx-gkd-selector/build.gradle"
 readme="$root/adhook/fx-gkd-selector/README.md"
 settings="$root/adhook/settings.gradle"
 root_build="$root/adhook/build.gradle"
 app_build="$root/adhook/app/build.gradle"
-runtime="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxGkdSelectorRuntime.kt"
-runtime_test="$root/adhook/app/src/test/java/de/privacyguard/adhook/FxGkdSelectorRuntimeTest.kt"
+engine="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxGkdSelectorEngine.kt"
+engine_test="$root/adhook/app/src/test/java/de/privacyguard/adhook/FxGkdSelectorEngineTest.kt"
+store="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxGkdRuleStore.kt"
+snapshot="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAccessibilitySnapshot.kt"
+automation="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAutomationRuntime.kt"
+activity="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAutomationActivity.java"
+service="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxAccessibilityService.java"
 workflow="$root/.github/workflows/fx-gkd-selector.yml"
-for file in "$plan" "$adapter" "$readme" "$settings" "$root_build" "$app_build" "$runtime" "$runtime_test" "$workflow"; do
+manifest="$root/adhook/app/src/main/AndroidManifest.xml"
+
+for file in "$plan" "$module" "$readme" "$settings" "$root_build" "$app_build" \
+            "$engine" "$engine_test" "$store" "$snapshot" "$automation" "$activity" \
+            "$service" "$workflow" "$manifest"; do
   expect_file "$file"
 done
 
-grep -Fq '### 已实际接入的第一阶段' "$plan" || fail "GKD integration plan does not record selector stage as implemented"
-grep -Fq '### 仍未完成，不能宣称 GKD 已完整迁入' "$plan" || fail "GKD integration plan must retain the remaining-work boundary"
-grep -Fq 'GPL-3.0' "$readme" || fail "GKD selector GPL provenance missing"
-grep -Fq "commonMain/kotlin" "$adapter" || fail "upstream commonMain source set not wired"
-grep -Fq "jvmMain/kotlin" "$adapter" || fail "upstream jvmMain source set not wired"
-grep -Fq "commonTest/kotlin" "$adapter" || fail "upstream commonTest suite not wired"
-grep -Fq "jvmTest/kotlin" "$adapter" || fail "upstream jvmTest suite not wired"
-grep -Fq "kotlinx-serialization-json:1.11.0" "$adapter" || fail "upstream test serialization dependency missing"
-grep -Fq "li.songe:json5:0.8.0" "$adapter" || fail "upstream JSON5 fixture dependency missing"
-grep -Fq "kotlinOptions.jvmTarget = '17'" "$adapter" || fail "selector adapter JVM target is not 17"
-grep -Fq "org.jetbrains.kotlin.plugin.serialization" "$root_build" || fail "Kotlin serialization plugin is not registered"
-grep -Fq "include ':app', ':fx-gkd-selector'" "$settings" || fail "single selector project is not included"
-grep -Fq "implementation project(':fx-gkd-selector')" "$app_build" || fail "FX APK is not linked to the selector library"
-if grep -Fq 'gkd-selector-adapter' "$settings" "$app_build"; then
-  fail "duplicate selector adapter project remains wired"
-fi
-if grep -Fq "project(':gkd-app')" "$app_build"; then
-  fail "upstream second Android application must not be packaged"
-fi
+# Exactly one selector library is part of the Android build graph.
+grep -Fq "include ':app', ':fx-gkd-selector'" "$settings" || fail "single FX selector module not included"
+grep -Fq "implementation project(':fx-gkd-selector')" "$app_build" || fail "FX app is not linked to the selector module"
+! grep -Fq 'gkd-selector-adapter' "$settings" "$app_build" || fail "obsolete duplicate selector adapter remains wired"
+! grep -Fq "project(':gkd-selector')" "$settings" "$app_build" || fail "obsolete duplicate selector project remains wired"
+! grep -Fq "project(':gkd-app')" "$settings" "$app_build" || fail "upstream second Android application must not be packaged"
+[[ ! -e "$root/adhook/gkd-selector" ]] || fail "obsolete duplicate gkd-selector directory remains"
+[[ ! -e "$root/adhook/gkd-selector-adapter" ]] || fail "obsolete duplicate gkd-selector-adapter directory remains"
 
-grep -Fq 'fun compile(source: String)' "$runtime" || fail "FX selector compile API missing"
-grep -Fq 'fun findFirst(' "$runtime" || fail "Accessibility first-match API missing"
-grep -Fq 'fun findAll(' "$runtime" || fail "bounded Accessibility enumeration API missing"
-grep -Fq 'MAX_SELECTOR_CHARS = 8_192' "$runtime" || fail "selector source length guard missing"
-grep -Fq 'FxGkdSelectorRuntime.compile(' "$runtime_test" || fail "FX runtime tests are not exercising the selector"
-grep -Fq ':fx-gkd-selector:jvmTest' "$workflow" || fail "focused JVM test workflow does not run upstream selector suites"
+grep -Fq "id 'org.jetbrains.kotlin.multiplatform' version '2.4.21' apply false" "$root_build" || fail "Kotlin MPP plugin version mismatch"
+grep -Fq "org.jetbrains.kotlin.plugin.serialization" "$root_build" || fail "upstream serialization plugin missing"
+grep -Fq "commonMain/kotlin" "$module" || fail "upstream commonMain source set is not wired"
+grep -Fq "jvmMain/kotlin" "$module" || fail "upstream jvmMain source set is not wired"
+grep -Fq "commonTest/kotlin" "$module" || fail "upstream commonTest source set is not wired"
+grep -Fq "jvmTest/kotlin" "$module" || fail "upstream jvmTest source set is not wired"
+grep -Fq "kotlinOptions.jvmTarget = '17'" "$module" || fail "selector module JVM target is not 17"
 
-echo "PASS: GKD-XA v1.4.8 GPL source pin, single Java 17 selector module, full upstream test source sets, FX Accessibility adapter and remaining-work boundary verified."
+# The app-side integration uses one engine, one bounded node snapshot, one local store,
+# and the existing FX AccessibilityService — not the obsolete parser-only facade.
+grep -Fq 'Selector.compile(normalized)' "$engine" || fail "upstream Selector compiler call missing"
+grep -Fq 'selector.validateType(typeModel)' "$engine" || fail "upstream selector type validation missing"
+grep -Fq 'querySelectorAll(root, selector' "$engine" || fail "upstream selector query adapter missing"
+grep -Fq 'MAX_NODES = 700' "$snapshot" || fail "snapshot node bound missing"
+grep -Fq 'MAX_DEPTH = 32' "$snapshot" || fail "snapshot depth bound missing"
+grep -Fq 'info.isPassword || info.isEditable' "$snapshot" || fail "snapshot sensitive-node suppression missing"
+grep -Fq 'MAX_RULES = 128' "$store" || fail "local rule cap missing"
+grep -Fq 'getBoolean(KEY_MASTER_ENABLED, false)' "$store" || fail "GKD master switch does not default off"
+grep -Fq 'FxGkdSelectorEngine.compile(expression)' "$store" || fail "local rule add does not compile selector"
+grep -Fq 'FxGkdAutomationRuntime.process(this, eventPackage, root)' "$service" || fail "single FX service does not dispatch local GKD rules"
+grep -Fq 'FxGkdRuleStore.hasEnabledRule(this, pkg)' "$service" || fail "event package scope gate missing"
+grep -Fq 'AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS' "$service" || fail "resource ID selectors are not requested dynamically"
+grep -Fq 'isInstalledUserApplication(service, eventPackage)' "$automation" || fail "runtime target package verification missing"
+grep -Fq 'FxGkdRuleStore.isRuleEnabled(service, rule.source.id, eventPackage)' "$automation" || fail "action-time rule revocation check missing"
+grep -Fq 'performAction(AccessibilityNodeInfo.ACTION_CLICK)' "$automation" || fail "first action executor is missing"
+grep -Fq 'matchesUpstreamAttributeAndWidgetSelectors' "$engine_test" || fail "selector engine unit coverage missing"
+grep -Fq 'respectsSelectorResultLimit' "$engine_test" || fail "selector result limit unit coverage missing"
+
+# Single app/service identity and GPL provenance must remain explicit.
+[[ "$(grep -Fc 'android:name=".FxAccessibilityService"' "$manifest")" -eq 1 ]] || fail "FX must declare exactly one AccessibilityService"
+[[ "$(grep -Fc 'android:name=".FxGkdAutomationActivity"' "$manifest")" -eq 1 ]] || fail "GKD rules Activity must be declared exactly once"
+[[ "$(grep -Fc 'android.intent.category.LAUNCHER' "$manifest")" -eq 1 ]] || fail "FX must keep one launcher"
+! grep -Eq 'li\.gkd\.app|gkd\.service\.|gkd\.app\.service|GkdTileService|A11yService' "$manifest" || fail "upstream second app/service identity leaked into FX Manifest"
+grep -Fq 'GPL-3.0' "$readme" || fail "GPL-3.0 provenance missing"
+grep -Fq '8a6ce935da11671dac7e1a7595416ec99ee07436' "$readme" || fail "pinned upstream commit missing"
+grep -Fq ':fx-gkd-selector:jvmTest' "$workflow" || fail "upstream JVM selector test lane missing"
+
+grep -Fq '### 已落地：选择器、单服务事件管线与本地规则首批垂直切片' "$plan" || fail "integration plan does not reflect the implemented local slice"
+grep -Fq '### 当前垂直切片明确不包括' "$plan" || fail "integration plan has no remaining-work boundary"
+echo "PASS: pinned GKD-XA source, one selector module/engine, local opt-in rules, bounded snapshot, and one FX AccessibilityService are verified."
