@@ -66,8 +66,8 @@ public final class FxDiaCrashReportActivity extends de.privacyguard.adhook.FxNat
         LinearLayout header = new LinearLayout(this);
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(12), dp(6), dp(12), dp(6));
-        header.addView(button("‹ 返回", this::finish));
-        header.addView(text("Dia 23.11 · 崩溃报告", 18, 0xff17212b, true),
+        header.addView(button("‹ 返回 Hook", this::finish));
+        header.addView(text("Hook · 崩溃报告", 18, 0xff17212b, true),
                 new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
         ScrollView scroll = new ScrollView(this);
@@ -127,7 +127,7 @@ public final class FxDiaCrashReportActivity extends de.privacyguard.adhook.FxNat
                 11, 0xff607080, false));
         body.addView(button("清除崩溃记录", this::confirmClear));
         body.addView(button("关闭", this::finish));
-        setContentViewWithNativeTabs(root, 5);
+        setContentViewWithNativeTabs(root, 4);
         if (restoredScrollY > 0) {
             final int restoreY = restoredScrollY;
             scroll.post(() -> {
