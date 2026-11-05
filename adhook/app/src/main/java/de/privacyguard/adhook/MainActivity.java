@@ -5931,7 +5931,7 @@ public final class MainActivity extends ComponentActivity {
         TextView dialogNote = new TextView(this);
         dialogNote.setText(dialogConfigured
                 ? "只临时切换当前应用已发布的 Dialog 规则，不删除关键词、资源 ID 或持久化配置。再次触发恢复规则。"
-                : "需要先在“对话框与通知”页面为此 debuggable 应用启用至少一条 Dialog 文本或资源 ID 规则，才能配置此动作。");
+                : "需要先在 Hook → Dialog 对话框 Hook 中为此 debuggable 应用启用至少一条 Dialog 文本或资源 ID 规则，才能配置此动作。");
         dialogNote.setTextColor(0xff697681);
         dialogNote.setPadding(dp(18), 0, dp(18), dp(8));
         content.addView(dialogNote);
