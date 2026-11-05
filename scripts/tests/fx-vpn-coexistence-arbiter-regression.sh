@@ -168,6 +168,32 @@ rc=${r%%|*}; out=${r#*|}
 [ "$(field "$out" "['verdict']")" = "partial" ] || fail "invalid port must prevent a clean compatibility grade"
 pass "malformed port rejected and JSON remains valid"
 
+echo "== case 1d: upstream DNS and proxy ports also normalize as decimal =="
+r=$(run_arb_port DNS 005353)
+rc=${r%%|*}; out=${r#*|}
+[ "$rc" -eq 0 ] || fail "upstream DNS normalization failed: $out"
+[ "$(field "$out" "['dns']['port']")" = "5353" ] || fail "upstream DNS leading zero was not normalized"
+[ "$(field "$out" "['dns']['owner']")" = "free" ] || fail "normalized upstream DNS port was not probed"
+r=$(run_arb_port PROXY 07890)
+rc=${r%%|*}; out=${r#*|}
+[ "$rc" -eq 0 ] || fail "proxy normalization failed: $out"
+[ "$(field "$out" "['proxy']['port']")" = "7890" ] || fail "proxy leading zero was not normalized"
+[ "$(field "$out" "['proxy']['owner']")" = "free" ] || fail "normalized proxy port was not probed"
+pass "all three arbiter port fields normalize decimal values"
+
+echo "== case 1e: out-of-range ports fail closed for every service field =="
+for spec in "DNS:65536" "PROXY:00000"; do
+  kind=${spec%%:*}; port=${spec#*:}
+  r=$(run_arb_port "$kind" "$port")
+  rc=${r%%|*}; out=${r#*|}
+  [ "$rc" -eq 0 ] || fail "$kind invalid port should degrade safely: $out"
+  case "$kind" in DNS) object=dns ;; PROXY) object=proxy ;; esac
+  [ "$(field "$out" "['$object']['port']")" = "None" ] || fail "$kind invalid port must serialize as JSON null"
+  [ "$(field "$out" "['$object']['owner']")" = "unknown" ] || fail "$kind invalid port ownership must be unknown"
+  [ "$(field "$out" "['verdict']")" = "partial" ] || fail "$kind invalid port must prevent a clean compatibility grade"
+done
+pass "out-of-range and zero ports fail closed"
+
 echo "== case 2: external VPN owner uid alone cannot prove parallel routing =="
 r=$(run_arb "$LINKS_TUN" "tun0|10123" "$TMP/net_free" "$TMP/mod_clean")
 rc=${r%%|*}; out=${r#*|}
