@@ -2,14 +2,17 @@
 set -euo pipefail
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 module="$root/adhook/fx-gkd-selector/build.gradle"
-runtime="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxGkdSelectorRuntime.kt"
-unit="$root/adhook/app/src/test/java/de/privacyguard/adhook/FxGkdSelectorRuntimeTest.kt"
+engine="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxGkdSelectorEngine.kt"
+snapshot="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAccessibilitySnapshot.kt"
+automation="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAutomationRuntime.kt"
+rules="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxGkdRuleStore.kt"
+unit="$root/adhook/app/src/test/java/de/privacyguard/adhook/FxGkdSelectorEngineTest.kt"
 app_build="$root/adhook/app/build.gradle"
 settings="$root/adhook/settings.gradle"
 root_build="$root/adhook/build.gradle"
 plan="$root/docs/FX_GKD_XA_1.4.8_INTEGRATION_PLAN.md"
 
-for file in "$module" "$runtime" "$unit" "$app_build" "$settings" "$root_build" "$plan"; do
+for file in "$module" "$engine" "$snapshot" "$automation" "$rules" "$unit" "$app_build" "$settings" "$root_build" "$plan"; do
   test -s "$file" || { echo "FAIL: missing GKD selector integration file: $file"; exit 1; }
 done
 
@@ -22,20 +25,19 @@ grep -Fq "commonTest/kotlin" "$module"
 grep -Fq "jvmTest/kotlin" "$module"
 grep -Fq "vendor/GKD-XA/gkd-selector/src" "$module"
 
-grep -Fq "Selector.parse(source)" "$runtime"
-grep -Fq "selector.validateType(typeModel)" "$runtime"
-grep -Fq "MAX_SELECTOR_CHARS" "$runtime"
-grep -Fq "MAX_DESCENDANTS_PER_QUERY" "$runtime"
-grep -Fq "MAX_FAST_QUERY_RESULTS" "$runtime"
-grep -Fq "isMatchRoot" "$runtime"
-grep -Fq "query.accepts(attribute?.toString() ?: "")" "$runtime"
-grep -Fq "does not start a second" "$runtime"
-grep -Fq "never clicks or changes UI state" "$runtime"
-
-grep -Fq "rejectsSyntaxErrorsWithSourceOffsets" "$unit"
-grep -Fq "rejectsUnknownAccessibilityPropertiesDuringTypeCheck" "$unit"
-grep -Fq "enforcesBoundedSelectorSourceLength" "$unit"
-grep -Fq "尚未合并进 FX APK" "$plan"
+grep -Fq "Selector.compile(normalized)" "$engine"
+grep -Fq "selector.validateType(typeModel)" "$engine"
+grep -Fq "querySelectorAll(root, selector" "$engine"
+grep -Fq "MAX_NODES = 700" "$snapshot"
+grep -Fq "MAX_DEPTH = 32" "$snapshot"
+grep -Fq "MAX_TEXT_LENGTH = 256" "$snapshot"
+grep -Fq "info.isPassword || info.isEditable" "$snapshot"
+grep -Fq "FxGkdRuleStore.isEnabled(service)" "$automation"
+grep -Fq "rule.source.packageName == eventPackage" "$automation"
+grep -Fq "liveNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)" "$automation"
+grep -Fq "cooldownMillis" "$automation"
+grep -Fq "enabled = false" "$rules"
+grep -Fq "matchesUpstreamAttributeAndWidgetSelectors" "$unit"
 
 manifest="$root/adhook/app/src/main/AndroidManifest.xml"
 ! grep -Eq 'li\.gkd\.app|gkd\.service\.|gkd\.app\.service|GkdTileService|A11yService' "$manifest" || {
@@ -43,4 +45,10 @@ manifest="$root/adhook/app/src/main/AndroidManifest.xml"
   exit 1
 }
 
-echo "PASS: GKD selector uses the pinned source module, is wired into the FX APK, has a bounded read-only Accessibility adapter, and does not add a second service/application identity."
+manifest="$root/adhook/app/src/main/AndroidManifest.xml"
+! grep -Eq 'li\.gkd\.app|gkd\.service\.|gkd\.app\.service|GkdTileService|A11yService' "$manifest" || {
+  echo "FAIL: GKD-XA second app/service identity must not be copied into FX Manifest"
+  exit 1
+}
+
+echo "PASS: GKD selector uses the pinned source module; snapshot and local rule/action helpers are bounded; FX remains the only app/service identity."
