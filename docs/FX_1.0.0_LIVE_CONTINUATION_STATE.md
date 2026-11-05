@@ -5003,3 +5003,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Latest branch HEAD at this snapshot: `2728c6dc9b09ebc50ceecfd554f7970c57f58a2e`.
 - `RootAccess.java` 声明跨行，Gadget 回归已改为先压缩空白再核对 InputStream 重载，避免静态断言因换行格式误报；提交 `2728c6dc9b09ebc50ceecfd554f7970c57f58a2e`。
 - 当前脚本同时包含 9 MiB SHA-256 流完整性测试、异常输入 fail-closed 测试、私有 cache staging/清理断言；CI check-run 仍不可从当前 GitHub connector 查询，等待现有 push workflows 执行状态。
+
+## 2026-11-05 — RootAccess 回归断言归属修正
+
+- 分支 HEAD 快照：`04cae02c4dfbd8bf7b84fd205d1847ba71ce8475`。
+- 将 64 KiB 分块断言放在 RootAccess 源码内容上验证，而不是 Frida Activity 源码上；InputStream 重载同样先压缩空白再检查，避免换行格式导致误报。提交 `04cae02c4dfbd8bf7b84fd205d1847ba71ce8475`。
+- 该提交仍由现有 `scripts/tests/**` push workflow 触发；commit-status 查询无 check 记录，执行结果待 Actions 提供。
