@@ -56,6 +56,19 @@ grep -Fq 'FxNativeSkin.watch(this, pageContent);' "$host" || { echo "FAIL: impor
 grep -Fq 'FxNativeSkin.watch(this, pageContent);' "$activity" || { echo "FAIL: MainActivity native pages do not receive shared Skin tokens"; exit 1; }
 grep -Fq 'pageContent.post(() -> {' "$activity" || { echo "FAIL: MainActivity Skin pass does not run after dynamic page construction"; exit 1; }
 grep -Fq 'pageContent.getParent() != null' "$activity" || { echo "FAIL: deferred Skin pass does not check that the page is still mounted"; exit 1; }
+for token in \
+  'HarmonySkinTokens.HarmonyColorTokens.BACKGROUND' \
+  'CupertinoSkinTokens.CupertinoColorTokens.BACKGROUND' \
+  'HarmonySkinTokens.HarmonyColorTokens.SURFACE' \
+  'CupertinoSkinTokens.CupertinoColorTokens.SURFACE' \
+  'HarmonySkinTokens.HarmonyColorTokens.PRIMARY_TEXT' \
+  'CupertinoSkinTokens.CupertinoColorTokens.PRIMARY_TEXT' \
+  'HarmonySkinTokens.HarmonyShapeTokens.CARD_RADIUS_DP' \
+  'CupertinoSkinTokens.CupertinoShapeTokens.CARD_RADIUS_DP' \
+  'HarmonySkinTokens.HarmonyColorTokens.SURFACE_VARIANT' \
+  'CupertinoSkinTokens.CupertinoColorTokens.SURFACE_VARIANT'; do
+  grep -Fq "$token" "$activity" || { echo "FAIL: MainActivity card/section renderer does not use shared Skin token $token"; exit 1; }
+done
 for token in 'case HUAWEI_HARMONY_STYLE:' 'case IOS_CUPERTINO_STYLE:' '0xfff0f3f7' '0xff17212b' 'wallpaperActive ? 0x00000000'; do
   grep -Fq "$token" "$skin" || { echo "FAIL: shared native Skin adapter missing $token"; exit 1; }
 done
