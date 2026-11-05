@@ -113,7 +113,7 @@ jobs:
             git fetch origin "+refs/heads/$recovery_branch:refs/remotes/origin/$recovery_branch"
             source_sha="$(git rev-parse "origin/$recovery_branch")"
             git checkout -B "$recovery_branch" "origin/$GITHUB_REF_NAME"
-            git merge --no-edit -X ours "origin/$recovery_branch"
+            git merge --allow-unrelated-histories --no-edit -X ours "origin/$recovery_branch"
           else
             source_sha=""
             git checkout -B "$recovery_branch" "origin/$GITHUB_REF_NAME"
