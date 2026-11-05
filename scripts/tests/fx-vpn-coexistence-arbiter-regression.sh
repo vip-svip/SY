@@ -44,7 +44,7 @@ printf '%s\n   0: 0100007F:14E9 00000000:0000 07 00000000:00000000 00:00000000 0
 
 # net_partial: TCP and UDP6 readable, but UDP4 inventory missing.
 mkdir -p "$TMP/net_partial"
-for f in tcp tcp6 udp6; do printf '%s\\n' "$HDR" > "$TMP/net_partial/$f"; done
+for f in tcp tcp6 udp6; do printf '%s\n' "$HDR" > "$TMP/net_partial/$f"; done
 
 # run_arb <link-output> <vpinfo> <procnet> <modroot> [extra env...]
 # prints "<exit>|<json>"
