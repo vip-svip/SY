@@ -57,14 +57,14 @@ kill -0 "$$" 2>/dev/null || fail "PID identity check signalled the test process"
 
 # A symlinked PID record is untrusted and must preserve module state.
 rm -f "$PG/localdns-watchdog.pid"
-printf 'preserve-symlink-target\n' > "$T/pid-target"
+printf '99999999\n' > "$T/pid-target"
 ln -s "$T/pid-target" "$PG/localdns-watchdog.pid"
 if PG="$PG" MODDIR="$MOD" sh "$MOD/uninstall.sh" > "$T/symlink.out" 2>&1; then
   fail "symlink PID record was accepted"
 fi
 grep -Fq 'PID record is a symlink' "$T/symlink.out" || fail "symlink refusal was not explained"
 ! grep -Fq 'FIREWALL_CLEANUP' "$T/symlink.out" || fail "firewall teardown continued with a symlinked PID record"
-grep -Fxq "$" "$T/pid-target" || fail "symlinked PID target was modified during refusal"
+grep -Fxq 99999999 "$T/pid-target" || fail "symlinked PID target was modified during refusal"
 
 # The cooperative helper path also aborts cleanup when shutdown is unconfirmed.
 rm -f "$PG/localdns-watchdog.pid"
