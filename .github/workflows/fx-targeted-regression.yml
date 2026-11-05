@@ -111,6 +111,10 @@ jobs:
             run_sh scripts/tests/fx-gkd-selector-runtime-regression.sh
           fi
 
+          if [[ "$changed" == "ALL" || "$changed" =~ (FxOpenSourceLicensesActivity|fx-open-source-licenses) ]]; then
+            run_sh scripts/tests/fx-open-source-licenses-regression.sh
+          fi
+
           if [[ "$changed" == "ALL" || "$changed" =~ (FxDiaFridaActivity|FxDiaScriptLibraryActivity|FxDiaCodeEditorActivity|fx-dia-frida-) ]]; then
             run_sh scripts/tests/fx-dia-frida-script-library-saf-regression.sh
             run_sh scripts/tests/fx-dia-frida-binary-import-regression.sh
