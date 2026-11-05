@@ -4167,6 +4167,6 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 在 `FxGkdAutomationActivity.java` 增加系统文档选择器导入/导出按钮；导入时再次做 256 KiB 流式限额，导出生成 `FX-GKD-Local-Rules.json`。
 - 规则列表刷新现在保留总开关、添加规则和导入/导出控件，只替换规则列表区域（固定保留 7 个顶部控件）。
 - 静态回归 `fx-gkd-automation-regression.sh` 增加格式、schema、尺寸限制、import/export 入口、导入默认关闭、目标包验证及失败回滚断言。
-- 对应提交：`e5c9cb7d44ced68cba6136e191736c01bb9e7a09`（Store codec）、`81609ed4e21fa5a8d35...（Activity document picker UI，以 GitHub 当前完整 SHA 为准）、`41971a2df424...（import/export 静态测试，以 GitHub 当前完整 SHA 为准）、`d91a6cf71eab...（package-selector 去重键回归）。
+- 对应提交：`e5c9cb7d44ced68cba6136e191736c01bb9e7a09`（Store codec）、`81609ed4e21f8f1dc9537edd010691bc93b35785`（Activity document picker UI）、`41971a2df424866cef3b5bc1fa450b97344e75c3`（import/export 静态测试）、`d91a6cf71eaba6f0199b8ef6e8a240a188b2eaf7`（package-selector 去重键回归）。
 - 本轮 GKD Actions run `41984962613` 正在运行（触发 head d91a6cf71eab）；截至本次状态更新，尚未取得最新 Android App compile 和 FX GKD unit test 的最终结果。旧 run 曾因后续 push 被 concurrency 取消；不能据此宣称构建失败或通过。
 - 尚未完成：上游订阅管理、规则组/分类/排除项、规则刷新与版本、复杂动作、触发记录/日志、快照与 AI Provider、Room 数据迁移、Shizuku/AIDL、后台/开机/通知/Tile 生命周期。当前导入/导出仅是 FX 自有本地 JSON 格式，不兼容宣称为 GKD 原版备份文件。
