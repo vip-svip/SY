@@ -69,7 +69,7 @@ if "unbound-vpn-egress-ip" not in fn:
         }
         first=$1+0
         second=$2+0
-        # Match Root Proxy's unicast tunnel-source policy. Reject unspecified,
+        # Match the Root Proxy unicast tunnel-source policy. Reject unspecified,
         # loopback, link-local, multicast and reserved address space.
         if (first==0 || first==127 || first>=224 ||
             (first==169 && second==254)) ok=0
