@@ -169,7 +169,7 @@ fx_arb_slot_used() {
   # Full-line comments are not executable API usage and are ignored.
   _scan_count=0
   _find_failed=0
-  _scan_files=$(find "$_root" \\( -type f -o -type l \\) -name '*.sh' -print 2>/dev/null) || _find_failed=1
+  _scan_files=$(find "$_root" \( -type f -o -type l \) -name '*.sh' -print 2>/dev/null) || _find_failed=1
   for _f in $_scan_files; do
     [ "$_f" = "$_root/scripts/fx-vpn-coexistence-arbiter.sh" ] && continue
     # The arbiter contains the literal VpnService API signature in its own
