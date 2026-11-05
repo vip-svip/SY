@@ -112,6 +112,55 @@ assert "candidates.size() >= 500" in activity
 assert "规则状态保存失败，已恢复原状态。" in activity
 assert "规则删除失败，原数据保持不变。" in activity
 
+# Versioned local JSON transfer uses the Android document picker and bounded reads.
+for token in (
+    "REQUEST_IMPORT_GKD_RULES", "REQUEST_EXPORT_GKD_RULES",
+    "Intent.ACTION_OPEN_DOCUMENT", "Intent.ACTION_CREATE_DOCUMENT",
+    'picker.setType("application/json")',
+    "MAX_GKD_IMPORT_BYTES", "if (total > MAX_GKD_IMPORT_BYTES)",
+    "FxGkdRuleStore.exportJson(this)",
+    "FxGkdRuleStore.importJson(this, json)",
+    "FxGkdAutomationRuntime.invalidateRules()",
+    "FxAccessibilityService.requestReconfigure(this)",
+):
+    assert token in activity, f"GKD local JSON transfer UI contract missing: {token}"
+assert 'action("导入本地规则", this::openImportRulesPicker)' in activity
+assert 'action("导出本地规则", this::openExportRulesPicker)' in activity
+assert "所有新导入规则均已关闭" in activity
+
+# Portable rule documents are versioned, bounded and merged fail-closed.
+for token in (
+    'private const val EXPORT_FORMAT = "FX-GKD-LOCAL-RULES"',
+    "private const val EXPORT_SCHEMA_VERSION = 1",
+    "const val MAX_IMPORT_BYTES = 256 * 1024",
+    '.put("format", EXPORT_FORMAT)',
+    '.put("schema_version", EXPORT_SCHEMA_VERSION)',
+    '.put("rules", exportedRules)',
+    '.put("id", rule.id)',
+    '.put("package", rule.packageName)',
+    '.put("selector", rule.selector)',
+    '.put("cooldown_ms", rule.cooldownMillis)',
+    '.put("enabled", rule.enabled)',
+    'document.optString("format") != EXPORT_FORMAT',
+    'document.optInt("schema_version", -1) != EXPORT_SCHEMA_VERSION',
+    "sourceRules.length() > MAX_RULES",
+    "isInstalledUserApplication(context, packageName)",
+    "FxGkdSelectorEngine.compile(selector).isValid",
+    'known.add(packageName + "\\u0000" + selector)',
+    "enabled = false",
+    "writeRules(context, merged)",
+    "规则写入失败，原有规则保持不变。",
+):
+    assert token in store, f"safe GKD JSON transfer contract missing: {token}"
+import_start = store.index("fun importJson(context: Context, raw: String)")
+import_end = store.index("private fun isInstalledUserApplication", import_start)
+import_body = store[import_start:import_end]
+assert import_body.index("MAX_IMPORT_BYTES") < import_body.index("JSONObject(raw)")
+assert import_body.index("schema_version") < import_body.index("getRules(context)")
+assert import_body.index("enabled = false") < import_body.index("writeRules(context, merged)")
+assert "setEnabled(context, true)" not in import_body, "importing a document must never enable the GKD master switch"
+assert "putBoolean(KEY_MASTER_ENABLED, true)" not in import_body, "import must not activate local automation"
+
 # Capability declaration is transparent and gesture dispatch stays disabled.
 assert 'android:canRetrieveWindowContent="true"' in service_xml
 assert 'android:canPerformGestures="false"' in service_xml
