@@ -15,6 +15,11 @@ cat > "$MOD/scripts/yulong-root-proxy.sh" <<'PROXY'
 printf 'root-proxy:%s\n' "$*" >> "$ORDER_LOG"
 [ "${MOCK_PROXY_FAIL:-0}" = 0 ]
 PROXY
+cat > "$MOD/scripts/vpn-external-watchdog.sh" <<'WATCHDOG'
+#!/bin/sh
+printf 'vpn-watchdog:%s\\n' "$*" >> "$ORDER_LOG"
+[ "${MOCK_WATCHDOG_FAIL:-0}" = 0 ]
+WATCHDOG
 mkdir -p "$MOD/scripts/jsruntime"
 cat > "$MOD/scripts/jsruntime/scheduler.sh" <<'SCHEDULER'
 #!/bin/sh
@@ -38,9 +43,10 @@ printf '%s\n' retry > "$PG/system-app-retry"
 printf '%s\n' unrelated > "$PG/unrelated-state"
 ORDER_LOG="$LOG" PG="$PG" MODDIR="$MOD" sh "$MOD/uninstall.sh" > "$T/success.out" 2>&1 || fail "successful Root Proxy shutdown blocked uninstall"
 [ "$(sed -n '1p' "$LOG")" = 'scheduler:uninstall' ] || fail "QuickJS scheduler was not stopped when its state/log directory was absent"
-[ "$(sed -n '2p' "$LOG")" = 'root-proxy:uninstall' ] || fail "Root Proxy was not stopped after the scheduler"
-[ "$(sed -n '3p' "$LOG")" = 'firewall:uninstall' ] || fail "firewall teardown did not follow Root Proxy shutdown"
-[ "$(sed -n '4p' "$LOG")" = "hook-remover:$MOD $PG" ] || fail "ownership-safe Hook remover did not run after network teardown"
+[ "$(sed -n '2p' "$LOG")" = "vpn-watchdog:stop $MOD $PG" ] || fail "external VPN watcher was not stopped after the scheduler"
+[ "$(sed -n '3p' "$LOG")" = 'root-proxy:uninstall' ] || fail "Root Proxy was not stopped after the external VPN watcher"
+[ "$(sed -n '4p' "$LOG")" = 'firewall:uninstall' ] || fail "firewall teardown did not follow Root Proxy shutdown"
+[ "$(sed -n '5p' "$LOG")" = "hook-remover:$MOD $PG" ] || fail "ownership-safe Hook remover did not run after network teardown"
 [ ! -e "$PG/system-app-apk.sha256" ] || fail "stale system-app deployment digest survived successful uninstall"
 [ ! -e "$PG/system-app-retry" ] || fail "stale system-app retry marker survived successful uninstall"
 [ "$(cat "$PG/unrelated-state")" = unrelated ] || fail "uninstall removed unrelated PrivacyGuard state"
@@ -60,6 +66,17 @@ grep -Fq 'preserving state and aborting uninstall' "$T/failure.out" || fail "cle
 [ -f "$PG/yulong-root-proxy-active" ] || fail "Root Proxy state marker was removed after failed cleanup"
 [ -f "$PG/system-app-apk.sha256" ] || fail "deployment digest was removed after failed Root Proxy teardown"
 [ -f "$PG/system-app-retry" ] || fail "deployment retry state was removed after failed Root Proxy teardown"
+
+# An unconfirmed external VPN watcher shutdown must abort before Root Proxy
+# and firewall teardown, preserving state for a later retry.
+: > "$LOG"
+if ORDER_LOG="$LOG" MOCK_WATCHDOG_FAIL=1 PG="$PG" MODDIR="$MOD" sh "$MOD/uninstall.sh" > "$T/watchdog-failure.out" 2>&1; then
+  fail "uninstall continued after external VPN watcher shutdown failure"
+fi
+[ "$(sed -n '1p' "$LOG")" = 'scheduler:uninstall' ] || fail "scheduler shutdown was skipped before external VPN watcher failure"
+[ "$(sed -n '2p' "$LOG")" = "vpn-watchdog:stop $MOD $PG" ] || fail "external VPN watcher shutdown was not attempted"
+[ "$(wc -l < "$LOG" | tr -d ' ')" = 2 ] || fail "Root Proxy or firewall teardown ran after external VPN watcher failure"
+grep -Fq 'external VPN watcher shutdown was not confirmed' "$T/watchdog-failure.out" || fail "watcher shutdown failure was not reported"
 
 # Missing helper plus residual FX-owned state must also fail closed.
 rm -f "$MOD/scripts/yulong-root-proxy.sh"
