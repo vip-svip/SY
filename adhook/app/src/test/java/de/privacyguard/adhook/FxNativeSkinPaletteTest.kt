@@ -6,6 +6,25 @@ import org.junit.Test
 
 class FxNativeSkinPaletteTest {
     @Test
+    fun independentDefaultNativePaletteIsNotTheClassicWebPalette() {
+        val paletteMethod = FxNativeSkin::class.java.getDeclaredMethod(
+            "palette",
+            FxUiMode::class.java
+        ).apply { isAccessible = true }
+        val defaultPalette = paletteMethod.invoke(null, FxUiMode.DEFAULT_STANDARD) as FxNativeSkin.Palette
+        val classicPalette = paletteMethod.invoke(null, FxUiMode.CLASSIC_WEB_COMPAT) as FxNativeSkin.Palette
+
+        assertEquals(0xfff7f8fc.toInt(), defaultPalette.background)
+        assertEquals(0xff315b9a.toInt(), defaultPalette.accent)
+        assertEquals(18, defaultPalette.cornerRadiusDp)
+        assertEquals(0xfff4f6f8.toInt(), classicPalette.background)
+        assertEquals(0xff1769aa.toInt(), classicPalette.accent)
+        assertEquals(8, classicPalette.cornerRadiusDp)
+        assertNotEquals(defaultPalette.background, classicPalette.background)
+        assertNotEquals(defaultPalette.accent, classicPalette.accent)
+    }
+
+    @Test
     fun harmonyRendererUsesItsOwnCardActionAndFormTokens() {
         val palette = HarmonySkinRenderer.palette()
 
