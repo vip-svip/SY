@@ -88,6 +88,12 @@ jobs:
           done <<<"$changed"
 
           ran=0
+          # Android app JUnit sources are executed by build-fx-adhook.yml via
+          # :app:testDebugUnitTest; count that dedicated workflow as coverage.
+          if grep -Eq '^adhook/app/src/test/' <<<"$changed"; then
+            echo "Android unit-test sources are covered by build-fx-adhook.yml."
+            ran=1
+          fi
           declare -A done_tests=()
           run_sh() {
             local file="$1"
