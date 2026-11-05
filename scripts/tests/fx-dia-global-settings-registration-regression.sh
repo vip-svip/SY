@@ -68,7 +68,7 @@ resume_start = main.index("@Override protected void onResume()")
 resume_end = main.index("@Override protected void onPause()", resume_start)
 resume_body = main[resume_start:resume_end]
 assert "if (hookHubVisible)" in resume_body and "refreshHookHubAuthorizationStates();" in resume_body, "returning from Dia settings must refresh the existing activation banner through the shared authorization refresh"
-assert main.count("refreshHookHubLsposedStatus(hookHubLsposedState)") >= 2, "active_tip changes and initial Hook hub render must update the existing banner without creating a duplicate"
+assert "refreshHookHubLsposedStatus(ls)" in main and "refreshHookHubLsposedStatus(hookHubLsposedState)" in main, "initial Hook hub render and subsequent authorization refresh must update the existing banner without creating a duplicate"
 assert "不代表 FX Hook 已注入" in main and "服务连接状态不等同于目标进程注入状态" in main, "banner must not confuse service connectivity with verified target process injection"
 assert "addUnavailableAction(\"设置语言\"" in global_page, "language must stay unavailable until unified locale resources/lifecycle are migrated"
 assert "showLanguagePicker" not in global_page and "addStoredSwitch(\"显示 LSPosed 激活状态提示\"" in global_page, "only a preference with a real native consumer may be enabled"
