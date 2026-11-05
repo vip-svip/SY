@@ -47,7 +47,10 @@ cleanup() {
     if mv "$LOCK" "$released" 2>/dev/null; then rm -rf "$released"; fi
   fi
 }
-trap cleanup EXIT HUP INT TERM
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 if ! sh "$STORE" list > "$LIST"; then echo '{"ok":false,"error":"unable to read script list"}'; exit 1; fi
 row=$(sed -n "$((index+1))p" "$LIST")
 [ -n "$row" ] || { echo '{"ok":false,"error":"script index not found"}'; exit 66; }
@@ -72,7 +75,10 @@ actual_sha=$(sha256sum "$TMP" 2>/dev/null | awk '{print $1}')
 # Release the list lock before execution; the script file is now an immutable snapshot.
 released="$LOCK.release.$$"
 if mv "$LOCK" "$released" 2>/dev/null; then rm -rf "$released"; fi
-trap 'rm -f "$TMP" "$LIST" "$OUT" "$ERR"' EXIT HUP INT TERM
+trap 'rm -f "$TMP" "$LIST" "$OUT" "$ERR"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 if command -v timeout >/dev/null 2>&1; then
   timeout -k 2 25 "$RUNNER" "$TMP" > "$OUT" 2> "$ERR"
   rc=$?
