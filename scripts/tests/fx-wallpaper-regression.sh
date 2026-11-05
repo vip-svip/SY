@@ -46,6 +46,10 @@ assert "addOnGlobalLayoutListener" in skin
 assert "addOnAttachStateChangeListener" in skin
 assert "removeOnGlobalLayoutListener(layoutListener)" in skin
 assert "activity.isDestroyed()" in skin
+assert "REAPPLY_DEBOUNCE_MS = 80L" in skin
+assert "mainHandler.postDelayed(reapplyAfterLayout, REAPPLY_DEBOUNCE_MS)" in skin
+assert "mainHandler.removeCallbacks(reapplyAfterLayout)" in skin
+assert "apply(activity, pageContent, mode, wallpaperActive)" in skin
 assert "pageContent.post(() -> {" in activity[mount_start:mount_end]
 assert "pageContent.getParent() != null" in activity[mount_start:mount_end]
 assert 'wallpaperActive ? 0x00000000 : palette.background' in skin
