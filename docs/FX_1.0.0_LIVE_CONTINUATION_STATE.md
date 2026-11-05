@@ -5971,3 +5971,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 - `14231dd4` 的 Host Regression 在 `fx-dia-monitor-event-view-regression.sh` 失败于 `/data/adb` 父目录断言：测试错误要求该条件以 `if` 开始，但实际 guard 先检查 `/data`，再以 `|| [ -L '/data/adb' ]` 追加下层检查。
 - 将断言改为匹配实际的 `||` 子句；生产 guard 保持原样。该 Host 失败属于测试匹配错误，不是目录防护逻辑失败。
+
+
+### Dia Session Log /data/adb 路径断言修正（2026-11-06）
+
+- Targeted Host Regression 在 `fx-dia-monitor-event-view-regression.sh` 失败：`FxDiaSessionLogActivity.checkedDirectoryPrefix()` 已按 `/data`、`/data/adb`、FX/Dia/logs 目录逐级拒绝符号链接，但测试把 `/data/adb` 断言错误写成独立条件开头。
+- 将断言匹配改为同一 `if` 链中的 `|| [ -L '/data/adb' ] || [ ! -d '/data/adb' ]`；同时保留 `/data` 根检查、明确失败 marker、统一 read/clear guard 和最终日志文件 symlink 检查。
+- 本批只修正静态 regression 文本，不修改 Session Log/Frida 运行逻辑；等待新 Host run 验证。
