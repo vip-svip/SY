@@ -85,7 +85,7 @@ final class FxNativeSkin {
         });
     }
 
-    private static final class Palette {
+    static final class Palette {
         final int background;
         final int surface;
         final int surfaceVariant;
@@ -147,13 +147,9 @@ final class FxNativeSkin {
                         0xffd8e1ef, 0xff202b3c, 0xff718091,
                         0xffe5ecf8, 0xffd8e1ef, 0xff3478f6, 0xffc3ccda, 20);
             case HUAWEI_HARMONY_STYLE:
-                return new Palette(0xfff1f5fa, 0xfff8fbff, 0xffeaf2fc,
-                        0x332878d0, 0xff1d2f43, 0xff64788f,
-                        0xffe8f1fc, 0xffc9dcf5, 0xff2878d0, 0xffc2ccd8, 16);
+                return HarmonySkinRenderer.palette();
             case IOS_CUPERTINO_STYLE:
-                return new Palette(0xfff2f2f7, 0xeaffffff, 0xffe5e5ea,
-                        0x1f8e8e93, 0xff1c1c1e, 0xff6c6c70,
-                        0xffe5e5ea, 0x1f8e8e93, 0xff007aff, 0xffd1d1d6, 18);
+                return CupertinoSkinRenderer.palette();
             case CLASSIC_WEB_COMPAT:
             default:
                 return new Palette(0xfff4f6f8, 0xffffffff, 0xffe9eef3,
