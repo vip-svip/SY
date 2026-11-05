@@ -4890,3 +4890,21 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 回读当前分支确认 scripts/install_adhook_app.sh 与 fx-module/scripts/install_adhook_app.sh 当前 blob SHA 相同（3c4af6e698ab6dfcb9c1eebbc61b12c0b41573ba），打包副本同步已在当前分支状态中成立。
 - 新发现、尚未修改的 Root Proxy 风险：_status_locked() 在外层 VPN 路由失效、egress 改变、IPv4/IPv6 redirect 缺失或本地 DNS probe 失败时会报告 active=0，但这些分支本身没有调用 _stop_locked() 清理残留 FXYRP 规则。需要补上锁内 fail-open 清理，并增加状态核验后的规则/marker 清理测试；目前不将其记为已修复。
 - 本轮 Host CI 不代表 Android APK 构建、KernelSU/Magisk 挂载、SELinux 真机验证或 Android 外层 VPN 与 FX TUN/REDIRECT 的设备级共存验证。
+
+
+## 2026-11-05 — FX Hook 系统应用部署 fail-closed 修复
+
+- 发现并修复的新模块降级风险：构建流水线已经把同一签名 APK 放入 `system/app/FX/FX.apk` systemless overlay，但旧安装脚本在 PackageManager 尚未识别该 overlay 时，会继续把 APK 复制到 `/data/local/tmp` 并通过 `pm install -r` 装成普通应用。这会掩盖 KernelSU overlay 挂载、PackageManager 扫描或 SELinux 标签失败，与新版本“自动作为系统应用部署”的要求不符。
+- 更新 `scripts/install_adhook_app.sh`，并同步至 `fx-module/scripts/install_adhook_app.sh`：当新模块携带 system-app overlay 时，必须先由 `pm path` / `pm list packages -s` 证明包已被识别为系统应用；若 APK 尚未被识别、overlay 未挂载或 ROM 未扫描，立即 fail closed，记录检查 overlay mount、`post-fs-data.sh` SELinux labeling 和 reboot 的诊断信息，不执行普通应用降级安装，也不写入 FX ownership marker。已识别为 system app 且更新位于 `/data/app` 的系统更新包仍可按原逻辑安全更新；签名不匹配仍拒绝对系统包执行破坏性卸载。
+- 保留兼容边界：只有旧模块 ZIP 根本不含 `system/app/FX/FX.apk` 时，才继续允许历史 `optional/FXUnifiedHook.apk` 普通应用安装路径。新构建的 overlay 存在时绝不走该路径。
+- 扩展 `scripts/tests/adhook-app-installer-regression.sh`：新增 overlay 存在但 PackageManager 未识别时不得调用 `pm install`、不得创建 digest/ownership marker；同时验证已有普通应用在这种失败场景下不会被覆盖；旧 ZIP 缺少 overlay 时仍保留兼容安装路径。保留系统应用识别、系统签名变更拒绝、旧独立 Hook 迁移、ownership-safe uninstall 和 stale marker 用例；新增静态断言锁定 fail-closed 条件。
+- 更新 `adhook/README.md`，明确系统应用 overlay 不可见时的 fail-closed 行为、旧模块兼容路径及 Android/KernelSU/ROM 的设备限制。
+- GitHub commits：
+  - `c2e8b518d783161df7600c1f0b007a310f60c93a` — installer fail-closed fix。
+  - `df0700f8b4a275450ece0cbea2d285420541c44d` — installer regression for overlay downgrade prevention。
+  - `368c7665b8ad93fa0cb2a2d858ef56dd5197a63a` — synchronize packaged module installer.
+  - `0b64bf521d65887318d0c2d8bcba57e433a829b6` — update installer architecture documentation.
+  - `ffed6919c953f0eb1b604933cfe019002016dc7e` — static regression assertions for fail-closed policy.
+- 已回读验证 root installer 与 packaged installer 完全一致，blob SHA 均为 `3c4af6e698ab6dfcb9c1eebbc61b12c0b41573ba`；测试文件 blob SHA 为 `3da57d1247031b6905577e35b4a81906730f4f23`。这属于 GitHub 源码回读，不代表 Shell regression 已执行。
+- `fx-targeted-regression.yml` 的 push path filter 包含 `scripts/tests/**`，本批测试提交应触发 Host regression；当前可用 GitHub 状态接口未返回该提交的 check status（空 statuses），因此尚不能报告 CI PASS。Android Gradle 构建、KernelSU ZIP 安装、PackageManager 系统应用识别、SELinux 与卸载行为仍需真机/ROM 验证。
+- 当前 CI APK 使用 debug signing identity，不能作为已验证的生产升级签名。发布前必须配置稳定 FX release keystore，并验证旧版/新 APK signing certificate 一致；不能通过自动卸载系统包来规避签名不匹配。
