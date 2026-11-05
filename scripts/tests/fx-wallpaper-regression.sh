@@ -37,11 +37,12 @@ assert shell.index('wallpaperImage?.let') < shell.index('AndroidView(')
 # Both old WebUI and migrated native Activities must expose the same wallpaper.
 assert 'webView.setBackgroundColor(wallpaperActive' in activity
 assert 'html,body{background:transparent!important;background-color:transparent!important}' in activity
-assert 'FxNativeSkin.apply(this, pageContent);' in host
+assert 'FxNativeSkin.watch(this, pageContent);' in host
 # MainActivity also builds native pages dynamically after base() and must apply the same palette.
 mount_start = activity.index("private void mountNativeShell(View pageContent)")
 mount_end = activity.index("private void handleNativeTabSelection(", mount_start)
-assert "FxNativeSkin.apply(this, pageContent);" in activity[mount_start:mount_end]
+assert "FxNativeSkin.watch(this, pageContent);" in activity[mount_start:mount_end]
+assert "addOnGlobalLayoutListener" in skin
 assert "pageContent.post(() -> {" in activity[mount_start:mount_end]
 assert "pageContent.getParent() != null" in activity[mount_start:mount_end]
 assert 'wallpaperActive ? 0x00000000 : palette.background' in skin

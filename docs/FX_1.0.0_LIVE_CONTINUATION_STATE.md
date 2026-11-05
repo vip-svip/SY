@@ -3722,3 +3722,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - 五模式回归：`40f950b58af77628892221ae4caa66e2d06cbf33`
   - 壁纸回归：`9a7cb4e3550f1a880148f1aab3df68509909a600`
 - 验证限制：已完成 GitHub 源码回读和回归脚本/CI 接线核对；未在本执行环境运行 Android Gradle 编译或真机截图测试，不能标记五套 Skin 逐页视觉验收完成。
+
+
+## 2026-11-05 — 原生页面动态控件的 Skin 实时补齐
+
+- 复核 MainActivity.base() 发现页面壳先被挂载，标题/卡片/列表随后才逐步添加；单次 FxNativeSkin.apply() 会漏掉后创建的 UI 控件。因此将单次应用改为持续观察页面布局。
+- FxNativeSkin.watch(Activity, View) 先立即转换现有视图，再为页面根 View 注册唯一的 ViewTreeObserver.OnGlobalLayoutListener。布局变化、异步列表加载和后续控件插入时重新应用已知旧色值到当前 Skin palette；替换只针对明确的旧背景/文字颜色，未知用户内容及警告颜色保持原样。
+- MainActivity.mountNativeShell() 与 FxNativeTabActivity.setContentViewWithNativeTabs() 都使用 watch，覆盖 FX 主页面及迁入来源 Activity 的动态页面。
+- 回归更新：fx-global-ui-modes-regression.sh 断言两个宿主都启用 watch，且 Skin adapter 使用全局布局观察器；fx-wallpaper-regression.sh 断言主页面/迁入页都使用同一实时 Skin 适配器。
+- 本次实现仍属于 Android View 旧色值适配层；Harmony/iOS 的每个页面专属交互布局、复杂表格/图表/编辑器视觉尚需逐页设计与验收。此回归不能替代 Gradle 构建和真机截图。

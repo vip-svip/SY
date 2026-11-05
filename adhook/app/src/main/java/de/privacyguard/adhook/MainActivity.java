@@ -2938,7 +2938,7 @@ public final class MainActivity extends ComponentActivity {
         // Apply the same selected Skin to dynamically-built MainActivity pages,
         // not only imported Activities. This runs after each page has been built,
         // so its existing legacy card/background/text tokens are translated too.
-        FxNativeSkin.apply(this, pageContent);
+        FxNativeSkin.watch(this, pageContent);
         // base() creates the shell before its callers append their page controls.
         // Re-apply once the current UI transaction has completed so cards and
         // labels added immediately after base() also receive the selected palette.

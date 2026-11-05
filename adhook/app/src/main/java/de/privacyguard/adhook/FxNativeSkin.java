@@ -5,7 +5,9 @@ import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.widget.TextView;
+import java.util.WeakHashMap;
 
 /**
  * Shared skin-token adapter for migrated native Activities.
@@ -16,6 +18,27 @@ import android.widget.TextView;
  */
 final class FxNativeSkin {
     private FxNativeSkin() { }
+
+    // A weak registry prevents duplicate listeners if a page is re-mounted.
+    private static final WeakHashMap<View, Boolean> WATCHED = new WeakHashMap<>();
+
+    static void watch(Activity activity, View pageContent) {
+        if (activity == null || pageContent == null) return;
+        apply(activity, pageContent);
+        synchronized (WATCHED) {
+            if (WATCHED.containsKey(pageContent)) return;
+            WATCHED.put(pageContent, Boolean.TRUE);
+        }
+        ViewTreeObserver observer = pageContent.getViewTreeObserver();
+        observer.addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
+            @Override public void onGlobalLayout() {
+                if (activity.isFinishing() || activity.isDestroyed()) return;
+                // View additions, async list population and size changes all
+                // converge here; replacing only known legacy colors is idempotent.
+                apply(activity, pageContent);
+            }
+        });
+    }
 
     private static final class Palette {
         final int background;

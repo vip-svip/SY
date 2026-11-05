@@ -24,7 +24,7 @@ public abstract class FxNativeTabActivity extends ComponentActivity {
         String mode = FxUiMode.read(this).getStorageId();
         // Translate known legacy page/card/text colors into the selected
         // global Skin. Unknown custom and warning colors remain unchanged.
-        FxNativeSkin.apply(this, pageContent);
+        FxNativeSkin.watch(this, pageContent);
 
         ComposeView shell = new ComposeView(this);
         androidx.lifecycle.ViewTreeLifecycleOwner.set(shell, this);
