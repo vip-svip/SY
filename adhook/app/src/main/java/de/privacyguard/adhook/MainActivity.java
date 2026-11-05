@@ -345,22 +345,22 @@ public final class MainActivity extends ComponentActivity {
         } else if (restoreSettingsScreen) {
                 showSettings();
         } else if (restoreVpnAppManager) {
-            showImportedVpnAppManager();
+            showNativeVpnAppManager();
         } else {
             showDashboard();
         }
-        handleImportedNativeTabIntent(getIntent());
+        handleNativeTabIntent(getIntent());
         handleLegacyVpnShortcut(getIntent());
     }
 
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        handleImportedNativeTabIntent(intent);
+        handleNativeTabIntent(intent);
         handleLegacyVpnShortcut(intent);
     }
 
-    private void handleImportedNativeTabIntent(Intent intent) {
+    private void handleNativeTabIntent(Intent intent) {
         if (intent == null || !intent.hasExtra("fx_open_native_tab")) return;
         int tab = intent.getIntExtra("fx_open_native_tab", -1);
         intent.removeExtra("fx_open_native_tab");
@@ -2002,7 +2002,7 @@ public final class MainActivity extends ComponentActivity {
                 addNativeSettingsCategory("DNS、分流与连接策略", "vpnPanel");
                 buildNativeVpnSubscriptionPanel();
                 section("应用分流");
-                content.addView(nativeAction("管理分应用 VPN 路由", this::showImportedVpnAppManager));
+                content.addView(nativeAction("管理分应用 VPN 路由", this::showNativeVpnAppManager));
                 section("系统代理与网络辅助");
                 content.addView(nativeAction("系统 HTTP 代理配置", () ->
                         startActivity(new Intent(this,
@@ -2950,8 +2950,8 @@ public final class MainActivity extends ComponentActivity {
             selectedBottomTab = 5;
             showSettings();
         } else if (index == 4) {
-            // Selecting the top-level Hook tab leaves the migration sub-flow.
-            // Imported Dia routes call showAppList() directly and keep their return context.
+            // Selecting the top-level Hook tab leaves the the nested Hook navigation stack.
+            // Hook target routes remain inside the Hook destination.
                 selectedBottomTab = 4;
             showAppList();
         } else if (index >= 0 && index <= 3) {
@@ -3021,7 +3021,7 @@ public final class MainActivity extends ComponentActivity {
                 + "window.currentTab=navTab;"
                 + "var title=document.getElementById('pageTitle');"
                 + "var lang=window.lang==='en'?'en':'zh';"
-                + "var labels={zh:{vpn:'VPN',ad:'广告',privacy:'隐私',script:'脚本'},en:{vpn:'VPN',ad:'Ad',privacy:'Privacy',script:'Scripts'}};"
+                + "var labels={zh:{vpn:'VPN',ad:'Ad',privacy:'隐私',script:'脚本'},en:{vpn:'VPN',ad:'Ad',privacy:'Privacy',script:'Scripts'}};"
                 + "if(title)title.textContent=labels[lang][navTab]||navTab;"
                 + "window.dispatchEvent(new Event('resize'));"
                 + "return page.classList.contains('on')&&getComputedStyle(page).display!=='none';"
@@ -3474,10 +3474,10 @@ public final class MainActivity extends ComponentActivity {
     }
 
     /**
-     * Yulong 7.0.1 application-management screen, backed by FX's single VPN route.
-     * The [list:vpn_app] package list is independent of Hook target scope.
+     * Native per-app VPN routing screen, backed by FX's single routing configuration.
+     * Its package list is independent of the Hook target scope.
      */
-    private void showImportedVpnAppManager() {
+    private void showNativeVpnAppManager() {
         cancelHookStatusRefresh();
         cancelAppIconLoad();
         pauseAndDetachWebView();
@@ -3721,7 +3721,7 @@ public final class MainActivity extends ComponentActivity {
                         labels.putAll(names);
                         renderRows.run();
                     });
-                }, "FxYulongAppRoutes");
+                }, "FxPerAppVpnRoutes");
                 loader.setDaemon(true);
                 loader.start();
             } catch (Exception error) {
@@ -3733,7 +3733,7 @@ public final class MainActivity extends ComponentActivity {
             }
         });
 
-        content.addView(nativeAction("重新读取应用路由状态", this::showImportedVpnAppManager));
+        content.addView(nativeAction("重新读取应用路由状态", this::showNativeVpnAppManager));
         content.addView(nativeAction("返回 VPN 控制中心", this::showDashboard));
     }
 
