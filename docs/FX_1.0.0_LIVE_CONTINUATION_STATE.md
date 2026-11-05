@@ -6659,3 +6659,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 提交：实现 `d02443ff952a662712302fd64e5913d730e4ab28`；测试 `2b0c3abee2a058b7a11dca9ced66eea8f7ed955f`。
 - GitHub 回读：实现包含 `catch (overflow: StackOverflowError)`；单元测试包含 `rejectsDeeplyNestedMalformedSelectorWithoutCrashing`。GKD Selector workflow 已配置监听这两个文件。
 - 验证边界：本批完成 GitHub 写入与回读；尚未获得本次提交对应的 Gradle/JVM 测试或 CI 结果。没有进行 Android 真机测试。
+
+
+## 2026-11-06 — Subscription cache legacy unlock PID ownership guard
+
+- Randomly selected a low-conflict cache-lock hardening task; no VPN, Hosts UI, Manifest, or shared navigation files were modified.
+- Fixed `fx-patches/patch_atomic_cache_lock_release.py`: the legacy subscription unlock template now compares the complete shell PID token (`$$`) before deleting the renamed lock directory. The previous truncated/malformed comparison could fail the owner check and leave stale release directories.
+- Source fix commit: `96f833b4d8363ed69971450a3782480a7c0fd351`; regression guard commit: `c201111af31d543df1e9718247ec09bdeb0c4b75`.
+- Regression `scripts/tests/fx-atomic-cache-lock-release-regression.sh` now checks both the exact PID token and absence of the truncated single-`$` form. Latest-branch GitHub readback confirmed both production and test anchors remain present.
+- Verification level: GitHub source readback/static token assertions passed. The push-triggered migration/runtime workflows include this regression, but no confirmed Actions result is available yet; local Host execution, Gradle/APK build, install, and device validation are not claimed.
+- Branch HEAD observed before this state update: `976cc1223eff14d22121a93490591249914efe84` (parallel collaborators may advance it independently).
