@@ -154,7 +154,9 @@ grep -Fq '签名有效 · JVM：' "$HOOK_ACTIVITY" || fail "custom Hook editor d
 grep -Fq '签名尚未通过校验' "$HOOK_ACTIVITY" || fail "custom Hook editor does not explain invalid signatures"
 grep -Fq 'createSkinAwareSpinnerAdapter' "$HOOK_ACTIVITY" || fail "Hook and Dialog Spinner controls must use the shared Skin-aware adapter"
 grep -Fq 'getDropDownView(int position' "$HOOK_ACTIVITY" || fail "Spinner dropdown rows are not Skin-aware"
-grep -Fq 'Typeface.create("sans-serif-medium", Typeface.NORMAL)' "$HOOK_ACTIVITY" || fail "Spinner uses a non-public or unavailable medium typeface constant"
+grep -Fq 'String fontFamily = "sans-serif-medium";' "$HOOK_ACTIVITY" || fail "Spinner does not select a public medium font family"
+grep -Fq 'fontFamily = "sans-serif";' "$HOOK_ACTIVITY" || fail "Cupertino Spinner does not select its public regular font family"
+grep -Fq 'Typeface.create(fontFamily, Typeface.NORMAL)' "$HOOK_ACTIVITY" || fail "Spinner does not apply its selected public font family"
 ! grep -Fq 'Typeface.MEDIUM' "$HOOK_ACTIVITY" || fail "Android Typeface.MEDIUM does not exist; use public font-family API"
 python3 - "$HOOK_ACTIVITY" <<'PY'
 from pathlib import Path
