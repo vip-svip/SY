@@ -5302,3 +5302,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Cleaned the Hook tab branch in `handleNativeTabSelection(4)`: removed duplicated wording and aligned the selected-tab assignment with the branch scope.
 - Added a source-contract regression ensuring the top-level Hook tab sets index 4 and returns to the app list, rather than retaining a nested Hook route.
 - This is static source regression coverage; Android navigation behavior still requires Gradle/UI/device validation.
+
+
+## 2026-11-06 — Refresh all Hook authorization states on foreground return
+
+- Baseline HEAD: `f6b31b3985a082cb6f3ab1ef7985e3d1101ec09b`.
+- Fixed a stale-state gap in `MainActivity.onResume()`: it previously refreshed LSPosed only on every foreground return, while Root, remote status and Accessibility depended on a pending `onPause` flag. The Hook hub now refreshes all authorization sources whenever it is foregrounded, regardless of whether that flag was set.
+- The pending refresh flag remains available for the per-target LSPosed scope route; duplicate Hook-hub refresh is avoided.
+- Added source-contract regression coverage for the lifecycle branch and all four refresh calls.
+- Static source validation only; Android lifecycle/UI and real permission transitions still require device testing.

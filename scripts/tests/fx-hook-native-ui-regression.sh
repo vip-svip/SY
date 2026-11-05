@@ -619,3 +619,23 @@ assert "leaves the the" not in hook
 assert "                selectedBottomTab = 4;" not in hook
 print("PASS: top-level Hook tab exits nested routes with consistent selected-tab state.")
 PY
+
+# Returning to the Hook hub refreshes all authorization sources, not only LSPosed.
+python3 - "$main_activity" <<'PY'
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+start = source.index("@Override protected void onResume()")
+end = source.index("@Override protected void onPause()", start)
+resume = source[start:end]
+assert "if (hookHubVisible) {" in resume
+assert "refreshHookHubAuthorizationStates();" in resume, "foreground return must refresh Root, LSPosed, Accessibility and remote status"
+assert "hookAuthorizationRefreshPending = false;" in resume
+assert "refreshHookHubLsposedStatus(hookHubLsposedState)" not in resume, "avoid refreshing only LSPosed while leaving Root/Accessibility stale"
+refresh_start = source.index("private void refreshHookHubAuthorizationStates()")
+refresh_end = source.index("private void refreshHookHubLsposedStatus", refresh_start)
+refresh = source[refresh_start:refresh_end]
+for call in ("refreshHookRemoteStatus(hookHubRemoteStatus)", "checkRoot(hookHubRootState, false)", "refreshHookHubLsposedStatus(hookHubLsposedState)", "refreshHookHubAccessibilityStatus(hookHubAccessibilityState)"):
+    assert call in refresh, f"authorization refresh missing {call}"
+print("PASS: Hook hub foreground return refreshes all authorization states.")
+PY

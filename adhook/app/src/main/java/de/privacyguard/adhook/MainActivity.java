@@ -446,8 +446,6 @@ public final class MainActivity extends ComponentActivity {
 
     @Override protected void onResume() {
         super.onResume();
-        if (hookHubVisible && hookHubLsposedState != null)
-            refreshHookHubLsposedStatus(hookHubLsposedState);
         registerPackageChangeReceiver();
         if (webView != null && !hookUiVisible && !settingsUiVisible) {
             webView.onResume();
@@ -471,11 +469,15 @@ public final class MainActivity extends ComponentActivity {
             refreshHookAppList();
         }
 
-        if (hookAuthorizationRefreshPending) {
+        // Re-read every authorization source whenever the Hook hub becomes
+        // foreground again, even if no onPause callback set the pending flag.
+        // Returning from Settings can change Root, LSPosed and Accessibility independently.
+        if (hookHubVisible) {
             hookAuthorizationRefreshPending = false;
-            if (hookHubVisible) {
-                refreshHookHubAuthorizationStates();
-            } else if (hookTargetVisible && selectedPackage != null
+            refreshHookHubAuthorizationStates();
+        } else if (hookAuthorizationRefreshPending) {
+            hookAuthorizationRefreshPending = false;
+            if (hookTargetVisible && selectedPackage != null
                     && hookTargetScopeState != null
                     && selectedPackage.equals(hookTargetScopePackage)) {
                 refreshLsposedScopeStatus(hookTargetScopeState, selectedPackage);
