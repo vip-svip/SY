@@ -109,7 +109,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         LinearLayout header = new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(10), dp(6), dp(10), dp(6));
         header.addView(button("‹ 返回", this::finish));
-        header.addView(text("游龙广告插件 · DNS 查询日志", 18, 0xff17212b, true),
+        header.addView(text("FX Ad · DNS 查询日志", 18, 0xff17212b, true),
                 new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
         scroll = new ScrollView(this); scroll.setFillViewport(true);
@@ -183,7 +183,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         int total = 0, blocked = 0, malformed = 0;
         String raw = output == null ? "" : output;
         if (raw.contains("FXDNSLOG_DISABLED")) {
-            status.setText("DNS 查询日志当前关闭。请返回游龙广告插件 → DNS 设置，手动开启本地日志。");
+            status.setText("DNS 查询日志当前关闭。请返回FX Ad → DNS 设置，手动开启本地日志。");
             render(); return;
         }
         if (raw.contains("FXDNSLOG_EMPTY")) {
