@@ -206,6 +206,18 @@ final class FxNativeSkin {
                 FxWallpaperStore.currentPath(activity) != null);
     }
 
+    /**
+     * Apply presentation tokens to a detached dialog/sheet subtree. Unlike
+     * apply(), this does not replace the dialog's root surface or attach a
+     * layout observer; it styles only the supplied controls and tagged rows.
+     */
+    static void applyComponents(Activity activity, View content) {
+        if (activity == null || content == null) return;
+        FxUiMode mode = FxUiMode.read(activity);
+        boolean wallpaperActive = FxWallpaperStore.currentPath(activity) != null;
+        transformKnownLegacyTokens(activity, content, mode, palette(mode), wallpaperActive);
+    }
+
     private static void apply(Activity activity, View pageContent,
                               FxUiMode mode, boolean wallpaperActive) {
         if (activity == null || pageContent == null) return;
