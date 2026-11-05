@@ -8,7 +8,7 @@ MAIN="$JAVA/MainActivity.java"
 MANIFEST="$APP/AndroidManifest.xml"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 [ -s "$ACTIVITY" ] && [ -s "$MAIN" ] && [ -s "$MANIFEST" ] || fail "open-source license page sources missing"
-for name in THIRD_PARTY_NOTICES.txt Capsule-LICENSE.txt Kyant-AndroidLiquidGlass-LICENSE.txt MaterialKolor-MIT-LICENSE.txt Miuix-LICENSE.txt; do
+for name in THIRD_PARTY_NOTICES.txt GKD-XA-GPL-3.0.txt Capsule-LICENSE.txt Kyant-AndroidLiquidGlass-LICENSE.txt MaterialKolor-MIT-LICENSE.txt Miuix-LICENSE.txt; do
   [ -s "$APP/assets/licenses/$name" ] || fail "bundled license asset missing: $name"
   grep -Fq "$name" "$ACTIVITY" || fail "license asset is not exposed by the native viewer: $name"
 done
@@ -25,6 +25,9 @@ assert activity is not None, "license viewer Activity not registered"
 assert activity.attrib.get(ns + "exported") == "false", "license viewer must not be exported"
 PY
 grep -Fq 'getAssets().open("licenses/" + file)' "$ACTIVITY" || fail "license viewer does not read APK-bundled text"
+grep -Fq 'GKD-XA v1.4.8 选择器 · GPL-3.0' "$ACTIVITY" || fail "GKD GPL license is not labeled in the Settings license viewer"
+grep -Fq 'GNU General Public License' "$APP/assets/licenses/GKD-XA-GPL-3.0.txt" || fail "full GKD GPL-3.0 text is missing"
+grep -Fq '8a6ce935da11671dac7e1a7595416ec99ee07436' "$APP/assets/licenses/THIRD_PARTY_NOTICES.txt" || fail "GKD selector source pin is missing from third-party notices"
 grep -Fq 'MAX_LICENSE_BYTES = 48 * 1024' "$ACTIVITY" || fail "license reader must retain a bounded input size"
 grep -Fq 'new ArrayBlockingQueue<>(2)' "$ACTIVITY" || fail "license reader must use a bounded background queue"
 grep -Fq 'worker.shutdownNow()' "$ACTIVITY" || fail "license reader worker must stop with Activity lifecycle"
