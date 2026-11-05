@@ -237,12 +237,12 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
             Toast.makeText(this, "没有找到可配置的普通用户应用。", Toast.LENGTH_LONG).show();
             return;
         }
-        candidates.sort((left, right) -> getApplicationLabel(left).toString()
-                .compareToIgnoreCase(getApplicationLabel(right).toString()));
+        candidates.sort((left, right) -> getPackageManager().getApplicationLabel(left).toString()
+                .compareToIgnoreCase(getPackageManager().getApplicationLabel(right).toString()));
         CharSequence[] labels = new CharSequence[candidates.size()];
         for (int index = 0; index < candidates.size(); index++) {
             ApplicationInfo info = candidates.get(index);
-            labels[index] = getApplicationLabel(info) + "\\n" + info.packageName;
+            labels[index] = getPackageManager().getApplicationLabel(info) + "\\n" + info.packageName;
         }
         new AlertDialog.Builder(this)
                 .setTitle("选择 GKD 规则目标应用")
