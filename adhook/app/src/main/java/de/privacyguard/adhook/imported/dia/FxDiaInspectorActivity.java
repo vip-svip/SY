@@ -68,8 +68,8 @@ public final class FxDiaInspectorActivity extends de.privacyguard.adhook.FxNativ
         super.onCreate(state);mode=getIntent().getStringExtra("dia_mode");if(!"memory".equals(mode))mode="database";
         LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setBackgroundColor(0xfff7f8fa);
         LinearLayout h=new LinearLayout(this);h.setGravity(Gravity.CENTER_VERTICAL);h.setPadding(dp(10),dp(6),dp(12),dp(6));
-        h.addView(button("‹ 返回",this::finish));
-        h.addView(text("memory".equals(mode)?"Dia 23.11 · 内存快照":"Dia 23.11 · 数据库监控",18,0xff17212b,true),new LinearLayout.LayoutParams(0,-2,1));
+        h.addView(button("‹ 返回 Hook",this::finish));
+        h.addView(text("memory".equals(mode)?"Hook · 内存快照":"Hook · 数据库监控",18,0xff17212b,true),new LinearLayout.LayoutParams(0,-2,1));
         root.addView(h);ScrollView sc=new ScrollView(this);sc.setFillViewport(true);
         LinearLayout body=new LinearLayout(this);body.setOrientation(1);body.setPadding(0,dp(4),0,dp(18));sc.addView(body);
         root.addView(sc,new LinearLayout.LayoutParams(-1,0,1));setContentViewWithNativeTabs(root, 4);
