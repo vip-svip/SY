@@ -25,7 +25,10 @@ APPLY
 fi
 chmod 0755 "$MOD/scripts/apply.sh"
 python3 "$PATCHER" "$MOD" >/dev/null || fail "Hosts cache patcher rejected its apply.sh anchors"
-python3 "$PATCHER" "$MOD" >/dev/null || fail "Hosts cache patcher is not idempotent"
+first_sha=$(sha256sum "$MOD/scripts/apply.sh" | awk '{print $1}')
+python3 "$PATCHER" "$MOD" >/dev/null || fail "Hosts cache patcher second pass failed"
+second_sha=$(sha256sum "$MOD/scripts/apply.sh" | awk '{print $1}')
+[ "$first_sha" = "$second_sha" ] || fail "Hosts cache patcher changed apply.sh on its second pass"
 sh -n "$MOD/scripts/apply.sh" || fail "patched apply.sh shell syntax invalid"
 grep -Fq '# FX_HOSTS_FILE_LOCK_V3' "$MOD/scripts/apply.sh" || fail "V3 lock marker missing"
 if grep -Fq 'rm -rf "$_hf_path"' "$MOD/scripts/apply.sh"; then

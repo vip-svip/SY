@@ -21,7 +21,7 @@ end = source.find(end_token, start + len(start_token)) if start >= 0 else -1
 if start < 0 or end < 0:
     raise SystemExit("Hosts cache lock block anchors missing; refusing a partial rewrite")
 
-new_block = r'''  # FX_HOSTS_FILE_LOCK_V2
+new_block = r'''  # FX_HOSTS_FILE_LOCK_V3
   # noclobber redirection provides portable exclusive file creation. The reader
   # also accepts legacy PID-bearing directories during module upgrades.
   _hf_lock="$PG/cache/rules/.lock.$_hf_key"
