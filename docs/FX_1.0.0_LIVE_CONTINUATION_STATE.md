@@ -3879,3 +3879,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 已将 source-lock regression 接入 targeted Host workflow。
 - 尚未看到本提交对应的最新 Actions 成功结果；尚未做 Gradle 兼容 spike、单 APK 构建、运行时移植、数据库迁移、无障碍合并或真机验证。
 - 下一批应执行 Gradle/Manifest compatibility spike，先确定 JDK/AGP/Kotlin 构建图，再开始迁入 selector/订阅模块。不能把 GKD-XA 的 APK release asset 放进 FX，不能开第二 launcher。
+
+## 2026-11-05 — 五 Skin 文字 token 映射扩展与语义颜色保护
+
+- `FxNativeSkin.replacementText()` 已将 MainActivity 高频旧色值分类映射到全局 palette：主文本、次级说明/元数据、蓝色链接/选中状态。
+- 对应主页面来源颜色包括 `0xff697681`、`0xff536170`、`0xff526170`、`0xff263443`、`0xff155a9c` 等。
+- 负面/警告/成功颜色（红色、橙色、绿色）保持语义色，不被改写为普通灰色或当前 Skin accent。
+- `fx-global-ui-modes-regression.sh` 覆盖颜色映射、语义色保护以及 Switch/CompoundButton dispatch 顺序，并会联动执行 Wallpaper 与相邻 VPN 静态检查。
+- 代码提交：`0b810c724653e169d6fe05976fa8a597ed28b528`；回归扩展：`c8a025068562c842a8c7d74a0e92435110a25ec1`、`2fdbb1ec252e17025d1b528574a7652111c17ad5`。
+- 这些是代码和 Host 静态检查，不代表 Gradle/设备真机通过。最新 Targeted Host run 需等当前脚本提交的 Actions 结果后再更新验证结论。
