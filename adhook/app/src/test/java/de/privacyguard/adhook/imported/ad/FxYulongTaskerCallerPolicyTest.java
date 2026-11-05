@@ -58,6 +58,18 @@ public final class FxYulongTaskerCallerPolicyTest {
                 34, AUTOMATION, 10234, AUTOMATION, null, SIGNER_A, SIGNER_A));
     }
 
+    @Test public void rejectsPackageNamesThatAndroidCannotInstall() {
+        assertFalse(FxYulongTaskerCallerPolicy.isValidPackageName("com.example.bad-name"));
+        assertFalse(FxYulongTaskerCallerPolicy.isValidPackageName("com.123automation"));
+        assertFalse(FxYulongTaskerCallerPolicy.isValidPackageName("123.example.automation"));
+        assertFalse(FxYulongTaskerCallerPolicy.isValidPackageName("com..automation"));
+        assertFalse(FxYulongTaskerCallerPolicy.isValidPackageName(".com.example"));
+        assertFalse(FxYulongTaskerCallerPolicy.isValidPackageName("com.example."));
+        assertFalse(FxYulongTaskerCallerPolicy.isValidPackageName("automation"));
+        assertTrue(FxYulongTaskerCallerPolicy.isValidPackageName("com.example_2.automation"));
+        assertTrue(FxYulongTaskerCallerPolicy.isValidPackageName("com._vendor.automation2"));
+    }
+
     @Test public void signerDigestIsStableAcrossSignerOrdering() {
         String first = FxYulongTaskerCallerPolicy.signerDigest(
                 new byte[][]{{1, 2, 3}, {4, 5, 6}});
