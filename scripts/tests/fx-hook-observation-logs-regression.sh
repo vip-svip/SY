@@ -39,7 +39,7 @@ python3 - "$ACTIVITY" <<'PY'
 from pathlib import Path
 import sys
 s = Path(sys.argv[1]).read_text(encoding="utf-8")
-required = ["private String shellQuote(String value)","value.replace(\"'\", \"'\\\\''\")","shellQuote(\"package=\" + targetPackage + \" executable=\")","grep -F 'FX Hook'","grep -E 'dev-observe|dia-dialog-match'","grep -F ' + filter","value.matches(\"[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+\")"]
+required = ["private String shellQuote(String value)","value.replace(\"'\", \"'\\\\''\")","shellQuote(\"package=\" + targetPackage + \" executable=\")","grep -F 'FX Hook'","grep -E 'dev-observe|dia-dialog-match'","| grep -F " + filter + " | tail -n 300","value.matches(\"[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+\")"]
 for token in required:
     assert token in s, "missing safe exact-target log query contract: " + token
 command = s[s.index("private String observationCommand()"):s.index("private void buildPage()")]
