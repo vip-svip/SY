@@ -26,7 +26,10 @@ permissions:
 
 concurrency:
   group: fx-vpn-coexistence-arbiter-${{ github.ref }}
-  cancel-in-progress: true
+  # Multiple contributors push to this branch concurrently. Do not cancel an
+  # active regression run on every push; let the current run finish and retain
+  # the newest pending run for the updated branch state.
+  cancel-in-progress: false
 
 jobs:
   arbiter:
