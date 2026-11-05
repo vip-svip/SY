@@ -492,8 +492,8 @@ if 'export MP="$MOD" PG="$PG" PATH="$BIN:$PATH"' not in root_proxy_test_source_t
 if 'TMP="$TMP"' not in root_proxy_test_source_text:
     replace_once(
         root_proxy_test,
-        'export MP="$MOD" PG="$PG" PATH="$BIN:$PATH"\\n',
-        'export MP="$MOD" PG="$PG" PATH="$BIN:$PATH" TMP="$TMP"\\n',
+        'export MP="$MOD" PG="$PG" PATH="$BIN:$PATH"' + chr(10),
+        'export MP="$MOD" PG="$PG" PATH="$BIN:$PATH" TMP="$TMP"' + chr(10),
         "Root Proxy test exports private temp path",
     )
 
@@ -504,7 +504,7 @@ if old_root_proxy_sleep_stub in root_proxy_test_source_text:
         new_root_proxy_sleep_stub,
         "Root Proxy waiter sleep must be bounded but observable",
     )
-elif 'case "$1" in\\n  1) /bin/sleep 0.01 ;;' not in root_proxy_test_source_text:
+elif 'sleep 0.01' not in root_proxy_test_source_text:
     raise SystemExit(f"{root_proxy_test}: unsupported Root Proxy sleep stub")
 
 root_proxy_test_done_marker = 'echo "PASS: Yulong Root Proxy lock recovers dead owners, preserves live owners and cleans up only after exit"\n'
