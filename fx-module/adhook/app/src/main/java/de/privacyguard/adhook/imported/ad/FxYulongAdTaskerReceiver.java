@@ -1,0 +1,239 @@
+package de.privacyguard.adhook.imported.ad;
+
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.Signature;
+import android.os.Build;
+
+import de.privacyguard.adhook.RootAccess;
+
+import java.util.concurrent.atomic.AtomicBoolean;
+
+/**
+ * Yulong 7.0.1 Tasker compatibility.
+ * Legacy TASKER_START/STOP control the FX unified VPN route; AD_FILTER actions
+ * independently control only the Yulong ad-filter master switch.
+ */
+public final class FxYulongAdTaskerReceiver extends BroadcastReceiver {
+    private static final AtomicBoolean AD_REQUEST_PENDING = new AtomicBoolean(false);
+    private static final AtomicBoolean VPN_REQUEST_PENDING = new AtomicBoolean(false);
+
+    public static final String ACTION_ENABLE = "de.privacyguard.adhook.AD_FILTER_ENABLE";
+    public static final String ACTION_DISABLE = "de.privacyguard.adhook.AD_FILTER_DISABLE";
+    public static final String ACTION_VPN_START = "de.privacyguard.adhook.VPN_START";
+    public static final String ACTION_VPN_STOP = "de.privacyguard.adhook.VPN_STOP";
+    public static final String ACTION_RESULT = "de.privacyguard.adhook.AD_FILTER_RESULT";
+
+    public static final String PREFS_NAME = "fx_yulong_tasker";
+    public static final String PREF_ALLOW_EXTERNAL = "allow_external_actions";
+    public static final String PREF_ALLOWED_SENDER_PACKAGE = "allowed_sender_package";
+    public static final String PREF_ALLOWED_SENDER_CERT_SHA256 = "allowed_sender_cert_sha256";
+    public static final String PREF_LAST_ACTION = "last_action";
+    public static final String PREF_LAST_TARGET = "last_target";
+    public static final String PREF_LAST_ENABLED = "last_requested_enabled";
+    public static final String PREF_LAST_SUCCESS = "last_success";
+    public static final String PREF_LAST_EXIT_CODE = "last_exit_code";
+    public static final String PREF_LAST_DETAIL = "last_detail";
+    public static final String PREF_LAST_AT = "last_at";
+    private static final int MAX_RESULT_DETAIL_CHARS = 2048;
+
+    public static final String LEGACY_ACTION_START = "app.pwhs.blockads.TASKER_START";
+    public static final String LEGACY_ACTION_STOP = "app.pwhs.blockads.TASKER_STOP";
+
+    private static String modulePrefix(String requiredScript) {
+        return FxYulongRootModuleCommand.prefix(requiredScript);
+    }
+
+    @Override public void onReceive(Context context, Intent intent) {
+        if (context == null || intent == null) return;
+        String action = intent.getAction();
+
+        final boolean adFilterAction;
+        final int enabled;
+        if (ACTION_ENABLE.equals(action)) {
+            adFilterAction = true;
+            enabled = 1;
+        } else if (ACTION_DISABLE.equals(action)) {
+            adFilterAction = true;
+            enabled = 0;
+        } else if (LEGACY_ACTION_START.equals(action) || ACTION_VPN_START.equals(action)) {
+            adFilterAction = false;
+            enabled = 1;
+        } else if (LEGACY_ACTION_STOP.equals(action) || ACTION_VPN_STOP.equals(action)) {
+            adFilterAction = false;
+            enabled = 0;
+        } else {
+            return;
+        }
+
+        // The receiver is exported for automation compatibility but performs Root
+        // operations. Authenticate the actual sending app before reading the opt-in
+        // switch; arbitrary apps must not trigger Root or overwrite the user's receipt.
+        android.content.SharedPreferences automationPrefs =
+                context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        String allowedPackage = automationPrefs.getString(PREF_ALLOWED_SENDER_PACKAGE, "");
+        String allowedCertificate = automationPrefs.getString(PREF_ALLOWED_SENDER_CERT_SHA256, "");
+        if (!isAuthorizedAutomationSender(context, allowedPackage, allowedCertificate)) {
+            android.util.Log.w("FX-Yulong-Tasker",
+                    "Rejected Root-backed automation from an unconfigured or unverifiable sender.");
+            return;
+        }
+        if (!automationPrefs.getBoolean(PREF_ALLOW_EXTERNAL, false)) {
+            publishResult(context, action, adFilterAction, enabled, false, 13,
+                    "已识别授权自动化应用，但外部自动化控制开关当前关闭；请求未执行。");
+            return;
+        }
+
+        // Serialize only within the same control plane. Ad-master writes also
+        // use the shared UI/tile transaction gate; VPN changes use their own
+        // module lifecycle lock and must not block independent ad-filter actions.
+        final AtomicBoolean requestPending =
+                adFilterAction ? AD_REQUEST_PENDING : VPN_REQUEST_PENDING;
+        if (!requestPending.compareAndSet(false, true)) {
+            publishResult(context, action, adFilterAction, enabled, false, 75, "请求繁忙");
+            return;
+        }
+
+        // Only ad-master writes share the ad transaction gate. VPN route changes
+        // use the module-side yulong-vpn-control.sh lock.
+        final long gateToken = adFilterAction ? FxYulongAdOperationGate.tryAcquire() : 0L;
+        if (adFilterAction && gateToken == 0L) {
+            requestPending.set(false);
+            publishResult(context, action, true, enabled, false, 75, "广告过滤正在被其他入口修改");
+            return;
+        }
+
+        final PendingResult pending;
+        try {
+            pending = goAsync();
+        } catch (RuntimeException unavailable) {
+            if (gateToken != 0L) FxYulongAdOperationGate.release(gateToken);
+            requestPending.set(false);
+            publishResult(context, action, adFilterAction, enabled, false, 127, "无法启动后台任务");
+            return;
+        }
+
+        try {
+            new Thread(() -> {
+                int code = 127;
+                String output = "";
+                try {
+                    String operation = adFilterAction
+                            ? "sh \"$MP/scripts/yulong-ad-control.sh\" ad-master " + enabled
+                            : "sh \"$MP/scripts/yulong-vpn-control.sh\" \"$MP\" /data/adb/privacyguard "
+                                    + (enabled == 1 ? "start" : "stop");
+                    RootAccess.Result result = RootAccess.execute(modulePrefix(adFilterAction ? "yulong-ad-control.sh" : "yulong-vpn-control.sh") + operation,
+                            adFilterAction ? 90000L : 150000L, 512 * 1024);
+                    code = result.exitCode;
+                    output = result.output == null ? "" : result.output.trim();
+                    if (code == 0 && !adFilterAction) FxYulongAdWidgetProvider.refreshAll(context);
+                } catch (Throwable failure) {
+                    output = failure.getClass().getSimpleName() + ": "
+                            + (failure.getMessage() == null ? "Root 操作失败" : failure.getMessage());
+                }
+                try {
+                    publishResult(context, action, adFilterAction, enabled, code == 0, code, output);
+                } finally {
+                    if (gateToken != 0L) FxYulongAdOperationGate.release(gateToken);
+                    requestPending.set(false);
+                    pending.finish();
+                }
+            }, "fx-yulong-tasker-command").start();
+        } catch (RuntimeException startError) {
+            if (gateToken != 0L) FxYulongAdOperationGate.release(gateToken);
+            requestPending.set(false);
+            try {
+                publishResult(context, action, adFilterAction, enabled, false, 127,
+                        startError.getClass().getSimpleName());
+            } finally {
+                pending.finish();
+            }
+        }
+    }
+
+    @android.annotation.SuppressLint("NewApi")
+    private boolean isAuthorizedAutomationSender(Context context, String configuredPackage,
+                                                   String configuredSignerDigest) {
+        if (Build.VERSION.SDK_INT < FxYulongTaskerCallerPolicy.MIN_VERIFIABLE_API) return false;
+        try {
+            String senderPackage = getSentFromPackage();
+            int senderUid = getSentFromUid();
+            String[] packagesForUid = senderUid < 0 ? null
+                    : context.getPackageManager().getPackagesForUid(senderUid);
+            String senderSignerDigest = installedSignerDigest(context, senderPackage);
+            return FxYulongTaskerCallerPolicy.isAuthorized(Build.VERSION.SDK_INT,
+                    senderPackage, senderUid, configuredPackage, packagesForUid,
+                    configuredSignerDigest, senderSignerDigest);
+        } catch (RuntimeException unavailable) {
+            android.util.Log.w("FX-Yulong-Tasker",
+                    "Unable to authenticate Root-backed automation sender.", unavailable);
+            return false;
+        }
+    }
+
+    private static String installedSignerDigest(Context context, String packageName) {
+        if (!FxYulongTaskerCallerPolicy.isValidPackageName(packageName)) return "";
+        try {
+            PackageInfo info = context.getPackageManager().getPackageInfo(
+                    packageName, PackageManager.GET_SIGNING_CERTIFICATES);
+            if (info.signingInfo == null) return "";
+            Signature[] signers = info.signingInfo.hasMultipleSigners()
+                    ? info.signingInfo.getApkContentsSigners()
+                    : info.signingInfo.getSigningCertificateHistory();
+            if (signers == null || signers.length == 0) return "";
+            // For a single signer, Android returns rotation history oldest-to-newest.
+            // Pin only the current signer; multiple-signer apps pin the complete set.
+            if (!info.signingInfo.hasMultipleSigners()) {
+                signers = new Signature[]{signers[signers.length - 1]};
+            }
+            byte[][] certificates = new byte[signers.length][];
+            for (int i = 0; i < signers.length; i++) {
+                certificates[i] = signers[i] == null ? null : signers[i].toByteArray();
+            }
+            return FxYulongTaskerCallerPolicy.signerDigest(certificates);
+        } catch (PackageManager.NameNotFoundException | RuntimeException unavailable) {
+            return "";
+        }
+    }
+
+    private static void publishResult(Context context, String action, boolean adFilterAction,
+                                      int enabled, boolean success, int exitCode, String detail) {
+        String safeDetail = detail == null ? "" : detail;
+        if (safeDetail.length() > MAX_RESULT_DETAIL_CHARS) {
+            safeDetail = safeDetail.substring(0, MAX_RESULT_DETAIL_CHARS) + "…（已截断）";
+        }
+        String target = adFilterAction ? "ad_filter" : "vpn";
+        boolean receiptPersisted = false;
+        try {
+            // Persist before broadcasting so the General Settings page can still
+            // show the most recent result after its Activity/process was stopped.
+            receiptPersisted = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+                    .putString(PREF_LAST_ACTION, action == null ? "" : action)
+                    .putString(PREF_LAST_TARGET, target)
+                    .putInt(PREF_LAST_ENABLED, enabled)
+                    .putBoolean(PREF_LAST_SUCCESS, success)
+                    .putInt(PREF_LAST_EXIT_CODE, exitCode)
+                    .putString(PREF_LAST_DETAIL, safeDetail)
+                    .putLong(PREF_LAST_AT, System.currentTimeMillis())
+                    .commit();
+        } catch (RuntimeException ignored) {
+            receiptPersisted = false;
+        }
+
+        try {
+            Intent reply = new Intent(ACTION_RESULT);
+            reply.putExtra("source_action", action);
+            reply.putExtra("target", target);
+            reply.putExtra("requested_enabled", enabled);
+            reply.putExtra("success", success);
+            reply.putExtra("exit_code", exitCode);
+            reply.putExtra("detail", safeDetail);
+            reply.putExtra("receipt_persisted", receiptPersisted);
+            reply.setPackage(context.getPackageName());
+            context.sendBroadcast(reply);
+        } catch (RuntimeException ignored) { }
+    }
+}
