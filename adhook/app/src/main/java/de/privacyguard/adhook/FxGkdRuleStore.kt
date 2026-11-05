@@ -5,7 +5,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
 
-internal data class FxGkdRule(
+data class FxGkdRule(
     val id: String,
     val packageName: String,
     val selector: String,
@@ -19,7 +19,7 @@ internal data class FxGkdRule(
  * Remote subscriptions, AI providers, snapshots and cloud sync are deliberately
  * not enabled by this first runtime slice.
  */
-internal object FxGkdRuleStore {
+object FxGkdRuleStore {
     private const val PREFS = "fx_gkd_automation"
     private const val KEY_MASTER_ENABLED = "enabled"
     private const val KEY_RULES = "rules_json"
