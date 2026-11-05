@@ -38,6 +38,10 @@ CONF
 export PG CONF="$PG/settings.conf"
 SCRIPT="$MOD/scripts/jsruntime/native-list.sh"
 RUN="$MOD/scripts/jsruntime/local-run.sh"
+grep -Fq "trap 'exit 129' HUP" "$ROOT/fx-patches/native-script-run.sh" || fail "local runner must exit on HUP"
+grep -Fq "trap 'exit 130' INT" "$ROOT/fx-patches/native-script-run.sh" || fail "local runner must exit on INT"
+grep -Fq "trap 'exit 143' TERM" "$ROOT/fx-patches/native-script-run.sh" || fail "local runner must exit on TERM"
+sh -n "$ROOT/fx-patches/native-script-run.sh" || fail "local runner shell syntax invalid"
 assert_lock_clean() {
   if [ -e "$PG/jsruntime/native-script-list.lock" ]; then
     echo "LOCK LEAK at $1:" >&2
