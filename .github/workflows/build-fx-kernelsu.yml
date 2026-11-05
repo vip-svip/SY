@@ -156,6 +156,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Wire the checksum-gated system-app deployment into the restored Release customize.sh.
+          python3 -m py_compile fx-patches/patch_system_app_install_stage.py
+          python3 fx-patches/patch_system_app_install_stage.py fx-module
+          python3 scripts/tests/fx-system-app-install-stage-patcher-regression.py
           python3 fx-patches/patch_native_script_scheduler.py fx-module
           sh scripts/tests/fx-native-script-scheduler-regression.sh fx-module
           install -D -m 0755 fx-patches/native-privacy-settings.sh fx-module/scripts/native-privacy-settings.sh
