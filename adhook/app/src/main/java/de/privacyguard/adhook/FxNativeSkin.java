@@ -29,7 +29,18 @@ final class FxNativeSkin {
     private FxNativeSkin() { }
 
     // A weak registry prevents duplicate listeners if a page is re-mounted.
-    private static final WeakHashMap<View, Boolean> WATCHED = new WeakHashMap<>();
+    // The snapshot is mutable so repeat watch() calls update the live mode/wallpaper
+    // instead of leaving the listener with stale values captured on first attach.
+    private static final class SkinSnapshot {
+        volatile FxUiMode mode;
+        volatile boolean wallpaperActive;
+
+        SkinSnapshot(FxUiMode mode, boolean wallpaperActive) {
+            this.mode = mode;
+            this.wallpaperActive = wallpaperActive;
+        }
+    }
+    private static final WeakHashMap<View, SkinSnapshot> WATCHED = new WeakHashMap<>();
     private static final WeakHashMap<View, FxUiMode> BUTTON_SKINS = new WeakHashMap<>();
     private static final WeakHashMap<View, FxUiMode> SWITCH_SKINS = new WeakHashMap<>();
     private static final WeakHashMap<View, FxUiMode> FORM_SKINS = new WeakHashMap<>();
@@ -41,19 +52,25 @@ final class FxNativeSkin {
         FxUiMode mode = FxUiMode.read(activity);
         boolean wallpaperActive = FxWallpaperStore.currentPath(activity) != null;
         apply(activity, pageContent, mode, wallpaperActive);
+        final SkinSnapshot snapshot;
         synchronized (WATCHED) {
-            if (WATCHED.containsKey(pageContent)) return;
-            WATCHED.put(pageContent, Boolean.TRUE);
+            SkinSnapshot existing = WATCHED.get(pageContent);
+            if (existing != null) {
+                existing.mode = mode;
+                existing.wallpaperActive = wallpaperActive;
+                return;
+            }
+            snapshot = new SkinSnapshot(mode, wallpaperActive);
+            WATCHED.put(pageContent, snapshot);
         }
 
         Handler mainHandler = new Handler(Looper.getMainLooper());
         Runnable reapplyAfterLayout = () -> {
             if (!activity.isFinishing() && !activity.isDestroyed()
                     && pageContent.isAttachedToWindow()) {
-                // Reuse the Activity's initial presentation snapshot. Skin/wallpaper
-                // changes rebuild the page shell, so layout passes never hit disk or
-                // SharedPreferences while walking a potentially large app list.
-                apply(activity, pageContent, mode, wallpaperActive);
+                // Read the current snapshot on every pass. The same root View may
+                // be rebound after a mode/wallpaper change; never replay stale Skin.
+                apply(activity, pageContent, snapshot.mode, snapshot.wallpaperActive);
             }
         };
         // Debounce repeated layout notifications: a burst of async list rows is
