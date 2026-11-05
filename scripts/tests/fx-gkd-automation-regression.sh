@@ -59,8 +59,8 @@ write_rules_start = store.index("private fun writeRules(")
 write_rules = store[write_rules_start:]
 assert "if (committed)" in write_rules
 assert "cachedRules = rules.toList()" in write_rules and "cachedRulesRaw = array.toString()" in write_rules
-assert "MAX_RULES = 128" in store
-assert "MAX_IMPORT_BYTES = 256 * 1024" in store
+assert "MAX_RULES" not in store, "GKD rule storage must not impose a fixed rule-count ceiling"
+assert "MAX_IMPORT_BYTES" not in store, "GKD rule import must not impose a fixed file-size ceiling"
 assert 'EXPORT_FORMAT = "FX-GKD-LOCAL-RULES"' in store
 assert "EXPORT_SCHEMA_VERSION = 1" in store
 assert "fun exportJson(context: Context): String" in store
@@ -99,7 +99,7 @@ for token in ("FxGkdRuleStore.isEnabled(this)", "FxGkdRuleStore.setEnabled(this,
               "updateMasterEnabled(Switch control, boolean enabled)",
               "updateRuleEnabled(FxGkdRule rule, Switch control, boolean enabled)",
               "showPackagePicker(EditText packageInput)",
-              "getInstalledApplications(0)", "candidates.size() >= 500"):
+              "getInstalledApplications(0)"):
     assert token in activity, f"GKD local rule UI contract missing: {token}"
 assert "规则状态保存失败，已恢复原状态。" in activity, "failed per-rule writes must restore the displayed switch state"
 assert "规则删除失败，原数据保持不变。" in activity, "failed deletes must not imply success"
@@ -114,16 +114,15 @@ assert 'setText("启用 GKD 本地规则自动化")' in activity
 assert 'setPositiveButton("校验并保存"' in activity
 assert "showPackagePicker(EditText packageInput)" in activity
 assert "getInstalledApplications(0)" in activity
-assert "candidates.size() >= 500" in activity
+assert "candidates.size() >= 500" not in activity, "app picker must enumerate all installed user apps"
 assert "规则状态保存失败，已恢复原状态。" in activity
 assert "规则删除失败，原数据保持不变。" in activity
 
-# Versioned local JSON transfer uses the Android document picker and bounded reads.
+# Versioned local JSON transfer uses the Android document picker without arbitrary file-size caps.
 for token in (
     "REQUEST_IMPORT_GKD_RULES", "REQUEST_EXPORT_GKD_RULES",
     "Intent.ACTION_OPEN_DOCUMENT", "Intent.ACTION_CREATE_DOCUMENT",
     'picker.setType("application/json")',
-    "MAX_GKD_IMPORT_BYTES", "if (total > MAX_GKD_IMPORT_BYTES)",
     "FxGkdRuleStore.exportJson(this)",
     "FxGkdRuleStore.importJson(this, json)",
     "FxGkdAutomationRuntime.invalidateRules()",
@@ -134,11 +133,10 @@ assert 'action("导入本地规则", this::openImportRulesPicker)' in activity
 assert 'action("导出本地规则", this::openExportRulesPicker)' in activity
 assert "所有新导入规则均已关闭" in activity
 
-# Portable rule documents are versioned, bounded and merged fail-closed.
+# Portable rule documents are versioned and merged fail-closed without arbitrary rule-count or file-size caps.
 for token in (
     'private const val EXPORT_FORMAT = "FX-GKD-LOCAL-RULES"',
     "private const val EXPORT_SCHEMA_VERSION = 1",
-    "const val MAX_IMPORT_BYTES = 256 * 1024",
     '.put("format", EXPORT_FORMAT)',
     '.put("schema_version", EXPORT_SCHEMA_VERSION)',
     '.put("rules", exportedRules)',
@@ -149,7 +147,6 @@ for token in (
     '.put("enabled", rule.enabled)',
     'document.optString("format") != EXPORT_FORMAT',
     'document.optInt("schema_version", -1) != EXPORT_SCHEMA_VERSION',
-    "sourceRules.length() > MAX_RULES",
     "isInstalledUserApplication(context, packageName)",
     "FxGkdSelectorEngine.compile(selector).isValid",
     "known.add(packageName +",
@@ -162,7 +159,7 @@ assert r"\u0000" in store, "package-selector deduplication must use an unambiguo
 import_start = store.index("fun importJson(context: Context, raw: String)")
 import_end = store.index("private fun isInstalledUserApplication", import_start)
 import_body = store[import_start:import_end]
-assert import_body.index("MAX_IMPORT_BYTES") < import_body.index("JSONObject(raw)")
+assert "MAX_IMPORT_BYTES" not in import_body
 assert import_body.index("schema_version") < import_body.index("getRules(context)")
 assert import_body.index("enabled = false") < import_body.index("writeRules(context, merged)")
 assert "setEnabled(context, true)" not in import_body, "importing a document must never enable the GKD master switch"

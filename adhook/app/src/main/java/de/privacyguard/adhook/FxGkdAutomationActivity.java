@@ -24,7 +24,6 @@ import java.util.List;
 public final class FxGkdAutomationActivity extends FxNativeTabActivity {
     private static final int REQUEST_EXPORT_GKD_RULES = 7421;
     private static final int REQUEST_IMPORT_GKD_RULES = 7422;
-    private static final int MAX_GKD_IMPORT_BYTES = FxGkdRuleStore.MAX_IMPORT_BYTES;
     private LinearLayout body;
     private TextView serviceState;
     private Switch masterSwitch;
@@ -164,13 +163,8 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
              java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream()) {
             if (input == null) throw new java.io.IOException("无法读取所选文件");
             byte[] buffer = new byte[8192];
-            int total = 0;
             int count;
             while ((count = input.read(buffer)) != -1) {
-                total += count;
-                if (total > MAX_GKD_IMPORT_BYTES) {
-                    throw new java.io.IOException("导入文件超过 256 KiB 限制");
-                }
                 output.write(buffer, 0, count);
             }
             String json = new String(output.toByteArray(), java.nio.charset.StandardCharsets.UTF_8);
@@ -323,7 +317,6 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
         try {
             for (ApplicationInfo info : getPackageManager().getInstalledApplications(0)) {
                 if (isInstalledUserApplication(info.packageName)) candidates.add(info);
-                if (candidates.size() >= 500) break;
             }
         } catch (RuntimeException failure) {
             Toast.makeText(this, "读取已安装应用失败：" + failure.getMessage(), Toast.LENGTH_LONG).show();

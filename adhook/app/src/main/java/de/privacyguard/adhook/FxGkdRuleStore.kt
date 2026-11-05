@@ -26,13 +26,11 @@ data class FxGkdRule(
  * not enabled by this first runtime slice.
  */
 object FxGkdRuleStore {
-    const val MAX_IMPORT_BYTES = 256 * 1024
-    private const val EXPORT_FORMAT = "FX-GKD-LOCAL-RULES"
+        private const val EXPORT_FORMAT = "FX-GKD-LOCAL-RULES"
     private const val EXPORT_SCHEMA_VERSION = 1
     private const val PREFS = "fx_gkd_automation"
     private const val KEY_MASTER_ENABLED = "enabled"
     private const val KEY_RULES = "rules_json"
-    const val MAX_RULES = 128
     const val MIN_COOLDOWN_MS = 1_000L
     const val MAX_COOLDOWN_MS = 60_000L
     const val DEFAULT_COOLDOWN_MS = 3_000L
@@ -84,7 +82,7 @@ object FxGkdRuleStore {
         val parsed = try {
             val array = JSONArray(raw)
             buildList {
-                for (index in 0 until minOf(array.length(), MAX_RULES)) {
+                for (index in 0 until array.length()) {
                     val item = array.optJSONObject(index) ?: continue
                     val id = item.optString("id").takeIf { it.length in 1..64 } ?: continue
                     val pkg = item.optString("package").takeIf(::isValidPackageName) ?: continue
@@ -134,10 +132,6 @@ object FxGkdRuleStore {
     @JvmStatic
     @Synchronized
     fun importJson(context: Context, raw: String): FxGkdImportResult {
-        if (raw.toByteArray(Charsets.UTF_8).size > MAX_IMPORT_BYTES) {
-            return FxGkdImportResult(0, 0, "导入文件超过 256 KiB。")
-        }
-
         val document = try {
             JSONObject(raw)
         } catch (_: Exception) {
@@ -150,10 +144,6 @@ object FxGkdRuleStore {
         }
         val sourceRules = document.optJSONArray("rules")
             ?: return FxGkdImportResult(0, 0, "文件缺少 rules 数组。")
-        if (sourceRules.length() > MAX_RULES) {
-            return FxGkdImportResult(0, 0, "单个文件最多允许 $MAX_RULES 条规则。")
-        }
-
         val merged = getRules(context).toMutableList()
         val known = merged.map { it.packageName + "\u0000" + it.selector }.toMutableSet()
         var skipped = 0
@@ -170,7 +160,6 @@ object FxGkdRuleStore {
             if (!isValidPackageName(packageName) || packageName == context.packageName ||
                 selector.isEmpty() || selector.length > 512 ||
                 cooldown !in MIN_COOLDOWN_MS..MAX_COOLDOWN_MS ||
-                merged.size >= MAX_RULES ||
                 !isInstalledUserApplication(context, packageName) ||
                 !FxGkdSelectorEngine.compile(selector).isValid ||
                 !known.add(packageName + "\u0000" + selector)
@@ -224,7 +213,6 @@ object FxGkdRuleStore {
         val compiled = FxGkdSelectorEngine.compile(expression)
         if (!compiled.isValid) return null
         val existing = getRules(context)
-        if (existing.size >= MAX_RULES) return null
         val rule = FxGkdRule(
             id = UUID.randomUUID().toString(),
             packageName = pkg,
@@ -259,7 +247,6 @@ object FxGkdRuleStore {
             value.matches(Regex("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+"))
 
     private fun writeRules(context: Context, rules: List<FxGkdRule>): Boolean {
-        if (rules.size > MAX_RULES) return false
         val array = JSONArray()
         rules.forEach { rule ->
             array.put(JSONObject()
