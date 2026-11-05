@@ -76,7 +76,7 @@ vpn_end = activity.index("            case 1:", vpn_start)
 vpn_home = activity[vpn_start:vpn_end]
 assert 'nativeAction("管理分应用 VPN 路由", this::showImportedVpnAppManager)' in vpn_home
 vpn_manager_start = activity.index("    private void showImportedVpnAppManager()")
-vpn_manager_end = activity.index("    private void showImportedSuitePendingPage(", vpn_manager_start)
+vpn_manager_end = activity.index("    private void addNativeSettingsCategory(", vpn_manager_start)
 vpn_manager = activity[vpn_manager_start:vpn_manager_end]
 for token in ('nativeVpnAppManagerVisible = true', 'selectedBottomTab = 0',
               'lastWebTabIndex = 0', 'base("VPN · 分应用路由")',
