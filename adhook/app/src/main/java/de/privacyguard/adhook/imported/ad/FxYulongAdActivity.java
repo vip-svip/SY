@@ -474,12 +474,12 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
         &&!pkg.toLowerCase(Locale.ROOT).contains(filter))continue;
     matched++;
     if(shown>=limit)continue;
-    LinearLayout row=new LinearLayout(this);
+    LinearLayout row=new LinearLayout(this);row.setTag("fx-list-row");
     row.setOrientation(1);
     row.setPadding(dp(8),dp(5),dp(8),dp(5));
-    row.addView(txt(label,13,0xff17212b,true));
-    row.addView(txt(pkg+" · UID "+info.uid,10,0xff718091,false));
-    Switch allow=new Switch(this);
+    TextView appLabel=txt(label,13,0xff17212b,true);appLabel.setTag("fx-list-title");row.addView(appLabel);
+    TextView packageIdentity=txt(pkg+" · UID "+info.uid,10,0xff718091,false);packageIdentity.setTag("fx-list-subtitle");row.addView(packageIdentity);
+    Switch allow=new Switch(this);allow.setTag("fx-switch-row");
     allow.setText("DNS 不经过 Root Proxy");
     allow.setChecked(proxyWhitelistSelected.contains(pkg));
     final boolean[] suppress={false};
@@ -521,10 +521,10 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
     Set<String> missing=new HashSet<>(proxyWhitelistSelected);
     for(ApplicationInfo info:proxyWhitelistApps)missing.remove(info.packageName);
     for(String pkg:missing){
-     LinearLayout row=new LinearLayout(this);
+     LinearLayout row=new LinearLayout(this);row.setTag("fx-list-row");
      row.setOrientation(1);
-     row.addView(txt("未安装的已保存包名",12,0xff718091,true));
-     row.addView(txt(pkg,11,0xff718091,false));
+     TextView missingTitle=txt("未安装的已保存包名",12,0xff718091,true);missingTitle.setTag("fx-list-title");row.addView(missingTitle);
+     TextView missingPackage=txt(pkg,11,0xff718091,false);missingPackage.setTag("fx-list-subtitle");row.addView(missingPackage);
      row.addView(btn("移除已保存例外",()->root("rootproxy-whitelist-set "+q(pkg)+" 0",result->{
       if(result.exitCode==0)loadRootProxyWhitelist();
       else proxyWhitelistStatus.setText("移除失败："+safe(result.output));
