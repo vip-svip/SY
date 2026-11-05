@@ -34,9 +34,20 @@ jobs:
           source_root="$(dirname "$module_prop")"
           [[ -d "$source_root/scripts" ]] || { echo "::error::Published FX module has no scripts directory"; exit 1; }
           cp -a "$source_root/scripts" recovered-fx-module/
-          for file in module.prop service.sh post-fs-data.sh uninstall.sh; do
+          for file in module.prop customize.sh service.sh post-fs-data.sh uninstall.sh; do
             [[ ! -f "$source_root/$file" ]] || cp -a "$source_root/$file" recovered-fx-module/
           done
+          # The module ZIP deliberately retires its WebUI; recover the canonical
+          # UI from the exact standalone APK asset used by the module build.
+          apk="$RUNNER_TEMP/FXUnifiedHook.apk"
+          curl --fail --silent --show-error --location \
+            https://github.com/vip-svip/SY/releases/download/1.0.0/FXUnifiedHook.apk \
+            -o "$apk"
+          mkdir -p recovered-fx-module/webroot
+          unzip -p "$apk" assets/webroot/index.html > recovered-fx-module/webroot/index.html
+          [[ "$(wc -c < recovered-fx-module/webroot/index.html)" -gt 500000 ]] || {
+            echo "::error::Recovered WebUI is not the complete packaged UI"; exit 1;
+          }
           if [[ -d "$source_root/bin" ]]; then
             find "$source_root/bin" -type f -printf '%P\t%s bytes\n' | sort > recovered-fx-module/BIN-MANIFEST.txt
           fi
