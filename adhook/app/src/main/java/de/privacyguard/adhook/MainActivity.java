@@ -915,6 +915,40 @@ public final class MainActivity extends ComponentActivity {
         content.addView(group, params);
     }
 
+    /**
+     * Creates a mode-aware text adapter for native Spinner controls. The
+     * selected row and dropdown rows share the current FX primary/secondary
+     * text tokens while retaining Android's native popup and selection logic.
+     */
+    private ArrayAdapter<String> createSkinAwareSpinnerAdapter(List<String> values) {
+        ArrayAdapter<String> adapter = new ArrayAdapter<String>(
+                this, android.R.layout.simple_spinner_item, values) {
+            private void styleSpinnerText(View view, int sizeSp) {
+                if (!(view instanceof TextView)) return;
+                TextView text = (TextView) view;
+                text.setTextColor(uiPrimaryTextColor());
+                text.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, sizeSp);
+                text.setTypeface(Typeface.DEFAULT, Typeface.MEDIUM);
+                text.setPadding(dp(12), dp(8), dp(12), dp(8));
+                text.setMaxLines(1);
+            }
+
+            @Override public View getView(int position, View convertView, ViewGroup parent) {
+                View view = super.getView(position, convertView, parent);
+                styleSpinnerText(view, 14);
+                return view;
+            }
+
+            @Override public View getDropDownView(int position, View convertView, ViewGroup parent) {
+                View view = super.getDropDownView(position, convertView, parent);
+                styleSpinnerText(view, 14);
+                return view;
+            }
+        };
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        return adapter;
+    }
+
     private void addNativeActionCard(String heading, String description, String actionLabel, Runnable action) {
         LinearLayout card = new LinearLayout(this);
         card.setTag("fx-card");
@@ -5865,9 +5899,8 @@ public final class MainActivity extends ComponentActivity {
         finishNote.setPadding(dp(18), 0, dp(18), dp(8));
         content.addView(finishNote);
         Spinner finishSpinner = new Spinner(this);
-        ArrayAdapter<String> finishAdapter = new ArrayAdapter<>(this,
-                android.R.layout.simple_spinner_item, triggerLabels);
-        finishAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        ArrayAdapter<String> finishAdapter = createSkinAwareSpinnerAdapter(
+                java.util.Arrays.asList(triggerLabels));
         finishSpinner.setAdapter(finishAdapter);
         int finishSelection = 0;
         for (int i = 0; i < triggerValues.length; i++) {
@@ -5903,9 +5936,8 @@ public final class MainActivity extends ComponentActivity {
         dialogNote.setPadding(dp(18), 0, dp(18), dp(8));
         content.addView(dialogNote);
         Spinner dialogSpinner = new Spinner(this);
-        ArrayAdapter<String> dialogAdapter = new ArrayAdapter<>(this,
-                android.R.layout.simple_spinner_item, triggerLabels);
-        dialogAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        ArrayAdapter<String> dialogAdapter = createSkinAwareSpinnerAdapter(
+                java.util.Arrays.asList(triggerLabels));
         dialogSpinner.setAdapter(dialogAdapter);
         int dialogSelection = 0;
         for (int i = 0; i < triggerValues.length; i++) {
@@ -6561,9 +6593,8 @@ public final class MainActivity extends ComponentActivity {
                 "com.example.app.Foo#isReady()Z"
         };
         Spinner syntax = new Spinner(this);
-        ArrayAdapter<String> syntaxAdapter = new ArrayAdapter<>(this,
-                android.R.layout.simple_spinner_item, syntaxLabels);
-        syntaxAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        ArrayAdapter<String> syntaxAdapter = createSkinAwareSpinnerAdapter(
+                java.util.Arrays.asList(syntaxLabels));
         syntax.setAdapter(syntaxAdapter);
         String syntaxDescriptor = presetDescriptor;
         if (editingSlot > 0 && presetDescriptor != null) {
@@ -6587,9 +6618,8 @@ public final class MainActivity extends ComponentActivity {
                 "RETURN_ZERO", "RETURN_EMPTY_STRING", "RETURN_LITERAL", "RETURN_ARGUMENT_0",
                 "RETURN_THIS", "NO_OP_VOID"};
         Spinner action = new Spinner(this);
-        ArrayAdapter<String> actionAdapter = new ArrayAdapter<>(this,
-                android.R.layout.simple_spinner_item, actionOptions);
-        actionAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        ArrayAdapter<String> actionAdapter = createSkinAwareSpinnerAdapter(
+                java.util.Arrays.asList(actionOptions));
         action.setAdapter(actionAdapter);
         // New rules must be non-invasive until the user deliberately selects a Debug fixture action.
         action.setSelection(0);
@@ -7533,9 +7563,7 @@ public final class MainActivity extends ComponentActivity {
         options.add("全部分组");
         options.addAll(groups);
         Spinner groupFilter = new Spinner(this);
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
-                android.R.layout.simple_spinner_item, options);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        ArrayAdapter<String> adapter = createSkinAwareSpinnerAdapter(options);
         groupFilter.setAdapter(adapter);
         customHookRuleGroupFilterView = groupFilter;
         int restoredGroupPosition = 0;
