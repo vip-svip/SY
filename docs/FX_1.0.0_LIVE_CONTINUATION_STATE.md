@@ -5054,3 +5054,19 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Branch HEAD at this verification: 881397499c3e2083788513261e6a026899f1de3c.
 - FX Module Runtime Regression run 42031415700 completed SUCCESS against commit b4d0808d1e7d6ec934145d193363cc91969d32dc. Logs confirm VPN/DNS runtime regressions 18/18 passed, plus restored-release runtime tests for verified outer-VPN TUN-to-REDIRECT fallback, Unbound VPN-bound IPv4 egress, Root Proxy dual-stack route/UID proof and fail-open rollback, native VPN lifecycle/config locking, transparent VPN control and atomic Hosts/subscription/Root Proxy locks.
 - This is GitHub Actions host-side execution with mocked Android networking/package commands and restored module source. It does not verify a physical Android device, ROM-specific netfilter, SELinux, Android Framework VPN multi-instance support, actual third-party VPN inner traffic, radio wakeups or power draw.
+
+
+## 2026-11-05 — FX Hook 配置流式发布与大配置解析回归
+
+- 分支 HEAD：42f5ff4681155d6b8de19a6514a6ee4b01a79cd8。
+- 3d2461be46054fda91822b49be77e242792488a2 新增 FxHookConfigPublisher：配置正文改由 RootAccess.executeWithInput(InputStream) 经 Root stdin 分块传输，不再把整份 Base64 配置塞进 shell 命令；移除发布端 990 目标、64 KiB 配置和兼容映射大小限制。
+- 639188a0c996207d3c480405ded6fdd4b5d20509 修正发布事务 Shell 防护，并补齐现代和 legacy parser 中残留的 64 KiB / 1000 行检查。
+- Hook 模块 AdVisibilityHook.loadConfig() 改用严格 UTF-8 InputStreamReader 分块读取；HookTargetConfigParser 不再因 1000 行拒收旧格式配置。
+- 发布前对临时路径做 symlink / 文件类型检查；每个 payload 分开流入 staging 文件并核对 SHA-256；三份目标文件（LSPosed Remote Files、原生 overlay、legacy ownership mapping）按事务流程替换，逐一回读核对最终 SHA-256，提交步骤失败时恢复旧文件。此处是具备回滚的多文件事务，不是文件系统提供的跨文件单次原子 rename。
+- scripts/tests/fx-hook-config-stream-publish-regression.sh 通过 fake su broker 运行实际 RootAccess 和 FxHookConfigPublisher：成功传输 256 KiB 配置与 96 KiB 兼容映射；注入第三份文件 rename 失败后，确认三份旧文件均恢复且 staging / backup 临时文件清理完成。
+- 同一 Host 脚本直接编译并运行现代 UnifiedHookConfigParser 和 legacy HookTargetConfigParser：两种格式均接受 2,500 个目标，配置均超过 64 KiB 和 1,000 行；现代隐私总开关及 legacy 不启用隐私的兼容语义均保留。
+- 回归兼容修正：2ab90857faff32f5864aeea48ea66e386af87c91 将旧 UI 超时断言改为新流式 publisher contract；ba3c9e49d55a23fc2fda99e983b95919d48db08d 补齐 parser Host 编译依赖；56e6e6784b8b8a1a873255862de4adf6b357bc08 更新 JUnit 配置大小用例；42f5ff4681155d6b8de19a6514a6ee4b01a79cd8 将 parser JUnit 变更映射到此 Host regression。
+- 验证：FX Targeted Host Regression run 42042940195 completed/success，日志确认发布/回滚测试及 2,500 目标解析压力测试全部 PASS；FX Module Runtime Regression run 42042476025 completed/success，日志确认 VPN/DNS runtime regressions 18/18 passed，后续 TUN fallback、Unbound VPN-bound egress、Root Proxy 双栈 / UID proof、DNS 和原子锁回归也通过。
+- 仍未验证：Android Gradle 完整构建、APK 产物安装、KernelSU/Magisk 真机写入、LSPosed 真正读取 Remote Files 并注入目标进程、ROM SELinux 标签实际策略、第三方 VPN 内层流量、设备 IPv4/IPv6 泄漏与功耗。
+- 容量策略范围说明：本轮移除的是聚合配置字节数、目标应用总行数与命令行 Base64 限制。每个目标的自定义开发规则数仍有 64 条限制，Dialog / Toast 规则仍有独立条数、字符长度与输入字节限制；这些仍需逐项审查，不能宣称所有产品容量限制已全部清除。
+- 其他阻断继续保留：尚未取得并核验 _10.10.62_src.zip 原始源码，协议、策略组、DNS、脚本、MITM 和应用分流的源码迁移不能据此声称完成。APK build workflow 的迁移门槛也未绕过或触发。

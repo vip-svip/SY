@@ -8,7 +8,8 @@ import java.util.UUID;
 
 /**
  * Publishes unified Hook payloads through Root stdin, verifies staged bytes,
- * then atomically replaces all three related files with rollback on failure.
+ * then transactionally replaces all three related files, verifies their final hashes,
+ * and restores prior files when any commit step fails.
  */
 final class FxHookConfigPublisher {
     private static final int OUTPUT_LIMIT = 16 * 1024;

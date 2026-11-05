@@ -8163,7 +8163,7 @@ public final class MainActivity extends ComponentActivity {
                                 .putString("remote_path", remote)
                                 .putLong("published_at", System.currentTimeMillis())
                                 .apply();
-                        FxNativeSkin.builder(this).setMessage("配置已原子写入 LSPosed Remote Files，并已输出 SHA-256 校验值：\\n"+result.output+"\\n请确认 LSPosed Manager 已启用 FX 并将目标应用加入作用域，然后强制停止并重新打开目标应用。")
+                        FxNativeSkin.builder(this).setMessage("配置发布完成：三份配置文件均已通过 SHA-256 回读校验：\\n"+result.output+"\\n请确认 LSPosed Manager 已启用 FX 并将目标应用加入作用域，然后强制停止并重新打开目标应用。")
                             .setPositiveButton("知道了",null).show();
                     } else {
                         FxNativeSkin.builder(this).setMessage("Root 发布失败（退出码 "+result.exitCode+"）。"+result.output+"请确认 KernelSU 已授予 FX Hook Root 权限。配置仍保存在本机草稿。")
