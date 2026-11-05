@@ -35,7 +35,7 @@ grep -Fq "Selector.compile(normalized)" "$engine"
 grep -Fq "selector.validateType(typeModel)" "$engine"
 grep -Fq "querySelectorAll(root, selector" "$engine"
 grep -Fq "matches.take(maximum)" "$engine"
-grep -Fq "MAX_RULES = 128" "$store"
+! grep -Eq "MAX_RULES|MAX_IMPORT_BYTES" "$store" || { echo "FAIL: GKD rule storage/import has an arbitrary volume cap"; exit 1; }
 grep -Fq "getBoolean(KEY_MASTER_ENABLED, false)" "$store"
 grep -Fq "FxGkdSelectorEngine.compile(expression)" "$store"
 grep -Fq "FxGkdRuleStore.isEnabled(service)" "$automation"
