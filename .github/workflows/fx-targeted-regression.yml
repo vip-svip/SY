@@ -6,6 +6,7 @@ on:
       - fx-v1.0.0-unified-hook-integration
     paths:
       - '.github/workflows/build-fx-adhook.yml'
+      - '.github/workflows/build-fx-kernelsu.yml'
       - '.github/workflows/fx-targeted-regression.yml'
       - 'adhook/app/src/main/**'
       - 'adhook/app/src/test/**'
@@ -16,6 +17,7 @@ on:
     branches:
       - fx-v1.0.0-unified-hook-integration
     paths:
+      - '.github/workflows/build-fx-kernelsu.yml'
       - 'adhook/app/src/main/**'
       - 'adhook/app/src/test/**'
       - 'fx-module/scripts/**'
@@ -61,7 +63,7 @@ jobs:
             changed="ALL"
           fi
 
-          if grep -Eq '^\.github/workflows/(build-fx-adhook|fx-targeted-regression)\.yml$' <<<"$changed"; then
+          if grep -Eq '^\.github/workflows/(build-fx-adhook|build-fx-kernelsu|fx-targeted-regression)\.yml$' <<<"$changed"; then
             changed="ALL"
           fi
           echo "Changed paths:"
