@@ -60,6 +60,9 @@ def build_patched_module(tmp: Path) -> Path:
 
     module = tmp / "fx-module"
     module.mkdir(parents=True)
+    # The production patcher syncs into an existing packaged scripts directory.
+    # Keep the fixture's target layout separate from the canonical source tree.
+    (module / "scripts").mkdir()
     customize = module / "customize.sh"
     customize.write_text(SYNTHETIC_CUSTOMIZE, encoding="utf-8")
 

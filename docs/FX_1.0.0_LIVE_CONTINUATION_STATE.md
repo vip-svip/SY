@@ -5811,3 +5811,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Host run `42098544790` 在 `fx-yulong-app-firewall-regression.sh` 开始阶段报告系统 AWK 第 14 行存在 `unexpected newline`。已定位到 canonical `scripts/yulong-app-firewall.sh` 的 8 字段周计划校验条件：`else if` 表达式跨行后在系统 awk 中被视为不完整语句。
 - 将 `NF==8` 条件合并为单一逻辑行，保持既有字段/时间验证与 fail-closed 分支不变。KernelSU patcher 会复制 canonical 源文件到恢复后的模块。
 - 本次为源码语法修复；新 Host/Module Runtime 回归结论待提交后确认。未声称设备端 iptables 行为已验证。
+
+
+### System App 安装阶段行为夹具目标目录补齐（2026-11-06）
+
+- `42098783855`（HEAD `8329a212`）System App Install Stage workflow 在行为测试阶段失败：临时 fixture 创建了 canonical `tmp/scripts/`，但没有创建 `tmp/fx-module/scripts/`；生产 patcher 因模块 scripts 目录不存在而正确跳过同步，后续测试却读取缺失目标文件。
+- 在合成模块 fixture 中创建独立的 `fx-module/scripts/` 目标目录，使 patcher 按生产语义把 canonical installer/remover 复制到模块目录；测试仍核对字节一致性和实际注入 Shell 阶段行为。
+- 不放宽 patcher 对模块 scripts 缺失时的保守跳过行为，也不改变 installer/remover 逻辑。此修正等待新的 System App Install Stage、Host 与 KernelSU package CI。
