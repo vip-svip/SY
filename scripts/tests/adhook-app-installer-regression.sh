@@ -80,6 +80,28 @@ if grep -Fq -- '-k de.privacyguard.adhook' "$TMP/pm/uninstall-calls" 2>/dev/null
 unset FX_ADHOOK_FAKE_SIGNATURE_MISMATCH FX_ADHOOK_FAKE_SYSTEM
 rm -f "$TMP/state/adhook-apk-fxunifiedhook.sha256" "$TMP/state/adhook-apk-fxunifiedhook.fx-owned" "$TMP/pm/installed" "$TMP/pm/de.privacyguard.adhook.apk"
 : > "$TMP/pm/install-calls"
+
+# A new module with its systemless overlay mounted must never silently install
+# the same APK as an ordinary /data/app package when PackageManager misses it.
+if sh "$INSTALLER" "$TMP/mod" >/dev/null 2>&1; then fail "unrecognized system overlay unexpectedly downgraded to ordinary app"; fi
+[ ! -s "$TMP/pm/install-calls" ] || fail "system overlay fallback invoked pm install"
+[ ! -e "$TMP/state/adhook-apk-fxunifiedhook.sha256" ] || fail "deferred system overlay install wrote an ownership digest"
+[ ! -e "$TMP/state/adhook-apk-fxunifiedhook.fx-owned" ] || fail "deferred system overlay install wrote an ownership marker"
+
+# An already installed ordinary/user app must also remain untouched while the
+# required system overlay is present but not recognized as a system package.
+echo de.privacyguard.adhook > "$TMP/pm/installed"
+printf 'pre-existing ordinary Hook APK\\n' > "$TMP/pm/de.privacyguard.adhook.apk"
+_before_user_digest=$(sha256sum "$TMP/pm/de.privacyguard.adhook.apk")
+if sh "$INSTALLER" "$TMP/mod" >/dev/null 2>&1; then fail "ordinary app was upgraded through a system-overlay deployment"; fi
+[ "$(sha256sum "$TMP/pm/de.privacyguard.adhook.apk")" = "$_before_user_digest" ] || fail "ordinary app was modified by failed system-app deployment"
+[ ! -s "$TMP/pm/install-calls" ] || fail "ordinary app fallback called pm install"
+rm -f "$TMP/pm/installed" "$TMP/pm/de.privacyguard.adhook.apk"
+
+# Only archives that do not contain the new system-app overlay may use the
+# historical optional/ ordinary-app compatibility path.
+mv "$TMP/mod/system/app/FX/FX.apk" "$TMP/mod/system/app/FX/FX.apk.overlay-test"
+: > "$TMP/pm/install-calls"
 echo de.privacyguard.hook > "$TMP/pm/installed"
 printf "old standalone Hook APK\n" > "$TMP/pm/de.privacyguard.hook.apk"
 sha256sum "$TMP/pm/de.privacyguard.hook.apk" > "$TMP/state/adhook-apk-privacyguardhook.sha256"
@@ -103,10 +125,8 @@ rm -f "$TMP/state/adhook-apk-privacyguardhook.sha256" "$TMP/state/adhook-apk-pri
 sh "$INSTALLER" "$TMP/mod" >/dev/null || fail "install with unowned legacy app failed"
 grep -Fxq de.privacyguard.hook "$TMP/pm/installed" || fail "unowned user Hook app was removed"
 [ "$(grep -Fc de.privacyguard.hook "$TMP/pm/uninstall-calls" 2>/dev/null || true)" = 2 ] || fail "unowned legacy package was uninstalled"
-# The installer prefers the systemless overlay; mutate and re-hash the actual selected payload
-# as well as the legacy optional copy so this scenario really exercises signature migration.
-printf 'changed payload\n' >> "$TMP/mod/system/app/FX/FX.apk"
-sha256sum "$TMP/mod/system/app/FX/FX.apk" > "$TMP/mod/system/app/FX/FX.apk.sha256"
+# The compatibility scenario above intentionally removed the system overlay;
+# mutate and re-hash its selected legacy optional payload for signer migration.
 printf 'changed payload\n' >> "$TMP/mod/optional/FXUnifiedHook.apk"
 sha256sum "$TMP/mod/optional/FXUnifiedHook.apk" > "$TMP/mod/optional/FXUnifiedHook.apk.sha256"
 export FX_ADHOOK_FAKE_SIGNATURE_MISMATCH=1
@@ -166,6 +186,9 @@ printf 'user reinstalled replacement APK\n' > "$TMP/pm/de.privacyguard.adhook.ap
 sh "$REMOVER" "$TMP/mod" "$TMP/state" || fail "cleanup after manual reinstall failed"
 grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "manual reinstall was removed by stale ownership"
 
+# Restore the exact system overlay fixture for system-app uninstall semantics.
+mv "$TMP/mod/system/app/FX/FX.apk.overlay-test" "$TMP/mod/system/app/FX/FX.apk"
+
 # A real /system/app overlay is removed by module unmount, not pm uninstall.
 # The remover must clear FX ownership records while leaving PackageManager's
 # system package entry alone; this also guards against accidental system-app deletion.
@@ -180,4 +203,4 @@ grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "module uninstall r
 [ ! -e "$TMP/state/adhook-apk-fxunifiedhook.fx-owned" ] || fail "system-overlay ownership marker survived module uninstall"
 [ ! -s "$TMP/pm/uninstall-calls" ] || fail "system-overlay cleanup invoked pm uninstall instead of module unmount"
 unset FX_ADHOOK_FAKE_SYSTEM_OVERLAY
-echo "PASS: system-app detection, overlay-safe uninstall, ordinary-app fallback, signature safety, ownership-safe cleanup, and stale-marker handling"
+echo "PASS: system-overlay fail-closed deployment, legacy fallback, system-app detection, overlay-safe uninstall, signature safety, ownership-safe cleanup, and stale-marker handling"
