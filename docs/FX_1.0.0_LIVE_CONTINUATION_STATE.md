@@ -6681,3 +6681,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - GitHub Actions：FX Targeted Host Regression run `42113873013`（head `ab99b8bde162c125b44ef7022c060cf35c6f1586`）SUCCESS；日志明确通过“private staging directory creation failure is fail-closed”，并通过完整 installer/remover 回归。FX System App Install Stage run `42113993210`（head `9bc5eaefbd5513bdc380792b9e605535668efd91`）SUCCESS，覆盖 patcher、安装阶段行为、shell 执行和早期开机 overlay 回归。
 - 验证边界：以上均为 GitHub Linux Host 回归；未执行 Android 真机、KernelSU/Magisk 真实挂载、PackageManager 实机识别或 SELinux 实机标签测试。Hook APK migration/Gradle 构建 workflow 在本记录时仍 pending，不得记为通过。
 - 本批结束时观察到的分支 HEAD：`9bc5eaefbd5513bdc380792b9e605535668efd91`；并行 AI 仍可能继续推进。
+
+
+## 2026-11-06 — Unbound 本地 DNS 状态目录与 PID 生命周期防符号链接
+
+- 本批修改 `fx-module/scripts/unbound.sh`；代码提交：`dc9e62290222b3ee04bd1eb46e07b633ea38cd8b`。
+- 为 Unbound 独立递归 DNS 的私有状态目录新增逐级路径符号链接拒绝；要求父状态目录已存在且为真实目录，`unbound/` 与 `work/` 仅在父目录可信时逐级创建，并设置私有目录权限。
+- 对配置、PID、日志、root.key 状态文件增加“非符号链接普通文件或不存在”的类型约束；拒绝 FIFO、设备文件、目录和链接替代关键状态文件。
+- 日志写入不再通过 `mkdir -p` 自动跟随/创建不可信状态路径；PID 所有权读取、停止与 marker 清理均先执行 no-follow 文件类型检查，避免误读链接目标或通过不可信 PID 文件发信号。
+- 当前仅完成 GitHub 源码写入与回读，确认新增路径检查、目录准备、PID marker 检查调用已存在。按用户本轮要求，暂不运行静态检查、Host 回归、Gradle/构建或设备测试；这些结果均未声称通过。没有真机验证。
+- 本批没有修改 DNS 上游、监听端口、路由或现有第三方 VPN 规则；运行时网络行为尚待后续完整验证。
+- 下一批建议继续移植 DNS 服务状态/配置链路中与当前模块脚本不冲突的独立功能，再集中执行回归。
