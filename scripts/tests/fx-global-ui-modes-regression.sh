@@ -48,7 +48,7 @@ grep -Fq 'NAV_HEIGHT_DP = 76' "$cupertino_tokens" || { echo "FAIL: Cupertino tab
 grep -Fq 'HarmonyShapeTokens.CARD_RADIUS_DP' "$harmony_renderer" || { echo "FAIL: Harmony native card renderer must use its dedicated card radius"; exit 1; }
 grep -Fq 'CupertinoShapeTokens.CARD_RADIUS_DP' "$cupertino_renderer" || { echo "FAIL: Cupertino native card renderer must use its dedicated card radius"; exit 1; }
 grep -Fq 'p.cardCornerRadiusDp - 4) * density' "$skin" || { echo "FAIL: native neutral cards must use card radius rather than action radius"; exit 1; }
-grep -Fq 'p.cornerRadiusDp * density' "$skin" || { echo "FAIL: native action buttons must retain the independent action radius"; exit 1; }
+grep -Fq 'palette.cornerRadiusDp * density' "$skin" || { echo "FAIL: native action buttons must retain the independent action radius"; exit 1; }
 grep -Fq 'return HarmonySkinRenderer.palette();' "$skin" || { echo "FAIL: Android Views do not use the Harmony renderer"; exit 1; }
 grep -Fq 'return CupertinoSkinRenderer.palette();' "$skin" || { echo "FAIL: Android Views do not use the Cupertino renderer"; exit 1; }
 grep -Fq 'applyTextInputSkin(activity, (EditText) view, mode, palette)' "$skin" || { echo "FAIL: EditText controls must use skin hint tokens"; exit 1; }
