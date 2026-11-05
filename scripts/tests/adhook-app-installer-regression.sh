@@ -78,6 +78,7 @@ grep -Fq 'sha256sum fx-module/system/app/FX/FX.apk' "$WORKFLOW" || fail "system-
 grep -Fq 'not a privileged app; no platform signature or privileged permission grant is implied' "$WORKFLOW" || fail "system app build metadata omits privilege/signature boundary"
 ! grep -Fq 'fx-module/system/priv-app/FX' "$WORKFLOW" || fail "unsigned APK must not be staged as a privileged app"
 [ -s "$SERVICE" ] || fail "KernelSU boot service missing"
+sh -n "$SERVICE" || fail "KernelSU boot service has invalid shell syntax"
 grep -Fq 'sh "$MODDIR/scripts/install_adhook_app.sh" "$MODDIR"' "$SERVICE" || fail "boot service does not deploy the FX APK"
 
 # KernelSU must mount and label the systemless /system/app overlay before
