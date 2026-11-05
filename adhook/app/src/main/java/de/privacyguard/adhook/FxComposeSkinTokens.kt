@@ -103,48 +103,47 @@ internal object FxMiuixComposeTokens {
 
 internal object FxHarmonyComposeTokens {
     fun create() = FxComposeShellTokens(
-        pageBackground = Color(0xFFF1F5FA),
-        wallpaperOverlay = Color(0xFFF1F5FA).copy(alpha = 0.25f),
-        barBackground = Color(0xFFF9FBFE),
-        barBorder = Color(0x332878D0),
-        accent = Color(0xFF2878D0),
-        selectedText = Color(0xFF2878D0),
-        inactiveText = Color(0xFF64788F),
-        selectedTabBackground = Color(0x332878D0),
-        barCornerRadiusDp = 18,
-        tabCornerRadiusDp = 14,
-        tabBarHeightDp = 72,
-        tabItemHeightDp = 64,
-        horizontalInsetDp = 10,
-        verticalInsetDp = 4,
+        pageBackground = Color(HarmonySkinTokens.HarmonyColorTokens.BACKGROUND),
+        wallpaperOverlay = Color(HarmonySkinTokens.HarmonyColorTokens.WALLPAPER_TINT).copy(alpha = 0.25f),
+        barBackground = Color(HarmonySkinTokens.HarmonyColorTokens.NAV_SURFACE),
+        barBorder = Color(HarmonySkinTokens.HarmonyColorTokens.DIVIDER),
+        accent = Color(HarmonySkinTokens.HarmonyColorTokens.ACCENT),
+        selectedText = Color(HarmonySkinTokens.HarmonyColorTokens.ACCENT),
+        inactiveText = Color(HarmonySkinTokens.HarmonyColorTokens.SECONDARY_TEXT),
+        selectedTabBackground = Color(HarmonySkinTokens.HarmonyColorTokens.SELECTED_TAB_SURFACE),
+        barCornerRadiusDp = HarmonySkinTokens.HarmonyShapeTokens.NAV_BAR_RADIUS_DP,
+        tabCornerRadiusDp = HarmonySkinTokens.HarmonyShapeTokens.TAB_RADIUS_DP,
+        tabBarHeightDp = HarmonySkinTokens.HarmonySpacingTokens.NAV_HEIGHT_DP,
+        tabItemHeightDp = HarmonySkinTokens.HarmonySpacingTokens.TAB_HEIGHT_DP,
+        horizontalInsetDp = HarmonySkinTokens.HarmonySpacingTokens.NAV_OUTER_HORIZONTAL_DP,
+        verticalInsetDp = HarmonySkinTokens.HarmonySpacingTokens.NAV_OUTER_VERTICAL_DP,
         itemSpacingDp = 4,
-        labelSizeSp = 14,
+        labelSizeSp = HarmonySkinTokens.HarmonyTypographyTokens.TAB_LABEL_SP.toInt(),
         useLiquidTabsRenderer = false
     )
 }
 
 internal object FxCupertinoComposeTokens {
     fun create() = FxComposeShellTokens(
-        pageBackground = Color(0xFFF2F2F7),
-        wallpaperOverlay = Color.White.copy(alpha = 0.30f),
-        barBackground = Color(0xF9FFFFFF),
-        barBorder = Color(0x1F8E8E93),
-        accent = Color(0xFF007AFF),
-        selectedText = Color(0xFF007AFF),
-        inactiveText = Color(0xFF6C6C70),
-        selectedTabBackground = Color(0x1A007AFF),
-        barCornerRadiusDp = 24,
-        tabCornerRadiusDp = 20,
-        tabBarHeightDp = 76,
-        tabItemHeightDp = 68,
-        horizontalInsetDp = 12,
-        verticalInsetDp = 4,
+        pageBackground = Color(CupertinoSkinTokens.CupertinoColorTokens.BACKGROUND),
+        wallpaperOverlay = Color(CupertinoSkinTokens.CupertinoColorTokens.WALLPAPER_TINT).copy(alpha = 0.30f),
+        barBackground = Color(CupertinoSkinTokens.CupertinoColorTokens.NAV_SURFACE),
+        barBorder = Color(CupertinoSkinTokens.CupertinoColorTokens.DIVIDER),
+        accent = Color(CupertinoSkinTokens.CupertinoColorTokens.ACCENT),
+        selectedText = Color(CupertinoSkinTokens.CupertinoColorTokens.ACCENT),
+        inactiveText = Color(CupertinoSkinTokens.CupertinoColorTokens.SECONDARY_TEXT),
+        selectedTabBackground = Color(CupertinoSkinTokens.CupertinoColorTokens.SELECTED_TAB_SURFACE),
+        barCornerRadiusDp = CupertinoSkinTokens.CupertinoShapeTokens.NAV_BAR_RADIUS_DP,
+        tabCornerRadiusDp = CupertinoSkinTokens.CupertinoShapeTokens.TAB_RADIUS_DP,
+        tabBarHeightDp = CupertinoSkinTokens.CupertinoSpacingTokens.NAV_HEIGHT_DP,
+        tabItemHeightDp = CupertinoSkinTokens.CupertinoSpacingTokens.TAB_HEIGHT_DP,
+        horizontalInsetDp = CupertinoSkinTokens.CupertinoSpacingTokens.NAV_OUTER_HORIZONTAL_DP,
+        verticalInsetDp = CupertinoSkinTokens.CupertinoSpacingTokens.NAV_OUTER_VERTICAL_DP,
         itemSpacingDp = 4,
-        labelSizeSp = 13,
+        labelSizeSp = CupertinoSkinTokens.CupertinoTypographyTokens.TAB_LABEL_SP.toInt(),
         useLiquidTabsRenderer = false
     )
 }
-
 internal fun fxComposeShellTokens(
     mode: String,
     miuixBackground: Color,
