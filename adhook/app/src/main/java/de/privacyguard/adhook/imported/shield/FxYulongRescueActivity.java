@@ -83,7 +83,7 @@ public final class FxYulongRescueActivity extends de.privacyguard.adhook.FxNativ
         body.setPadding(dp(10), dp(4), dp(10), dp(22));
         scroll.addView(body);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        setContentViewWithNativeTabs(root, 5);
+        setContentViewWithNativeTabs(root, 2);
 
         foregroundLabel = text(formatForeground(), 13, 0xff17212b, true);
         card(body, "当前前台应用", "仅读取 Usage Access 的前台包名，不读取屏幕内容、输入内容或其他应用数据。",
