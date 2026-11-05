@@ -145,7 +145,28 @@ install_one(){
   # New module archives carry a systemless /system/app overlay. The optional
   # payload is only a compatibility fallback for legacy archives without it.
   _overlay_apk="$MODDIR/system/app/FX/FX.apk"
+  # The module directory and APK/checksum payloads are trusted Root inputs.
+  # Reject symlinked ancestors and final files before hashing or PackageManager
+  # access; a valid digest does not make a symlinked payload path trustworthy.
+  if ! path_components_are_safe "$MODDIR" || [ ! -d "$MODDIR" ] || [ -L "$MODDIR" ]; then
+    log_msg "ERROR: module root is missing or traverses a symlink; refusing deployment"
+    return 1
+  fi
+  if [ -L "$_overlay_apk" ]; then
+    log_msg "ERROR: system-app overlay path is a symlink; refusing deployment"
+    return 1
+  fi
   if [ -s "$_overlay_apk" ]; then _apk="$_overlay_apk"; else _apk="$MODDIR/optional/FXUnifiedHook.apk"; fi
+  if ! path_components_are_safe "$_apk" || [ ! -f "$_apk" ] || [ -L "$_apk" ]; then
+    log_msg "ERROR: module APK payload path is missing or traverses a symlink; refusing deployment"
+    return 1
+  fi
+  if [ -e "$_apk.sha256" ] || [ -L "$_apk.sha256" ]; then
+    if ! path_components_are_safe "$_apk.sha256" || [ ! -f "$_apk.sha256" ] || [ -L "$_apk.sha256" ]; then
+      log_msg "ERROR: module APK checksum path is unsafe; refusing deployment"
+      return 1
+    fi
+  fi
   _marker="$STATE_DIR/adhook-apk-$_slug.sha256"; _owned="$STATE_DIR/adhook-apk-$_slug.fx-owned"
   [ -s "$_apk" ] || { log_msg "ERROR: unified Hook APK missing: $_apk"; return 1; }
   command -v pm >/dev/null 2>&1 || { log_msg "WARN: pm unavailable; defer Hook installation"; return 1; }
