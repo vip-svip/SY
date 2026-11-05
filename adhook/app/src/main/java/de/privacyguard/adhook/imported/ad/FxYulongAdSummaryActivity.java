@@ -32,12 +32,12 @@ public final class FxYulongAdSummaryActivity extends de.privacyguard.adhook.FxNa
         t.setPadding(dp(4), dp(5), dp(4), dp(5)); return t;
     }
     private Button button(String label, Runnable action) {
-        Button b = new Button(this); b.setAllCaps(false); b.setText(label); b.setOnClickListener(v -> action.run()); return b;
+        Button b = new Button(this); b.setTag("fx-action-row"); b.setAllCaps(false); b.setText(label); b.setOnClickListener(v -> action.run()); return b;
     }
     private void card(String title, String detail, View... children) {
-        LinearLayout panel = new LinearLayout(this); panel.setOrientation(1);
+        LinearLayout panel = new LinearLayout(this); panel.setTag("fx-card"); panel.setOrientation(1);
         panel.setPadding(dp(14), dp(9), dp(14), dp(9)); panel.setBackgroundColor(0xfff0f3f7);
-        panel.addView(text(title, 15, 0xff17212b, true)); panel.addView(text(detail, 12, 0xff617080, false));
+        TextView heading = text(title, 15, 0xff17212b, true); heading.setTag("fx-card-title"); panel.addView(heading); TextView description = text(detail, 12, 0xff617080, false); description.setTag("fx-card-detail"); panel.addView(description);
         for (View child : children) panel.addView(child);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.setMargins(dp(12), dp(4), dp(12), dp(4)); body.addView(panel, lp);
