@@ -80,6 +80,19 @@ done
 for address in 0.0.0.0 0.1.2.3 127.0.0.1 169.254.1.1 224.0.0.1 239.1.2.3 240.0.0.1 255.255.255.255 256.0.0.1 10.01.2.3 1.2.3; do
   if _valid_ipv4 "$address"; then fail "invalid VPN egress IPv4 address accepted: $address"; fi
 done
+
+# Linux IFNAMSIZ is 16 including the NUL terminator: accept at most 15
+# ASCII bytes and reject names that cannot identify a real kernel interface.
+IF_VALIDATOR="$T/interface-validator.sh"
+sed -n '/^_valid_if() {/,/^}/p' "$SOURCE" > "$IF_VALIDATOR"
+[ -s "$IF_VALIDATOR" ] || fail "production interface validator could not be extracted"
+. "$IF_VALIDATOR"
+for iface in tun0 wg0 rmnet_data0 wlan0 tun0:1 123456789012345; do
+  _valid_if "$iface" || fail "valid Linux interface name rejected: $iface"
+done
+for iface in "" 1234567890123456 "bad/name" "bad name" "-invalid"; do
+  if _valid_if "$iface"; then fail "invalid Linux interface name accepted: $iface"; fi
+done
 : > "$T/settings.log"
 MOCK_SETTINGS_LOG="$T/settings.log"; export MOCK_SETTINGS_LOG
 MOCK_PRIVATE_DNS_MODE=hostname; export MOCK_PRIVATE_DNS_MODE
