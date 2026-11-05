@@ -187,10 +187,13 @@ grep -Fq 'FxUiMode.read(this).getStorageId()' "$activity"
 grep -Fq 'FxUiMode.write(MainActivity.this' "$activity"
 grep -Fq 'applyWebUiMode();' "$activity"
 grep -Fq 'FxNativeSkin.watch(this, pageContent);' "$host" || { echo "FAIL: imported native screens do not receive shared Skin tokens"; exit 1; }
-grep -Fq 'static void showDialog(Activity activity, AlertDialog dialog)' "$skin" || { echo "FAIL: shared native dialog renderer missing"; exit 1; }
+grep -Fq 'static void showDialog(Activity activity, Dialog dialog)' "$skin" || { echo "FAIL: shared native dialog renderer missing"; exit 1; }
 grep -Fq 'import androidx.appcompat.app.AlertDialog;' "$activity" || { echo "FAIL: MainActivity must use the same AlertDialog type as the shared Skin-aware Builder"; exit 1; }
 ! grep -Fq 'import android.app.AlertDialog;' "$activity" || { echo "FAIL: MainActivity platform AlertDialog type is incompatible with the AppCompat Skin builder"; exit 1; }
 grep -Fq 'static AlertDialog.Builder builder(Activity activity)' "$skin" || { echo "FAIL: centralized Skin-aware AlertDialog Builder missing"; exit 1; }
+grep -Fq 'protected final AlertDialog.Builder fxDialogBuilder()' "$host" || { echo "FAIL: imported FX tabs need a platform AlertDialog Skin builder"; exit 1; }
+grep -Fq 'FxNativeSkin.showDialog(FxNativeTabActivity.this, dialog);' "$host" || { echo "FAIL: imported FX tabs must route modal show() through shared renderer"; exit 1; }
+grep -Fq 'protected final void showFxDialog(AlertDialog dialog)' "$host" || { echo "FAIL: imported FX tabs need the custom OnShowListener dialog display path"; exit 1; }
 grep -Fq 'FxNativeSkin.showDialog(activity, dialog);' "$skin" || { echo "FAIL: Skin-aware Builder does not intercept show()"; exit 1; }
 grep -Fq 'static AlertDialog.Builder builder(Activity activity)' "$skin" || { echo "FAIL: Skin-aware AlertDialog Builder missing"; exit 1; }
 python3 - "$activity" "$skin" <<'PY'
@@ -204,7 +207,7 @@ assert "FxNativeSkin.builder(this)" in activity
 assert "FxNativeSkin.builder(MainActivity.this)" in activity
 assert activity.count("FxNativeSkin.builder(") >= 90, "MainActivity must route native dialogs through the shared Skin-aware Builder"
 start = skin.index("static AlertDialog.Builder builder(Activity activity)")
-end = skin.index("static void showDialog(Activity activity, AlertDialog dialog)", start)
+end = skin.index("static void showDialog(Activity activity, Dialog dialog)", start)
 builder = skin[start:end]
 assert "if (activity == null)" in builder
 assert "@Override public AlertDialog show()" in builder
