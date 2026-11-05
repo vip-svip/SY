@@ -1,0 +1,78 @@
+name: FX VPN Coexistence Arbiter
+
+# Guards requirement 3 of the FX 1.0.0 handoff: the Android system VPN, a
+# third-party VpnService app, and the FX kernel-level dataplane must coexist.
+# The FX dataplane must NOT consume the single Android VPN slot, and the observed
+# state must be graded truthfully instead of optimistically claimed as "parallel".
+
+on:
+  push:
+    branches:
+      - main
+      - fx-v1.0.0-unified-hook-integration
+    paths:
+      - 'scripts/fx-vpn-coexistence-arbiter.sh'
+      - 'scripts/tests/fx-vpn-coexistence-arbiter-*'
+      - '.github/workflows/fx-vpn-coexistence-arbiter.yml'
+  pull_request:
+    paths:
+      - 'scripts/fx-vpn-coexistence-arbiter.sh'
+      - 'scripts/tests/fx-vpn-coexistence-arbiter-*'
+      - '.github/workflows/fx-vpn-coexistence-arbiter.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fx-vpn-coexistence-arbiter-${{ github.ref }}
+  # Multiple contributors push to this branch concurrently. Do not cancel an
+  # active regression run on every push; let the current run finish and retain
+  # the newest pending run for the updated branch state.
+  cancel-in-progress: false
+
+jobs:
+  arbiter:
+    name: arbiter
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Parse both scripts
+        run: |
+          set -euo pipefail
+          sh -n scripts/fx-vpn-coexistence-arbiter.sh
+          sh -n scripts/tests/fx-vpn-coexistence-arbiter-regression.sh
+          python3 -m py_compile scripts/tests/fx-vpn-coexistence-arbiter-live-assert.py
+
+      - name: Run the coexistence grading regression
+        run: |
+          set -euo pipefail
+          sh scripts/tests/fx-vpn-coexistence-arbiter-regression.sh
+
+      - name: Verify the arbiter is read-only
+        run: |
+          set -euo pipefail
+          code=$(sed 's/#.*//' scripts/fx-vpn-coexistence-arbiter.sh)
+          if printf '%s\n' "$code" | grep -Eq '(^|[[:space:]])(iptables|ip6tables|nft|etables)([[:space:]]|$)|ip[[:space:]]+(rule|route)[[:space:]]+(add|del|flush)|(^|[[:space:]])tc[[:space:]]+qdisc'; then
+            echo "arbiter must not mutate netfilter/ip rules/routes" >&2
+            exit 1
+          fi
+          echo "arbiter is observation-only"
+
+      - name: Smoke-run the arbiter against the live runner network
+        run: |
+          set -euo pipefail
+          set +e
+          out=$(sh scripts/fx-vpn-coexistence-arbiter.sh)
+          arbiter_status=$?
+          set -e
+          if [[ "$arbiter_status" -ne 0 && "$arbiter_status" -ne 2 ]]; then
+            echo "Arbiter returned an unexpected operational error: $arbiter_status" >&2
+            exit "$arbiter_status"
+          fi
+          echo "$out"
+          printf '%s' "$out" | python3 scripts/tests/fx-vpn-coexistence-arbiter-live-assert.py
+          echo "Arbiter exit status: $arbiter_status (2 is an allowed fail-closed unknown)"
