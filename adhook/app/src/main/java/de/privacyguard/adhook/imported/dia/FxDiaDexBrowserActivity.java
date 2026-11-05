@@ -144,15 +144,15 @@ public final class FxDiaDexBrowserActivity extends de.privacyguard.adhook.FxNati
         root.setBackgroundColor(0xfff7f8fa);
         LinearLayout header = new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(10), dp(6), dp(12), dp(6));
-        header.addView(button("‹ 返回", this::finish));
-        header.addView(text("Dia 23.11 · DEX 查找与解析", 18, 0xff17212b, true),
+        header.addView(button("‹ 返回 Hook", this::finish));
+        header.addView(text("Hook · DEX 查找与解析", 18, 0xff17212b, true),
                 new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
         ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
         resultScroll = scroll;
         LinearLayout body = new LinearLayout(this); body.setOrientation(LinearLayout.VERTICAL);
         body.setPadding(0, dp(4), 0, dp(18)); scroll.addView(body);
-        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1)); setContentViewWithNativeTabs(root, 5);
+        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1)); setContentViewWithNativeTabs(root, 4);
 
         target = text("尚未选择应用。", 13, 0xff334155, false);
         summary = text("选择应用后读取 APK 中的 DEX 类名。", 13, 0xff334155, false);
