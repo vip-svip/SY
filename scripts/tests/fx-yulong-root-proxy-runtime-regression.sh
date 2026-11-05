@@ -182,7 +182,6 @@ assert_stopped(){
   else
     grep -Fq unbound-stop "$case_dir/engines.log" || fail "$2 did not stop non-independent Unbound"
   fi
-  grep -Fq unbound-stop "$case_dir/engines.log" || fail "$2 did not stop Unbound"
 }
 
 # CONF overrides cannot redirect whitelist reads or persistent updates outside PG.
