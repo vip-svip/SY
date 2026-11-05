@@ -84,6 +84,15 @@ for title in expected_titles:
 assert "selectable(" in panel and "role = Role.RadioButton" in panel, (
     "mode choices must expose radio selection semantics to accessibility services"
 )
+assert "resolveTokens(FxUiMode.DEFAULT_STANDARD.storageId)" in panel
+assert "resolveTokens(FxUiMode.CLASSIC_WEB_COMPAT.storageId)" in panel
+assert "resolveTokens(FxUiMode.FX_LIQUID_NATIVE.storageId)" in panel
+assert "resolveTokens(FxUiMode.MIUIX_STYLE.storageId)" in panel
+assert "resolveTokens(FxUiMode.HUAWEI_HARMONY_STYLE.storageId)" in panel
+assert "resolveTokens(FxUiMode.IOS_CUPERTINO_STYLE.storageId)" in panel
+assert "tokens.barBackground" in panel and "tokens.barBorder" in panel
+assert "tokens.selectedText" in panel and "tokens.inactiveText" in panel
+assert "RoundedCornerShape((tokens.barCornerRadiusDp + 4).dp)" in panel
 assert "selected = mode == currentMode" in panel, (
     "radio selection state must reflect the persisted current mode"
 )

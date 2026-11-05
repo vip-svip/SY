@@ -2,10 +2,11 @@ package de.privacyguard.adhook
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -26,8 +27,6 @@ import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -52,6 +51,16 @@ private fun FxDesignModePanel(
     val backdrop = rememberLayerBackdrop()
 
     MiuixTheme(controller = themeController) {
+        val miuixColors = MiuixTheme.colorScheme
+        fun resolveTokens(mode: String) = fxComposeShellTokens(
+            mode = mode,
+            miuixBackground = miuixColors.background,
+            miuixSurface = miuixColors.surface,
+            miuixPrimary = Color(0xFF3478F6),
+            miuixSelectedText = miuixColors.onPrimaryContainer,
+            miuixInactiveText = miuixColors.onSurfaceContainerVariant,
+            miuixSelectedSurface = miuixColors.primaryContainer
+        )
         Box(Modifier.fillMaxWidth()) {
             // The backdrop source is a separate sibling layer. It contains only the
             // static gradient, never the glass cards that sample it (prevents feedback).
@@ -78,12 +87,12 @@ private fun FxDesignModePanel(
                 Text(
                     "六种模式覆盖整个应用的视觉呈现。切换只改变界面渲染，不重启 VPN、DNS、代理内核、Hook 或脚本服务。"
                 )
-                ModeCard(FxUiMode.DEFAULT_STANDARD.storageId, FxUiMode.DEFAULT_STANDARD.title, FxUiMode.DEFAULT_STANDARD.description, currentMode, onModeSelected, backdrop, false)
-                ModeCard(FxUiMode.CLASSIC_WEB_COMPAT.storageId, FxUiMode.CLASSIC_WEB_COMPAT.title, FxUiMode.CLASSIC_WEB_COMPAT.description, currentMode, onModeSelected, backdrop, false)
-                ModeCard(FxUiMode.FX_LIQUID_NATIVE.storageId, FxUiMode.FX_LIQUID_NATIVE.title, FxUiMode.FX_LIQUID_NATIVE.description, currentMode, onModeSelected, backdrop, true)
-                ModeCard(FxUiMode.MIUIX_STYLE.storageId, FxUiMode.MIUIX_STYLE.title, FxUiMode.MIUIX_STYLE.description, currentMode, onModeSelected, backdrop, false)
-                ModeCard(FxUiMode.HUAWEI_HARMONY_STYLE.storageId, FxUiMode.HUAWEI_HARMONY_STYLE.title, FxUiMode.HUAWEI_HARMONY_STYLE.description, currentMode, onModeSelected, backdrop, false)
-                ModeCard(FxUiMode.IOS_CUPERTINO_STYLE.storageId, FxUiMode.IOS_CUPERTINO_STYLE.title, FxUiMode.IOS_CUPERTINO_STYLE.description, currentMode, onModeSelected, backdrop, false)
+                ModeCard(FxUiMode.DEFAULT_STANDARD.storageId, FxUiMode.DEFAULT_STANDARD.title, FxUiMode.DEFAULT_STANDARD.description, currentMode, onModeSelected, resolveTokens(FxUiMode.DEFAULT_STANDARD.storageId), backdrop, false)
+                ModeCard(FxUiMode.CLASSIC_WEB_COMPAT.storageId, FxUiMode.CLASSIC_WEB_COMPAT.title, FxUiMode.CLASSIC_WEB_COMPAT.description, currentMode, onModeSelected, resolveTokens(FxUiMode.CLASSIC_WEB_COMPAT.storageId), backdrop, false)
+                ModeCard(FxUiMode.FX_LIQUID_NATIVE.storageId, FxUiMode.FX_LIQUID_NATIVE.title, FxUiMode.FX_LIQUID_NATIVE.description, currentMode, onModeSelected, resolveTokens(FxUiMode.FX_LIQUID_NATIVE.storageId), backdrop, true)
+                ModeCard(FxUiMode.MIUIX_STYLE.storageId, FxUiMode.MIUIX_STYLE.title, FxUiMode.MIUIX_STYLE.description, currentMode, onModeSelected, resolveTokens(FxUiMode.MIUIX_STYLE.storageId), backdrop, false)
+                ModeCard(FxUiMode.HUAWEI_HARMONY_STYLE.storageId, FxUiMode.HUAWEI_HARMONY_STYLE.title, FxUiMode.HUAWEI_HARMONY_STYLE.description, currentMode, onModeSelected, resolveTokens(FxUiMode.HUAWEI_HARMONY_STYLE.storageId), backdrop, false)
+                ModeCard(FxUiMode.IOS_CUPERTINO_STYLE.storageId, FxUiMode.IOS_CUPERTINO_STYLE.title, FxUiMode.IOS_CUPERTINO_STYLE.description, currentMode, onModeSelected, resolveTokens(FxUiMode.IOS_CUPERTINO_STYLE.storageId), backdrop, false)
             }
         }
     }
@@ -96,10 +105,14 @@ private fun ModeCard(
     description: String,
     currentMode: String,
     onModeSelected: (String) -> Unit,
+    tokens: FxComposeShellTokens,
     backdrop: com.kyant.backdrop.Backdrop,
     glass: Boolean
 ) {
-    val shape = RoundedCornerShape(20.dp)
+    val selected = mode == currentMode
+    val shape = RoundedCornerShape((tokens.barCornerRadiusDp + 4).dp)
+    val surface = if (selected) tokens.selectedTabBackground else tokens.barBackground
+    val outline = if (selected) tokens.accent else tokens.barBorder
     val glassModifier = if (glass) {
         Modifier.drawBackdrop(
             backdrop = backdrop,
@@ -112,21 +125,26 @@ private fun ModeCard(
         )
     } else Modifier
 
-    Card(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(shape)
             .then(glassModifier)
+            .then(if (glass) Modifier else Modifier.background(surface, shape))
+            .border(if (selected) 2.dp else 1.dp, outline, shape)
             .selectable(
-                selected = mode == currentMode,
+                selected = selected,
                 role = Role.RadioButton,
                 onClick = { onModeSelected(mode) }
-            ),
-        colors = CardDefaults.defaultColors(
-            color = if (mode == currentMode) Color(0x332F80ED) else Color(0x1AFFFFFF)
-        ),
-        insideMargin = PaddingValues(16.dp)
+            )
+            .padding(16.dp)
     ) {
-        Text(if (mode == currentMode) "✓  $title" else title)
-        Text(description)
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                if (selected) "✓  $title" else title,
+                color = tokens.selectedText
+            )
+            Text(description, color = tokens.inactiveText)
+        }
     }
 }
