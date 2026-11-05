@@ -6487,3 +6487,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - After stabilizing the PackageManager UID fixture and the source-inventory failure injection, GitHub Actions run `42107853148` on commit `d700c68f9a7b8069de50be1cbaee07b0faa8783f` completed **SUCCESS**.
 - Passed steps: POSIX shell/Python syntax checks, full coexistence regression (including duplicate FX DNS/filter/proxy listener collisions and all fail-closed cases), read-only network mutation guard, and live runner smoke assertion.
 - This run validates the arbiter on a GitHub Linux host only. It does not establish Android device routing, packet forwarding/return path, vendor VPN chaining, or OnePlus 12 compatibility. Those remain unverified and are not claimed complete.
+
+
+## 2026-11-06 — VPN 内部监听冲突与 PackageManager UID 回归收口
+
+- 生产检测提交：`7d59c54d2aa50c5819ee41778b717d1f99374a7b`，在 `scripts/fx-vpn-coexistence-arbiter.sh` 检测 FX 上游 DNS、客户端过滤 DNS、代理端口的两两重复配置；即使宿主机端口表显示空闲，也必须返回 `partial`，并在 JSON/text 状态中披露冲突。
+- 回归提交：`53b680a49c56808300fe29e116864d0abf3e6cbf`，覆盖端口规范化后的三组重复组合及冲突降级；`90f1cff06cd95f814cae9f7f65652257951fa333` 修复 Shell nounset 下字面量 `VpnService$Builder` 测试标签展开问题。
+- 并发协作后，其他提交补齐了 JSON `config_conflicts` 字段与 fake PackageManager provider 的换行夹具。当前回归提交 `d7ef57737a76965ae0e82e43576ebb45191a799b` 移除第三方/FX 自身 VPN 生产探测用例中的 UID 环境注入，使 case 5c/5c2 实际走 `am get-current-user` + `cmd/pm package list -U` 的 PackageManager UID 查询；fixture 输出由独立断言验证。
+- CI：VPN Arbiter run `42107871614` 对提交 `d7ef57737a76965ae0e82e43576ebb45191a799b` 完成 **SUCCESS**。更早的 run `42107853148` 对 `d700c68` 也为 SUCCESS。两者均为 GitHub Linux Host 回归，不是 Android 设备验证。
+- 限制：裁决器仍是只读观测器；`route_probe=unverified`，没有证明 TUN 数据面、回程路由、DNS 真实可达或第三方 VPN 链式转发。OnePlus 12 真机验证、Gradle/APK/KernelSU 最终构建仍未由本批 CI 证明。
