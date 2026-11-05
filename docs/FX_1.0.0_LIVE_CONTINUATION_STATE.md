@@ -6113,3 +6113,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 - Executed the committed probe/test logic in an isolated Linux host workspace: `python3 test.py` — PASS. The test compiled the C helper with `cc -std=c11 -O2 -Wall -Wextra -Werror` and exercised UDP loopback NOERROR/NXDOMAIN responses, missing RD, TC/truncation, non-loopback rejection and malformed CLI arguments.
 - This is a host integration test only. Android NDK cross-compilation, GitHub Actions result, actual Unbound runtime and device/mobile-network recursion remain unverified.
+
+## 2026-11-06 — Root Proxy interface-name validation aligned with Linux netdevice rules
+
+- 代码提交：`6f8b34c78b9859d1d761a6f2992574f2bf4286af`。
+- `fx-module/scripts/yulong-root-proxy.sh::_valid_if` 现在拒绝 Linux netdevice 不接受的冒号别名及特殊名称 `.` / `..`，仍保留 15 字节上限和 ASCII 安全白名单。
+- `scripts/tests/fx-yulong-root-proxy-runtime-regression.sh` 新增有效名称 `eth0.100`、`veth-test`，并验证 `tun0:1`、`.`、`..` 被拒绝；生产 validator 由测试直接提取执行。
+- GitHub Actions：`FX VPN shell regression` run `42102931374` 在本提交上通过，包含 POSIX shell 语法、Root Proxy runtime regression 与卸载顺序回归。
+- 同提交触发的 Targeted Host 与 Module Runtime runs 被后续协作者提交取消；其后代 HEAD `361a0e19fcb5010dd93aeca0c504b641a2e84a5a` 的 Targeted Host run `42102963704` 失败，具体失败项尚未从 Actions 输出中确认，不能标记为通过；该 HEAD 的 Module Runtime run `42102963655` 当时仍在运行。
+- 未运行 Android Gradle 构建、模拟器或真机第三方 VPN 路由测试。
