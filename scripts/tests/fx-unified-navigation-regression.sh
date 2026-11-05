@@ -9,8 +9,13 @@ dia_backup="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/F
 dia_editor="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaCodeEditorActivity.java"
 dia_crash="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaCrashReportActivity.java"
 dia_dex="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaDexBrowserActivity.java"
-test -s "$activity" && test -s "$shell" && test -s "$host" && test -s "$dia_browser" && test -s "$dia_backup" && test -s "$dia_editor" && test -s "$dia_crash" && test -s "$dia_dex"
-python3 - "$activity" "$shell" "$host" "$dia_browser" "$dia_backup" "$dia_editor" "$dia_crash" "$dia_dex" <<'PY'
+dia_frida="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaFridaActivity.java"
+dia_scripts="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaScriptLibraryActivity.java"
+dia_gps="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaGpsPickerActivity.java"
+dia_inspector="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaInspectorActivity.java"
+dia_wifi="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaWifiProxyActivity.java"
+test -s "$activity" && test -s "$shell" && test -s "$host" && test -s "$dia_browser" && test -s "$dia_backup" && test -s "$dia_editor" && test -s "$dia_crash" && test -s "$dia_dex" && test -s "$dia_frida" && test -s "$dia_scripts" && test -s "$dia_gps" && test -s "$dia_inspector" && test -s "$dia_wifi"
+python3 - "$activity" "$shell" "$host" "$dia_browser" "$dia_backup" "$dia_editor" "$dia_crash" "$dia_dex" "$dia_frida" "$dia_scripts" "$dia_gps" "$dia_inspector" "$dia_wifi" <<'PY'
 from pathlib import Path
 import sys
 activity = Path(sys.argv[1]).read_text(encoding="utf-8")
@@ -21,6 +26,11 @@ dia_backup = Path(sys.argv[5]).read_text(encoding="utf-8")
 dia_editor = Path(sys.argv[6]).read_text(encoding="utf-8")
 dia_crash = Path(sys.argv[7]).read_text(encoding="utf-8")
 dia_dex = Path(sys.argv[8]).read_text(encoding="utf-8")
+dia_frida = Path(sys.argv[9]).read_text(encoding="utf-8")
+dia_scripts = Path(sys.argv[10]).read_text(encoding="utf-8")
+dia_gps = Path(sys.argv[11]).read_text(encoding="utf-8")
+dia_inspector = Path(sys.argv[12]).read_text(encoding="utf-8")
+dia_wifi = Path(sys.argv[13]).read_text(encoding="utf-8")
 settings_start = activity.index("    private void showSettings()")
 settings_end = activity.index("    private String importedSuiteTitle(", settings_start)
 settings = activity[settings_start:settings_end]
@@ -60,5 +70,16 @@ for source, tokens, page in (
 ):
     for token in tokens:
         assert token in source, f"{page} is not integrated into Hook: {token}"
-print("PASS: Settings has no migration-app hub; native six-tab navigation uses Ad; shared Activity host preserves all five skins; Dia-derived tools route into FX Hook/Settings.")
+for token in ('‹ 返回 Hook', 'Hook · ', 'setContentViewWithNativeTabs(root, 4)'):
+    assert token in dia_frida, f"Frida runtime is not integrated into Hook: {token}"
+assert 'Dia 23.11 ·' not in dia_frida
+for token in ('‹ 返回脚本', '脚本 · Frida JavaScript 脚本库', 'setContentViewWithNativeTabs(root, 3)'):
+    assert token in dia_scripts, f"Frida script library is not integrated into Script: {token}"
+for token in ('‹ 返回 Hook', 'Hook · GPS 地图选点', 'setContentViewWithNativeTabs(root, 4)'):
+    assert token in dia_gps, f"GPS picker is not integrated into Hook: {token}"
+for token in ('‹ 返回 Hook', 'Hook · 内存快照', 'Hook · 数据库监控', 'setContentViewWithNativeTabs(root, 4)'):
+    assert token in dia_inspector, f"inspector tools are not integrated into Hook: {token}"
+for token in ('‹ 返回 VPN', 'VPN · 系统 HTTP 代理', 'setContentViewWithNativeTabs(root, 0)'):
+    assert token in dia_wifi, f"system proxy editor is not integrated into VPN: {token}"
+print("PASS: Settings has no migration-app hub; six primary tabs remain unified; wallpaper and five skins are shared; migrated Dia tools route into FX Hook/Script/VPN/Settings.")
 PY
