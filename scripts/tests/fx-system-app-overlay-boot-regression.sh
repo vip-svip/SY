@@ -9,19 +9,32 @@ T=$(mktemp -d "${TMPDIR:-/tmp}/fx-overlay-boot.XXXXXX")
 trap 'rm -rf "$T"' EXIT HUP INT TERM
 BIN="$T/bin"
 mkdir -p "$BIN"
+# The SELinux command stubs share a file-backed context so tests can
+# exercise restorecon/chcon fallback across their separate process invocations.
 cat > "$BIN/ls" <<'LS'
 #!/bin/sh
 if [ "${1:-}" = "-Zd" ]; then
-  printf 'u:object_r:system_file:s0 %s\n' "${2:-}"
+  _context=${FX_TEST_CONTEXT_FILE:-}
+  _value='u:object_r:system_file:s0'
+  [ -z "$_context" ] || [ ! -s "$_context" ] || _value=$(cat "$_context")
+  printf '%s %s\n' "$_value" "${2:-}"
 else
   exec /bin/ls "$@"
 fi
 LS
 cat > "$BIN/restorecon" <<'RESTORE'
 #!/bin/sh
+[ "${FX_TEST_RESTORECON_RC:-0}" -eq 0 ] || exit "${FX_TEST_RESTORECON_RC:-1}"
+[ -z "${FX_TEST_CONTEXT_FILE:-}" ] || printf '%s\n' 'u:object_r:system_file:s0' > "$FX_TEST_CONTEXT_FILE"
 exit 0
 RESTORE
-chmod 0755 "$BIN/ls" "$BIN/restorecon"
+cat > "$BIN/chcon" <<'CHCON'
+#!/bin/sh
+[ "${FX_TEST_CHCON_RC:-0}" -eq 0 ] || exit "${FX_TEST_CHCON_RC:-1}"
+[ -z "${FX_TEST_CONTEXT_FILE:-}" ] || printf '%s\n' "$1" > "$FX_TEST_CONTEXT_FILE"
+exit 0
+CHCON
+chmod 0755 "$BIN/ls" "$BIN/restorecon" "$BIN/chcon"
 make_payload(){
   _dir=$1
   mkdir -p "$_dir"
@@ -31,6 +44,11 @@ make_payload(){
 run_boot(){
   FX_SYSTEM_APP_DIR="$1" FX_SYSTEM_APP_STATE_DIR="$2" PATH="$BIN:$PATH" sh "$SOURCE"
 }
+run_boot_with_selinux(){
+  FX_SYSTEM_APP_DIR="$1" FX_SYSTEM_APP_STATE_DIR="$2" \
+    FX_TEST_CONTEXT_FILE="$3" FX_TEST_RESTORECON_RC="$4" \
+    FX_TEST_CHCON_RC="$5" PATH="$BIN:$PATH" sh "$SOURCE"
+}
 echo "== valid overlay writes verified marker atomically =="
 APP="$T/system/app/FX"; STATE="$T/state"
 make_payload "$APP" valid
@@ -39,6 +57,24 @@ expected=$(sha256sum "$APP/FX.apk" | awk '{print $1}')
 [ "$(cat "$STATE/system-app-apk.sha256")" = "$expected" ] || { echo "FAIL: verified deployment marker mismatch" >&2; exit 1; }
 [ ! -e "$STATE/system-app-retry" ] || { echo "FAIL: valid overlay left retry marker" >&2; exit 1; }
 [ "$(stat -c %a "$STATE/system-app-apk.sha256")" = 600 ] || { echo "FAIL: deployment marker mode is not 0600" >&2; exit 1; }
+
+echo "== restorecon failure falls back to chcon and verifies the resulting label =="
+APP_FALLBACK="$T/system-fallback/app/FX"; STATE_FALLBACK="$T/state-fallback"
+CONTEXT_FALLBACK="$T/context-fallback"
+make_payload "$APP_FALLBACK" selinux-fallback
+printf '%s\n' 'u:object_r:vendor_file:s0' > "$CONTEXT_FALLBACK"
+run_boot_with_selinux "$APP_FALLBACK" "$STATE_FALLBACK" "$CONTEXT_FALLBACK" 1 0
+[ "$(cat "$CONTEXT_FALLBACK")" = 'u:object_r:system_file:s0' ] || { echo "FAIL: chcon fallback did not apply system_file label" >&2; exit 1; }
+[ ! -e "$STATE_FALLBACK/system-app-retry" ] || { echo "FAIL: successful chcon fallback left retry marker" >&2; exit 1; }
+
+echo "== failed restorecon and chcon leave a retry marker rather than claiming success =="
+APP_LABEL_FAIL="$T/system-label-fail/app/FX"; STATE_LABEL_FAIL="$T/state-label-fail"
+CONTEXT_LABEL_FAIL="$T/context-label-fail"
+make_payload "$APP_LABEL_FAIL" selinux-failure
+printf '%s\n' 'u:object_r:vendor_file:s0' > "$CONTEXT_LABEL_FAIL"
+run_boot_with_selinux "$APP_LABEL_FAIL" "$STATE_LABEL_FAIL" "$CONTEXT_LABEL_FAIL" 1 1
+[ -s "$STATE_LABEL_FAIL/system-app-retry" ] || { echo "FAIL: unavailable SELinux relabel did not create retry marker" >&2; exit 1; }
+[ "$(cat "$CONTEXT_LABEL_FAIL")" = 'u:object_r:vendor_file:s0' ] || { echo "FAIL: failed chcon unexpectedly changed SELinux label" >&2; exit 1; }
 
 echo "== invalid overlay creates a private retry marker =="
 APP2="$T/system2/app/FX"; STATE2="$T/state2"
@@ -101,4 +137,4 @@ wait "$child5"
 [ -s "$STATE5/system-app-retry" ] || { echo "FAIL: unsafe deployment marker temp did not produce a retry marker" >&2; exit 1; }
 [ ! -e "$STATE5/system-app-apk.sha256" ] || { echo "FAIL: unsafe deployment marker temp unexpectedly committed" >&2; exit 1; }
 
-echo "PASS: early-boot overlay digest, atomic markers, ancestor symlink, retry-temp and deployment-marker-temp symlink regressions"
+echo "PASS: early-boot overlay digest, SELinux relabel fallback/failure, atomic markers and symlink regressions"
