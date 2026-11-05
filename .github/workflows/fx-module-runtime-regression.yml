@@ -49,6 +49,8 @@ jobs:
           test "$(wc -c < "$module/webroot/index.html")" -gt 500000
           echo "FX_MODULE_RUNTIME=$module" >> "$GITHUB_ENV"
           echo "Restored module runtime: $(find "$module/scripts" -maxdepth 1 -type f | wc -l) top-level scripts"
+          echo "Published TUN regression contract:"
+          grep -n -C 4 "TUN external-VPN conflict guard missing" "$module/scripts/tests/v1.0.0-vpncore-bind-interface-config-generation-regression.sh" || true
       - name: Apply the VPN, DNS, and Root proxy source patches
         shell: bash
         run: |
