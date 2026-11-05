@@ -2121,7 +2121,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         keywords.setMaxLines(7);
         keywords.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE
                 | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
-        keywords.setHint("每行一个 Java 正则，匹配 TextView 文本；最多 12 条\n例如：^(立即\u786e认|确定退出)$");
+        keywords.setHint("每行一个 Java 正则，匹配 TextView 文本。\n例如：^(立即\u786e认|确定退出)$");
         keywords.setText(prefs.getString("dialog_remove_regex_draft",
                 prefs.getString("dialog_remove_regex_rules", "")));
         form.addView(text("关键词正则", 13, 0xff334155, true));
@@ -2132,7 +2132,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         ids.setMinLines(3);
         ids.setMaxLines(6);
         ids.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
-        ids.setHint("每行一个 resourceEntryName 或十进制资源 ID；最多 12 条\n例如：dialog_confirm");
+        ids.setHint("每行一个 resourceEntryName 或十进制资源 ID。\n例如：dialog_confirm");
         ids.setText(prefs.getString("dialog_remove_ids_draft",
                 prefs.getString("dialog_remove_resource_ids", "")));
         form.addView(text("资源 ID", 13, 0xff334155, true));
@@ -2181,10 +2181,6 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                     for (String line : keywords.getText().toString().split("\\r?\\n")) {
                         String value = line.trim();
                         if (value.isEmpty()) continue;
-                        if (value.length() > 160 || regexRules.size() >= 12) {
-                            setStatus("关键词规则每条最多 160 字符，最多 12 条；没有载入脚本。");
-                            return;
-                        }
                         try {
                             java.util.regex.Pattern.compile(value, java.util.regex.Pattern.CASE_INSENSITIVE);
                         } catch (java.util.regex.PatternSyntaxException invalid) {
@@ -2198,9 +2194,8 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                         if (value.isEmpty()) continue;
                         boolean namedId = value.matches("[A-Za-z_][A-Za-z0-9_]*");
                         boolean numericId = value.matches("[0-9]{1,10}");
-                        if (value.length() > 160 || (!namedId && !numericId)
-                                || resourceRules.size() >= 12) {
-                            setStatus("资源 ID 只允许 resourceEntryName 或十进制资源 ID，最多 12 条；没有载入脚本。");
+                        if (!namedId && !numericId) {
+                            setStatus("资源 ID 只允许 resourceEntryName 或十进制资源 ID；没有载入脚本。");
                             return;
                         }
                         if (!resourceRules.contains(value)) resourceRules.add(value);
