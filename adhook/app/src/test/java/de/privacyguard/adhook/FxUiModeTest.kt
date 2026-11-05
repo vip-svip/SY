@@ -5,12 +5,19 @@ import org.junit.Test
 
 class FxUiModeTest {
     @Test
-    fun exposesExactlyFiveCanonicalSkins() {
-        assertEquals(5, FxUiMode.values().size)
+    fun exposesIndependentDefaultAndExactlyFiveSkinsInStableOrder() {
+        assertEquals(6, FxUiMode.values().size)
+        assertEquals(
+            listOf("default", "classic", "glass", "miuix", "huawei", "ios"),
+            FxUiMode.values().map { it.storageId }
+        )
+        assertEquals(FxUiMode.DEFAULT_STANDARD, FxUiMode.values().first())
+        assertEquals(FxUiMode.Renderer.NATIVE_DEFAULT, FxUiMode.DEFAULT_STANDARD.renderer)
     }
 
     @Test
     fun mapsStableStorageIdsToExpectedRenderers() {
+        assertEquals(FxUiMode.DEFAULT_STANDARD, FxUiMode.fromStorageId("default"))
         assertEquals(FxUiMode.CLASSIC_WEB_COMPAT, FxUiMode.fromStorageId("classic"))
         assertEquals(FxUiMode.FX_LIQUID_NATIVE, FxUiMode.fromStorageId("glass"))
         assertEquals(FxUiMode.MIUIX_STYLE, FxUiMode.fromStorageId("miuix"))
@@ -19,10 +26,15 @@ class FxUiModeTest {
     }
 
     @Test
-    fun migratesLegacyWebAliasAndUnknownValuesSafely() {
+    fun preservesEveryLegacySkinAndDefaultsUnknownValuesSafely() {
         assertEquals("classic", FxUiMode.normalizeStorageId("web"))
-        assertEquals("classic", FxUiMode.normalizeStorageId("unknown-mode"))
-        assertEquals("classic", FxUiMode.normalizeStorageId(null))
+        assertEquals("classic", FxUiMode.normalizeStorageId("ClassicWebCompat"))
+        assertEquals("glass", FxUiMode.normalizeStorageId("FXLiquidNative"))
+        assertEquals("miuix", FxUiMode.normalizeStorageId("MiuixStyle"))
+        assertEquals("huawei", FxUiMode.normalizeStorageId("HarmonyStyle"))
+        assertEquals("ios", FxUiMode.normalizeStorageId("CupertinoStyle"))
+        assertEquals("default", FxUiMode.normalizeStorageId("unknown-mode"))
+        assertEquals("default", FxUiMode.normalizeStorageId(null))
     }
 
     @Test
