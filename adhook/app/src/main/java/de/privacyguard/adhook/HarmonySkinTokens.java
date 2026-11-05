@@ -38,6 +38,12 @@ final class HarmonySkinTokens {
         static final int CARD_RADIUS_DP = 20;
         static final int SECTION_RADIUS_DP = 14;
         static final int ACTION_RADIUS_DP = 16;
+        static final int RISK_CERTAIN_SURFACE = 0xfffff0f0;
+        static final int RISK_CERTAIN_STROKE = 0xffefb7b3;
+        static final int RISK_CERTAIN_TEXT = 0xffa32620;
+        static final int RISK_SUSPECT_SURFACE = 0xfffff6e8;
+        static final int RISK_SUSPECT_STROKE = 0xffedd39e;
+        static final int RISK_SUSPECT_TEXT = 0xff8a5b12;
         static final int LIST_ROW_RADIUS_DP = 16;
         private HarmonyShapeTokens() { }
     }
