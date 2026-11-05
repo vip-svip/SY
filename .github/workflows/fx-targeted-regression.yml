@@ -15,7 +15,7 @@ on:
       - 'scripts/tests/**'
       - 'scripts/fx-vpn-coexistence-arbiter.sh'
       - 'scripts/yulong-ad-dns-summary.sh'
-      - 'scripts/fx-vpn-coexistence-arbiter.sh'
+      - 'scripts/yulong-vpn-control.sh'
   pull_request:
     branches:
       - fx-v1.0.0-unified-hook-integration
@@ -26,6 +26,7 @@ on:
       - 'fx-module/scripts/**'
       - 'fx-patches/**'
       - 'scripts/tests/**'
+      - 'scripts/yulong-vpn-control.sh'
   workflow_dispatch:
 
 permissions:
@@ -231,6 +232,10 @@ jobs:
 
           if [[ "$changed" == "ALL" || "$changed" =~ (patch_vpn_coexistence_status|fx-vpn-coexistence-status-regression) ]]; then
             run_py scripts/tests/fx-vpn-coexistence-status-regression.py
+          fi
+
+          if [[ "$changed" == "ALL" || "$changed" =~ (yulong-vpn-control\.sh|fx-yulong-vpn-control-regression\.sh) ]]; then
+            run_sh scripts/tests/fx-yulong-vpn-control-regression.sh
           fi
 
           if [[ "$changed" == "ALL" || "$changed" =~ (fx-vpn-coexistence-arbiter\.sh|fx-vpn-coexistence-arbiter-regression\.sh) ]]; then
