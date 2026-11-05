@@ -20,6 +20,12 @@ grep -Fq 'android:name=".imported.dia.FxDiaScriptLibraryActivity" android:export
 grep -Fq 'fx_dia_frida' "$STORE" || fail "script library does not share the original Frida preference file"
 grep -Fq 'frida_script_library_v1' "$STORE" || fail "script library does not preserve the existing storage key"
 grep -Fq 'FX-DIA-FRIDA-SCRIPTS-1' "$STORE" || fail "script-library JSON compatibility schema changed"
+grep -Fq 'public static void save(Context context, String rawName, String source) throws Exception {
+        if (context == null) throw new IllegalArgumentException("Context 为空。");' "$STORE" || fail "save must reject a null Context with a stable argument error"
+grep -Fq 'public static String exportJson(Context context) throws Exception {
+        if (context == null) throw new IllegalArgumentException("Context 为空。");' "$STORE" || fail "export must reject a null Context with a stable argument error"
+grep -Fq 'public static ImportPreview previewImport(Context context, String json) throws Exception {
+        if (context == null) throw new IllegalArgumentException("Context 为空。");' "$STORE" || fail "import preview must reject a null Context with a stable argument error"
 grep -Fq 'startActivityForResult(intent, REQUEST_EDITOR)' "$ACTIVITY" || fail "script editing does not use the existing full-screen editor"
 grep -Fq 'editorRequestPending = true;' "$ACTIVITY" || fail "script editor request is not tracked"
 grep -Fq 'editorRequestPending = false;' "$ACTIVITY" || fail "script editor request is not consumed or rolled back"
