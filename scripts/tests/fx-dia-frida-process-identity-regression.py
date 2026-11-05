@@ -54,8 +54,12 @@ assert "unsafe-frida-state-symlink=$path" in inject and "unsafe-frida-session-fi
     "Frida script staging must reject symlinked state and destination paths"
 assert 'tmp=$(mktemp ' in inject and r'cat > \"$tmp\"' in inject and 'mv -f ' in inject, \
     "Frida script source must be streamed from Root stdin and atomically replaced"
-assert 'runRootWithInput(command, sourceBytes, 90000L' in inject, \
-    "large Frida source must use the bounded Root stdin transport"
+assert 'stageFridaRootInput(source)' in inject, \
+    "Frida source must be staged in app-private storage before Root transport"
+assert 'runRootWithInput(command, sourceInput, 90000L' in inject, \
+    "large Frida source must use file-backed Root stdin streaming"
+assert "MAX_FRIDA_SOURCE_BYTES" not in source, \
+    "Frida runtime must not impose an arbitrary source-size ceiling"
 assert 'base64 -d > ' not in inject, "script source must not be embedded in the shell command as Base64"
 assert 'unsafe-frida-log-path' in inject and 'chmod 600' in inject, \
     "Frida session logs must remain private and regular files"
