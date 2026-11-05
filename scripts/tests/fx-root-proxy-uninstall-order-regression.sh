@@ -78,5 +78,6 @@ fi
 grep -Fq 'state directory is a symlink or non-directory' "$T/symlink.out" || fail "symlinked state root refusal was not reported"
 grep -Fq '_FX_SCHEDULER_LOG=/dev/null' "$SOURCE" || fail "uninstall has no safe fallback when scheduler log directory is absent"
 grep -Fq '[ ! -L "$_FX_SCHEDULER_STATE_DIR/jsruntime" ]' "$SOURCE" || fail "scheduler log writer does not reject a symlinked runtime directory"
+grep -Fq '[ ! -L "$_FX_SCHEDULER_STATE_DIR/jsruntime/scheduler.log" ]' "$SOURCE" || fail "scheduler log writer does not reject dangling log symlinks"
 
 echo "PASS: FX uninstall safely validates state root, stops Root Proxy before firewall teardown and retires deployment markers only after successful Hook removal"
