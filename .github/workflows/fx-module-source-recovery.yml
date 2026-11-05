@@ -145,5 +145,19 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "chore(module): restore canonical FX 1.0.0 runtime sources"
-          git push origin "HEAD:refs/heads/$recovery_branch"
+          published=0
+          for attempt in 1 2 3; do
+            if git push origin "HEAD:refs/heads/$recovery_branch"; then
+              published=1
+              break
+            fi
+            # Another AI may have advanced the same PR branch after our fetch.
+            # Merge that new tip (without force) and retry; never discard its commits.
+            git fetch origin "+refs/heads/$recovery_branch:refs/remotes/origin/$recovery_branch"
+            git merge --no-edit -X ours "origin/$recovery_branch"
+          done
+          [[ "$published" -eq 1 ]] || {
+            echo "::error::Could not publish recovered module source after three non-force attempts."
+            exit 1
+          }
           echo "::notice::Recovered source published on $recovery_branch for review."
