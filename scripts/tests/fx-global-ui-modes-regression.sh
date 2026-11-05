@@ -8,7 +8,11 @@ tokens="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxComposeSkinToken
 activity="$root/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
 host="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeTabActivity.java"
 skin="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeSkin.java"
-for f in "$mode" "$panel" "$shell" "$tokens" "$activity" "$host" "$skin"; do
+harmony_tokens="$root/adhook/app/src/main/java/de/privacyguard/adhook/HarmonySkinTokens.java"
+cupertino_tokens="$root/adhook/app/src/main/java/de/privacyguard/adhook/CupertinoSkinTokens.java"
+harmony_renderer="$root/adhook/app/src/main/java/de/privacyguard/adhook/HarmonySkinRenderer.java"
+cupertino_renderer="$root/adhook/app/src/main/java/de/privacyguard/adhook/CupertinoSkinRenderer.java"
+for f in "$mode" "$panel" "$shell" "$tokens" "$activity" "$host" "$skin" "$harmony_tokens" "$cupertino_tokens" "$harmony_renderer" "$cupertino_renderer"; do
   test -s "$f" || { echo "FAIL: missing UI mode source $f"; exit 1; }
 done
 for token in CLASSIC_WEB_COMPAT FX_LIQUID_NATIVE MIUIX_STYLE HUAWEI_HARMONY_STYLE IOS_CUPERTINO_STYLE classic glass miuix huawei ios; do
@@ -27,11 +31,22 @@ grep -Fq '"ios".equals(uiMode)' "$activity" || { echo "FAIL: iOS native page pal
 for token in FxClassicComposeTokens FxLiquidComposeTokens FxMiuixComposeTokens FxHarmonyComposeTokens FxCupertinoComposeTokens; do
   grep -Fq "internal object $token" "$tokens" || { echo "FAIL: missing independent skin token set $token"; exit 1; }
 done
-grep -Fq 'pageBackground = Color(0xFFF1F5FA)' "$tokens" || { echo "FAIL: HUAWEI Harmony page background token missing"; exit 1; }
-grep -Fq 'pageBackground = Color(0xFFF2F2F7)' "$tokens" || { echo "FAIL: iOS Cupertino page background token missing"; exit 1; }
+grep -Fq 'pageBackground = Color(HarmonySkinTokens.HarmonyColorTokens.BACKGROUND)' "$tokens" || { echo "FAIL: HUAWEI Compose renderer is not using the shared Harmony color tokens"; exit 1; }
+grep -Fq 'pageBackground = Color(CupertinoSkinTokens.CupertinoColorTokens.BACKGROUND)' "$tokens" || { echo "FAIL: iOS Compose renderer is not using the shared Cupertino color tokens"; exit 1; }
+grep -Fq 'barCornerRadiusDp = HarmonySkinTokens.HarmonyShapeTokens.NAV_BAR_RADIUS_DP' "$tokens" || { echo "FAIL: HUAWEI Compose renderer is not using Harmony shape tokens"; exit 1; }
+grep -Fq 'tabBarHeightDp = HarmonySkinTokens.HarmonySpacingTokens.NAV_HEIGHT_DP' "$tokens" || { echo "FAIL: HUAWEI Compose renderer is not using Harmony spacing tokens"; exit 1; }
+grep -Fq 'labelSizeSp = HarmonySkinTokens.HarmonyTypographyTokens.TAB_LABEL_SP.toInt()' "$tokens" || { echo "FAIL: HUAWEI Compose renderer is not using Harmony typography tokens"; exit 1; }
+grep -Fq 'barCornerRadiusDp = CupertinoSkinTokens.CupertinoShapeTokens.NAV_BAR_RADIUS_DP' "$tokens" || { echo "FAIL: iOS Compose renderer is not using Cupertino shape tokens"; exit 1; }
+grep -Fq 'tabBarHeightDp = CupertinoSkinTokens.CupertinoSpacingTokens.NAV_HEIGHT_DP' "$tokens" || { echo "FAIL: iOS Compose renderer is not using Cupertino spacing tokens"; exit 1; }
+grep -Fq 'labelSizeSp = CupertinoSkinTokens.CupertinoTypographyTokens.TAB_LABEL_SP.toInt()' "$tokens" || { echo "FAIL: iOS Compose renderer is not using Cupertino typography tokens"; exit 1; }
 grep -Fq 'tabBarHeightDp = 60' "$tokens" || { echo "FAIL: Classic tab geometry missing"; exit 1; }
 grep -Fq 'tabBarHeightDp = 68' "$tokens" || { echo "FAIL: Miuix tab geometry missing"; exit 1; }
-grep -Fq 'tabBarHeightDp = 76' "$tokens" || { echo "FAIL: Cupertino tab geometry missing"; exit 1; }
+grep -Fq 'NAV_BAR_RADIUS_DP = 18' "$harmony_tokens" || { echo "FAIL: Harmony navigation geometry token missing"; exit 1; }
+grep -Fq 'NAV_HEIGHT_DP = 72' "$harmony_tokens" || { echo "FAIL: Harmony tab-bar height token missing"; exit 1; }
+grep -Fq 'NAV_BAR_RADIUS_DP = 24' "$cupertino_tokens" || { echo "FAIL: Cupertino navigation geometry token missing"; exit 1; }
+grep -Fq 'NAV_HEIGHT_DP = 76' "$cupertino_tokens" || { echo "FAIL: Cupertino tab-bar height token missing"; exit 1; }
+grep -Fq 'return HarmonySkinRenderer.palette();' "$skin" || { echo "FAIL: Android Views do not use the Harmony renderer"; exit 1; }
+grep -Fq 'return CupertinoSkinRenderer.palette();' "$skin" || { echo "FAIL: Android Views do not use the Cupertino renderer"; exit 1; }
 grep -Fq 'webView.setVisibility(View.VISIBLE)' "$activity" || { echo "FAIL: ClassicWebCompat WebView not mounted"; exit 1; }
 grep -Fq 'navigateWebPage(webPageForBottomTab(index))' "$activity" || { echo "FAIL: ClassicWebCompat tab routing missing"; exit 1; }
 grep -Fq 'FxUiMode.read(this).getStorageId()' "$activity"
