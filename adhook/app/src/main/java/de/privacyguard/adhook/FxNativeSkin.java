@@ -278,6 +278,14 @@ final class FxNativeSkin {
             applyButtonSkin(activity, (Button) view, mode, palette);
         }
 
+        // Tagged page titles, section headers, cards and action rows are
+        // rendered by the dedicated Harmony/Cupertino component adapters.
+        if (mode == FxUiMode.HUAWEI_HARMONY_STYLE) {
+            HarmonySkinRenderer.applyTaggedComponent(activity, view);
+        } else if (mode == FxUiMode.IOS_CUPERTINO_STYLE) {
+            CupertinoSkinRenderer.applyTaggedComponent(activity, view);
+        }
+
         if (view instanceof ViewGroup) {
             ViewGroup group = (ViewGroup) view;
             for (int i = 0; i < group.getChildCount(); i++) {
