@@ -86,6 +86,14 @@ for token in ("MAX_NODES = 700", "MAX_DEPTH = 32", "MAX_CHILDREN_PER_NODE = 80",
               "if (sensitive) null"):
     assert token in snapshot, f"Accessibility snapshot bound/privacy guard missing: {token}"
 
+# A platform node can become invalid between traversal and property access.
+# Ownership must be registered before any such getter so the failure path can
+# recycle the root/current node as well as previously visited descendants.
+assert snapshot.indexOf("handles.add(info)") < snapshot.indexOf("val sensitive = info.isPassword || info.isEditable"), \
+    "snapshot must own each node before reading potentially throwing platform properties"
+assert "for (node in handles.asReversed())" in snapshot and "node.recycle()" in snapshot, \
+    "snapshot capture failure must release every node already taken into ownership"
+
 # Runtime is local only, rate-limited, package-scoped and only runs ACTION_CLICK.
 for token in ("FxGkdRuleStore.isEnabled(service)", "it.source.packageName == eventPackage",
               "scanThrottle.shouldScan(eventPackage, now)", "now - lastAction < rule.source.cooldownMillis",
