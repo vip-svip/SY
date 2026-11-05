@@ -4202,3 +4202,38 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 1. 将同一分组容器延伸到 VPN 高级配置/节点列表与 Hook 应用列表中的重复操作区，保持横向/纵向布局和动作语义。
 2. 逐页审计导入的 Ad / Shield Activity：确认它们的卡片/分组背景实际通过共享 Skin Host 适配；对自定义状态色、危险操作、未知 Drawable 保持保护。
 3. 检查五 Skin 切换是否保存当前 Tab/页面滚动/编辑草稿，且不重启 VPN、DNS、Root proxy、Hook 和 Script 服务；补适配回归。
+
+
+## 2026-11-05 — Dia Dialog/按键 Hook 路由归属与跨 AI 提示词同步
+
+### 实际源码调整
+- `MainActivity.showHookHub()` 增加“Dialog 对话框 Hook”和“按键动作 Hook”两个可见入口，分别进入 `showAppList("Dialog处理")`、`showAppList("按键控制")` 的逐应用目标流程；不创建第二个 Activity 入口或来源应用目录。
+- `showAppList()` 将“自定义 Hook”“Dialog处理”“按键控制”识别为 Hook 来源，应用列表与目标配置页高亮 Hook；Toast、通知监听/权限提示仍由隐私页提供，避免业务重复。
+- 页面入口不等于真实 Hook 执行成功；仍须分别核验 Root/LSPosed 作用域、配置发布、目标进程状态与设备权限。
+
+### 回归测试调整
+- `scripts/tests/fx-dia-native-tab-regression.sh` 改为检查 Hook Hub Dialog/按键真实入口、Toast/通知隐私入口、Hook/Privacy Tab 归属，以及统一 `handleNativeTabIntent(intent)`，不再要求已删除的旧 Dia 类别数组。
+- `scripts/tests/fx-hook-native-ui-regression.sh` 将 Hook 来源判断扩展到 `Dialog处理` 和 `按键控制`，并保留 Privacy 来源高亮 Privacy 的约束。
+- GKD 页面固定保留七个头部控件；规则列表刷新从 child index 7 起替换，对应回归阈值已同步。
+
+### 产品规格与跨 AI 提示词
+- `docs/FX_1.0.0_PRODUCT_RESTRUCTURE_AND_AI_HANDOFF.md` 明确 Dialog/按键 Hook 属于 Hook 且高亮 Hook；Toast/通知隐私策略属于隐私且高亮隐私。
+- 唯一跨 AI 执行提示词仍为 `docs/FX_1.0.0_AUTONOMOUS_CROSS_AI_HANDOFF_PROMPT.md`，已写明相同归属边界；没有创建第二份提示词。
+
+### 相关提交
+- Hook Hub Dialog/按键入口与 Hook 来源路由：`c435ebf844670332ddf8ddd2c4079760e7d790cb`。
+- Dia native-tab 回归更新：`fdb27552563633c33a1066d57a5282da7c103a48`。
+- Hook 原生 UI 回归更新：`16522fbf8e87b872b5e0faeac79c2ef20d4b111d`。
+- 产品规格 Tab 归属更新：`3f39f411305ff22edbcdbfdb09d2f3619bd4dc2d`。
+- 唯一总提示词归属更新：`469aba74c18ebedb8bcc8c755d8959155a973cc9`。
+
+### 验证与边界
+- Targeted Host run `41985075861`（run 541）在源码/测试组合提交 `ddf55b2745fcddf3c203945a008829bd7e35cb8a` 上为 success，覆盖当时的五 Skin 静态检查、统一导航、Hook 原生 UI、Dia native-tab 等受影响 Host 回归。
+- 后续并发 push 会取消旧 Actions；必须按最新 HEAD 查看新 run，取消不算通过。
+- 未执行 Gradle assemble、Android JUnit、APK 安装升级、UI 自动化或真机测试；未验证目标设备实际 Dialog/按键 Hook 执行、LSPosed 注入、页面触控和视觉适配。
+- 不能把来源页面清理或功能入口可达称为全部功能迁移完成。
+
+### 下一批直接实施
+1. 对 Dialog/按键逐项核对目标配置、发布和 Hook runtime，补齐缺失的真实调用链与可观测状态。
+2. 继续五 Skin × 六 Tab 页面级组件适配，优先 Harmony/Cupertino 的 List/Form/Switch/Dialog/Sheet/编辑器，而非只改导航色值。
+3. 推进 Ad 五层过滤真实链路和 VPN Root 数据面与第三方 VPN 共存；安全回滚、防 DNS/IPv6/WebRTC 泄漏优先。
