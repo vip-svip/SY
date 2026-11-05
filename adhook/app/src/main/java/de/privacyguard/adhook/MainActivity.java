@@ -3619,19 +3619,23 @@ public final class MainActivity extends ComponentActivity {
                         && !pkg.toLowerCase(Locale.ROOT).contains(filter)) continue;
                 shown++;
                 LinearLayout row = new LinearLayout(this);
+                row.setTag("fx-list-row");
                 row.setOrientation(LinearLayout.VERTICAL);
                 row.setPadding(dp(12), dp(7), dp(12), dp(7));
                 row.setBackground(uiPanelDrawable());
                 TextView name = new TextView(this);
+                name.setTag("fx-list-title");
                 name.setText(label);
                 name.setTextSize(14);
                 name.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
                 name.setTextColor(0xff17212b);
                 TextView packageName = new TextView(this);
+                packageName.setTag("fx-list-subtitle");
                 packageName.setText(pkg);
                 packageName.setTextSize(10);
                 packageName.setTextColor(0xff718091);
                 Switch enabled = new Switch(this);
+                enabled.setTag("fx-switch-row");
                 final boolean[] revertingRow = {false};
                 enabled.setText("加入列表");
                 enabled.setChecked(Boolean.TRUE.equals(selected.get(pkg)));
@@ -4897,6 +4901,7 @@ public final class MainActivity extends ComponentActivity {
         for (int i = start; i < end; i++) {
             ApplicationInfo ai = filtered.get(i);
             LinearLayout row = new LinearLayout(this);
+            row.setTag("fx-list-row");
             row.setGravity(Gravity.CENTER_VERTICAL);
             row.setPadding(dp(14), dp(10), dp(14), dp(10));
             row.setBackground(uiPanelDrawable());
@@ -4915,11 +4920,13 @@ public final class MainActivity extends ComponentActivity {
             labels.setOrientation(LinearLayout.VERTICAL);
             labels.setPadding(dp(12), 0, 0, 0);
             TextView name = new TextView(this);
+            name.setTag("fx-list-title");
             name.setText(appLabels.containsKey(ai.packageName)
                     ? appLabels.get(ai.packageName) : ai.packageName);
             name.setTextSize(16);
             name.setTextColor(uiPrimaryTextColor());
             TextView pkg = new TextView(this);
+            pkg.setTag("fx-list-subtitle");
             pkg.setText(ai.packageName);
             pkg.setTextSize(11);
             pkg.setTextColor(uiSecondaryTextColor());
