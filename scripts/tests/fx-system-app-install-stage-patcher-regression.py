@@ -26,6 +26,9 @@ with tempfile.TemporaryDirectory(prefix="fx-system-app-stage-") as tmp:
         'ui_print "continue install"\n'
     )
 
+    post_fs = module / "post-fs-data.sh"
+    post_fs.write_text("#!/system/bin/sh\necho pre-existing boot setup\n", encoding="utf-8")
+
     for _ in range(2):
         subprocess.run([sys.executable, str(PATCHER), str(module)], check=True)
 
@@ -51,6 +54,12 @@ with tempfile.TemporaryDirectory(prefix="fx-system-app-stage-") as tmp:
     ):
         assert required in patched, f"missing system-app stage contract: {required}"
     subprocess.run(["sh", "-n", str(customize)], check=True)
+
+    patched_post_fs = post_fs.read_text(encoding="utf-8")
+    assert patched_post_fs.count("# >>> fx-system-app-overlay-verify") == 1
+    for required in ('path_components_are_safe "$STATE_DIR" || exit 0', "set -C; printf", "FX_SYSTEM_APP_STATE_DIR"):
+        assert required in patched_post_fs, f"missing early-boot overlay contract: {required}"
+    subprocess.run(["sh", "-n", str(post_fs)], check=True)
 
     broken = module / "broken"
     broken.mkdir()

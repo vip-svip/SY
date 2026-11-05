@@ -1,33 +1,62 @@
 #!/system/bin/sh
+# >>> fx-system-app-overlay-verify (managed by fx-patches/patch_system_app_install_stage.py)
 # Verify and label the FX systemless APK overlay before PackageManager scans
 # system applications. FX is a system app, not a privileged app.
 set -u
-APP_DIR=/system/app/FX
+APP_DIR=${FX_SYSTEM_APP_DIR:-/system/app/FX}
 APK_PATH="$APP_DIR/FX.apk"
 SUM_PATH="$APP_DIR/FX.apk.sha256"
-STATE_DIR=/data/adb/privacyguard
+STATE_DIR=${FX_SYSTEM_APP_STATE_DIR:-/data/adb/privacyguard}
 LOG_DIR="$STATE_DIR/logs"
 LOG_FILE="$LOG_DIR/system-app-overlay.log"
 DEPLOYMENT_MARKER="$STATE_DIR/system-app-apk.sha256"
 RETRY_MARKER="$STATE_DIR/system-app-retry"
 
+path_components_are_safe(){
+  _pc_path=$1
+  case "$_pc_path" in /*) ;; *) return 1 ;; esac
+  case "$_pc_path" in *//*|*/../*|*/..|*/./*|*/.) return 1 ;; esac
+  _pc_rest=\${_pc_path#/}
+  _pc_current=
+  while [ -n "$_pc_rest" ]; do
+    case "$_pc_rest" in
+      */*) _pc_part=\${_pc_rest%%/*}; _pc_rest=\${_pc_rest#*/} ;;
+      *) _pc_part=$_pc_rest; _pc_rest= ;;
+    esac
+    case "$_pc_part" in ''|.|..) return 1 ;; esac
+    _pc_current="$_pc_current/$_pc_part"
+    [ ! -L "$_pc_current" ] || return 1
+  done
+  return 0
+}
+
 log(){
-  [ ! -L "$STATE_DIR" ] || return 0
+  path_components_are_safe "$STATE_DIR" || return 0
   mkdir -p "$LOG_DIR" 2>/dev/null || return 0
-  [ -d "$LOG_DIR" ] && [ ! -L "$LOG_DIR" ] || return 0
+  path_components_are_safe "$LOG_DIR" && [ -d "$LOG_DIR" ] &&
+    [ ! -L "$LOG_FILE" ] && { [ ! -e "$LOG_FILE" ] || [ -f "$LOG_FILE" ]; } || return 0
   chmod 0700 "$LOG_DIR" 2>/dev/null || :
   printf '%s\n' "$*" >> "$LOG_FILE" 2>/dev/null || :
 }
 retry(){
   log "RETRY: $*"
+  path_components_are_safe "$STATE_DIR" || exit 0
   [ ! -L "$STATE_DIR" ] || exit 0
   mkdir -p "$STATE_DIR" 2>/dev/null || exit 0
-  [ -d "$STATE_DIR" ] && [ ! -L "$STATE_DIR" ] && [ ! -L "$RETRY_MARKER" ] || exit 0
-  ( umask 077; printf '%s\n' "$(date '+%m-%d %H:%M:%S' 2>/dev/null)" > "$RETRY_MARKER.tmp.$$" ) 2>/dev/null &&
-    mv -f "$RETRY_MARKER.tmp.$$" "$RETRY_MARKER" 2>/dev/null || rm -f "$RETRY_MARKER.tmp.$$" 2>/dev/null || :
+  path_components_are_safe "$STATE_DIR" && [ -d "$STATE_DIR" ] &&
+    [ ! -L "$RETRY_MARKER" ] &&
+    { [ ! -e "$RETRY_MARKER" ] || [ -f "$RETRY_MARKER" ]; } || exit 0
+  _retry_tmp="$RETRY_MARKER.tmp.$"
+  [ ! -e "$_retry_tmp" ] && [ ! -L "$_retry_tmp" ] || exit 0
+  ( umask 077; set -C; printf '%s\n' "$(date '+%m-%d %H:%M:%S' 2>/dev/null)" > "$_retry_tmp" ) 2>/dev/null || exit 0
+  chmod 0600 "$_retry_tmp" 2>/dev/null &&
+    mv -f "$_retry_tmp" "$RETRY_MARKER" 2>/dev/null || {
+      [ -f "$_retry_tmp" ] && [ ! -L "$_retry_tmp" ] && rm -f "$_retry_tmp" 2>/dev/null || :
+    }
   exit 0
 }
 
+path_components_are_safe "$APP_DIR" || exit 0
 [ -d "$APP_DIR" ] && [ ! -L "$APP_DIR" ] || exit 0
 [ -f "$APK_PATH" ] && [ ! -L "$APK_PATH" ] || exit 0
 [ -f "$SUM_PATH" ] && [ ! -L "$SUM_PATH" ] || retry "overlay checksum sidecar is missing or unsafe"
@@ -42,15 +71,22 @@ _actual=$(sha256sum "$APK_PATH" 2>/dev/null | awk 'NR==1 {print $1}')
 # The install hook writes this marker. If it could not (for example, recovery
 # storage was temporarily unavailable), reconstruct it only from the verified
 # APK and its packaged checksum; never trust an old or symlinked marker.
+path_components_are_safe "$STATE_DIR" || retry "deployment state path contains a symlink"
 mkdir -p "$STATE_DIR" 2>/dev/null || retry "cannot create deployment state directory"
-[ ! -L "$STATE_DIR" ] && [ ! -L "$DEPLOYMENT_MARKER" ] || retry "deployment state path is a symlink"
+path_components_are_safe "$STATE_DIR" && [ -d "$STATE_DIR" ] &&
+  [ ! -L "$DEPLOYMENT_MARKER" ] &&
+  { [ ! -e "$DEPLOYMENT_MARKER" ] || [ -f "$DEPLOYMENT_MARKER" ]; } ||
+  retry "deployment state path is unsafe"
 if [ -s "$DEPLOYMENT_MARKER" ]; then
   _recorded=$(awk 'NR==1 {print $1}' "$DEPLOYMENT_MARKER" 2>/dev/null)
   [ "$_recorded" = "$_actual" ] || retry "deployment marker does not match the mounted overlay"
 else
-  ( umask 077; printf '%s\n' "$_actual" > "$DEPLOYMENT_MARKER.tmp.$$" ) 2>/dev/null &&
-    chmod 0600 "$DEPLOYMENT_MARKER.tmp.$$" 2>/dev/null &&
-    mv -f "$DEPLOYMENT_MARKER.tmp.$$" "$DEPLOYMENT_MARKER" 2>/dev/null ||
+  _marker_tmp="$DEPLOYMENT_MARKER.tmp.$"
+  [ ! -e "$_marker_tmp" ] && [ ! -L "$_marker_tmp" ] ||
+    retry "deployment marker temporary path already exists or is unsafe"
+  ( umask 077; set -C; printf '%s\n' "$_actual" > "$_marker_tmp" ) 2>/dev/null &&
+    chmod 0600 "$_marker_tmp" 2>/dev/null &&
+    mv -f "$_marker_tmp" "$DEPLOYMENT_MARKER" 2>/dev/null ||
     retry "cannot commit verified deployment marker"
 fi
 
@@ -85,3 +121,4 @@ else
   retry "system_file SELinux context is not active (context=${_fx_context:-unknown})"
 fi
 exit 0
+# <<< fx-system-app-overlay-verify

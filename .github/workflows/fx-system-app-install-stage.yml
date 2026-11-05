@@ -14,6 +14,7 @@ on:
       - 'fx-patches/patch_system_app_install_stage.py'
       - 'scripts/tests/fx-system-app-install-stage-*.py'
       - 'scripts/tests/fx-system-app-install-stage-*.sh'
+      - 'scripts/tests/fx-system-app-overlay-boot-regression.sh'
       - '.github/workflows/fx-system-app-install-stage.yml'
       - 'fx-module/customize.sh'
   pull_request:
@@ -68,6 +69,12 @@ jobs:
           python3 fx-patches/patch_system_app_install_stage.py "$work/module"
           sh -n "$work/module/customize.sh"
           sh scripts/tests/fx-system-app-install-stage-regression.sh "$work/module"
+
+      - name: Verify early-boot system-app overlay hardening
+        run: |
+          set -euo pipefail
+          sh -n fx-module/post-fs-data.sh
+          sh scripts/tests/fx-system-app-overlay-boot-regression.sh
 
       - name: Confirm the packaging job still applies this stage
         run: |
