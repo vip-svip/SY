@@ -31,6 +31,9 @@ for f in "$APPLY" "$SUBFETCH" "$HOST_TEST" "$SUB_TEST" "$PATCHER" "$HOST_FILE_LO
   [ -s "$f" ] || fail "required cache lock source/test missing: $f"
 done
 
+# Match the packaging workflow: stage the repository-owned deterministic
+# concurrency fixture before applying compatibility patches to the restored tree.
+install -D -m 0755 "$ROOT/scripts/tests/v1.0.0-subfetch-concurrency-regression.sh" "$SUB_TEST"
 # The patch is part of both restore-from-Release build lanes. Prove it is
 # idempotent against the exact restored module tree that will be tested.
 python3 "$PATCHER" "$MODULE" || fail "first legacy lock compatibility patch application failed"
@@ -43,9 +46,9 @@ python3 "$LEGACY_TEST_PATCHER" "$MODULE" || fail "first stale-lock compatibility
 python3 "$LEGACY_TEST_PATCHER" "$MODULE" || fail "second stale-lock compatibility test patch application failed"
 sh "$ROOT/scripts/tests/fx-hosts-cache-lock-regression.sh" "$MODULE" || fail "Hosts cache safe lock cleanup regression failed"
 
-# Run the canonical concurrency fixture, not an older copy embedded in the
-# published module. The source fixture contains the deterministic transfer gate.
-install -D -m 0755 "$ROOT/scripts/tests/v1.0.0-subfetch-concurrency-regression.sh" "$SUB_TEST"
+grep -Fq 'FX_SUBFETCH_CONCURRENCY_CANONICAL_V1' "$SUB_TEST" || fail "canonical subscription concurrency fixture was not staged before patching"
+grep -Fq 'if [ "$rc1" -ne 0 ] || [ "$rc2" -ne 0 ]; then' "$SUB_TEST" || fail "canonical subscription fixture must explain worker failures"
+grep -Fq 'worker 1 stdout/stderr:' "$SUB_TEST" || fail "canonical subscription fixture must expose worker diagnostics"
 
 grep -Fq 'FX_HOSTS_FILE_LOCK_V3' "$APPLY" || fail "Hosts cache does not use the reviewed atomic file lock"
 grep -Fq 'set -C' "$APPLY" || fail "Hosts lock does not use noclobber atomic file creation"

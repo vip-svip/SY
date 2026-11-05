@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+# FX_SUBFETCH_CONCURRENCY_CANONICAL_V1
 
 BASE_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 if [ -s "$BASE_ROOT/fx-module/scripts/subfetch.sh" ]; then

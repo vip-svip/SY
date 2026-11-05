@@ -268,177 +268,206 @@ replace_if_present(
     """[ "$actual" = "$expected" ] || { echo "FAIL: same-URL cache SHA mismatch actual=$actual expected=$expected" >&2; echo "cache body:" >&2; cat "$cache" >&2 || :; echo "sidecar:" >&2; cat "$cache.sha256" >&2 || :; echo "fetch event timeline:" >&2; cat "$T/fetch-events" >&2 || :; find "$T/state/cache/rules" -maxdepth 1 -type f -print >&2; exit 1; }""",
     "Hosts cache hash mismatch must expose body, sidecar and fetch timeline",
 )
-replace_once(
-    sub_test,
-    'wait "$p1"\nwait "$p2"\n',
-    '''wait "$p1" || { rc=$?; echo "FAIL: subscription cache worker A exited with $rc" >&2; exit "$rc"; }
-wait "$p2" || { rc=$?; echo "FAIL: subscription cache worker B exited with $rc" >&2; exit "$rc"; }
-''',
-    "subscription concurrency test must explain worker failure",
-)
-
-# Trace the actual mock curl heredoc using stable line anchors. START/END are
-# patched independently so a partial fixture patch can recover on rerun.
-if "FX_SUBFETCH_CURL_TRACE_V1" not in sub_test.read_text(encoding="utf-8"):
-    replace_once(
-        sub_test,
-        'countfile="$TEST_ROOT/count"\n',
-        'countfile="$TEST_ROOT/count"\n# FX_SUBFETCH_CURL_TRACE_V1\nprintf "START|%s\\n" "$$" >> "$TEST_ROOT/curl-events"\n',
-        "subscription mock must record each curl start",
+if "FX_SUBFETCH_CONCURRENCY_CANONICAL_V1" in sub_test.read_text(encoding="utf-8"):
+    # The repository-owned deterministic fixture already captures worker exit
+    # codes and logs both workers. Validate that contract instead of trying to
+    # rewrite old Release-specific anchors into a newer canonical test.
+    canonical_source = sub_test.read_text(encoding="utf-8")
+    canonical_required = (
+        "release-curl",
+        '_starts_before_release=$(grep -c',
+        'if [ "$_starts_before_release" -ne 1 ]; then',
+        'wait "$p1"; rc1=$?',
+        'wait "$p2"; rc2=$?',
+        'if [ "$rc1" -ne 0 ] || [ "$rc2" -ne 0 ]; then',
+        "worker 1 stdout/stderr:",
+        "worker 2 stdout/stderr:",
+        '[ "$count" = 2 ]',
+        "actual_size",
+        "meta_size",
+        "actual_lines",
+        "meta_lines",
+        '[ ! -e "$T/state/subs/.lock.$key" ]',
     )
-if "FX_SUBFETCH_CURL_TRACE_END_V1" not in sub_test.read_text(encoding="utf-8"):
-    replace_once(
-        sub_test,
-        'fi\nCURL\n',
-        'fi\n# FX_SUBFETCH_CURL_TRACE_END_V1\nprintf "END|%s\\n" "$$" >> "$TEST_ROOT/curl-events"\nCURL\n',
-        "subscription mock must record each curl completion",
-    )
-
-# The restored release artifact already includes per-curl START/END markers.
-# Its worker launch syntax differs from the repository fixture, so do not force
-# a second, brittle rewrite of those commands; the count-failure assertion below
-# prints the event log and both worker responses for diagnosis.
-# Add shell xtrace to the two known restored-release worker forms. These are
-# optional diagnostic upgrades because root and release fixture launch syntax
-# have differed over time. The concurrency assertions stay unchanged.
-replace_if_present(
-    sub_test,
-    """PG="$T/state" MODDIR="$T/module" sh "$T/module/scripts/subfetch.sh" 'https://example.invalid/rules' --force > "$T/out1" & p1=$!
-""",
-    """# FX_SUBFETCH_WORKER_TRACE_A_V1
-PS4='FXSUB-A ' PG="$T/state" MODDIR="$T/module" sh -x "$T/module/scripts/subfetch.sh" 'https://example.invalid/rules' --force > "$T/out1" 2> "$T/trace1" & p1=$!
-""",
-    "subscription worker A shell trace",
-)
-replace_if_present(
-    sub_test,
-    """PG="$T/state" MODDIR="$T/module" sh "$T/module/scripts/subfetch.sh" 'https://example.invalid/rules' --force > "$T/out2" & p2=$!
-""",
-    """# FX_SUBFETCH_WORKER_TRACE_B_V1
-PS4='FXSUB-B ' PG="$T/state" MODDIR="$T/module" sh -x "$T/module/scripts/subfetch.sh" 'https://example.invalid/rules' --force > "$T/out2" 2> "$T/trace2" & p2=$!
-""",
-    "subscription worker B shell trace",
-)
-
-# Instrument filesystem lock operations at the command boundary. Shell xtrace can
-# show the same PID path in separate files but does not preserve cross-process
-# ordering. These wrappers timestamp successful/failed mkdir, mv, rm and rmdir
-# operations on the subscription lock pathname, so a stale reaper or unexpected
-# cleanup is directly attributable to one process.
-const_lock_ops_block = r"""
-# FX_SUBFETCH_LOCK_EVENT_WRAPPERS_V1
-cat > "$T/bin/mkdir" <<'FX_MKDIR'
-#!/bin/sh
-lock=''
-for arg in "$@"; do case "$arg" in */subs/.lock.*) lock=$arg ;; esac; done
-before=absent; owner=-
-if [ -n "$lock" ] && [ -d "$lock" ]; then before=present; owner=$(cat "$lock/pid" 2>/dev/null || echo missing); fi
-rc=0
-/usr/bin/mkdir "$@" || rc=$?
-if [ -n "$lock" ]; then
-  after=absent; new_owner=-
-  if [ -d "$lock" ]; then after=present; new_owner=$(cat "$lock/pid" 2>/dev/null || echo missing); fi
-  inode_before=$(stat -c %i "$lock" 2>/dev/null || echo missing)
-  printf 'MKDIR|pid=%s|ppid=%s|time=%s|rc=%s|args=%s|path=%s|before=%s:%s|after=%s:%s|inode=%s\n' "$" "$PPID" "$(date +%s.%N 2>/dev/null || date +%s)" "$rc" "$*" "$lock" "$before" "$owner" "$after" "$new_owner" "$inode_before" >> "$TEST_ROOT/lock-events"
-fi
-exit "$rc"
-FX_MKDIR
-cat > "$T/bin/mv" <<'FX_MV'
-#!/bin/sh
-set -- "$@"
-src=''; dst=''
-for arg in "$@"; do src=$dst; dst=$arg; done
-case "$src $dst" in
-  *"/subs/.lock."*)
-    owner=$(cat "$src/pid" 2>/dev/null || echo missing)
-    rc=0; /usr/bin/mv "$@" || rc=$?
-    src_after=absent; dst_after=absent
-    [ ! -e "$src" ] || src_after=present
-    [ ! -e "$dst" ] || dst_after=present
-    dst_owner=$(cat "$dst/pid" 2>/dev/null || echo missing)
-    printf 'MV|pid=%s|ppid=%s|time=%s|rc=%s|src=%s|dst=%s|owner_before=%s|src_after=%s|dst_after=%s|dst_owner=%s\n' "$" "$PPID" "$(date +%s.%N 2>/dev/null || date +%s)" "$rc" "$src" "$dst" "$owner" "$src_after" "$dst_after" "$dst_owner" >> "$TEST_ROOT/lock-events"
-    exit "$rc"
-    ;;
-esac
-exec /usr/bin/mv "$@"
-FX_MV
-cat > "$T/bin/rm" <<'FX_RM'
-#!/bin/sh
-matched=0
-for arg in "$@"; do case "$arg" in */subs/.lock.*) matched=1 ;; esac; done
-if [ "$matched" = 1 ]; then
-  printf 'RM_BEGIN|pid=%s|ppid=%s|time=%s|args=%s\n' "$" "$PPID" "$(date +%s.%N 2>/dev/null || date +%s)" "$*" >> "$TEST_ROOT/lock-events"
-  rc=0; /usr/bin/rm "$@" || rc=$?
-  printf 'RM_END|pid=%s|ppid=%s|time=%s|rc=%s|args=%s\n' "$" "$PPID" "$(date +%s.%N 2>/dev/null || date +%s)" "$rc" "$*" >> "$TEST_ROOT/lock-events"
-  exit "$rc"
-fi
-exec /usr/bin/rm "$@"
-FX_RM
-cat > "$T/bin/rmdir" <<'FX_RMDIR'
-#!/bin/sh
-matched=0
-for arg in "$@"; do case "$arg" in */subs/.lock.*) matched=1 ;; esac; done
-if [ "$matched" = 1 ]; then
-  printf 'RMDIR_BEGIN|pid=%s|ppid=%s|time=%s|args=%s\n' "$" "$PPID" "$(date +%s.%N 2>/dev/null || date +%s)" "$*" >> "$TEST_ROOT/lock-events"
-  rc=0; /usr/bin/rmdir "$@" || rc=$?
-  printf 'RMDIR_END|pid=%s|ppid=%s|time=%s|rc=%s|args=%s\n' "$" "$PPID" "$(date +%s.%N 2>/dev/null || date +%s)" "$rc" "$*" >> "$TEST_ROOT/lock-events"
-  exit "$rc"
-fi
-exec /usr/bin/rmdir "$@"
-FX_RMDIR
-chmod 0755 "$T/bin/mkdir" "$T/bin/mv" "$T/bin/rm" "$T/bin/rmdir"
-"""
-if "FX_SUBFETCH_LOCK_EVENT_WRAPPERS_V1" not in sub_test.read_text(encoding="utf-8"):
-    if not replace_if_present(
-        sub_test,
-        'export TEST_ROOT="$T/state"\nexport PATH="$T/bin:$PATH"\n',
-        'export TEST_ROOT="$T/state"\nexport PATH="$T/bin:$PATH"\n' + const_lock_ops_block,
-        "subscription lock operation event wrappers (split env)",
-    ):
-        replace_if_present(
-            sub_test,
-            'export TEST_ROOT="$T/state" PATH="$T/bin:$PATH"\n',
-            'export TEST_ROOT="$T/state" PATH="$T/bin:$PATH"\n' + const_lock_ops_block,
-            "subscription lock operation event wrappers (combined env)",
+    missing = [token for token in canonical_required if token not in canonical_source]
+    if missing:
+        raise SystemExit(
+            f"{sub_test}: canonical subscription concurrency fixture is incomplete: "
+            + ", ".join(missing)
         )
-
-# Do not require one particular restored-release worker launch spelling.
-# Optional per-source-tree tracing above is sufficient when the anchor exists;
-# failure diagnostics still print both worker outputs and the cache state.
-# The legacy test uses set -e with bare assertions. When one metadata/lock
-# invariant fails it previously exited with an empty log, so add precise failure
-# output while keeping the same assertions and exit behavior.
-replace_once(
-    sub_test,
-    '[ -s "$body" ] && [ -s "$meta" ]\n',
-    '[ -s "$body" ] && [ -s "$meta" ] || { echo "FAIL: subscription body or metadata sidecar missing" >&2; find "$T/state/subs" -maxdepth 2 -print >&2; exit 1; }\n',
-    "subscription concurrency test must explain missing cache files",
-)
-replace_once(
-    sub_test,
-    '[ "$actual_size" = "$meta_size" ]\n',
-    '[ "$actual_size" = "$meta_size" ] || { echo "FAIL: subscription metadata size mismatch body=$actual_size meta=$meta_size" >&2; cat "$meta" >&2; exit 1; }\n',
-    "subscription concurrency test must explain size metadata mismatch",
-)
-replace_once(
-    sub_test,
-    '[ "$actual_lines" = "$meta_lines" ]\n',
-    '[ "$actual_lines" = "$meta_lines" ] || { echo "FAIL: subscription metadata line mismatch body=$actual_lines meta=$meta_lines" >&2; cat "$meta" >&2; exit 1; }\n',
-    "subscription concurrency test must explain line metadata mismatch",
-)
-replace_once(
-    sub_test,
-    '[ "$(cat "$T/state/count")" -eq 2 ]\n',
-    '[ "$(cat "$T/state/count")" -eq 2 ] || { echo "FAIL: expected exactly two serialized curl requests, got $(cat "$T/state/count" 2>/dev/null || echo missing)" >&2; echo "curl event log:" >&2; cat "$T/state/curl-events" >&2 || :; echo "lock operation log:" >&2; cat "$T/state/lock-events" >&2 || :; echo "worker A lock trace:" >&2; cat "$T/trace1" >&2 || :; echo "worker B lock trace:" >&2; cat "$T/trace2" >&2 || :; cat "$T/out1" "$T/out2" >&2; exit 1; }\n',
-    "subscription concurrency test must explain lost or overlapping requests",
-)
-replace_once(
-    sub_test,
-    '[ ! -d "$T/state/subs/.lock.$key" ]\n',
-    '[ ! -d "$T/state/subs/.lock.$key" ] || { echo "FAIL: subscription lock directory leaked after both workers exited" >&2; find "$T/state/subs/.lock.$key" -maxdepth 2 -print >&2; exit 1; }\n',
-    "subscription concurrency test must explain lock directory leak",
-)
-
+    print("Canonical subscription concurrency fixture already gates transfers and reports both worker failures.")
+else:
+    replace_once(
+        sub_test,
+        'wait "$p1"\nwait "$p2"\n',
+        '''wait "$p1" || { rc=$?; echo "FAIL: subscription cache worker A exited with $rc" >&2; exit "$rc"; }
+    wait "$p2" || { rc=$?; echo "FAIL: subscription cache worker B exited with $rc" >&2; exit "$rc"; }
+    ''',
+        "subscription concurrency test must explain worker failure",
+    )
+    
+    # Trace the actual mock curl heredoc using stable line anchors. START/END are
+    # patched independently so a partial fixture patch can recover on rerun.
+    if "FX_SUBFETCH_CURL_TRACE_V1" not in sub_test.read_text(encoding="utf-8"):
+        replace_once(
+            sub_test,
+            'countfile="$TEST_ROOT/count"\n',
+            'countfile="$TEST_ROOT/count"\n# FX_SUBFETCH_CURL_TRACE_V1\nprintf "START|%s\\n" "$$" >> "$TEST_ROOT/curl-events"\n',
+            "subscription mock must record each curl start",
+        )
+    if "FX_SUBFETCH_CURL_TRACE_END_V1" not in sub_test.read_text(encoding="utf-8"):
+        replace_once(
+            sub_test,
+            'fi\nCURL\n',
+            'fi\n# FX_SUBFETCH_CURL_TRACE_END_V1\nprintf "END|%s\\n" "$$" >> "$TEST_ROOT/curl-events"\nCURL\n',
+            "subscription mock must record each curl completion",
+        )
+    
+    # The restored release artifact already includes per-curl START/END markers.
+    # Its worker launch syntax differs from the repository fixture, so do not force
+    # a second, brittle rewrite of those commands; the count-failure assertion below
+    # prints the event log and both worker responses for diagnosis.
+    # Add shell xtrace to the two known restored-release worker forms. These are
+    # optional diagnostic upgrades because root and release fixture launch syntax
+    # have differed over time. The concurrency assertions stay unchanged.
+    replace_if_present(
+        sub_test,
+        """PG="$T/state" MODDIR="$T/module" sh "$T/module/scripts/subfetch.sh" 'https://example.invalid/rules' --force > "$T/out1" & p1=$!
+    """,
+        """# FX_SUBFETCH_WORKER_TRACE_A_V1
+    PS4='FXSUB-A ' PG="$T/state" MODDIR="$T/module" sh -x "$T/module/scripts/subfetch.sh" 'https://example.invalid/rules' --force > "$T/out1" 2> "$T/trace1" & p1=$!
+    """,
+        "subscription worker A shell trace",
+    )
+    replace_if_present(
+        sub_test,
+        """PG="$T/state" MODDIR="$T/module" sh "$T/module/scripts/subfetch.sh" 'https://example.invalid/rules' --force > "$T/out2" & p2=$!
+    """,
+        """# FX_SUBFETCH_WORKER_TRACE_B_V1
+    PS4='FXSUB-B ' PG="$T/state" MODDIR="$T/module" sh -x "$T/module/scripts/subfetch.sh" 'https://example.invalid/rules' --force > "$T/out2" 2> "$T/trace2" & p2=$!
+    """,
+        "subscription worker B shell trace",
+    )
+    
+    # Instrument filesystem lock operations at the command boundary. Shell xtrace can
+    # show the same PID path in separate files but does not preserve cross-process
+    # ordering. These wrappers timestamp successful/failed mkdir, mv, rm and rmdir
+    # operations on the subscription lock pathname, so a stale reaper or unexpected
+    # cleanup is directly attributable to one process.
+    const_lock_ops_block = r"""
+    # FX_SUBFETCH_LOCK_EVENT_WRAPPERS_V1
+    cat > "$T/bin/mkdir" <<'FX_MKDIR'
+    #!/bin/sh
+    lock=''
+    for arg in "$@"; do case "$arg" in */subs/.lock.*) lock=$arg ;; esac; done
+    before=absent; owner=-
+    if [ -n "$lock" ] && [ -d "$lock" ]; then before=present; owner=$(cat "$lock/pid" 2>/dev/null || echo missing); fi
+    rc=0
+    /usr/bin/mkdir "$@" || rc=$?
+    if [ -n "$lock" ]; then
+      after=absent; new_owner=-
+      if [ -d "$lock" ]; then after=present; new_owner=$(cat "$lock/pid" 2>/dev/null || echo missing); fi
+      inode_before=$(stat -c %i "$lock" 2>/dev/null || echo missing)
+      printf 'MKDIR|pid=%s|ppid=%s|time=%s|rc=%s|args=%s|path=%s|before=%s:%s|after=%s:%s|inode=%s\n' "$" "$PPID" "$(date +%s.%N 2>/dev/null || date +%s)" "$rc" "$*" "$lock" "$before" "$owner" "$after" "$new_owner" "$inode_before" >> "$TEST_ROOT/lock-events"
+    fi
+    exit "$rc"
+    FX_MKDIR
+    cat > "$T/bin/mv" <<'FX_MV'
+    #!/bin/sh
+    set -- "$@"
+    src=''; dst=''
+    for arg in "$@"; do src=$dst; dst=$arg; done
+    case "$src $dst" in
+      *"/subs/.lock."*)
+        owner=$(cat "$src/pid" 2>/dev/null || echo missing)
+        rc=0; /usr/bin/mv "$@" || rc=$?
+        src_after=absent; dst_after=absent
+        [ ! -e "$src" ] || src_after=present
+        [ ! -e "$dst" ] || dst_after=present
+        dst_owner=$(cat "$dst/pid" 2>/dev/null || echo missing)
+        printf 'MV|pid=%s|ppid=%s|time=%s|rc=%s|src=%s|dst=%s|owner_before=%s|src_after=%s|dst_after=%s|dst_owner=%s\n' "$" "$PPID" "$(date +%s.%N 2>/dev/null || date +%s)" "$rc" "$src" "$dst" "$owner" "$src_after" "$dst_after" "$dst_owner" >> "$TEST_ROOT/lock-events"
+        exit "$rc"
+        ;;
+    esac
+    exec /usr/bin/mv "$@"
+    FX_MV
+    cat > "$T/bin/rm" <<'FX_RM'
+    #!/bin/sh
+    matched=0
+    for arg in "$@"; do case "$arg" in */subs/.lock.*) matched=1 ;; esac; done
+    if [ "$matched" = 1 ]; then
+      printf 'RM_BEGIN|pid=%s|ppid=%s|time=%s|args=%s\n' "$" "$PPID" "$(date +%s.%N 2>/dev/null || date +%s)" "$*" >> "$TEST_ROOT/lock-events"
+      rc=0; /usr/bin/rm "$@" || rc=$?
+      printf 'RM_END|pid=%s|ppid=%s|time=%s|rc=%s|args=%s\n' "$" "$PPID" "$(date +%s.%N 2>/dev/null || date +%s)" "$rc" "$*" >> "$TEST_ROOT/lock-events"
+      exit "$rc"
+    fi
+    exec /usr/bin/rm "$@"
+    FX_RM
+    cat > "$T/bin/rmdir" <<'FX_RMDIR'
+    #!/bin/sh
+    matched=0
+    for arg in "$@"; do case "$arg" in */subs/.lock.*) matched=1 ;; esac; done
+    if [ "$matched" = 1 ]; then
+      printf 'RMDIR_BEGIN|pid=%s|ppid=%s|time=%s|args=%s\n' "$" "$PPID" "$(date +%s.%N 2>/dev/null || date +%s)" "$*" >> "$TEST_ROOT/lock-events"
+      rc=0; /usr/bin/rmdir "$@" || rc=$?
+      printf 'RMDIR_END|pid=%s|ppid=%s|time=%s|rc=%s|args=%s\n' "$" "$PPID" "$(date +%s.%N 2>/dev/null || date +%s)" "$rc" "$*" >> "$TEST_ROOT/lock-events"
+      exit "$rc"
+    fi
+    exec /usr/bin/rmdir "$@"
+    FX_RMDIR
+    chmod 0755 "$T/bin/mkdir" "$T/bin/mv" "$T/bin/rm" "$T/bin/rmdir"
+    """
+    if "FX_SUBFETCH_LOCK_EVENT_WRAPPERS_V1" not in sub_test.read_text(encoding="utf-8"):
+        if not replace_if_present(
+            sub_test,
+            'export TEST_ROOT="$T/state"\nexport PATH="$T/bin:$PATH"\n',
+            'export TEST_ROOT="$T/state"\nexport PATH="$T/bin:$PATH"\n' + const_lock_ops_block,
+            "subscription lock operation event wrappers (split env)",
+        ):
+            replace_if_present(
+                sub_test,
+                'export TEST_ROOT="$T/state" PATH="$T/bin:$PATH"\n',
+                'export TEST_ROOT="$T/state" PATH="$T/bin:$PATH"\n' + const_lock_ops_block,
+                "subscription lock operation event wrappers (combined env)",
+            )
+    
+    # Do not require one particular restored-release worker launch spelling.
+    # Optional per-source-tree tracing above is sufficient when the anchor exists;
+    # failure diagnostics still print both worker outputs and the cache state.
+    # The legacy test uses set -e with bare assertions. When one metadata/lock
+    # invariant fails it previously exited with an empty log, so add precise failure
+    # output while keeping the same assertions and exit behavior.
+    replace_once(
+        sub_test,
+        '[ -s "$body" ] && [ -s "$meta" ]\n',
+        '[ -s "$body" ] && [ -s "$meta" ] || { echo "FAIL: subscription body or metadata sidecar missing" >&2; find "$T/state/subs" -maxdepth 2 -print >&2; exit 1; }\n',
+        "subscription concurrency test must explain missing cache files",
+    )
+    replace_once(
+        sub_test,
+        '[ "$actual_size" = "$meta_size" ]\n',
+        '[ "$actual_size" = "$meta_size" ] || { echo "FAIL: subscription metadata size mismatch body=$actual_size meta=$meta_size" >&2; cat "$meta" >&2; exit 1; }\n',
+        "subscription concurrency test must explain size metadata mismatch",
+    )
+    replace_once(
+        sub_test,
+        '[ "$actual_lines" = "$meta_lines" ]\n',
+        '[ "$actual_lines" = "$meta_lines" ] || { echo "FAIL: subscription metadata line mismatch body=$actual_lines meta=$meta_lines" >&2; cat "$meta" >&2; exit 1; }\n',
+        "subscription concurrency test must explain line metadata mismatch",
+    )
+    replace_once(
+        sub_test,
+        '[ "$(cat "$T/state/count")" -eq 2 ]\n',
+        '[ "$(cat "$T/state/count")" -eq 2 ] || { echo "FAIL: expected exactly two serialized curl requests, got $(cat "$T/state/count" 2>/dev/null || echo missing)" >&2; echo "curl event log:" >&2; cat "$T/state/curl-events" >&2 || :; echo "lock operation log:" >&2; cat "$T/state/lock-events" >&2 || :; echo "worker A lock trace:" >&2; cat "$T/trace1" >&2 || :; echo "worker B lock trace:" >&2; cat "$T/trace2" >&2 || :; cat "$T/out1" "$T/out2" >&2; exit 1; }\n',
+        "subscription concurrency test must explain lost or overlapping requests",
+    )
+    replace_once(
+        sub_test,
+        '[ ! -d "$T/state/subs/.lock.$key" ]\n',
+        '[ ! -d "$T/state/subs/.lock.$key" ] || { echo "FAIL: subscription lock directory leaked after both workers exited" >&2; find "$T/state/subs/.lock.$key" -maxdepth 2 -print >&2; exit 1; }\n',
+        "subscription concurrency test must explain lock directory leak",
+    )
+    
 
 old_root_proxy_engine_stub = """for script in adguardhome.sh unbound.sh; do
   cat > "$MOD/scripts/$script" <<'SH'

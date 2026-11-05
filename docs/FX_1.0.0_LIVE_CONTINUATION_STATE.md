@@ -5877,3 +5877,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 最近的构建重构已将同步职责收敛到 `patch_system_app_install_stage.py::sync_packaged_installer()`；workflow 刻意不再重复复制，而是在 patcher 后执行 `cmp -s` 字节回读再跑 installer 回归。原测试同一文件中已经有这套新契约，前后又保留旧的直接复制断言，互相矛盾。
 - 删除四条过时的直接复制断言，保留 APK system-app overlay staging、patcher 负责同步、installer/remover cmp 顺序、uninstall/boot 行为等其余覆盖。只修测试契约，不改变产品脚本或构建行为。
 - 本批提交后需要重新检查 Host/六 UI/Module Runtime；此前失败的 `42099785668` 不计为通过。
+
+
+### KernelSU 订阅并发测试与兼容补丁顺序对齐（2026-11-06）
+
+- KernelSU package run `42099301795` 在 `patch_atomic_cache_lock_release.py` 失败。根因不是缓存锁行为测试本身：build workflow 已先把当前仓库的 deterministic subscription concurrency fixture 复制进模块，但 compatibility patcher 仍要求旧 Release 测试里的两条裸 `wait "$p1"` / `wait "$p2"`，与当前 fixture 的退出码捕获和双 worker 诊断不匹配。
+- 补丁器现在识别带有 `FX_SUBFETCH_CONCURRENCY_CANONICAL_V1` 的仓库规范夹具，逐项验证 transfer gate、单 worker 入场、双进程退出码、两侧输出诊断、串行网络请求、缓存元数据和 lock 清理契约；完整满足时跳过只适用于旧 Release 测试的文字注入。非规范旧夹具仍沿用原始兼容修补流程。
+- `fx-atomic-cache-lock-release-regression.sh` 调整为先复制规范并发夹具，再运行补丁器两次，执行顺序与实际 KernelSU build workflow 对齐。
+- 本批新增规范测试标记并记录 CI 根因；需要当前 HEAD 的 Host 与 KernelSU package CI 重新验证。未声称 APK/ZIP 构建已通过。
