@@ -5481,3 +5481,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 在拒绝 symlink 的既有基础上，进一步要求 `/data/adb/modules` 必须是真实目录；`modules_update` 允许不存在，但若存在必须是真实目录且不能是符号链接。这样避免父路径被替换为普通文件时被静默忽略或产生不明确的候选路径解析。
 - 回归覆盖 modules 目录存在且非 symlink、modules_update 可选目录的类型语义；模块目录、元数据、脚本目录和入口脚本的既有检查保持不变。
 - 父提交 `da3b9c70` 的 Host Regression run `42092919337` 与六套 UI run `42092919389` 均 SUCCESS。当前新增父目录类型边界的代码仍待新提交 CI 验证。
+
+
+## 2026-11-06 — Hosts cache legacy lock fail-closed hardening
+
+- 修复 `fx-patches/patch_hosts_file_lock.py` 生成的旧目录锁清理逻辑：`_hf_read_lock_owner` 现在只会读取非符号链接的普通 `pid` 文件，避免对 FIFO 执行 `cat` 而阻塞；`_hf_remove_lock_path` 不再使用递归删除。
+- 旧目录锁只允许两种安全清理形态：空目录，或只含一个普通、非符号链接 `pid` 文件的目录。未知文件、隐藏文件、嵌套目录、FIFO 和符号链接均拒绝清理并保留现场。
+- 锁补丁升级标记为 V3，使已使用旧 V2 的模块在重新打包时也能重写安全清理函数。
+- 新增 `scripts/tests/fx-hosts-cache-lock-regression.sh`，动态执行生产函数并覆盖空目录、PID-only 目录、普通文件锁、未知/隐藏内容、外层 symlink、PID symlink 与 FIFO；在 KernelSU 包装阶段接入该补丁和回归，并在 Targeted Host Regression 中按补丁路径触发。
+- 本批待 CI 验证；未运行最终 KernelSU 包生成、APK 构建或设备安装。

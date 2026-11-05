@@ -9,7 +9,7 @@ if not target.is_file():
     raise SystemExit(f"restored FX Hosts apply source missing: {target}")
 
 source = target.read_text(encoding="utf-8")
-marker = "# FX_HOSTS_FILE_LOCK_V2"
+marker = "# FX_HOSTS_FILE_LOCK_V3"
 if marker in source:
     print("Hosts cache already uses the POSIX atomic file lock.")
     raise SystemExit(0)
@@ -31,7 +31,9 @@ new_block = r'''  # FX_HOSTS_FILE_LOCK_V2
     _hf_path=$1
     [ ! -L "$_hf_path" ] || return 1
     if [ -d "$_hf_path" ]; then
-      [ ! -L "$_hf_path/pid" ] || return 1
+      # A legacy directory lock is trusted only when its owner record is a
+      # regular file. Never cat a FIFO, socket, device or symlink here.
+      [ ! -L "$_hf_path/pid" ] && [ -f "$_hf_path/pid" ] || return 1
       cat "$_hf_path/pid" 2>/dev/null
     elif [ -f "$_hf_path" ]; then
       cat "$_hf_path" 2>/dev/null
@@ -44,7 +46,20 @@ new_block = r'''  # FX_HOSTS_FILE_LOCK_V2
     _hf_path=$1
     [ ! -L "$_hf_path" ] || return 1
     if [ -d "$_hf_path" ]; then
-      rm -rf "$_hf_path" 2>/dev/null
+      # Retire only an empty directory or one containing exactly a regular,
+      # non-symlink PID file. Unknown entries are user data, not lock debris.
+      _hf_found_pid=0
+      for _hf_entry in "$_hf_path"/* "$_hf_path"/.[!.]* "$_hf_path"/..?*; do
+        [ -e "$_hf_entry" ] || [ -L "$_hf_entry" ] || continue
+        [ "$_hf_entry" = "$_hf_path/pid" ] || return 1
+        [ ! -L "$_hf_entry" ] && [ -f "$_hf_entry" ] || return 1
+        _hf_found_pid=1
+      done
+      if [ "$_hf_found_pid" = 1 ]; then
+        [ ! -L "$_hf_path/pid" ] && [ -f "$_hf_path/pid" ] || return 1
+        rm -f "$_hf_path/pid" 2>/dev/null || return 1
+      fi
+      rmdir "$_hf_path" 2>/dev/null
     elif [ -f "$_hf_path" ]; then
       rm -f "$_hf_path" 2>/dev/null
     else

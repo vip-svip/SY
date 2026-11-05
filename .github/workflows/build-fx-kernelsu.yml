@@ -209,6 +209,8 @@ jobs:
           python3 fx-patches/patch_native_hook_uninstall.py fx-module
           python3 fx-patches/patch_localdns_uninstall_shutdown.py fx-module
           python3 fx-patches/patch_local_hosts_ipv4_validation.py fx-module
+          python3 fx-patches/patch_hosts_file_lock.py fx-module
+          sh scripts/tests/fx-hosts-cache-lock-regression.sh fx-module
           python3 fx-patches/patch_vpn_direct_core_stop_result.py fx-module
           python3 fx-patches/patch_vpn_core_stop_guard.py fx-module
           python3 fx-patches/patch_vpn_toggle_external_state.py fx-module
