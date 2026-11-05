@@ -343,17 +343,17 @@ _stop_locked() {
 _route_uses_if() {
   _route_text="$1"
   _expected_if="$2"
-  printf '%s\n' "$_route_text" | awk -v expected="$_expected_if" '
+  _expected_src="$3"
+  printf '%s\n' "$_route_text" | awk -v expected="$_expected_if" -v expected_src="$_expected_src" '
     {
       for (i=1; i<NF; i++) {
-        if ($i == "dev") {
-          dev_count++
-          actual=$(i+1)
-        }
+        if ($i == "dev") {dev_count++; actual_dev=$(i+1)}
+        if ($i == "src") {src_count++; actual_src=$(i+1)}
       }
     }
     END {
-      if (dev_count == 1 && actual == expected) exit 0
+      if (dev_count == 1 && actual_dev == expected &&
+          src_count == 1 && actual_src == expected_src) exit 0
       exit 1
     }
   '
@@ -371,11 +371,11 @@ _resolve_vpn_egress() {
   [ -n "$_ip" ] && _valid_ipv4 "$_ip" || {
     _log "no valid global IPv4 address on tunnel: $_if"; return 1;
   }
-  for _dest in 198.41.0.4 199.9.14.201; do
+  for _dest in 198.41.0.4 199.9.14.201 192.33.4.12 199.7.91.13 192.5.5.241 192.112.36.4; do
     _route=$(ip route get "$_dest" from "$_ip" 2>/dev/null) || {
       _log "route lookup failed through tunnel source $_ip for $_dest"; return 1;
     }
-    _route_uses_if "$_route" "$_if" || {
+    _route_uses_if "$_route" "$_if" "$_ip" || {
       _log "route for $_dest from $_ip does not use $_if: $_route"; return 1;
     }
   done
