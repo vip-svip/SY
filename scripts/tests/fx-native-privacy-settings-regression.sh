@@ -185,4 +185,35 @@ rc=$?
 set -e
 [ "$rc" -eq 75 ] || fail "active WebUI transaction should return retryable exit 75, got $rc"
 grep -qx "$key=$old" "$PG/settings.conf" || fail "WebUI transaction marker was overwritten"
+# Root-backed native settings reads and writes must reject both a direct
+# symlink and a symlinked ancestor of the private state directory.
+mkdir -p "$TMP/path-guard"
+ln -s "$TMP/pg" "$TMP/path-guard/state-link"
+set +e
+PG="$TMP/path-guard/state-link" sh "$HELPER" list >"$TMP/symlink-list.out" 2>&1
+rc=$?
+set -e
+[ "$rc" -eq 21 ] || fail "native privacy list accepted a symlinked state directory (rc=$rc)"
+set +e
+PG="$TMP/path-guard/state-link" sh "$HELPER" set "$key" "$new" >"$TMP/symlink-set.out" 2>&1
+rc=$?
+set -e
+[ "$rc" -eq 21 ] || fail "native privacy writer accepted a symlinked state directory (rc=$rc)"
+grep -qx "$key=$old" "$PG/settings.conf" 2>/dev/null && fail "symlinked native state path changed the target settings"
+mkdir -p "$TMP/path-target/state"
+cp "$TMP/pg/settings.conf" "$TMP/path-target/state/settings.conf"
+ln -s "$TMP/path-target" "$TMP/path-guard/ancestor-link"
+set +e
+PG="$TMP/path-guard/ancestor-link/state" sh "$HELPER" list >"$TMP/ancestor-list.out" 2>&1
+rc=$?
+set -e
+[ "$rc" -eq 21 ] || fail "native privacy list accepted a symlinked state ancestor (rc=$rc)"
+set +e
+PG="$TMP/path-guard/ancestor-link/state" sh "$HELPER" set "$key" "$new" >"$TMP/ancestor-set.out" 2>&1
+rc=$?
+set -e
+[ "$rc" -eq 21 ] || fail "native privacy writer accepted a symlinked state ancestor (rc=$rc)"
+grep -qx "$key=$old" "$TMP/path-target/state/settings.conf" || fail "symlinked ancestor path modified the target settings"
+echo "PASS: native privacy list and writer reject symlinked state paths"
+
 echo "PASS: native privacy config persistence, allowlist, apply reporting and transaction guard"
