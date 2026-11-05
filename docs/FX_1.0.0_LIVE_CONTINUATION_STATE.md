@@ -5349,3 +5349,5 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 - The first status-path regression attempt injected firewall delete failure but left the health state healthy, so status correctly did not enter cleanup. Corrected the fixture to inject both a DNS health failure and the firewall detach failure.
 - No production behavior change in this test-only correction.
+
+- Regression harness refinement: the status cleanup-failure test now corrupts the active interface metadata to force the validation/fail-open branch deterministically before injecting firewall detach failure; it no longer depends on DNS-probe fault propagation.
