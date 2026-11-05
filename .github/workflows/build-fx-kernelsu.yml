@@ -156,11 +156,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Restore the reviewed canonical installer/remover into the Release module.
-          # The module archive may carry an older copy; the boot service and uninstall
-          # hook must execute the exact scripts covered by the source regression.
-          install -D -m 0755 scripts/install_adhook_app.sh fx-module/scripts/install_adhook_app.sh
-          install -D -m 0755 scripts/remove_adhook_app.sh fx-module/scripts/remove_adhook_app.sh
           # Wire the checksum-gated system-app deployment into the restored Release customize.sh.
           python3 -m py_compile fx-patches/patch_system_app_install_stage.py
           python3 fx-patches/patch_system_app_install_stage.py fx-module

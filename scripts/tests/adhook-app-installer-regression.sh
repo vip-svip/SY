@@ -53,8 +53,11 @@ remover = workflow.index("install -D -m 0755 scripts/remove_adhook_app.sh fx-mod
 installer_cmp = workflow.index("cmp -s scripts/install_adhook_app.sh fx-module/scripts/install_adhook_app.sh", patch)
 remover_cmp = workflow.index("cmp -s scripts/remove_adhook_app.sh fx-module/scripts/remove_adhook_app.sh", patch)
 regression = workflow.index("sh scripts/tests/adhook-app-installer-regression.sh", patch)
-assert patch < installer < regression and patch < remover < regression, "canonical APK installer/remover must be staged before regression"
-assert installer_cmp < regression and remover_cmp < regression, "KSU package lane must byte-verify installer/remover parity"
+installer_copy = "install -D -m 0755 scripts/install_adhook_app.sh fx-module/scripts/install_adhook_app.sh"
+remover_copy = "install -D -m 0755 scripts/remove_adhook_app.sh fx-module/scripts/remove_adhook_app.sh"
+assert workflow.count(installer_copy) == 1, "canonical installer must be staged exactly once"
+assert workflow.count(remover_copy) == 1, "canonical remover must be staged exactly once"
+assert patch < installer < remover < installer_cmp < remover_cmp < regression, "installer/remover must be staged, byte-verified, then tested"
 PY
 grep -Fq 'verified FX Hook system app and module APK digest; no PackageManager reinstall required' "$INSTALLER" || fail "system-app overlay verification path missing"
 grep -Fq '_installed_digest=$(sha256sum "$_system_installed_path"' "$INSTALLER" || fail "installer does not verify the PackageManager-resolved system APK digest"
