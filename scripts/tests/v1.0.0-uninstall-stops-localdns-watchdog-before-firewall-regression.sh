@@ -79,4 +79,20 @@ fi
 grep -Fq 'aborting uninstall before firewall cleanup' "$T/helper.out" || fail "helper shutdown failure did not report fail-closed behavior"
 ! grep -Fq 'FIREWALL_CLEANUP' "$T/helper.out" || fail "firewall teardown continued after helper shutdown failure"
 
+# A symlinked stop helper is untrusted executable code and must never run.
+rm -f "$MOD/scripts/localdns-watchdog.sh"
+cat > "$T/outside-watchdog.sh" <<'OUTSIDE'
+#!/bin/sh
+printf 'EXECUTED\n' > "$WATCHDOG_MARKER"
+exit 0
+OUTSIDE
+chmod 0755 "$T/outside-watchdog.sh"
+ln -s "$T/outside-watchdog.sh" "$MOD/scripts/localdns-watchdog.sh"
+if PG="$PG" MODDIR="$MOD" WATCHDOG_MARKER="$T/watchdog-executed" sh "$MOD/uninstall.sh" > "$T/helper-symlink.out" 2>&1; then
+  fail "symlinked watchdog helper was accepted"
+fi
+grep -Fq 'helper is a symlink or non-regular file' "$T/helper-symlink.out" || fail "symlinked helper refusal was not explained"
+[ ! -e "$T/watchdog-executed" ] || fail "uninstall executed the symlink target"
+! grep -Fq 'FIREWALL_CLEANUP' "$T/helper-symlink.out" || fail "firewall teardown continued after helper symlink refusal"
+
 echo "PASS: local DNS watchdog uninstall clears dead PID records, rejects reused/symlink PIDs, and aborts cleanup when a live owner cannot be stopped"
