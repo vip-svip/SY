@@ -42,6 +42,12 @@ with tempfile.TemporaryDirectory(prefix="fx-system-app-stage-") as tmp:
         'fx_system_app_retry',
         'u:object_r:system_file:s0',
         'privapp-permissions',
+        '[ ! -L "$fx_system_app_state_dir" ]',
+        '[ ! -L "$fx_system_app_log" ]',
+        '[ ! -L "$fx_system_app_marker" ]',
+        '[ ! -L "$fx_system_app_retry" ]',
+        'fx_system_app_mark_retry() {',
+        'set -C; printf',
     ):
         assert required in patched, f"missing system-app stage contract: {required}"
     subprocess.run(["sh", "-n", str(customize)], check=True)
