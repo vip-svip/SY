@@ -5899,3 +5899,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 - 新增的 Host 检查需区分“生产源不得包含恢复 stale quarantine 的 mv”与“生成的测试脚本必须包含用于检测该危险操作的 grep”。此前把后者误判成生产行为，现将断言改为分别检查真实迁移后的 `subfetch.sh` 和测试脚本的拒绝断言。
 - 保持锁算法与打包 workflow 不变；本次只修复新增回归自身的误判。
+
+
+## 2026-11-06 — APK / KernelSU 打包统一 subfetch 原子锁迁移
+
+- KernelSU 失败 run `42099301795` 在完整模块回归末尾报告 Release-restored `v1.0.0-subfetch-concurrency-regression.sh` worker failure；回读确认仓库已有 `patch_subfetch_file_lock.py` 与 `patch_subfetch_legacy_lock_tests.py`，而此前 KSU 打包步骤未应用这两个 patcher。
+- 最新协作 HEAD 已将两个 patcher、并发回归和两种陈旧锁回归接入 KernelSU 流程。本批将同样的顺序接入 APK 打包流程：恢复 Release 模块后应用 POSIX noclobber 文件锁、重建 stale-lock 测试、安装 canonical concurrency 回归；在 TMPDIR fixture 标准化后运行并发/ownership/reclaim 三项测试。
+- 新增 `scripts/tests/fx-subfetch-package-integration-regression.py`，检查 APK 与 KernelSU 两条打包路径均按“patch → stale-lock test generation → concurrency → owner/reclaim tests”顺序执行，防止打包链路漂移。
+- 本批尚待新 APK/KSU package CI 对真实 Release-restored module 运行结果确认；未声称设备端网络订阅验证。

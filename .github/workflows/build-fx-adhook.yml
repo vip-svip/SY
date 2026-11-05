@@ -211,6 +211,12 @@ jobs:
             install -D -m 0644 "$RUNNER_TEMP/fx-restored-webroot.html" fx-module/webroot/index.html
             echo "::notice::Restored the complete WebUI source from the published FX Hook APK Release asset."
           fi
+          # Keep the restored Release module on the reviewed POSIX atomic
+          # per-URL cache lock before executing subscription concurrency tests.
+          python3 -m py_compile fx-patches/patch_subfetch_file_lock.py fx-patches/patch_subfetch_legacy_lock_tests.py
+          python3 fx-patches/patch_subfetch_file_lock.py fx-module
+          python3 fx-patches/patch_subfetch_legacy_lock_tests.py fx-module
+          install -D -m 0755 scripts/tests/v1.0.0-subfetch-concurrency-regression.sh fx-module/scripts/tests/v1.0.0-subfetch-concurrency-regression.sh
           # fileedit.sh is restored from the stable module ZIP. Patch that source
           # before tests/build so simultaneous page and line saves cannot be lost.
           python3 fx-patches/patch_fileedit_transaction_lock.py fx-module
@@ -302,6 +308,11 @@ jobs:
                   raise SystemExit(f'{path}: TMPDIR template is not expandable')
               print(f'PASS: normalized restored TMPDIR fixture: {path.name}')
           PY
+          # Execute the subscription lock checks after normalizing regenerated
+          # legacy fixtures; all tests run against the Release-restored module.
+          sh fx-module/scripts/tests/v1.0.0-subfetch-concurrency-regression.sh
+          sh fx-module/scripts/tests/v1.0.0-subfetch-stale-lock-ownership-regression.sh
+          sh fx-module/scripts/tests/v1.0.0-subfetch-stale-lock-reclaim-regression.sh
           sh scripts/tests/fx-dia-hook-tab-navigation-regression.sh
           sh scripts/tests/fx-dia-frida-page-navigation-regression.sh
           sh scripts/tests/fx-dia-monitor-event-view-regression.sh
