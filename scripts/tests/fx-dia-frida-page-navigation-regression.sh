@@ -11,15 +11,20 @@ import sys
 main = Path(sys.argv[1]).read_text(encoding="utf-8")
 frida = Path(sys.argv[2]).read_text(encoding="utf-8")
 editor = Path(sys.argv[3]).read_text(encoding="utf-8")
-route_start = main.index('case "运行日志":')
-route = main[route_start:route_start + 500]
+hook_hub_start = main.index("private void showHookHub()")
+hook_hub_end = main.index("private void refreshHookHubAuthorizationStates()", hook_hub_start)
+hook_hub = main[hook_hub_start:hook_hub_end]
+frida_route_start = hook_hub.index('addNativeActionCard("Frida 环境与注入"')
+frida_route = hook_hub[frida_route_start:frida_route_start + 650]
 target_picker_start = frida.index("private void showTargetPicker(List<Target> targets)")
 target_picker_end = frida.index("private void clearPendingProcessPickerState()", target_picker_start)
 target_picker = frida[target_picker_start:target_picker_end]
-if "FxDiaFridaActivity.class" not in route or '.putExtra("dia_page", page)' not in route:
-    raise SystemExit("FAIL: Dia run-log page must open the Frida target-session log screen")
-if "showNativeRuntimeLogs()" in route:
-    raise SystemExit("FAIL: Dia run-log page is incorrectly routed to the FX module log viewer")
+if "FxDiaFridaActivity.class" not in frida_route or '.putExtra("dia_page", "Frida 环境")' not in frida_route:
+    raise SystemExit("FAIL: FX Hook hub must open the integrated Frida runtime Activity")
+if "showNativeRuntimeLogs()" in frida_route:
+    raise SystemExit("FAIL: Frida runtime entry is incorrectly routed to the FX module log viewer")
+if 'else if ("运行日志".equals(title)' not in frida or 'body.post(() -> {' not in frida:
+    raise SystemExit("FAIL: Frida session log deep-link no longer opens within the target context")
 checks = {
 
     "target picker open state saved": "outState.putBoolean(STATE_TARGET_PICKER_OPEN" in frida,
