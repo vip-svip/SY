@@ -4075,3 +4075,35 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 1. 读取最新 Targeted Host run 的 job 结果；用一次定向节点验证 `fx-unified-navigation-regression.sh` 与 `fx-imported-suite-back-navigation-regression.sh`，修复失败根因。
 2. 继续五 Skin × 六 Tab 的实际页面控件适配，优先 Harmony/Cupertino 的列表、表单、开关、弹窗、Sheet、键盘和无障碍。
 3. 按 Ad/VPN/隐私/Hook/脚本逐页接通真实 Repository/Service/权限，不以删掉旧来源导航代表所有功能已迁入。
+
+
+## 2026-11-05 — Harmony / Cupertino 共享 Tokens 与双 renderer 接线
+
+### 本批源码实现
+- 新增 `HarmonySkinTokens.java`：独立 Harmony Color / Shape / Typography / Spacing token；数值为 FX 自有实现，不复制华为系统私有资产。
+- 新增 `CupertinoSkinTokens.java`：独立 Cupertino Color / Shape / Typography / Spacing token；不打包未经授权的 Apple 字体、图标或系统资产。
+- 新增 `HarmonySkinRenderer.java` 与 `CupertinoSkinRenderer.java`：为 Android 原生 View 页面构造统一 Palette。
+- `FxNativeSkin.java`：将 HUAWEI / iOS 的 Android View 页面渲染分支改为委派上述 renderer；`Palette` 仅提高为包级可见，未改变 semantic warning/error/success 色彩保护、未知 Drawable 保留和动态页面重应用机制。
+- `FxComposeSkinTokens.kt`：Compose 六 Tab Shell 的 Harmony/Cupertino tokens 改为读取 Java 共享 token 类；页面背景、壁纸遮罩、导航 surface/border、accent、选中/非选中文字、选中 Tab surface、形状、导航栏高度、Tab item 高度、导航间距和字号均从同一组 token 派生。避免 Compose 与原生 Activity 两套 token 数值漂移。
+- 调整 Harmony 导航半径和水平 inset、Cupertino 导航圆角/底栏与 item 高度，使与实际 Compose Shell 布局匹配；补齐 Cupertino selected-tab surface token。
+- `scripts/tests/fx-global-ui-modes-regression.sh`：加入四个新 Java token/renderer 文件的存在性检查，并要求 Compose 使用 Harmony/Cupertino 共享 Color/Shape/Spacing/Typography tokens、Android View 路由到专用 renderer。
+
+### 相关提交
+- Harmony / Cupertino token 与 renderer 新文件：`cf3e53821cf08d8f763d43227c2e50fe1443bdf0`、`2e1ae5093b3c823a2c71437e6ddca9b13cffd180`、`b8727b7560acd90fd645b0c4c52d9a51edbf984e`、`7a39a566fcd08effb620aaa4749bd1c03ee03c56`。
+- Android View Palette renderer 接线：`9c15e7cccdb0a24659f746a6c1dbb1b710cc19b4`。
+- Harmony / Cupertino 细节 token 对齐：`a676d25a60eecff341dde2c98110610b97fb85e6`、`41cdcae8031035fd31de89ebce255c4b1540500b0`、`9e5c75b1ee57109dbadedf5e76a6397ba8cbd869`。
+- Compose 与 View 共享 token 接线：`e37ea1aa3ebecafab278bd0dacd74531635e20c1`。
+- 双 renderer 统一回归门禁：`826f20761f236c627828a2a6a4b7e0e6ffd83dcf`。
+
+### 回读核验与验证边界
+- 最新分支 HEAD 回读：`826f20761f236c627828a2a6a4b7e0e6ffd83dcf`（记录时；后续窗口仍须实时读取）。
+- GitHub 回读确认：主应用仍为六 Tab；MainActivity 不含来源应用 Migration 导航状态/方法；第二 Tab 与 ClassicWebCompat 中文标题为 Ad；Hosts 只保留 Ad 内部功能路径；VPN 分应用路由使用 FX 原生方法名。
+- GitHub 回读确认：FxComposeSkinTokens 的 Harmony/Cupertino 分支均引用 Java token 的 Color / Shape / Spacing / Typography；FxNativeSkin 分别委派 HarmonySkinRenderer / CupertinoSkinRenderer；五 Skin Shell 继续使用统一的 `fxComposeShellTokens()`。
+- 这批完成的是**五 Skin 中 HUAWEI / iOS 的共享设计 Token、主导航 Shell 与原生 View 基础 renderer 接线**，不是整个六 Tab 的逐页视觉重构完成。
+- 本批未在本地 Android SDK 环境执行 shell regression、Kotlin/Java 编译、Gradle 单测、APK 构建、安装或真机截图；不能称 CI / 构建 / 设备验证通过。Regression 文件已更新但仅完成 GitHub 内容回读。
+- 尚未完成：将 Harmony/Cupertino tokens 深入覆盖六 Tab 所有 Activity 的列表行、表单、Dialog、BottomSheet、编辑器、错误/空状态；当前 FxNativeSkin 主要转换已知旧色值/通用按钮/开关/选择控件，尚不能代表全部组件已完成独立样式。
+
+### 下一批立即实施
+1. 以 Ad 和隐私页面为样本，将 Android 原生页面的卡片/列表/表单/弹窗从色值替换推进到统一 renderer/组件适配；先保证真实控件操作与状态不变。
+2. 补五 Skin × 六 Tab renderer coverage 静态矩阵和 Android UI 自动化/截图基线；实际运行前注明可用 SDK/设备环境。
+3. 按业务页逐项检查 Ad、VPN、隐私、Hook、脚本按钮是否已连接真实服务/Repository；优先消除无后端空操作与假状态，不恢复来源应用入口。
