@@ -21,7 +21,7 @@ if [ -f "$MODDIR/scripts/jsruntime/scheduler.sh" ]; then
   # file merely to create the shutdown log.
   _FX_SCHEDULER_LOG=/dev/null
   if [ -d "$_FX_SCHEDULER_STATE_DIR/jsruntime" ] && [ ! -L "$_FX_SCHEDULER_STATE_DIR/jsruntime" ] && \
-      { [ ! -e "$_FX_SCHEDULER_STATE_DIR/jsruntime/scheduler.log" ] || \
+      { { [ ! -e "$_FX_SCHEDULER_STATE_DIR/jsruntime/scheduler.log" ] && [ ! -L "$_FX_SCHEDULER_STATE_DIR/jsruntime/scheduler.log" ]; } || \
         { [ -f "$_FX_SCHEDULER_STATE_DIR/jsruntime/scheduler.log" ] && [ ! -L "$_FX_SCHEDULER_STATE_DIR/jsruntime/scheduler.log" ]; }; }; then
     _FX_SCHEDULER_LOG="$_FX_SCHEDULER_STATE_DIR/jsruntime/scheduler.log"
   fi
