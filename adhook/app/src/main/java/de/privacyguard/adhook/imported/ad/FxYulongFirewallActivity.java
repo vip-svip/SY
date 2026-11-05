@@ -1,7 +1,7 @@
 package de.privacyguard.adhook.imported.ad;
 
 import android.app.Activity;
-import android.app.AlertDialog;
+import androidx.appcompat.app.AlertDialog;
 import android.app.TimePickerDialog;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -172,7 +172,7 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
         panel.addView(button("选择每日结束时间", () -> showTimePicker(end, "每日结束", draft.endTime)));
         panel.addView(end);
         panel.addView(text("时间采用设备本地时间；开始和结束分钟均包含，支持跨午夜。两端相同表示仅该分钟生效。", 11, 0xff718091, false));
-        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("应用网络类型与每日计划")
+        AlertDialog dialog = fxDialogBuilder().setTitle("应用网络类型与每日计划")
                 .setView(panel).setNegativeButton("取消", null).setPositiveButton("保存", null).create();
         dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(view -> {
             draft.blockWifi = wifi.isChecked(); draft.blockMobile = mobile.isChecked();
@@ -186,7 +186,7 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
             dialog.dismiss();
             persistRule(packageName, uid, draft, ok -> { if (ok) renderRows(); });
         }));
-        dialog.show();
+        showFxDialog(dialog);
     }
     private String ruleSummary(FirewallRule rule) {
         StringBuilder value = new StringBuilder(rule.enabled ? "已启用 · " : "未启用 · ");
