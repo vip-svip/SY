@@ -74,6 +74,10 @@ if sh "$INSTALLER" "$TMP/mod" >/dev/null 2>&1; then fail "system overlay without
 [ ! -s "$TMP/pm/install-calls" ] || fail "missing overlay checksum reached PackageManager install"
 [ ! -e "$TMP/state/adhook-apk-fxunifiedhook.sha256" ] || fail "missing overlay checksum wrote an ownership digest"
 cp "$TMP/overlay.expected.sha256" "$TMP/mod/system/app/FX/FX.apk.sha256"
+printf 'not-a-sha256  FX.apk\n' > "$TMP/mod/system/app/FX/FX.apk.sha256"
+if sh "$INSTALLER" "$TMP/mod" >/dev/null 2>&1; then fail "malformed system overlay checksum unexpectedly succeeded"; fi
+[ ! -s "$TMP/pm/install-calls" ] || fail "malformed overlay checksum reached PackageManager install"
+cp "$TMP/overlay.expected.sha256" "$TMP/mod/system/app/FX/FX.apk.sha256"
 printf '%064d  FX.apk\\n' 0 > "$TMP/mod/system/app/FX/FX.apk.sha256"
 if sh "$INSTALLER" "$TMP/mod" >/dev/null 2>&1; then fail "mismatched system overlay checksum unexpectedly succeeded"; fi
 [ ! -s "$TMP/pm/install-calls" ] || fail "mismatched overlay checksum reached PackageManager install"
