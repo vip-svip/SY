@@ -571,7 +571,8 @@ jobs:
           # KernelSU/Magisk systemless overlay: PackageManager discovers this
           # at boot as a system app. Use /system/app, not priv-app: the APK is
           # not platform-signed and must not claim privileged permissions.
-          # post-fs-data.sh applies system_file labeling before PackageManager scans the overlay.
+          # post-fs-data.sh applies system_file labeling before PackageManager scans the overlay;
+          # service.sh then verifies the PackageManager system classification and APK digest.
           install -m 0644 "$apk" fx-module/system/app/FX/FX.apk
           chmod 0755 fx-module/system fx-module/system/app fx-module/system/app/FX
           sha256sum fx-module/system/app/FX/FX.apk > fx-module/system/app/FX/FX.apk.sha256
