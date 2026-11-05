@@ -1,7 +1,7 @@
 package de.privacyguard.adhook;
 
 import android.app.Activity;
-import androidx.appcompat.app.AlertDialog;
+import android.app.Dialog;
 import android.os.Handler;
 import android.os.Looper;
 import android.graphics.drawable.ColorDrawable;
@@ -240,7 +240,7 @@ final class FxNativeSkin {
         };
     }
 
-    static void showDialog(Activity activity, AlertDialog dialog) {
+    static void showDialog(Activity activity, Dialog dialog) {
         if (activity == null || dialog == null
                 || activity.isFinishing() || activity.isDestroyed()) return;
         dialog.show();
