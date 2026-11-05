@@ -933,14 +933,14 @@ case "$cmd" in
     ;;
   master)
     [ "$#" -eq 2 ] && valid_state "$2" || { echo "usage: $0 master 0|1" >&2; exit 2; }
-    with_lock mutate_transaction set_master_value "$2"
+    with_lock mutate_transaction set_master_value "$2" || exit $?
     reconcile_watch_lifecycle
     ;;
   set)
     [ "$#" -eq 4 ] && valid_package "$2" && [ "$3" -gt 0 ] 2>/dev/null && valid_state "$4" \
       || { echo "usage: $0 set package uid 0|1" >&2; exit 2; }
-    validate_package_uid "$2" "$3" >/dev/null
-    with_lock mutate_transaction set_item_value "$2" "$3" "$4"
+    validate_package_uid "$2" "$3" >/dev/null || exit $?
+    with_lock mutate_transaction set_item_value "$2" "$3" "$4" || exit $?
     reconcile_watch_lifecycle
     ;;
   rule)
@@ -948,13 +948,13 @@ case "$cmd" in
       && valid_state "$4" && valid_state "$5" && valid_state "$6" && valid_state "$7" \
       && valid_time "$8" && valid_time "$9" \
       || { echo "usage: $0 rule package uid enabled block_wifi block_mobile schedule_enabled HH:MM HH:MM" >&2; exit 2; }
-    validate_package_uid "$2" "$3" >/dev/null
-    with_lock mutate_transaction set_rule_value "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9"
+    validate_package_uid "$2" "$3" >/dev/null || exit $?
+    with_lock mutate_transaction set_rule_value "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9" || exit $?
     reconcile_watch_lifecycle
     ;;
   remove)
     [ "$#" -eq 2 ] && valid_package "$2" || { echo "usage: $0 remove package" >&2; exit 2; }
-    with_lock mutate_transaction remove_item_value "$2"
+    with_lock mutate_transaction remove_item_value "$2" || exit $?
     reconcile_watch_lifecycle
     ;;
   apply) with_lock apply_rules ;;
