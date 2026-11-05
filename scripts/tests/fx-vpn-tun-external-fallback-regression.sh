@@ -26,7 +26,7 @@ VPN_MODE=$(pg_get vpn_mode direct)
 # Root-managed sing-box TUN cannot safely stack with an active/uncertain Android VPN.
 # Fail closed before core startup and let direct cleanup remove stale FX interception.
 if [ "$VPN_MODE" = "tun" ] && { [ "$_PG_VPN_INTERCEPTION_BLOCKED" = "1" ] || [ -n "$_PG_EXT_VPN_IF" ]; }; then
-  pg_fail vpn "TUN mode cannot stack with an external Android VPN"
+  pg_fail vpn "TUN 模式不能与已检测到/状态不明的外部 Android VPN 叠加；已回退直连以保护联网"
   pg_log "vpn: refusing TUN mode while an external VPN is active or uncertain"
   VPN_MODE=direct
 fi
