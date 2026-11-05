@@ -152,6 +152,10 @@ grep -Fq '搜索规则 ID、方法签名、动作、常量或分组' "$HOOK_ACTI
 grep -Fq 'DeveloperHookRule.normalizeDescriptor(rawDescriptor, selectedPackage)' "$HOOK_ACTIVITY" || fail "custom Hook editor has no live shared-parser validation"
 grep -Fq '签名有效 · JVM：' "$HOOK_ACTIVITY" || fail "custom Hook editor does not show the normalized JVM descriptor"
 grep -Fq '签名尚未通过校验' "$HOOK_ACTIVITY" || fail "custom Hook editor does not explain invalid signatures"
+grep -Fq 'createSkinAwareSpinnerAdapter' "$HOOK_ACTIVITY" || fail "Hook and Dialog Spinner controls must use the shared Skin-aware adapter"
+grep -Fq 'getDropDownView(int position' "$HOOK_ACTIVITY" || fail "Spinner dropdown rows are not Skin-aware"
+grep -Fq 'Typeface.create("sans-serif-medium", Typeface.NORMAL)' "$HOOK_ACTIVITY" || fail "Spinner uses a non-public or unavailable medium typeface constant"
+! grep -Fq 'Typeface.MEDIUM' "$HOOK_ACTIVITY" || fail "Android Typeface.MEDIUM does not exist; use public font-family API"
 python3 - "$HOOK_ACTIVITY" <<'PY'
 from pathlib import Path
 import sys
