@@ -332,8 +332,8 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         LinearLayout header = new LinearLayout(this);
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(10), dp(6), dp(12), dp(6));
-        header.addView(button("‹ 返回", this::finish));
-        header.addView(text("Dia 23.11 · " + title, 18, 0xff17212b, true),
+        header.addView(button("‹ 返回 Hook", this::finish));
+        header.addView(text("Hook · " + title, 18, 0xff17212b, true),
                 new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
 
@@ -377,7 +377,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 button("停止 FX 启动的 Frida 服务", () -> stopServer()));
 
         card(body, "Frida Gadget 监听模式",
-                "按 Dia 23.11 原始配置语义生成 Frida Gadget Listen 配置。WAIT：Gadget 加载后等待控制端连接并调用 resume；RESUME：Gadget 加载后立即继续应用启动。此配置只作用于加载该 Gadget 的目标进程，不会把 frida-server/frida-inject 误当作 Gadget。",
+                "按 Frida Gadget Listen 配置语义生成规则。WAIT：Gadget 加载后等待控制端连接并调用 resume；RESUME：Gadget 加载后立即继续应用启动。此配置只作用于加载该 Gadget 的目标进程，不会把 frida-server/frida-inject 误当作 Gadget。",
                 text("Frida Gadget 动态库绝对路径", 12, 0xff617080, true));
         gadgetPath = new EditText(this);
         gadgetPath.setSingleLine(true);
@@ -2150,7 +2150,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 prefs.edit().putBoolean("dialog_remove_any_parent_draft", checked).apply());
 
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Dia · 配置匹配弹窗移除")
+                .setTitle("Hook · 配置匹配弹窗移除")
                 .setView(form)
                 .setNegativeButton("取消", null)
                 .setPositiveButton("验证规则并载入脚本", null)
