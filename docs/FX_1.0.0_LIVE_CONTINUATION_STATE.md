@@ -4953,7 +4953,7 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 ## 2026-11-05 — Remove remaining legacy Dia script storage caps
 
-- Removed the legacy Frida page's 128 KiB per-script save guard, 64-character saved-script name guard, and 512 KiB standalone JavaScript SAF import/export guards. Shared store validation still rejects empty names/content, delimiters/control characters, malformed JSON values, and malformed UTF-8.
+- Removed the legacy Frida page's 128 KiB per-script save guard, 64-character saved-script name guard, and 512 KiB standalone JavaScript SAF import/export guards; the original example ZIP loader no longer truncates entries at 128 KiB or stops after 32 examples. Shared store validation still rejects empty names/content, delimiters/control characters, malformed JSON values, and malformed UTF-8.
 - Removed the 512 KiB ceiling from AtomicFile-backed Activity draft persistence; writes remain atomic and corrupt drafts are removed on read failure. Activity state stores only an ownership marker for large drafts, not their full source in the Bundle.
 - Updated the SAF regression to validate actual import/export/cancellation/rotation/overwrite guarantees and reject arbitrary capacity constants instead of requiring old limits.
 - Remaining distinct limitation: full-screen editor Binder/Bundle handoff and Frida runtime command transport still use a 48 KiB guard. File-backed editor handoff and runtime script staging remain the next engineering task; no unlimited runtime injection is claimed.

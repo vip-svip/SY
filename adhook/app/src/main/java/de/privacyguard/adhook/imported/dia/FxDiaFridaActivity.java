@@ -1994,9 +1994,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                     int count;
                     while ((count = zip.read(buffer)) != -1) {
                         out.write(buffer, 0, count);
-                        if (out.size() > 128 * 1024) throw new IllegalStateException("单个示例超过 128 KiB。");
                     }
-                    if (sources.size() >= 32) break;
                     String name = entry.getName();
                     labels.add("Dia 原版示例 " + (sources.size() + 1) + " · " + name);
                     sources.add(new String(out.toByteArray(), StandardCharsets.UTF_8));
