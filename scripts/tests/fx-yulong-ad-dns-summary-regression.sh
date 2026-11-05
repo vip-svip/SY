@@ -64,7 +64,10 @@ metric = activity[metric_start:render_start]
 assert "catch (NumberFormatException invalid)" in metric, "metric parser must handle malformed counts"
 assert "return -1L;" in metric, "metric parser must reject malformed or absent counts"
 assert "private static long metric" in activity and "private void renderSummary" in activity
-assert 'text("Ad · 本机防护总结", 18, 0xff17212b, true)' in activity, "summary page must use the unified FX Ad identity"\nassert "当前保留日志流式汇总" in activity, "summary must state that counts cover retained logs, not a daily-only window"\nassert "最长保留期 30 天" in activity, "summary must disclose the actual retained-log window"\nassert "游龙广告插件 · 本机防护总结" not in activity, "summary must not expose the source-app brand"
+assert 'text("Ad · 本机防护总结", 18, 0xff17212b, true)' in activity, "summary page must use the unified FX Ad identity"
+assert "当前保留日志流式汇总" in activity, "summary must state that counts cover retained logs, not a daily-only window"
+assert "最长保留期 30 天" in activity, "summary must disclose the actual retained-log window"
+assert "游龙广告插件 · 本机防护总结" not in activity, "summary must not expose the source-app brand"
 assert "最长保留期 30 天" in activity, "summary must match the documented 30-day retention"
 assert 'interval: 30d' in patcher, "runtime generator must retain the documented 30-day interval"
 assert 'interval: 30d' in documented_config, "documented AdGuard Home config must match runtime retention"
