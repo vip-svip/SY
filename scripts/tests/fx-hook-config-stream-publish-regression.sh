@@ -4,6 +4,7 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 MAIN="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
 PUBLISHER="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxHookConfigPublisher.java"
 PARSER="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigParser.java"
+  "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigSerializer.java" \
 LEGACY_PARSER="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/HookTargetConfigParser.java"
 HOOK="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/AdVisibilityHook.java"
 ROOT_ACCESS="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/RootAccess.java"
@@ -28,6 +29,13 @@ assert "config exceeds 1000 lines" not in legacy
 assert "InputStreamReader reader" in hook and "remote config exceeds 64 KiB" not in hook
 assert "content.append(chunk, 0, count);" in hook
 print("PASS: Hook config is streamed, SHA-256 checked, rollback protected and has no config byte/target/line cap")
+assert "MAX_DEVELOPER_RULES_PER_TARGET" not in parser
+assert "too many developer rules" not in parser
+assert "slot > 64" not in main and "最多 64 条" not in main
+assert "for (int slot = 1; slot <= 64; slot++)" not in main
+assert "getCustomRuleSlots(selectedPackage)" in main
+assert "getCustomRuleSlots(p)" in main
+print("PASS: Developer Hook rules have no fixed 64-rule parser, serializer or UI cap; sparse preference slots are enumerated dynamically")
 PY
 
 T=$(mktemp -d)
@@ -188,6 +196,27 @@ public final class HookConfigParserHostTest {
                 || parsedLegacy.privacyEnabled) {
             throw new AssertionError("legacy parser did not preserve large target sets or privacy isolation");
         }
+        StringBuilder developerRules = new StringBuilder(
+                "schema_version=1\\nads_enabled=0\\nprivacy_enabled=0\\n[list:targets]\\n"
+                        + "com.example.vpn,dev_hook_enabled=1");
+        for (int i = 1; i <= 96; i++) {
+            developerRules.append(",dev_rule_").append(i).append("=rule").append(i)
+                    .append("|com.example.vpn.Rule").append(i)
+                    .append("#isEnabled()Z|OBSERVE|").append(i);
+        }
+        developerRules.append('\\n');
+        UnifiedHookConfigParser.Result parsedRules =
+                UnifiedHookConfigParser.parse(developerRules.toString());
+        if (parsedRules.targets.get("com.example.vpn").developerRules.size() != 96) {
+            throw new AssertionError("parser capped Developer Hook rules below 96");
+        }
+        String serializedRules = UnifiedHookConfigSerializer.serialize(false, false, parsedRules.targets);
+        if (!serializedRules.contains("dev_rule_b64_96=")
+                || UnifiedHookConfigParser.parse(serializedRules)
+                        .targets.get("com.example.vpn").developerRules.size() != 96) {
+            throw new AssertionError("serializer/parser failed the 96-rule round trip");
+        }
+        System.out.println("PASS: Developer Hook parser and serializer round-trip 96 rules for one target");
         System.out.println("PASS: both current and legacy parsers accept 2,500 targets above 64 KiB and 1,000 lines");
     }
 }
