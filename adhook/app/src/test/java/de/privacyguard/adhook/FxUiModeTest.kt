@@ -13,6 +13,7 @@ class FxUiModeTest {
         )
         assertEquals(FxUiMode.DEFAULT_STANDARD, FxUiMode.values().first())
         assertEquals(FxUiMode.Renderer.NATIVE_DEFAULT, FxUiMode.DEFAULT_STANDARD.renderer)
+        assertEquals("Each selectable mode must own an independent renderer", 6, FxUiMode.values().map { it.renderer }.distinct().size)
         assertEquals(
             listOf(
                 "默认模式 · Default",
