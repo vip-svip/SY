@@ -1029,7 +1029,7 @@ private boolean targetDeveloperOptIn(String packageName) {
                                 Object key = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
                                 Object fallback = chain.getArgs().size() > 1 ? chain.getArgs().get(1) : null;
                                 Object original = chain.proceed();
-                                if (key instanceof String && ((String) key).startsWith("GPS")
+                                if (key instanceof String && ExifPrivacyPolicy.isGpsTag((String) key)
                                         && fallback instanceof Number) {
                                     return ((Number) fallback).doubleValue();
                                 }
