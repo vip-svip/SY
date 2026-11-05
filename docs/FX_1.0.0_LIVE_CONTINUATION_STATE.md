@@ -5512,3 +5512,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 - `FX Module Runtime Regression` 对 V3 的首轮验证中，外部 VPN/TUN/DNS/watchdog 回归组全部通过；Root Proxy/native VPN 集成组最后在旧断言 `FX_HOSTS_FILE_LOCK_V2` 处失败。失败原因是测试仍要求旧版标记，不是新锁运行逻辑失败。
 - 已将 `fx-atomic-cache-lock-release-regression.sh` 的两处 Hosts 版本断言更新为 V3，并把新动态安全清理回归嵌入该完整缓存锁回归。后续模块回归会同时验证真实补丁器和 FIFO/符号链接/未知内容拒绝策略。
+
+
+### Hosts V3 锁标记兼容性回归修正（2026-11-06）
+
+- 当前 Module Runtime run `42093393397` 的 TUN、DNS、watchdog 回归步骤通过；Root Proxy/native VPN 集成步骤失败在 Hosts 原子锁 marker 断言，原因是新 Hosts 安全清理实现已升级为 `FX_HOSTS_FILE_LOCK_V3`，而旧回归仍硬编码检查 V2。
+- 将 `fx-atomic-cache-lock-release-regression.sh` 中 Shell 与 Python 两处 marker 断言同步到 V3；不改变锁实现与运行行为。当前提交等待 Host 和 Runtime 重新验证。
