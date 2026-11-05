@@ -55,11 +55,11 @@ for token in (
     if token not in module_lookup:
         raise SystemExit("FAIL: Firewall Root module discovery must enforce: " + token)
 for token in (
-    r'if [ -d \\"$d\\" ] && [ ! -L \\"$d\\" ]',
-    r'&& [ -f \\"$d/module.prop\\" ] && [ ! -L \\"$d/module.prop\\" ]',
-    r'&& [ -d \\"$d/scripts\\" ] && [ ! -L \\"$d/scripts\\" ]',
-    r'&& [ -f \\"$d/scripts/yulong-app-firewall.sh\\" ]',
-    r'&& [ ! -L \\"$d/scripts/yulong-app-firewall.sh\\" ]',
+    r'if [ -d \"$d\" ] && [ ! -L \"$d\" ]',
+    r'&& [ -f \"$d/module.prop\" ] && [ ! -L \"$d/module.prop\" ]',
+    r'&& [ -d \"$d/scripts\" ] && [ ! -L \"$d/scripts\" ]',
+    r'&& [ -f \"$d/scripts/yulong-app-firewall.sh\" ]',
+    r'&& [ ! -L \"$d/scripts/yulong-app-firewall.sh\" ]',
 ):
     if token not in module_lookup:
         raise SystemExit("FAIL: Firewall Root resolver must reject symlinked module payloads: " + token)

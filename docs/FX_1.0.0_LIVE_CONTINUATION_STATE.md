@@ -5939,3 +5939,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 复核 malformed list 失败路径后确认 Activity 已有双层写入保护：inventoryReady=false 使 rule editor/persist 拒绝写入，已渲染 row switch 和 detail/configure 按钮也会失效；恢复完整 Root list 后才重新启用。
 - 本批仅把这些现有运行时门控加入 fx-yulong-firewall-activity-regression.sh，防止未来重构移除其中任一层却只保留总开关 disabled 的假只读状态。
 - JDK parser/Shell strict protocol 的 33 条断言由前一批 d4588473 的 Host run 实际通过；本次新增静态断言等待新 Targeted Host 结果。
+
+
+### 防火墙模块路径回归转义修正（2026-11-06）
+
+- `db737fa8947c7e1c066c619198c7dae42c2cd848` 新增的模块 payload symlink 静态断言把 Java 源码反斜杠转义重复写了一层，测试文本与实际源码不匹配。
+- 现将 Python raw-string 断言调整为单层 `\\"` 源码转义形式，和 `FxYulongFirewallActivity.scriptCommand()` 的真实文本一致；生产 Root 路径验证逻辑保持不变。
+- `db737fa` 对应 Host run 结果以 Actions 回读为准；此修复后的提交需重新跑针对性 Host Regression。
