@@ -276,7 +276,7 @@ for page in "$shield_blacklist" "$shield_batch_cleanup" "$shield_screen_filter" 
 done
 grep -Fq 'showFxDialog(dialog)' "$shield_blacklist" || { echo "FAIL: custom Shield multi-select dialog bypasses the shared Skin"; exit 1; }
 grep -Fq 'protected final AlertDialog.Builder fxDialogBuilder()' "$host" || { echo "FAIL: integrated Activity host does not expose the shared Skin-aware Builder"; exit 1; }
-grep -Fq 'protected final void showFxDialog(AlertDialog dialog)' "$host" || { echo "FAIL: integrated Activity host does not expose the custom modal Skin path"; exit 1; }
+grep -Fq 'protected final void showFxDialog(Dialog dialog)' "$host" || { echo "FAIL: integrated Activity host does not expose the custom modal Skin path"; exit 1; }
 for page in "$dia_activity_browser" "$dia_code_editor" "$dia_crash_report" "$dia_file" "$dia_inspector"; do
   grep -Fq 'fxDialogBuilder()' "$page" || { echo "FAIL: Dia Hook Activity bypasses the shared dialog Skin: $page"; exit 1; }
   ! grep -Fq 'new AlertDialog.Builder' "$page" || { echo "FAIL: Dia Hook Activity still uses a platform AlertDialog builder: $page"; exit 1; }
