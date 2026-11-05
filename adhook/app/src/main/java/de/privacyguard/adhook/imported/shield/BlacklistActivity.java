@@ -434,7 +434,7 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
             pickerPage = 1;
             pickerScrollY = 0;
             pickerStaged.clear();
-            new AlertDialog.Builder(this)
+            fxDialogBuilder()
                     .setTitle("提示")
                     .setMessage("没有可加入管控的应用")
                     .setPositiveButton("确定", null)
@@ -468,7 +468,7 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
         more.setText("加载更多");
         content.addView(more);
 
-        final AlertDialog dialog = new AlertDialog.Builder(this)
+        final AlertDialog dialog = fxDialogBuilder()
                 .setTitle("选择要加入管控的应用（可多选）")
                 .setView(content)
                 .setPositiveButton("确定加入", null)
@@ -558,7 +558,7 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
                 pickerStaged.clear();
             }
         });
-        dialog.show();
+        showFxDialog(dialog);
     }
 
     /** "我都很信任" — 清空所有管控 */
@@ -568,7 +568,7 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
             return;
         }
         if (currentBlacklist.isEmpty()) {
-            new AlertDialog.Builder(this)
+            fxDialogBuilder()
                     .setTitle("提示")
                     .setMessage("当前没有管控应用")
                     .setPositiveButton("确定", null)
@@ -576,7 +576,7 @@ public class BlacklistActivity extends de.privacyguard.adhook.FxNativeTabActivit
             return;
         }
 
-        new AlertDialog.Builder(this)
+        fxDialogBuilder()
                 .setTitle("确认清空")
                 .setMessage("确定要清空所有管控吗？\n所有应用将不再触发管控提醒。")
                 .setPositiveButton("确定清空", new DialogInterface.OnClickListener() {
