@@ -6465,3 +6465,18 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 根因：case 5c3 fake dumpsys 使用双重转义的 `\\n`，输出字面反斜杠+n 而非换行，导致 parser 无法识别 `mVpns` 与 `VpnInfo` 行，产生假失败。
 - 修复提交：`118161b61d5ec1ce1126898120deaa97b8918380`，将 fixture 改为真实换行格式。case 5c 用明确的 `FX_ARB_SELF_UID` 隔离 PackageManager 查询；case 5c3 单独验证 PackageManager UID 不可用时 fail-closed。
 - GitHub 回读与新 CI 结果待确认；未声称该修复已通过 CI。
+
+
+
+## 2026-11-06 — 并行 AI 推送下保留最新验证运行
+
+- 发现：分支存在多个 AI 连续推送，多个关键验证 workflow 的 `concurrency.cancel-in-progress: true` 会在下一次 push 到达时取消正在运行的验证。GitHub Actions 记录显示，同一批连续提交上的 Hook APK 验证、六模式 UI 验证、Targeted Host Regression 和 Module Runtime Regression 多次被取消；例如 HEAD `5c565f7` 对应的 Hook APK 与六模式 workflow 均为 cancelled。
+- 修复：将以下验证 workflow 的并发策略改为 `cancel-in-progress: false`，让当前运行完成，并由 GitHub concurrency 保留最新待运行任务；不改变正式打包 workflow 的取消策略：
+  - `.github/workflows/fx-module-runtime-regression.yml` — commit `3d09002c674c087d7b011c95ca9539ae74cda7d7`
+  - `.github/workflows/fx-targeted-regression.yml` — commit `8e4e9ad5642d46c8914395da6d85991d73bb5b64`
+  - `.github/workflows/fx-six-ui-modes.yml` — commit `66d7f838e28cd91c768f06954bb8486f3b016b82`
+  - `.github/workflows/build-fx-adhook.yml` — commit `a028a5183fcc2421af4a16d868bb7bddf2797439`
+- 回读：四个 workflow 均从目标分支重新读取，blob SHA 分别为 `d033bc471bd45102624787d9b9a2ecf31792e4fb`、`1d3d417950290f953f5de1c143acf2199e5265c0`、`d5a1c25be99f0d752131ca05b0a7016374581a7c`、`ac01219d56b1efcff7b714fa30f65a73a127e0ab`，均确认 `cancel-in-progress: false`。
+- CI：修复后 HEAD `a028a5183fcc2421af4a16d868bb7bddf2797439` 已触发 Targeted Host Regression、FX Six UI Modes、Hook APK validation；读取时均为 pending。较早提交的 Module Runtime Regression `42107809526` 为 in_progress，VPN arbiter `42107810109` 为 queued。尚无本次修复后完整通过结果，不能标记 CI 通过。
+- 既有证据：此前某次 FX VPN/DNS runtime workflow 的 18/18 子回归和后续 Root Proxy/native VPN 集成步骤成功；该结果只适用于当时 runner 下载并应用 patch 的 Release 模块快照，不代表当前 HEAD 的整包或真机验证。
+- 未执行：Android Gradle/APK 构建、KernelSU ZIP 最终打包、OnePlus 12 真机 VPN/TUN/DNS 共存与 SELinux/PackageManager 测试。
