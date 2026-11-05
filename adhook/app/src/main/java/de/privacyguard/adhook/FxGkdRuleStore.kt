@@ -209,7 +209,10 @@ object FxGkdRuleStore {
     ): FxGkdRule? {
         val pkg = packageName.trim()
         val expression = selector.trim()
-        if (!isValidPackageName(pkg) || expression.isEmpty() || expression.length > 512) return null
+        if (!isValidPackageName(pkg) || pkg == context.packageName ||
+            !isInstalledUserApplication(context, pkg) ||
+            expression.isEmpty() || expression.length > 512
+        ) return null
         val compiled = FxGkdSelectorEngine.compile(expression)
         if (!compiled.isValid) return null
         val existing = getRules(context)
