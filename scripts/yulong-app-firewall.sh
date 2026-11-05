@@ -257,9 +257,20 @@ resolve_uid() {
 
 remove_hook() {
   bin="$1"; chain="$2"
+  # Verify the filter table is readable before interpreting a failed -C as
+  # proof that the OUTPUT jump is absent. A failed delete must never be hidden.
+  "$bin" -t filter -S OUTPUT >/dev/null 2>&1 || return 1
   while "$bin" -t filter -C OUTPUT -j "$chain" >/dev/null 2>&1; do
-    "$bin" -t filter -D OUTPUT -j "$chain" >/dev/null 2>&1 || break
+    "$bin" -t filter -D OUTPUT -j "$chain" >/dev/null 2>&1 || {
+      echo "cannot detach FX firewall OUTPUT hook: $chain" >&2
+      return 1
+    }
   done
+  if "$bin" -t filter -C OUTPUT -j "$chain" >/dev/null 2>&1; then
+    echo "FX firewall OUTPUT hook remains attached: $chain" >&2
+    return 1
+  fi
+  return 0
 }
 install_hook() {
   bin="$1"; chain="$2"
@@ -270,16 +281,39 @@ install_hook() {
 
 clear_chain() {
   bin="$1"; chain="$2"
-  remove_hook "$bin" "$chain" || :
-  "$bin" -t filter -F "$chain" >/dev/null 2>&1 || :
-  "$bin" -t filter -X "$chain" >/dev/null 2>&1 || :
+  remove_hook "$bin" "$chain" || return 1
+  # Query the whole table once: a missing private chain is already clean, but
+  # a present chain must be flushed and deleted successfully after detachment.
+  _fw_table=$("$bin" -t filter -S 2>/dev/null) || {
+    echo "cannot inspect FX firewall filter table before cleanup: $chain" >&2
+    return 1
+  }
+  if printf '%s\n' "$_fw_table" | grep -Fxq -- "-N $chain"; then
+    "$bin" -t filter -F "$chain" >/dev/null 2>&1 || {
+      echo "cannot flush FX firewall chain: $chain" >&2
+      return 1
+    }
+    "$bin" -t filter -X "$chain" >/dev/null 2>&1 || {
+      echo "cannot delete FX firewall chain: $chain" >&2
+      return 1
+    }
+  fi
+  return 0
 }
 clear_all() {
+  _fw_clear_failed=0
   for chain in FXYUL_A FXYUL_B; do
-    clear_chain iptables "$chain"
-    clear_chain ip6tables "$chain"
+    clear_chain iptables "$chain" || _fw_clear_failed=1
+    clear_chain ip6tables "$chain" || _fw_clear_failed=1
   done
-  rm -f "$ACTIVE"
+  if [ "$_fw_clear_failed" = 1 ]; then
+    echo "FX firewall cleanup incomplete; preserving active marker for safe retry" >&2
+    return 1
+  fi
+  rm -f "$ACTIVE" || {
+    echo "FX firewall chains were detached but active marker could not be removed" >&2
+    return 1
+  }
 }
 build_chain() {
   bin="$1"; chain="$2"; uids="$3"; now="$4"
@@ -329,9 +363,9 @@ EOF
 }
 apply_rules() {
   master="$(read_master)"
-  if [ "$master" != 1 ]; then clear_all; echo "firewall=0"; return 0; fi
+  if [ "$master" != 1 ]; then clear_all || return 12; echo "firewall=0"; return 0; fi
   rows="$(list_rows | awk -F'|' '$3=="1" {print}')"
-  if [ -z "$rows" ]; then clear_all; echo "firewall=0"; echo "no enabled app rules; per-app firewall is disabled"; return 0; fi
+  if [ -z "$rows" ]; then clear_all || return 12; echo "firewall=0"; echo "no enabled app rules; per-app firewall is disabled"; return 0; fi
   ipt="$(command -v iptables 2>/dev/null || true)"
   ip6t="$(command -v ip6tables 2>/dev/null || true)"
   [ -n "$ipt" ] && [ -n "$ip6t" ] || { echo "IPv4/IPv6 iptables tools are both required; no firewall rules were changed" >&2; return 4; }
@@ -340,7 +374,7 @@ apply_rules() {
   uid_snapshot="$(cmd package list packages -U 2>/dev/null)" || { echo "cannot read installed package UID snapshot; old firewall kept" >&2; return 5; }
   [ -n "$uid_snapshot" ] || { echo "installed package UID snapshot is empty; old firewall kept" >&2; return 5; }
   current="$(cat "$ACTIVE" 2>/dev/null || echo FXYUL_A)"
-  case "$current" in FXYUL_A) next=FXYUL_B; old=FXYUL_A ;; FXYUL_B) next=FXYUL_A; old=FXYUL_B ;; *) clear_all; next=FXYUL_A; old=FXYUL_B ;; esac
+  case "$current" in FXYUL_A) next=FXYUL_B; old=FXYUL_A ;; FXYUL_B) next=FXYUL_A; old=FXYUL_B ;; *) clear_all || return 12; next=FXYUL_A; old=FXYUL_B ;; esac
   resolved=""
   while IFS='|' read -r pkg stored_uid state block_wifi block_mobile schedule start end; do
     [ "$state" = 1 ] || continue
@@ -355,7 +389,7 @@ apply_rules() {
 $rows
 EOF
   if [ -z "$resolved" ]; then
-    clear_all; echo "firewall=1"; echo "blocked_packages=0"
+    clear_all || return 12; echo "firewall=1"; echo "blocked_packages=0"
     echo "no selected package is currently installed; saved selections retained"
     return 0
   fi
@@ -407,8 +441,10 @@ EOF
     return 10
   fi
 
-  remove_hook "$ipt" "$old"; remove_hook "$ip6t" "$old"
-  clear_chain "$ipt" "$old"; clear_chain "$ip6t" "$old"
+  if ! clear_chain "$ipt" "$old" || ! clear_chain "$ip6t" "$old"; then
+    echo "new firewall generation is active, but previous generation cleanup failed; retry required" >&2
+    return 12
+  fi
   echo "firewall=1"; echo "blocked_packages=$blocked_count"; echo "evaluated_at=$now"
 }
 with_lock() {
