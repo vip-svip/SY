@@ -5153,3 +5153,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - CLI 存活但 feeder 已退出时，现在明确返回 `FX_GADGET_SESSION_DEGRADED`，不再把半失效会话误报为正常运行；检测到 feeder PID 被其他命令占用时返回 `FX_GADGET_FEEDER_PID_CONFLICT`，拒绝触碰外部进程。用户可先通过现有“停止 Gadget 会话”操作回收归属已验证的 CLI，再重新连接。
 - `fx-dia-frida-gadget-session-regression.sh` 增加重连必须校验 feeder 活性及身份的回归断言。
 - 本次代码、回归和本文档作为一个提交单元；提交后回读并等待 Host 与 Module Runtime Regression。Android 真机行为仍未验证。
+
+## 2026-11-05 — Gadget 重连 feeder 退出等待
+
+- Gadget 重连发现旧 CLI 已退出、但归属校验通过的 stdin feeder 仍存活时，先向 feeder 发送终止信号，再最多等待 5 秒确认其退出，之后才允许删除旧 PID 记录/FIFO 并创建新管道。
+- 等待超时返回 `FX_GADGET_FEEDER_STOP_TIMEOUT`，保留旧会话记录和 FIFO，避免旧 feeder 与新 FIFO 生命周期重叠。
+- Frida 进程身份回归增加有界等待及 degraded/feeder PID 冲突断言。
+- 需以本次提交对应的 Host Regression 和 Module Runtime Regression 结果为准；之前 `756feee` 的两项 CI 均通过。

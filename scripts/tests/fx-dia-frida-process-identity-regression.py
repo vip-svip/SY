@@ -63,6 +63,13 @@ assert "MAX_FRIDA_SOURCE_BYTES" not in source, \
 assert 'base64 -d > ' not in inject, "script source must not be embedded in the shell command as Base64"
 assert 'unsafe-frida-log-path' in inject and 'chmod 600' in inject, \
     "Frida session logs must remain private and regular files"
+gadget_attach = body("private void attachToGadgetAndResume()", "private void checkGadgetSession()")
+assert "FX_GADGET_SESSION_DEGRADED" in gadget_attach, \
+    "reattach must not report an active CLI as healthy when its stdin feeder has exited"
+assert "FX_GADGET_FEEDER_PID_CONFLICT" in gadget_attach, \
+    "reattach must reject a live feeder whose command line does not match this port/FIFO"
+assert "FX_GADGET_FEEDER_STOP_TIMEOUT" in gadget_attach and "_feed_wait=$((_feed_wait+1))" in gadget_attach, \
+    "reattach must wait up to five seconds for an owned stale feeder before replacing its FIFO"
 viewer = (ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaSessionLogActivity.java").read_text(encoding="utf-8")
 gadget_route = body("private void showGadgetSessionLog()", "private void copyGadgetConnectCommand()")
 assert "FxDiaSessionLogActivity.class" in gadget_route and "fx_dia_session_log_gadget_port" in gadget_route, \

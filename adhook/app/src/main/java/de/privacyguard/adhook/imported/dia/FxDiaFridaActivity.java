@@ -3017,7 +3017,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 + "*) echo FX_GADGET_SESSION_PID_CONFLICT; exit 23;; esac; fi; "
                 + "if [ -n \"$old_feed\" ] && session_pid_active \"$old_feed\"; then "
                 + "feed_cmd=$(tr '\\000' ' ' < /proc/\"$old_feed\"/cmdline 2>/dev/null || :); "
-                + "case \"$feed_cmd\" in *\"fx-gadget-feed-$port\"*\"$pipe\"*) kill \"$old_feed\" 2>/dev/null || :;; "
+                + "case \"$feed_cmd\" in *\"fx-gadget-feed-$port\"*\"$pipe\"*) kill \"$old_feed\" 2>/dev/null || :; _feed_wait=0; while session_pid_active \"$old_feed\"; do [ \"$_feed_wait\" -lt 5 ] || { echo FX_GADGET_FEEDER_STOP_TIMEOUT; exit 26; }; sleep 1; _feed_wait=$((_feed_wait+1)); done;; "
                 + "*) echo FX_GADGET_FEEDER_PID_CONFLICT; exit 24;; esac; fi; "
                 + "rm -f \"$pidfile\"; "
                 + "if [ -e \"$pipe\" ]; then [ -p \"$pipe\" ] || { echo FX_GADGET_UNSAFE_STALE_PIPE; exit 27; }; rm -f \"$pipe\"; fi; "
