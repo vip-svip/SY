@@ -90,14 +90,15 @@ fx_arb_listening() {
   shift
   for _f in "$@"; do
     [ -r "$_f" ] || continue
-    if awk -v want="$_want" '
+    case "$_f" in */udp|*/udp6) _is_udp=1 ;; *) _is_udp=0 ;; esac
+    if awk -v want="$_want" -v is_udp="$_is_udp" '
       NR > 1 {
         n = split($2, a, ":")
         if (n < 2 || toupper(a[n]) != want) next
-        # TCP sockets are conflicts only while listening. A bound UDP socket
-        # appears in udp/udp6 (normally state 07); UDP has no LISTEN state.
-        is_udp = (FILENAME ~ /\/udp6?$/)
-        if (is_udp || toupper($4) == "0A") found = 1
+        # TCP sockets are conflicts only while listening. UDP tables are
+        # already bound-socket inventories (normally state 07), regardless
+        # of the awk implementation's FILENAME behavior.
+        if (is_udp == 1 || toupper($4) == "0A") found = 1
       }
       END { exit(found ? 0 : 1) }
     ' "$_f"; then
