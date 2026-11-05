@@ -126,8 +126,8 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
         LinearLayout header = new LinearLayout(this);
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(8), dp(4), dp(12), dp(4));
-        header.addView(button("‹ 返回", this::finish));
-        header.addView(text("Dia 23.11 · Frida 运行日志", 18, 0xff17212b, true),
+        header.addView(button("‹ 返回 Hook", this::finish));
+        header.addView(text("Hook · Frida 运行日志", 18, 0xff17212b, true),
                 new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
 
