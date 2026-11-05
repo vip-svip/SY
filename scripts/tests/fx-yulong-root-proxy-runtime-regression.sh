@@ -20,6 +20,26 @@ LOCK_REMOVER="$T/lock-remover.sh"
 sed -n '/^  _remove_lock_path() {/,/^  }/p' "$SOURCE" > "$LOCK_REMOVER"
 [ -s "$LOCK_REMOVER" ] || fail "production lock remover could not be extracted"
 . "$LOCK_REMOVER"
+LOCK_READER="$T/lock-reader.sh"
+sed -n '/^  _read_lock_owner() {/,/^  }/p' "$SOURCE" > "$LOCK_READER"
+[ -s "$LOCK_READER" ] || fail "production lock reader could not be extracted"
+. "$LOCK_READER"
+if command -v mkfifo >/dev/null 2>&1; then
+  mkdir "$T/legacy-lock-fifo"
+  mkfifo "$T/legacy-lock-fifo/pid"
+  if _read_lock_owner "$T/legacy-lock-fifo" >/dev/null 2>&1; then
+    fail "legacy lock reader accepted a FIFO PID"
+  fi
+  rmdir "$T/legacy-lock-fifo" || fail "FIFO lock fixture could not be cleaned safely"
+fi
+mkdir "$T/legacy-lock-symlink"
+printf '%s\\n' 12345 > "$T/legacy-lock-target"
+ln -s "$T/legacy-lock-target" "$T/legacy-lock-symlink/pid"
+if _read_lock_owner "$T/legacy-lock-symlink" >/dev/null 2>&1; then
+  fail "legacy lock reader followed a PID symlink"
+fi
+rm -f "$T/legacy-lock-symlink/pid" "$T/legacy-lock-target"
+rmdir "$T/legacy-lock-symlink"
 mkdir "$T/legacy-lock-valid"
 printf '%s\n' 12345 > "$T/legacy-lock-valid/pid"
 _remove_lock_path "$T/legacy-lock-valid" || fail "valid legacy PID lock directory was not removed"
