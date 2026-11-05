@@ -31,14 +31,14 @@ for event in ("TYPE_WINDOW_STATE_CHANGED", "TYPE_WINDOW_CONTENT_CHANGED", "TYPE_
     assert event in service, f"FX Accessibility service does not dispatch GKD on {event}"
 assert "AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS" in service
 assert "wantedFlags |= AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS" in service
-assert "wantedFlags &= ~AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS" in service
+assert "wantedFlags &= ~AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS" in service, "resource ID permission is not revoked when GKD is disabled"
 assert "if (info.eventTypes != wantedEvents || info.flags != wantedFlags)" in service
-assert "FxGkdRuleStore.hasEnabledRule(this, pkg)" in service
+assert "FxGkdRuleStore.hasEnabledRule(this, pkg)" in service, "service tree access is not gated by per-app opt-in"
 assert "AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS" in service
 assert "wantedFlags |= AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS" in service
 assert "wantedFlags &= ~AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS" in service
 assert "if (info.eventTypes != wantedEvents || info.flags != wantedFlags)" in service
-assert "eventPackage.contentEquals(rootPackage)" in service
+assert "eventPackage.contentEquals(rootPackage)" in service, "active window package is not matched to the event package"
 assert "getRootInActiveWindow()" in service
 assert 'android:name=".FxAccessibilityService"' in manifest
 assert manifest.count('android:name=".FxAccessibilityService"') == 1
@@ -51,7 +51,7 @@ assert not any(token in manifest for token in ("gkd.app.App", "gkd.service.", "G
 # installed user-app rule have been established.
 assert 'getBoolean(KEY_MASTER_ENABLED, false)' in store
 assert "it.enabled && it.packageName == packageName" in store
-assert "isRuleEnabled(context, id, packageName)" in store
+assert "fun isRuleEnabled(context: Context, id: String, packageName: String)" in store, "per-rule package-scoped enable check is missing"
 assert "isInstalledUserApplication(service, eventPackage)" in runtime
 assert "MAX_RULES = 128" in store
 assert "MIN_COOLDOWN_MS = 1_000L" in store and "MAX_COOLDOWN_MS = 60_000L" in store
