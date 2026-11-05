@@ -12,6 +12,7 @@ public final class FxYulongScanCompletenessHostTest {
         expect(FxYulongScanCompleteness.isComplete(true, true, false, false, 0), false, "missing content database");
         expect(FxYulongScanCompleteness.isComplete(true, true, true, true, 0), false, "budget truncation");
         expect(FxYulongScanCompleteness.isComplete(true, true, true, false, 1), false, "unreadable APK");
+        expect(FxYulongScanCompleteness.isComplete(true, true, true, false, -1), false, "invalid negative read-failure count");
         expect(FxYulongScanCompleteness.isComplete(true, true, true, false, 0), true, "full scan");
         if (!FxYulongScanCompleteness.noFindingMessage(false).contains("不能据此判定设备安全")) {
             throw new AssertionError("incomplete no-hit result must not imply safety");
