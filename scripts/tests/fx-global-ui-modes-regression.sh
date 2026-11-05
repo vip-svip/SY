@@ -66,14 +66,16 @@ for role in 'role.startsWith("fx-title:")' 'role.startsWith("fx-section:")' '"fx
   grep -Fq "$role" "$harmony_renderer" || { echo "FAIL: Harmony component role renderer missing: $role"; exit 1; }
   grep -Fq "$role" "$cupertino_renderer" || { echo "FAIL: Cupertino component role renderer missing: $role"; exit 1; }
 done
-for role in 'setTag("fx-card-title")' 'setTag("fx-card-body")'; do
-  grep -Fq "$role" "$activity" || { echo "FAIL: shared card typography role missing: $role"; exit 1; }
-  grep -Fq "$role" "$harmony_renderer" || { echo "FAIL: Harmony card typography renderer missing: $role"; exit 1; }
-  grep -Fq "$role" "$cupertino_renderer" || { echo "FAIL: Cupertino card typography renderer missing: $role"; exit 1; }
+for role in 'title.setTag("fx-card-title")' 'detail.setTag("fx-card-body")' 'description.setTag("fx-card-body")' 'sw.setTag("fx-switch-row")'; do
+  grep -Fq "$role" "$activity" || { echo "FAIL: shared native page is missing component role assignment: $role"; exit 1; }
+done
+for role in '"fx-card-title".equals(role)' '"fx-card-body".equals(role)' '"fx-switch-row".equals(role)'; do
+  grep -Fq "$role" "$harmony_renderer" || { echo "FAIL: Harmony component renderer does not handle role: $role"; exit 1; }
+  grep -Fq "$role" "$cupertino_renderer" || { echo "FAIL: Cupertino component renderer does not handle role: $role"; exit 1; }
 done
 grep -Fq 'CARD_TITLE_SP' "$harmony_renderer" || { echo "FAIL: Harmony card title typography token not applied"; exit 1; }
 grep -Fq 'CARD_TITLE_SP' "$cupertino_renderer" || { echo "FAIL: Cupertino card title typography token not applied"; exit 1; }
-for token in 'CARD_SURFACE' 'CARD_STROKE' 'ROW_RIPPLE' 'SECTION_RADIUS_DP' 'PAGE_TITLE_SP' 'SECTION_TITLE_SP' 'CARD_TITLE_SP' 'ROW_MIN_HEIGHT_DP'; do
+for token in 'CARD_SURFACE' 'CARD_STROKE' 'ROW_RIPPLE' 'SECTION_RADIUS_DP' 'PAGE_TITLE_SP' 'SECTION_TITLE_SP' 'CARD_TITLE_SP' 'CARD_DESCRIPTION_SP' 'ROW_MIN_HEIGHT_DP'; do
   grep -Fq "$token" "$harmony_tokens" || { echo "FAIL: Harmony component token missing: $token"; exit 1; }
   grep -Fq "$token" "$cupertino_tokens" || { echo "FAIL: Cupertino component token missing: $token"; exit 1; }
 done
