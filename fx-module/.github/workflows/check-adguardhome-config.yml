@@ -1,0 +1,82 @@
+name: Validate AdGuard Home DNS config
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/check-adguardhome-config.yml"
+      - ".github/dns/AdGuardHome.yaml"
+      - ".github/dns/AdGuardHome-FX-runtime-v1.0.0.yaml"
+
+permissions:
+  contents: read
+
+jobs:
+  config-check:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout config fixture
+        uses: actions/checkout@v4
+
+      - name: Fetch and verify official AdGuard Home v0.107.79 Linux amd64
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://github.com/AdguardTeam/AdGuardHome/releases/download/v0.107.79/AdGuardHome_linux_amd64.tar.gz"
+          EXPECTED="c48f4a43000665484c5ec28177de11a004759b620dae8f77b2aabefc9ef3687f"
+          curl --fail --location --retry 3 --retry-all-errors "$URL" -o agh-linux-amd64.tar.gz
+          echo "$EXPECTED  agh-linux-amd64.tar.gz" | sha256sum --check
+          tar -tzf agh-linux-amd64.tar.gz > archive-list.txt
+          MEMBER="$(awk '{ n=split($0,p,"/"); if(p[n]=="AdGuardHome"){print; exit} }' archive-list.txt)"
+          test -n "$MEMBER"
+          mkdir -p "$RUNNER_TEMP/agh-amd64"
+          tar -xzf agh-linux-amd64.tar.gz -C "$RUNNER_TEMP/agh-amd64" -- "$MEMBER"
+          AGH="$RUNNER_TEMP/agh-amd64/$MEMBER"
+          test -x "$AGH"
+          EXPECTED_CONFIG="26019a67be1484035d7d2366dcdf2c9aa3db3f2ed03b39dc28e173a021b51fc4"
+          echo "$EXPECTED_CONFIG  .github/dns/AdGuardHome.yaml" | sha256sum --check
+          cp .github/dns/AdGuardHome.yaml "$RUNNER_TEMP/AdGuardHome.yaml"
+          mkdir -p "$RUNNER_TEMP/agh-check-workdir"
+          "$AGH" --check-config -c "$RUNNER_TEMP/AdGuardHome.yaml" -w "$RUNNER_TEMP/agh-check-workdir" --no-check-update
+          echo "PASS: official AdGuard Home v0.107.79 accepted the schema-34 loopback-only base DNS config."
+          EXPECTED_FX_CONFIG="f214d625a6bff1df6b8fb6b9ff8c53e9e90d3625810e1a2c4cbe9a15377a030c"
+          echo "$EXPECTED_FX_CONFIG  .github/dns/AdGuardHome-with-fx-rules.yaml" | sha256sum --check
+          cp .github/dns/AdGuardHome-with-fx-rules.yaml "$RUNNER_TEMP/AdGuardHome-with-fx-rules.yaml"
+          mkdir -p "$RUNNER_TEMP/agh-fx-check-workdir"
+          "$AGH" --check-config -c "$RUNNER_TEMP/AdGuardHome-with-fx-rules.yaml" -w "$RUNNER_TEMP/agh-fx-check-workdir" --no-check-update
+          echo "PASS: official AdGuard Home accepted the dynamically generated FX domain-rule block. Android runtime behavior still requires device testing."
+      - name: Validate exact FX v1.0.0 runtime DNS config
+        shell: bash
+        run: |
+          set -euo pipefail
+          AGH="$(find "$RUNNER_TEMP/agh-amd64" -type f -name AdGuardHome -perm -u+x | head -1)"
+          test -x "$AGH"
+          cp .github/dns/AdGuardHome-FX-runtime-v1.0.0.yaml "$RUNNER_TEMP/AdGuardHome-FX-runtime.yaml"
+          mkdir -p "$RUNNER_TEMP/agh-fx-runtime-workdir"
+          test "$(grep -c '^  - "||' .github/dns/AdGuardHome-FX-runtime-v1.0.0.yaml)" -eq 5
+          grep -Fq '127.0.0.1:5353' .github/dns/AdGuardHome-FX-runtime-v1.0.0.yaml
+          if awk '
+            /^[[:space:]]*#/ { next }
+            /^[[:space:]]*upstream_dns:/ { section="upstream"; next }
+            /^[[:space:]]*bootstrap_dns:/ {
+              section="bootstrap"
+              if ($0 !~ /\[\]/) bad=1
+              next
+            }
+            /^[[:alnum:]_]+:/ { section=""; next }
+            section=="upstream" && /^[[:space:]]*-/ && $0 !~ /127\.0\.0\.1:5353/ { bad=1 }
+            section=="bootstrap" && /^[[:space:]]*-/ { bad=1 }
+            END { exit bad }
+          ' .github/dns/AdGuardHome-FX-runtime-v1.0.0.yaml; then
+            :
+          else
+            echo "FAIL: runtime front end contains an external or non-local upstream/bootstrap resolver" >&2
+            exit 1
+          fi
+          if grep -Eiq 'ads|advert|splash|watermark|open.?screen|IP-CIDR|PACKAGE-NAME|DOMAIN-KEYWORD' .github/dns/AdGuardHome-FX-runtime-v1.0.0.yaml; then
+            echo "FAIL: non anti-fraud rules found in runtime DNS config" >&2
+            exit 1
+          fi
+          "$AGH" --check-config -c "$RUNNER_TEMP/AdGuardHome-FX-runtime.yaml" -w "$RUNNER_TEMP/agh-fx-runtime-workdir" --no-check-update
+          echo "PASS: exact FX v1.0.0 opt-in runtime DNS config accepted by official AdGuard Home v0.107.79. Device runtime and network routing still require testing."
+
