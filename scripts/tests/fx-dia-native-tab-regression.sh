@@ -115,19 +115,50 @@ assert '.setOnCancelListener(dialog -> clearCustomRuleEditorDialogState())' in m
 assert 'draftIdentity.equals(getPreferences(0).getString(' in main
 assert 'draftPrefix + "identity"' in main
 
-# Dia Hook category must expose the independently migrated Dialog, Notification and Toast screens.
-assert '{"Hook 功能", "方法 Hook", "对话框处理", "通知监听与权限提示", "Toast 文本过滤",' in main
-assert 'case "对话框处理": case "对话框与通知":' in main
-assert 'showAppList("Dialog处理");' in main
-assert 'case "通知监听与权限提示":' in main
-assert 'showAppList("通知保护");' in main
-assert 'case "Toast 文本过滤": case "Toast 过滤":' in main
-assert 'showAppList("Toast过滤");' in main
-assert 'if ("Dialog处理".equals(activePrivacySection))' in main
-assert 'if ("Toast过滤".equals(activePrivacySection))' in main
-assert 'section("通知保护");' in main
-assert 'toggle("阻止通知监听注册", "notification_listen_block", false);' in main
-assert 'toggle("隐藏通知权限提示", "notification_permission_hide", false);' in main
+# Dia per-app interaction tools belong to the unified Hook hub; privacy-oriented
+# Toast and notification policies remain accessible from the Privacy destination.
+hook_hub_start = main.index("private void showHookHub()")
+hook_hub_end = main.index("private void refreshHookHubAuthorizationStates()", hook_hub_start)
+hook_hub = main[hook_hub_start:hook_hub_end]
+for token in (
+    'addNativeActionCard("Dialog 对话框 Hook"',
+    'showAppList("Dialog处理")',
+    'addNativeActionCard("按键动作 Hook"',
+    'showAppList("按键控制")',
+):
+    assert token in hook_hub, f"Hook hub entry is missing: {token}"
+
+app_list_start = main.index("private void showAppList(String privacySection)")
+app_list_end = main.index("private void captureHookAppListState()", app_list_start)
+app_list = main[app_list_start:app_list_end]
+for token in (
+    '"自定义 Hook".equals(activePrivacySection)',
+    '"Dialog处理".equals(activePrivacySection)',
+    '"按键控制".equals(activePrivacySection)',
+    'selectedBottomTab = activePrivacySection == null || hookToolsPage ? 4 : 2;',
+):
+    assert token in app_list, f"Hook-owned per-app route/highlight missing: {token}"
+
+privacy_start = main.index("private void buildNativePrivacyPage()")
+privacy_end = main.index("private void refreshNativePrivacyStatus(", privacy_start)
+privacy_page = main[privacy_start:privacy_end]
+for token in (
+    'addNativeActionCard("通知监听与权限提示"',
+    'showAppList("通知保护")',
+    'addNativeActionCard("Toast 文本过滤"',
+    'showAppList("Toast过滤")',
+):
+    assert token in privacy_page, f"Privacy page is missing its policy entry: {token}"
+
+for token in (
+    'if ("Dialog处理".equals(activePrivacySection))',
+    'if ("Toast过滤".equals(activePrivacySection))',
+    'if ("按键控制".equals(activePrivacySection))',
+    'section("通知保护");',
+    'toggle("阻止通知监听注册", "notification_listen_block", false);',
+    'toggle("隐藏通知权限提示", "notification_permission_hide", false);',
+):
+    assert token in main, f"per-app policy route is missing: {token}"
 route_start = main.index("private void handleNativeTabSelection(int index)")
 route_end = main.index("private void styleBottomItem", route_start)
 route = main[route_start:route_end]
