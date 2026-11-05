@@ -92,6 +92,21 @@ assert "currentBlacklist.addAll(staged)" in black, "only explicit confirmation m
 assert "pickerStaged.clear();" in black, "dismissed/cancelled picker draft must be cleared"
 assert "FxYulongScanActivity.class" in hub
 daily = (shield_dir / "FxYulongDailySummaryActivity.java").read_text(encoding="utf-8")
+privacy_pages = {
+    "FxYulongShieldActivity.java": ("隐私 · 安全防护中心",),
+    "FxYulongDailySummaryActivity.java": ("隐私 · 每日安全总结", "‹ 返回隐私"),
+    "FxYulongRescueActivity.java": ("隐私 · 救援中心", "‹ 返回隐私"),
+    "FxYulongScreenFilterActivity.java": ("隐私 · 屏幕滤镜", "‹ 返回隐私"),
+    "FxYulongVirusDatabaseActivity.java": ("隐私 · 病毒库管理", "‹ 返回隐私"),
+    "FxYulongScanActivity.java": ("隐私 · 已安装应用扫描", "‹ 返回隐私"),
+    "FxYulongWarningActivity.java": ("隐私 · 风险应用详情", "‹ 返回隐私"),
+    "FxYulongBatchCleanupActivity.java": ("隐私 · 批量清理 · 逐项确认", "‹ 返回隐私"),
+    "FxYulongIntegrityActivity.java": ("隐私 · 应用签名与完整性", "‹ 返回隐私"),
+}
+for filename, tokens in privacy_pages.items():
+    source = (shield_dir / filename).read_text(encoding="utf-8")
+    for token in tokens:
+        assert token in source, f"{filename} is not presented as an FX Privacy page: {token}"
 for token in ("shield_prefs", "automatic_scan_last_result", "FxYulongProtectionService", "FxYulongRescueOverlayService"):
     assert token in daily, f"daily summary data source missing: {token}"
 assert 'body.addView(button("返回安全护盾首页",this::finish));' in daily
