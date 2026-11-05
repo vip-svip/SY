@@ -100,6 +100,10 @@ dia_settings = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/
 ad_main = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java")
 ad_general = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdGeneralActivity.java")
 ad_summary = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdSummaryActivity.java")
+ad_dns = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongDnsActivity.java")
+ad_firewall = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongFirewallActivity.java")
+ad_whitelist = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAppWhitelistActivity.java")
+dia_dex = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaDexBrowserActivity.java")
 assert 'FxYulongShieldActivity.class' in activity[activity.index("private void buildNativePrivacyPage()"):activity.index("private void refreshNativePrivacyStatus(")]
 assert 'section("安全防护中心")' in activity
 assert 'section("Hook 工具与调试")' in activity
@@ -125,6 +129,13 @@ assert '游龙广告插件 7.0.1' not in ad_main
 assert 'text("Ad · 通用设置与备份恢复"' in ad_general
 assert '游龙广告插件 7.0.1' not in ad_general and '自己的四级页面' not in ad_general
 assert 'text("Ad · 本机防护总结"' in ad_summary and '游龙广告插件' not in ad_summary
+for source_text in (ad_main, ad_general, ad_summary, ad_dns, ad_firewall, ad_whitelist):
+    assert "游龙广告插件" not in source_text and "游龙广告过滤" not in source_text, "Ad page still exposes legacy source branding"
+assert 'FX Ad · DNS 查询日志' in ad_dns
+assert 'FX Ad · ' in ad_firewall
+assert 'Ad · 应用白名单' in ad_whitelist
+assert "Dia 23.11 随附的 Android Framework DEX" not in dia_dex
+assert "此操作复刻 Dia 23.11" not in dia_settings
 assert 'text("隐私 · 安全防护中心"' in shield
 assert 'action("‹ 返回隐私"' in shield
 assert 'setContentViewWithNativeTabs(root, 2);' in shield
