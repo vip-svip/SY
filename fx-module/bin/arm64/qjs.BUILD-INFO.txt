@@ -1,0 +1,5 @@
+Engine: QuickJS-NG v0.17.0
+Target: Android arm64-v8a, API 24+, NDK r26b
+FX hardening: privileged and native module import sandbox
+Blocked imports: qjs:std, qjs:os, qjs:bjson, std, os, bjson, *.so
+Enforcement: before module-cache lookup; enabled after trusted host prelude

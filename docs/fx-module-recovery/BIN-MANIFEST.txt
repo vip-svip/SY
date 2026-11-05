@@ -1,0 +1,11 @@
+arm/pg-mitm	6364780 bytes
+arm/sing-box	76763532 bytes
+arm/sing-box.sha256	75 bytes
+arm64/pg-mitm	6619457 bytes
+arm64/pg-mitm.BUILD-INFO.txt	1820 bytes
+arm64/pg-mitm.sha256	74 bytes
+arm64/qjs	7411360 bytes
+arm64/qjs.BUILD-INFO.txt	272 bytes
+arm64/qjs.sha256	70 bytes
+arm64/sing-box	82682776 bytes
+arm64/sing-box.sha256	75 bytes

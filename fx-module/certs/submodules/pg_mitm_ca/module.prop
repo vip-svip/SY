@@ -1,0 +1,6 @@
+id=pg_mitm_ca
+name=PrivacyGuard MITM CA（系统级）
+version=v1.7.0
+versionCode=17
+author=PrivacyGuard
+description=由 PrivacyGuard 主模块释放的公开 CA 证书（系统级信任，默认禁用）。此子模块仅包含公开证书，不包含私钥，不能单独签发叶子证书，也不提供 HTTPS 解密能力。需有独立 MITM 引擎及对应私钥才可进行 TLS 解密。可在主模块 WebUI 中启用或移除信任。
