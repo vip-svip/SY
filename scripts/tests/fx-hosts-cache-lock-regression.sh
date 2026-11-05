@@ -95,4 +95,25 @@ set -e
 if _hf_remove_lock_path "$T/fifo-lock"; then fail "FIFO PID lock directory was removed"; fi
 [ -p "$T/fifo-lock/pid" ] || fail "FIFO PID record was removed"
 
+# A stale V3 marker must not cause the patcher to skip an incomplete lock body.
+PARTIAL="$T/partial-module"
+mkdir -p "$PARTIAL/scripts"
+cat > "$PARTIAL/scripts/apply.sh" <<'PARTIAL_APPLY'
+#!/bin/sh
+apply_hosts_cache() {
+  _hf_lock="$PG/cache/rules/.lock.$_hf_key"
+  # FX_HOSTS_FILE_LOCK_V3
+  if [ "$_hf_release_owner" = "$" ]; then
+    rm -f "$_hf_release"
+  fi
+  # Keep a verified previous generation.
+}
+PARTIAL_APPLY
+python3 "$PATCHER" "$PARTIAL" >/dev/null || fail "Hosts patcher could not repair an incomplete V3 marker"
+grep -Fq 'mv "$_hf_lock" "$_hf_release"' "$PARTIAL/scripts/apply.sh" || fail "incomplete V3 marker was not repaired with atomic release rename"
+grep -Fq 'if [ "$_hf_release_owner" = "$" ]; then' "$PARTIAL/scripts/apply.sh" || fail "repaired V3 lock is missing exact PID ownership validation"
+partial_sha=$(sha256sum "$PARTIAL/scripts/apply.sh" | awk '{print $1}')
+python3 "$PATCHER" "$PARTIAL" >/dev/null || fail "Hosts patcher second pass on repaired V3 marker failed"
+[ "$partial_sha" = "$(sha256sum "$PARTIAL/scripts/apply.sh" | awk '{print $1}')" ] || fail "repaired V3 lock patch is not idempotent"
+
 echo "PASS: Hosts cache lock cleanup removes only empty/PID-only locks and refuses FIFO, symlink and unknown contents"
