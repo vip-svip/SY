@@ -1,0 +1,352 @@
+package roro.stellar.manager.adb;
+
+import java.io.Closeable;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
+
+/**
+ * Android 11+ ADB wireless-debugging pairing client, ported from Stellar 9.9.60.
+ *
+ * The caller supplies the pairing port discovered for _adb-tls-pairing._tcp.
+ * This class performs only the TLS + SPAKE2 + PeerInfo exchange. It does not
+ * scan for services or start the follow-up _adb-tls-connect._tcp discovery.
+ *
+ * Run start() on a dedicated worker/service: socket operations block until
+ * their bounded connect/read timeouts fire.
+ */
+public final class AdbPairingClient implements Closeable {
+    public static final String TLS_PAIRING_SERVICE = "_adb-tls-pairing._tcp";
+    public static final String TLS_CONNECT_SERVICE = "_adb-tls-connect._tcp";
+    private static final int CONNECT_TIMEOUT_MS = 10_000;
+    private static final int READ_TIMEOUT_MS = 30_000;
+    private static final int EXPORTER_LENGTH = 64;
+    private static final int MAX_PAIRING_FRAME = PairingPacketHeader.MAX_PAYLOAD;
+
+    private final String host;
+    private final int port;
+    private final byte[] pairingCodeUtf8;
+    private final AdbKey key;
+    private final AtomicBoolean started = new AtomicBoolean(false);
+    private final AtomicBoolean closed = new AtomicBoolean(false);
+
+    private volatile Socket rawSocket;
+    private volatile SSLSocket tlsSocket;
+    private volatile DataInputStream input;
+    private volatile DataOutputStream output;
+    private volatile PairingContext pairingContext;
+    private volatile String deviceGuid;
+
+    public AdbPairingClient(String host, int port, String pairingCode, AdbKey key) {
+        this.host = validateHost(host);
+        if (port < 1 || port > 65535) throw new IllegalArgumentException("Invalid ADB pairing port");
+        if (pairingCode == null || !pairingCode.matches("[0-9]{6}")) {
+            throw new IllegalArgumentException("ADB pairing code must contain exactly six digits");
+        }
+        if (key == null) throw new IllegalArgumentException("ADB host key is null");
+        this.port = port;
+        this.pairingCodeUtf8 = pairingCode.getBytes(StandardCharsets.UTF_8);
+        this.key = key;
+    }
+
+    private static String validateHost(String value) {
+        if (value == null || value.isEmpty() || value.length() > 253
+                || value.indexOf('/') >= 0 || value.indexOf((char) 0) >= 0
+                || value.indexOf(' ') >= 0) {
+            throw new IllegalArgumentException("Invalid ADB pairing host");
+        }
+        return value;
+    }
+
+    /**
+     * Performs the original TLS/SPAKE2/PeerInfo exchange.
+     *
+     * @return true only after the peer has sent a valid encrypted PeerInfo record
+     */
+    public synchronized boolean start() throws IOException {
+        if (!started.compareAndSet(false, true)) {
+            throw new IllegalStateException("ADB pairing client can only be started once");
+        }
+        if (closed.get()) throw new IOException("ADB pairing client is already closed");
+
+        try {
+            setupTlsConnection();
+            setupSpake2Context();
+            if (!exchangeSpake2Messages()) {
+                throw new PairingException("ADB SPAKE2 message exchange was rejected");
+            }
+            if (!exchangePeerInfo()) {
+                throw new PairingException("ADB encrypted peer-info exchange was rejected");
+            }
+            ensureOpen();
+            return true;
+        } catch (IOException | RuntimeException failure) {
+            // A concurrent close may already have set the flag before a resource
+            // was assigned. Always sweep again after the start path unwinds.
+            closed.set(true);
+            closeQuietly();
+            throw failure;
+        } finally {
+            // Do not retain the UI-supplied pairing code after the TLS exporter
+            // and SPAKE2 context have been initialized.
+            // String itself cannot be zeroed; all derived byte arrays are wiped.
+        }
+    }
+
+    private void setupTlsConnection() throws IOException {
+        ensureOpen();
+        Socket connecting = new Socket();
+        rawSocket = connecting;
+        ensureOpen();
+        connecting.setTcpNoDelay(true);
+        connecting.setSoTimeout(READ_TIMEOUT_MS);
+        connecting.connect(new InetSocketAddress(host, port), CONNECT_TIMEOUT_MS);
+        ensureOpen();
+
+        SSLSocketFactory factory = key.getSslContext().getSocketFactory();
+        SSLSocket secure = (SSLSocket) factory.createSocket(connecting, host, port, true);
+        tlsSocket = secure;
+        ensureOpen();
+        secure.setSoTimeout(READ_TIMEOUT_MS);
+        secure.setEnabledProtocols(new String[]{"TLSv1.3"});
+        secure.startHandshake();
+        ensureOpen();
+
+        input = new DataInputStream(secure.getInputStream());
+        output = new DataOutputStream(secure.getOutputStream());
+        ensureOpen();
+    }
+
+    private void setupSpake2Context() throws IOException {
+        ensureOpen();
+        byte[] code = pairingCodeUtf8.clone();
+        byte[] exporter = null;
+        byte[] secret = null;
+        try {
+            exporter = exportKeyingMaterial(tlsSocket, AdbTlsKeyingMaterial.LABEL, EXPORTER_LENGTH);
+            if (exporter == null || exporter.length != EXPORTER_LENGTH) {
+                throw new IOException("Conscrypt returned an invalid ADB TLS exporter");
+            }
+            secret = new byte[code.length + exporter.length];
+            // Original Stellar order: UTF-8 pairing code followed by TLS exporter bytes.
+            System.arraycopy(code, 0, secret, 0, code.length);
+            System.arraycopy(exporter, 0, secret, code.length, exporter.length);
+            PairingContext created = PairingContext.create(secret);
+            if (created == null) {
+                throw new IOException("Original libadb SPAKE2 JNI context is unavailable");
+            }
+            if (closed.get()) {
+                created.destroy();
+                throw new IOException("ADB pairing was cancelled");
+            }
+            pairingContext = created;
+            if (closed.get()) {
+                pairingContext = null;
+                created.destroy();
+                throw new IOException("ADB pairing was cancelled");
+            }
+        } finally {
+            Arrays.fill(code, (byte) 0);
+            Arrays.fill(pairingCodeUtf8, (byte) 0);
+            if (exporter != null) Arrays.fill(exporter, (byte) 0);
+            if (secret != null) Arrays.fill(secret, (byte) 0);
+        }
+    }
+
+    private static byte[] exportKeyingMaterial(SSLSocket socket, String label, int length)
+            throws IOException {
+        if (!AdbTlsKeyingMaterial.LABEL.equals(label)
+                || length != AdbTlsKeyingMaterial.LENGTH_BYTES) {
+            throw new IOException("Unexpected ADB TLS exporter label or output size");
+        }
+        try {
+            return AdbTlsKeyingMaterial.export(socket);
+        } catch (UnsupportedOperationException unsupported) {
+            throw new IOException(
+                    "Automatic ADB pairing requires the public TLS exporter API (Android 12/API 31+)",
+                    unsupported);
+        } catch (javax.net.ssl.SSLException failure) {
+            throw failure;
+        } catch (RuntimeException failure) {
+            throw new IOException("Android TLS key exporter failed", failure);
+        }
+    }
+
+    private boolean exchangeSpake2Messages() throws IOException {
+        byte[] localMessage = pairingContext.getMsg();
+        byte[] remoteMessage = null;
+        try {
+            writeFrame(PairingPacketHeader.Type.SPAKE2_MSG, localMessage);
+            PairingPacketHeader header = readHeader();
+            if (header.getType() != PairingPacketHeader.Type.SPAKE2_MSG.getValue()) {
+                throw new PairingException("Expected an ADB SPAKE2 message frame");
+            }
+            remoteMessage = readPayload(header.getPayload());
+            return pairingContext.initCipher(remoteMessage);
+        } finally {
+            Arrays.fill(localMessage, (byte) 0);
+            if (remoteMessage != null) Arrays.fill(remoteMessage, (byte) 0);
+        }
+    }
+
+    /** Returns the GUID authenticated in the device's encrypted PeerInfo record. */
+    public String getDeviceGuid() {
+        String guid = deviceGuid;
+        if (guid == null || !started.get()) {
+            throw new IllegalStateException("ADB device GUID is unavailable before a successful pairing");
+        }
+        return guid;
+    }
+
+    private boolean exchangePeerInfo() throws IOException {
+        byte[] publicKeyLine = key.getAdbPublicKeyLine();
+        byte[] plainRecord = null;
+        byte[] encryptedRecord = null;
+        byte[] remoteEncrypted = null;
+        byte[] remotePlain = null;
+        try {
+            ByteBuffer peerBuffer = ByteBuffer.allocate(PeerInfo.RECORD_LENGTH)
+                    .order(ByteOrder.BIG_ENDIAN);
+            new PeerInfo(PeerInfo.Type.ADB_RSA_PUB_KEY.getValue(), publicKeyLine)
+                    .writeTo(peerBuffer);
+            plainRecord = peerBuffer.array();
+            encryptedRecord = pairingContext.encrypt(plainRecord);
+            if (encryptedRecord == null || encryptedRecord.length == 0
+                    || encryptedRecord.length > MAX_PAIRING_FRAME) {
+                throw new PairingException("libadb returned an invalid encrypted PeerInfo record");
+            }
+            writeFrame(PairingPacketHeader.Type.PEER_INFO, encryptedRecord);
+
+            PairingPacketHeader header = readHeader();
+            if (header.getType() != PairingPacketHeader.Type.PEER_INFO.getValue()) {
+                throw new PairingException("Expected an ADB PeerInfo frame");
+            }
+            remoteEncrypted = readPayload(header.getPayload());
+            remotePlain = pairingContext.decrypt(remoteEncrypted);
+            if (remotePlain == null || remotePlain.length != PeerInfo.RECORD_LENGTH) {
+                throw new PairingException("ADB peer-info authentication failed (invalid pairing code)");
+            }
+            ByteBuffer remoteBuffer = ByteBuffer.wrap(remotePlain).order(ByteOrder.BIG_ENDIAN);
+            PeerInfo remotePeer = PeerInfo.readFrom(remoteBuffer);
+            if (remotePeer.getType() != PeerInfo.Type.ADB_DEVICE_GUID.getValue()) {
+                throw new PairingException("ADB device answered with a non-GUID PeerInfo record");
+            }
+            String guid;
+            try {
+                guid = remotePeer.getTextPayload();
+            } catch (IllegalArgumentException malformed) {
+                throw new PairingException("ADB device GUID is not valid NUL-terminated UTF-8");
+            }
+            if (guid.isEmpty()) {
+                throw new PairingException("ADB device returned an empty GUID");
+            }
+            deviceGuid = guid;
+            return true;
+        } finally {
+            Arrays.fill(publicKeyLine, (byte) 0);
+            if (plainRecord != null) Arrays.fill(plainRecord, (byte) 0);
+            if (encryptedRecord != null) Arrays.fill(encryptedRecord, (byte) 0);
+            if (remoteEncrypted != null) Arrays.fill(remoteEncrypted, (byte) 0);
+            if (remotePlain != null) Arrays.fill(remotePlain, (byte) 0);
+        }
+    }
+
+    private void writeFrame(PairingPacketHeader.Type type, byte[] payload) throws IOException {
+        if (payload == null || payload.length < PairingPacketHeader.MIN_PAYLOAD
+                || payload.length > MAX_PAIRING_FRAME) {
+            throw new PairingException("ADB pairing frame payload is outside the permitted range");
+        }
+        ByteBuffer headerBuffer = ByteBuffer.allocate(PairingPacketHeader.SIZE_BYTES)
+                .order(ByteOrder.BIG_ENDIAN);
+        new PairingPacketHeader((byte) 1, type.getValue(), payload.length).writeTo(headerBuffer);
+        output.write(headerBuffer.array());
+        output.write(payload);
+        output.flush();
+    }
+
+    private PairingPacketHeader readHeader() throws IOException {
+        byte[] encoded = new byte[PairingPacketHeader.SIZE_BYTES];
+        input.readFully(encoded);
+        try {
+            PairingPacketHeader header = PairingPacketHeader.readFrom(ByteBuffer.wrap(encoded));
+            if (header == null) throw new PairingException("ADB pairing frame header is invalid");
+            if (header.getPayload() > MAX_PAIRING_FRAME) {
+                throw new PairingException("ADB pairing frame exceeds the size limit");
+            }
+            return header;
+        } finally {
+            Arrays.fill(encoded, (byte) 0);
+        }
+    }
+
+    private byte[] readPayload(int length) throws IOException {
+        if (length < PairingPacketHeader.MIN_PAYLOAD || length > MAX_PAIRING_FRAME) {
+            throw new PairingException("ADB pairing payload length is invalid");
+        }
+        byte[] payload = new byte[length];
+        try {
+            input.readFully(payload);
+            return payload;
+        } catch (IOException failure) {
+            Arrays.fill(payload, (byte) 0);
+            throw failure;
+        }
+    }
+
+    /** Close is deliberately not synchronized with start(): another thread must be able to abort a blocked read. */
+    @Override
+    public void close() {
+        if (!closed.compareAndSet(false, true)) return;
+        closeQuietly();
+    }
+
+    private void ensureOpen() throws IOException {
+        if (closed.get()) throw new IOException("ADB pairing was cancelled");
+    }
+
+    private void closeQuietly() {
+        // Close sockets first so another thread blocked in TLS read/write is released.
+        Arrays.fill(pairingCodeUtf8, (byte) 0);
+        SSLSocket tls = tlsSocket;
+        tlsSocket = null;
+        if (tls != null) {
+            try { tls.close(); } catch (IOException ignored) { }
+        }
+        Socket raw = rawSocket;
+        rawSocket = null;
+        if (raw != null) {
+            try { raw.close(); } catch (IOException ignored) { }
+        }
+        DataInputStream in = input;
+        input = null;
+        if (in != null) {
+            try { in.close(); } catch (IOException ignored) { }
+        }
+        DataOutputStream out = output;
+        output = null;
+        if (out != null) {
+            try { out.close(); } catch (IOException ignored) { }
+        }
+        PairingContext context = pairingContext;
+        pairingContext = null;
+        if (context != null) {
+            try { context.destroy(); } catch (RuntimeException | LinkageError ignored) { }
+        }
+    }
+
+    public static final class PairingException extends IOException {
+        public PairingException(String message) {
+            super(message);
+        }
+    }
+}
