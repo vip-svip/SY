@@ -40,6 +40,8 @@ done
 grep -Fq 'addOnGlobalLayoutListener' "$skin" || { echo "FAIL: dynamic native pages are not re-skinned after layout"; exit 1; }
 grep -Fq 'addOnAttachStateChangeListener' "$skin" || { echo "FAIL: Skin observer is not attached to the live page root"; exit 1; }
 grep -Fq 'removeOnGlobalLayoutListener(layoutListener)' "$skin" || { echo "FAIL: Skin observer is not removed when page detaches"; exit 1; }
+grep -Fq 'private static final WeakHashMap<View, Boolean> WATCHED' "$skin" || { echo "FAIL: Skin observer deduplication is missing"; exit 1; }
+grep -Fq 'WATCHED.containsKey(pageContent)' "$skin" || { echo "FAIL: re-mounted pages can register duplicate Skin observers"; exit 1; }
 grep -Fq 'activity.isDestroyed()' "$skin" || { echo "FAIL: Skin observer does not stop for destroyed Activities"; exit 1; }
 grep -Fq 'applyButtonSkin(activity, (Button) view, mode, palette)' "$skin" || { echo "FAIL: native buttons do not receive Skin tokens"; exit 1; }
 grep -Fq 'new RippleDrawable(' "$skin" || { echo "FAIL: native buttons lack mode-aware ripple surfaces"; exit 1; }
@@ -47,4 +49,12 @@ grep -Fq 'applySwitchSkin(activity, (Switch) view, mode, palette)' "$skin" || { 
 grep -Fq 'setThumbTintList(' "$skin" && grep -Fq 'setTrackTintList(' "$skin" || { echo "FAIL: native switches lack selected/off Skin colors"; exit 1; }
 grep -Fq 'applyChoiceControlSkin(' "$skin" || { echo "FAIL: radio/choice controls do not receive Skin tokens"; exit 1; }
 ! grep -Fq 'control.setBackgroundColor(android.graphics.Color.TRANSPARENT)' "$skin" || { echo "FAIL: switch Skin pass must not erase card/row surfaces"; exit 1; }
+# Run adjacent UI fixtures here as well: a Skin-only source change must not
+# leave the targeted workflow with an unmapped source path, and these tests
+# explicitly distinguish source-only checkout from Release-staged resources.
+bash "$root/scripts/tests/fx-wallpaper-regression.sh"
+sh "$root/scripts/tests/fx-native-vpn-api-regression.sh"
+sh "$root/scripts/tests/fx-vpn-transparent-toggle-regression.sh"
+sh "$root/scripts/tests/v1.0.0-fxhook-capture-privacy-wiring-regression.sh"
+sh "$root/scripts/tests/vpncore-default-node-fallback-regression.sh"
 echo "PASS: five global UI modes share persistence, shell rendering, and live tokens on MainActivity and imported pages."
