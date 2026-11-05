@@ -22,6 +22,7 @@ final class HarmonySkinTokens {
         static final int ACTION_BORDER = 0xffc9dcf5;
         static final int SWITCH_OFF_TRACK = 0xffc2ccd8;
         static final int INPUT_BORDER = 0xffb7cce5;
+        static final int INPUT_BORDER = 0xffb7cce5;
         private HarmonyColorTokens() { }
     }
 
@@ -37,6 +38,8 @@ final class HarmonySkinTokens {
         static final float TAB_LABEL_SP = 15f;
         static final float ACTION_LABEL_SP = 14f;
         static final float SWITCH_LABEL_SP = 15f;
+        static final float CHOICE_LABEL_SP = 15f;
+        static final float INPUT_LABEL_SP = 15f;
         private HarmonyTypographyTokens() { }
     }
 
@@ -47,6 +50,13 @@ final class HarmonySkinTokens {
         static final int NAV_INNER_HORIZONTAL_DP = 4;
         static final int NAV_INNER_VERTICAL_DP = 3;
         static final int TAB_HEIGHT_DP = 64;
+        static final int ACTION_MIN_HEIGHT_DP = 48;
+        static final int ACTION_MIN_WIDTH_DP = 72;
+        static final int ACTION_HORIZONTAL_PADDING_DP = 18;
+        static final int ACTION_VERTICAL_PADDING_DP = 10;
+        static final int SWITCH_HORIZONTAL_PADDING_DP = 18;
+        static final int SWITCH_VERTICAL_PADDING_DP = 12;
+        static final int INPUT_MIN_HEIGHT_DP = 48;
         private HarmonySpacingTokens() { }
     }
 }
