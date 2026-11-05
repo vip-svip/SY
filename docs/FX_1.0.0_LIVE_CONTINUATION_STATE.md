@@ -4264,3 +4264,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 1. 完成当前 GKD Selector Compatibility job，若有失败只修对应具体根因；随后为 GKD JSON codec 补充可执行的 Android 单元测试/纯 Kotlin codec 测试，不只依赖 grep。
 2. 继续 Harmony / Cupertino 在 Ad 与隐私页的表单行、列表控件、Dialog/Sheet 的真实 renderer 覆盖，维持业务回调与状态语义。
 3. 对 Hook/Privacy 的目标页 Tab、标题、返回路径做一次定向 UI 回归；确认 Dialog Hook=Hook、Toast/通知=隐私，不恢复来源应用目录。
+
+
+### GKD 本地规则 JSON 导入/导出落地补记（2026-11-05）
+
+- `FxGkdRuleStore.kt` 增加 `exportJson/importJson`：FX-GKD-LOCAL-RULES、schema v1、最大 256 KiB、最多 128 条；合并而不覆盖已有规则；要求目标仍是已安装的普通用户应用、selector 通过上游引擎编译、cooldown 在 1–60 秒范围；对 package+selector 去重。
+- 导入不会相信文件中的 enabled 字段：每条新规则都强制 `enabled=false`；不会开启 GKD master switch。写入失败返回明确错误，不报告成功。
+- `FxGkdAutomationActivity.java` 增加系统 JSON 文档选择器：ACTION_OPEN_DOCUMENT / ACTION_CREATE_DOCUMENT；读取按流计数，超过 256 KiB 立即拒绝；成功后失效规则缓存、重配唯一 FX AccessibilityService，并提示新增/跳过数量和全部关闭状态。
+- `scripts/tests/fx-gkd-automation-regression.sh` 覆盖文件选择器、文件大小上限、格式版本、目标包/selector 校验、去重、全部关闭以及不自动开启 master 的契约。
+- 主要提交：Store `e5c9cb7d44ced68cba6136e191736c01bb9e7a09`；Activity `81609ed4e21f8f1dc9537edd010691bc93b35785`；安全回归 `4b200b8e2902f10628215ff42002b6eea9f6c38a`；README 与计划同步 `1d405676f73d692cdce332d9018cb3dc061a2d23` / `e66db31fe3c9daf206b83c9e8062b7f3803c170f`。
+- 修正了 GKD 自动化回归脚本中把布尔表达式误放入字符串断言元组造成的 Python TypeError；另修正全局 Skin 回归中的动作按钮圆角断言变量名。
+- 上游 Selector JVM 测试在专用 Workflow `41985451124` 已通过；专用 workflow 的 FX App Kotlin/Java compile 目前运行中，尚不能宣称通过。较早失败 `41984962613` 是回归脚本 TypeError，修复后需以新 run 结果为准。
+- 当前仍未完成整套 GKD-XA 功能迁移：在线订阅源/规则组/排除项、复杂触发/动作、快照/触发历史、AI、Shizuku/AIDL、后台/磁贴/开机生命周期仍是后续任务。
