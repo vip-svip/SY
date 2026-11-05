@@ -6122,3 +6122,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - GitHub Actions：`FX VPN shell regression` run `42102931374` 在本提交上通过，包含 POSIX shell 语法、Root Proxy runtime regression 与卸载顺序回归。
 - 同提交触发的 Targeted Host 与 Module Runtime runs 被后续协作者提交取消；其后代 HEAD `361a0e19fcb5010dd93aeca0c504b641a2e84a5a` 的 Targeted Host run `42102963704` 失败，具体失败项尚未从 Actions 输出中确认，不能标记为通过；该 HEAD 的 Module Runtime run `42102963655` 当时仍在运行。
 - 未运行 Android Gradle 构建、模拟器或真机第三方 VPN 路由测试。
+
+
+## 2026-11-06 — subfetch 陈旧锁清理 fail-closed 加固
+
+- 审计 `patch_subfetch_file_lock.py` 发现：legacy directory lock 的 PID reader 只拒绝符号链接，未拒绝 FIFO；cleanup 使用递归删除，可能移除锁目录中的未知文件或嵌套内容。
+- `_sl_read_lock_owner()` 现要求目录 PID 是普通非符号链接文件；`_sl_remove_owned_lock_path()` 只接受恰好包含单个普通 `pid` 的目录，逐项检查普通/隐藏目录项，删除时只移除 `pid` 后 `rmdir`，不递归删除未知内容。普通文件锁仍按非符号链接普通文件清理。
+- 扩展 legacy lock 回归生成器，直接从生产 subfetch 提取 helper，覆盖普通目录/文件锁、未知普通和隐藏文件、PID 符号链接、目录符号链接、FIFO PID 非阻塞拒绝及内容保留；并修正生成脚本的 TMPDIR 模板，使 APK 与 KernelSU 两条流程均可执行。
+- 扩展 package integration contract 和 Targeted Host workflow，验证源码清理策略及两条打包路径的 patch/test 顺序。本修复分支等待 PR CI。
