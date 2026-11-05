@@ -926,10 +926,26 @@ public final class MainActivity extends ComponentActivity {
             private void styleSpinnerText(View view, int sizeSp) {
                 if (!(view instanceof TextView)) return;
                 TextView text = (TextView) view;
+                int resolvedSizeSp = sizeSp;
+                int horizontalPaddingDp = 12;
+                int verticalPaddingDp = 8;
+                String fontFamily = "sans-serif-medium";
+                if ("huawei".equals(uiMode)) {
+                    resolvedSizeSp = Math.round(HarmonySkinTokens.HarmonyTypographyTokens.SPINNER_LABEL_SP);
+                    horizontalPaddingDp = HarmonySkinTokens.HarmonySpacingTokens.SPINNER_HORIZONTAL_PADDING_DP;
+                    verticalPaddingDp = HarmonySkinTokens.HarmonySpacingTokens.SPINNER_VERTICAL_PADDING_DP;
+                    fontFamily = "sans-serif-medium";
+                } else if ("ios".equals(uiMode)) {
+                    resolvedSizeSp = Math.round(CupertinoSkinTokens.CupertinoTypographyTokens.SPINNER_LABEL_SP);
+                    horizontalPaddingDp = CupertinoSkinTokens.CupertinoSpacingTokens.SPINNER_HORIZONTAL_PADDING_DP;
+                    verticalPaddingDp = CupertinoSkinTokens.CupertinoSpacingTokens.SPINNER_VERTICAL_PADDING_DP;
+                    fontFamily = "sans-serif";
+                }
                 text.setTextColor(uiPrimaryTextColor());
-                text.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, sizeSp);
-                text.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-                text.setPadding(dp(12), dp(8), dp(12), dp(8));
+                text.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, resolvedSizeSp);
+                text.setTypeface(Typeface.create(fontFamily, Typeface.NORMAL));
+                text.setPadding(dp(horizontalPaddingDp), dp(verticalPaddingDp),
+                        dp(horizontalPaddingDp), dp(verticalPaddingDp));
                 text.setMaxLines(1);
             }
 
