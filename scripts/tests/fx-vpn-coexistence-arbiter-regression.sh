@@ -414,6 +414,27 @@ rc=$?
 [ "$(field "$_out" "['verdict']")" = "incompatible" ] || fail "FX-owned production VpnService must be incompatible"
 pass "production PackageManager UID match detects FX-owned VpnService"
 
+echo "== case 5c3: unavailable FX PackageManager UID fails closed =="
+cat > "$TMP/fakebin/dumpsys" <<'EOF'
+#!/bin/sh
+printf '%s\\n' 'ConnectivityService:' '  mVpns:' '    VpnInfo{ownerUid=10123 vpnIface=tun0}'
+EOF
+cat > "$TMP/fakebin/cmd" <<'EOF'
+#!/bin/sh
+exit 7
+EOF
+cat > "$TMP/fakebin/pm" <<'EOF'
+#!/bin/sh
+exit 7
+EOF
+_out=$(PATH="$TMP/fakebin:$PATH" FX_ARB_LINK_FILE="$TMP/links.txt" FX_ARB_VPNINFO_FILE= \
+  FX_ARB_PROC_NET_DIR="$TMP/net_free" FX_ARB_MODULE_ROOT="$TMP/mod_clean" sh "$ARB" 2>&1)
+rc=$?
+[ "$rc" -eq 2 ] || fail "unavailable FX package UID must return rc=2, got $rc: $_out"
+[ "$(field "$_out" "['verdict']")" = "unknown" ] || fail "unavailable FX package UID must be unknown"
+[ "$(field "$_out" "['probe']")" = "unavailable" ] || fail "unavailable FX package UID probe mismatch"
+pass "unavailable PackageManager UID cannot mislabel FX as third-party"
+
 echo "== case 5d: successful dumpsys with no active VPN is a clean empty result =="
 cat > "$TMP/fakebin/dumpsys" <<'EOF'
 #!/bin/sh
