@@ -75,8 +75,10 @@ POST_FS_OVERLAY_REQUIRED = (
     'RETRY_MARKER="$STATE_DIR/system-app-retry"',
     "deployment marker does not match the mounted overlay",
     'rm -f "$RETRY_MARKER"',
-    '[ ! -L "$STATE_DIR" ] || exit 0',
-    'path_components_are_safe "$STATE_DIR" || exit 0',
+    'path_components_are_safe "$STATE_DIR" || retry',
+    '[ -d "$APP_DIR" ] && [ ! -L "$APP_DIR" ] || retry',
+    '[ -f "$APK_PATH" ] && [ ! -L "$APK_PATH" ] || retry',
+    '[ -f "$SUM_PATH" ] && [ ! -L "$SUM_PATH" ] || retry',
     'set -C; printf',
     '[ -d "$LOG_DIR" ] && [ ! -L "$LOG_DIR" ]',
 )
