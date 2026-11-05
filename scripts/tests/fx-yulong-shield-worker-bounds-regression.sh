@@ -19,6 +19,7 @@ for source in "$VIRUS" "$INTEGRITY"; do
   grep -Fq 'new ThreadPoolExecutor(' "$source" || fail "bounded ThreadPoolExecutor missing in $source"
   grep -Eq '^[[:space:]]*1,[[:space:]]*1,' "$source" || fail "worker must remain single-threaded in $source"
   grep -Fq 'TimeUnit.SECONDS' "$source" || fail "worker keep-alive unit is missing in $source"
+  grep -Fq 'worker.allowCoreThreadTimeOut(true)' "$source" || fail "idle worker core thread must time out in $source"
   ! grep -Eq 'CallerRunsPolicy|DiscardPolicy|DiscardOldestPolicy' "$source" || fail "worker must not silently run/drop tasks in $source"
   grep -Fq 'catch (RejectedExecutionException' "$source" || fail "queue saturation must be handled at submission in $source"
 done
