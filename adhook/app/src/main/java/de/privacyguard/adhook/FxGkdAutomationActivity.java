@@ -60,8 +60,8 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
 
         TextView intro = text(
-                "当前首批接入 GKD-XA v1.4.8 原生 selector/parser 引擎，支持本地手动规则与 Click 动作。\n" +
-                "未接入的上游订阅、AI、快照、触发历史和云同步不会显示成已完成。", 0xff66727e, 13);
+                "已接入 GKD-XA v1.4.8 原生 selector/parser、限额 Accessibility 节点快照、本地规则匹配与 Click 执行。\n" +
+                "尚未接入：上游订阅源、规则组/排除项、AI 服务商、触发历史、云同步与上游备份格式。", 0xff66727e, 13);
         card(intro);
 
         TextView privacy = text(
