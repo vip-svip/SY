@@ -85,7 +85,19 @@ _valid_if() { case "${1:-}" in ''|*[!A-Za-z0-9_.:-]*) return 1;; *) return 0;; e
 _valid_ipv4() {
   printf '%s\n' "$1" | awk -F. '
     NF != 4 {ok=0; exit}
-    {ok=1; for (i=1; i<=4; i++) if ($i !~ /^[0-9]+$/ || length($i)>3 || ($i+0)>255) ok=0}
+    {
+      ok=1
+      for (i=1; i<=4; i++) {
+        if ($i !~ /^[0-9]+$/ || length($i)>3 || ($i+0)>255 ||
+            ($i != "0" && $i ~ /^0/)) ok=0
+      }
+      first=$1+0
+      second=$2+0
+      # A VPN egress source must be a unicast interface address, not an
+      # unspecified, loopback, link-local, multicast or reserved address.
+      if (first==0 || first==127 || first>=224 ||
+          (first==169 && second==254)) ok=0
+    }
     END {exit(ok ? 0 : 1)}
   '
 }

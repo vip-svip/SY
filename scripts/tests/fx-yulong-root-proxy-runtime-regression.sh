@@ -5,6 +5,19 @@ SOURCE="$ROOT/fx-module/scripts/yulong-root-proxy.sh"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 [ -s "$SOURCE" ] || fail "Root Proxy source missing"
 sh -n "$SOURCE" || fail "Root Proxy shell syntax invalid"
+
+# Exercise the production IPv4 validator directly; a syntactically numeric
+# address is not necessarily a usable unicast tunnel source.
+IPV4_VALIDATOR="$T/ipv4-validator.sh"
+sed -n '/^_valid_ipv4() {/,/^}/p' "$SOURCE" > "$IPV4_VALIDATOR"
+[ -s "$IPV4_VALIDATOR" ] || fail "production IPv4 validator could not be extracted"
+. "$IPV4_VALIDATOR"
+for address in 10.23.4.5 172.16.0.1 192.168.1.2 100.64.0.1 223.255.255.254; do
+  _valid_ipv4 "$address" || fail "valid unicast IPv4 address rejected: $address"
+done
+for address in 0.0.0.0 0.1.2.3 127.0.0.1 169.254.1.1 224.0.0.1 239.1.2.3 240.0.0.1 255.255.255.255 256.0.0.1 10.01.2.3 1.2.3; do
+  if _valid_ipv4 "$address"; then fail "invalid VPN egress IPv4 address accepted: $address"; fi
+done
 T=$(mktemp -d "${TMPDIR:-/tmp}/fx-yulong-root-proxy.XXXXXX")
 trap 'rm -rf "$T"' EXIT HUP INT TERM
 : > "$T/settings.log"
