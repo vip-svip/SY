@@ -118,7 +118,8 @@ final class FxNativeSkin {
         Palette(int background, int surface, int surfaceVariant, int divider,
                 int primaryText, int secondaryText, int actionBackground,
                 int actionBorder, int accent, int switchOffTrack, int cornerRadiusDp,
-                int inputBorder, float buttonTextSizeSp, int buttonMinHeightDp,
+                int inputBorder, int cardCornerRadiusDp,
+                float buttonTextSizeSp, int buttonMinHeightDp,
                 int buttonMinWidthDp, int buttonHorizontalPaddingDp, int buttonVerticalPaddingDp,
                 float buttonElevationDp, float switchTextSizeSp, int switchHorizontalPaddingDp,
                 int switchVerticalPaddingDp, float choiceTextSizeSp,
@@ -177,11 +178,11 @@ final class FxNativeSkin {
             case FX_LIQUID_NATIVE:
                 return new Palette(0xffe8eef4, 0xddefffff, 0xccefffff,
                         0x66ffffff, 0xff24394c, 0xff718091,
-                        0xf2ffffff, 0x99ffffff, 0xff0088ff, 0xffc5d0dc, 24, 0x88ffffff, 14f, 46, 64, 16, 9, 2f, 15f, 16, 10, 15f, 14f, 48);
+                        0xf2ffffff, 0x99ffffff, 0xff0088ff, 0xffc5d0dc, 24, 0x88ffffff, 24, 14f, 46, 64, 16, 9, 2f, 15f, 16, 10, 15f, 14f, 48);
             case MIUIX_STYLE:
                 return new Palette(0xfff3f5fa, 0xffeaf0fb, 0xffe5ecf8,
                         0xffd8e1ef, 0xff202b3c, 0xff718091,
-                        0xffe5ecf8, 0xffd8e1ef, 0xff3478f6, 0xffc3ccda, 20, 0xffcbd7e8, 14f, 46, 64, 16, 10, 0f, 15f, 16, 10, 15f, 14f, 48);
+                        0xffe5ecf8, 0xffd8e1ef, 0xff3478f6, 0xffc3ccda, 20, 0xffcbd7e8, 20, 14f, 46, 64, 16, 10, 0f, 15f, 16, 10, 15f, 14f, 48);
             case HUAWEI_HARMONY_STYLE:
                 return HarmonySkinRenderer.palette();
             case IOS_CUPERTINO_STYLE:
@@ -190,7 +191,7 @@ final class FxNativeSkin {
             default:
                 return new Palette(0xfff4f6f8, 0xffffffff, 0xffe9eef3,
                         0xffe3e8ee, 0xff17212b, 0xff66727e,
-                        0xffedf1f5, 0xffdce3eb, 0xff1769aa, 0xffc4cbd4, 8, 0xffc6d0dc, 14f, 46, 64, 16, 9, 0f, 15f, 16, 10, 15f, 14f, 48);
+                        0xffedf1f5, 0xffdce3eb, 0xff1769aa, 0xffc4cbd4, 8, 0xffc6d0dc, 12, 14f, 46, 64, 16, 9, 0f, 15f, 16, 10, 15f, 14f, 48);
         }
     }
 
