@@ -45,13 +45,16 @@ retry(){
   path_components_are_safe "$STATE_DIR" && [ -d "$STATE_DIR" ] &&
     [ ! -L "$RETRY_MARKER" ] &&
     { [ ! -e "$RETRY_MARKER" ] || [ -f "$RETRY_MARKER" ]; } || exit 0
-  _retry_tmp="$RETRY_MARKER.tmp.$$"
-  [ ! -e "$_retry_tmp" ] && [ ! -L "$_retry_tmp" ] || exit 0
-  ( umask 077; set -C; printf '%s\n' "$(date '+%m-%d %H:%M:%S' 2>/dev/null)" > "$_retry_tmp" ) 2>/dev/null || exit 0
-  chmod 0600 "$_retry_tmp" 2>/dev/null &&
-    mv -f "$_retry_tmp" "$RETRY_MARKER" 2>/dev/null || {
-      [ -f "$_retry_tmp" ] && [ ! -L "$_retry_tmp" ] && rm -f "$_retry_tmp" 2>/dev/null || :
-    }
+  _retry_tmp=$(mktemp "$RETRY_MARKER.tmp.XXXXXX" 2>/dev/null) || exit 0
+  [ -f "$_retry_tmp" ] && [ ! -L "$_retry_tmp" ] && path_components_are_safe "$_retry_tmp" || {
+    [ -f "$_retry_tmp" ] && [ ! -L "$_retry_tmp" ] && rm -f "$_retry_tmp" 2>/dev/null || :
+    exit 0
+  }
+  if ! ( umask 077; printf '%s\n' "$(date '+%m-%d %H:%M:%S' 2>/dev/null)" > "$_retry_tmp" ) 2>/dev/null ||
+     ! chmod 0600 "$_retry_tmp" 2>/dev/null ||
+     ! mv -f "$_retry_tmp" "$RETRY_MARKER" 2>/dev/null; then
+    [ -f "$_retry_tmp" ] && [ ! -L "$_retry_tmp" ] && rm -f "$_retry_tmp" 2>/dev/null || :
+  fi
   exit 0
 }
 
@@ -83,13 +86,16 @@ if [ -s "$DEPLOYMENT_MARKER" ]; then
   _recorded=$(awk 'NR==1 {print $1}' "$DEPLOYMENT_MARKER" 2>/dev/null)
   [ "$_recorded" = "$_actual" ] || retry "deployment marker does not match the mounted overlay"
 else
-  _marker_tmp="$DEPLOYMENT_MARKER.tmp.$$"
-  [ ! -e "$_marker_tmp" ] && [ ! -L "$_marker_tmp" ] ||
-    retry "deployment marker temporary path already exists or is unsafe"
-  ( umask 077; set -C; printf '%s\n' "$_actual" > "$_marker_tmp" ) 2>/dev/null &&
-    chmod 0600 "$_marker_tmp" 2>/dev/null &&
-    mv -f "$_marker_tmp" "$DEPLOYMENT_MARKER" 2>/dev/null ||
+  _marker_tmp=$(mktemp "$DEPLOYMENT_MARKER.tmp.XXXXXX" 2>/dev/null) ||
+    retry "cannot create a unique deployment marker temporary file"
+  [ -f "$_marker_tmp" ] && [ ! -L "$_marker_tmp" ] && path_components_are_safe "$_marker_tmp" ||
+    retry "deployment marker temporary file is unsafe"
+  if ! ( umask 077; printf '%s\n' "$_actual" > "$_marker_tmp" ) 2>/dev/null ||
+     ! chmod 0600 "$_marker_tmp" 2>/dev/null ||
+     ! mv -f "$_marker_tmp" "$DEPLOYMENT_MARKER" 2>/dev/null; then
+    [ -f "$_marker_tmp" ] && [ ! -L "$_marker_tmp" ] && rm -f "$_marker_tmp" 2>/dev/null || :
     retry "cannot commit verified deployment marker"
+  fi
 fi
 
 chown 0:0 "$APP_DIR" "$APK_PATH" 2>/dev/null || log "WARN: could not normalize system-app overlay ownership"
