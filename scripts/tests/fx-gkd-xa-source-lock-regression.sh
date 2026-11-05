@@ -12,4 +12,20 @@ gitlink="$(git -C "$root" ls-tree HEAD vendor/GKD-XA)"
   exit 1
 }
 grep -Fq '尚未合并进 FX APK' "$root/docs/FX_GKD_XA_1.4.8_INTEGRATION_PLAN.md"
-echo "PASS: GKD-XA v1.4.8 source pin and non-completion boundary are recorded."
+
+# The complete upstream selector source is consumed from the pinned GPL submodule
+# by a standalone JVM library; do not link the upstream gkd-app application module.
+adapter="$root/adhook/gkd-selector-adapter/build.gradle"
+app_build="$root/adhook/app/build.gradle"
+settings="$root/adhook/settings.gradle"
+test_source="$root/adhook/gkd-selector-adapter/src/jvmTest/kotlin/de/privacyguard/adhook/gkd/GkdSelectorSmokeTest.kt"
+test -s "$adapter" && test -s "$app_build" && test -s "$settings" && test -s "$test_source"
+grep -Fq "vendor/GKD-XA/gkd-selector/src/commonMain/kotlin" "$adapter"
+grep -Fq "vendor/GKD-XA/gkd-selector/src/jvmMain/kotlin" "$adapter"
+grep -Fq "jvmToolchain(17)" "$adapter"
+grep -Fq "include ':app', ':gkd-selector-adapter'" "$settings"
+grep -Fq "implementation project(':gkd-selector-adapter')" "$app_build"
+! grep -Fq "project(':gkd-app')" "$app_build"
+grep -Fq "Selector.compile(" "$test_source"
+grep -Fq 'The upstream selector sources are not modified in place' "$root/adhook/gkd-selector-adapter/README.md"
+echo "PASS: GKD-XA v1.4.8 selector source pin, GPL provenance, Java 17 adapter wiring and parser smoke tests are present; upstream app/services remain excluded."
