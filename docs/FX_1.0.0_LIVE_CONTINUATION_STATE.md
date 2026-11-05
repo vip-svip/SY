@@ -5567,3 +5567,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 新增/更新 arbiter 回归：完整模块 fixture、缺少文件 fixture、installed-path 自动发现、阳性 VpnService 命中；状态发布器回归覆盖 true/false/null 和缺少 arbiter；UI 回归覆盖 strict Boolean 读取。
 - 本批尚未在 Android 设备上验证系统实际槽位状态；静态扫描证明的是所列数据面脚本未调用 VpnService API，不证明路由/回程/DNS 数据路径，`route_probe` 仍保留 unverified。
 
+
+
+## 2026-11-06 — Hosts 锁与 Ad 防火墙分类回归闭环
+
+- 最新稳定验证提交 `4d996b44cd24199c59af3c0172576c7a2e9710fc`：Targeted Host Regression run `42094679264` SUCCESS；FX Six UI Modes run `42094679466` SUCCESS；FX Module Runtime Regression run `42094679551` SUCCESS。
+- 模块运行回归中 Release module restore、VPN/DNS/Root Proxy patching、外部 VPN/TUN/DNS/watchdog 回归组，以及 Root Proxy/native VPN/cache-lock 集成回归步骤均完成 SUCCESS。
+- `scripts/tests/fx-atomic-cache-lock-release-regression.sh` 的 Host-only 分支现在会运行 `fx-hosts-cache-lock-regression.sh` 的合成生产函数夹具；Host run `42093993446` 日志确认 `PASS: Hosts cache lock cleanup removes only empty/PID-only locks and refuses FIFO, symlink and unknown contents`。
+- Ad 防火墙分类回归路径在 `4d996b44` 修复为显式传入 `FxYulongFirewallAppFilterPolicyTest.java`，不再从 Java 源文件路径反推测试目录。最新 4d996b44 Host run 全量通过。
+- 验证边界：以上为 GitHub Actions Host 自动化、六套 UI 源码契约和恢复版模块运行测试；仍未完成 Android Gradle 最终 APK 构建、最终 KernelSU ZIP 生成、设备安装/升级/卸载或真机 VPN/TUN 测试。`migration_complete` 仍保持人工门控，不为绕过未完成迁移而触发最终包构建。
