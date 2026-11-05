@@ -90,14 +90,13 @@ cleanup_prefix_tokens = (
     "[ ! -L ",
     "expected_record=$(printf",
     "actual_record=$(cat",
-    r'''if [ \\\"$actual_record\\\" = \\\"$expected_record\\\" ]; then''',
     "un" + "link ",
 )
 cleanup_positions = [cleanup_block.find(token) for token in cleanup_prefix_tokens]
 record_block = cleanup_block[cleanup_block.find("expected_record=$(printf"):]
 if (any(position < 0 for position in cleanup_positions)
         or cleanup_positions != sorted(cleanup_positions)
-        or not all(token in record_block for token in ("$spawned_pid", "$server", "27042", "$spawned_start"))):
+        or not all(token in record_block for token in ("$spawned_pid", "$server", "27042", "$spawned_start", "$actual_record", "$expected_record", " = "))):
     raise SystemExit("FAIL: failed-start cleanup must unlink only its exact regular, non-symlink PID record after process exit")
 
 cleanup_pid_guard = r'''if [ -n \"$spawned_pid\" ] && [ -n \"$spawned_start\" '''
