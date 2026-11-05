@@ -6407,3 +6407,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Reason: post-fs-data executes before PackageManager's system-app scan; a later boot-service install cannot retroactively change the current boot's system-app classification. Failure now remains diagnosable and retry state is retained without an unsafe ordinary-app fallback.
 - GitHub readback verified production blob `4bf9a423bfeede20ffbf82deadd9c1f5b7d30586`, test blob `109d8e5c6b6a390a35a8fedbfd9431416ad66308`, and that `.github/workflows/build-fx-adhook.yml` invokes the regression script.
 - Not yet executed: shell regression on a runner, Android Gradle/APK/KernelSU ZIP build, SELinux behavior on a device, PackageManager scan-order validation on target ROM. Do not mark CI or device verification complete until Actions/device evidence exists.
+
+
+## 2026-11-06 — Hook validation workflow now runs on integration-branch pushes
+
+- CI fix commit: `29a6c625c14d56fe279310d9fa2a611044cb8cfa` adds a `push` trigger limited to `fx-v1.0.0-unified-hook-integration` in `.github/workflows/build-fx-adhook.yml`. Existing PR and manual dispatch triggers remain intact.
+- Root cause: workflow comments described cumulative push validation, but the event list did not include `push`; direct branch commits therefore did not start this workflow. The commit-associated workflow-run connector available here filters to pull-request runs only, so it cannot confirm the new push run. CI status remains unverified until a run is visible in GitHub Actions.
+- Readback verified the push branch filter and preserved PR/manual triggers. This enables future commits to validate the latest cumulative tree; concurrency continues cancelling superseded runs.
