@@ -71,6 +71,26 @@ assert ids == expected, f"canonical six-mode order changed: {ids}"
 cards = re.findall(r"ModeCard\(FxUiMode\.([A-Z_]+)\.storageId", panel)
 assert cards == [name for name, _ in expected], f"settings cards do not match six canonical modes: {cards}"
 assert "六种模式覆盖整个应用" in panel
+expected_titles = [
+    "默认模式 · Default",
+    "旧网页模式 · Classic",
+    "原生液态玻璃 · Glass",
+    "Miuix · 小米澎湃风格",
+    "HarmonyStyle · 华为风格",
+    "CupertinoStyle · iOS 风格",
+]
+for title in expected_titles:
+    assert f'"{title}"' in mode, f"missing user-facing mode title: {title}"
+assert "selectable(" in panel and "role = Role.RadioButton" in panel, (
+    "mode choices must expose radio selection semantics to accessibility services"
+)
+assert "selected = mode == currentMode" in panel, (
+    "radio selection state must reflect the persisted current mode"
+)
+assert ".clickable { onModeSelected(mode) }" not in panel, (
+    "plain clickable cards hide the selected radio state from accessibility services"
+)
+print("PASS: six mode names and accessible selected-radio semantics are covered.")
 print("PASS: exactly six modes, Default first, five legacy skins retained, settings list in matching order.")
 PY
 grep -Fq 'LiquidBottomTabs(' "$shell" || { echo "FAIL: liquid renderer missing"; exit 1; }
