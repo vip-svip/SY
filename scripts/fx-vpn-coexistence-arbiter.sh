@@ -244,14 +244,22 @@ fx_arb_probe_external() {
     _info=$(fx_arb_android_vpn_info) || { FX_ARB_PROBE="unavailable"; return 0; }
   fi
   if [ -n "$_info" ]; then
+    # The injected inventory follows the same single-record contract as the
+    # production dumpsys parser. Multiple lines or delimiters are ambiguous;
+    # silently accepting the first row could bind the wrong VPN owner.
+    case "$_info" in
+      *'
+'*|*'|'*'|'*) FX_ARB_PROBE="ambiguous"; return 0 ;;
+    esac
     _if=${_info%%|*}
     _uid=${_info#*|}
+    case "$_uid" in
+      '' ) ;;
+      *[!0-9]*|0 ) FX_ARB_PROBE="ambiguous"; return 0 ;;
+    esac
     case " $_ifaces " in
       *" $_if "*) FX_ARB_EXT_IF="$_if" ;;
       *) FX_ARB_PROBE="ambiguous" ;;
-    esac
-    case "$_uid" in
-      ''|*[!0-9]*|0) _uid="" ;;
     esac
     [ -n "$FX_ARB_EXT_IF" ] && FX_ARB_EXT_UID="$_uid"
   elif [ -n "$_ifaces" ]; then
