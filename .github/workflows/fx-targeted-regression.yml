@@ -78,6 +78,17 @@ jobs:
           echo "Changed paths:"
           printf '%s\n' "$changed"
 
+          # The restored Release module may carry stale copies of installer/remover
+          # scripts. Mirror canonical repository versions before module-local tests.
+          if [[ "$changed" == "ALL" ]] || grep -Eq '^fx-module/scripts/' <<<"$changed"; then
+            install -D -m 0755 scripts/install_adhook_app.sh fx-module/scripts/install_adhook_app.sh
+            install -D -m 0755 scripts/remove_adhook_app.sh fx-module/scripts/remove_adhook_app.sh
+            install -D -m 0755 scripts/tests/adhook-app-installer-regression.sh fx-module/scripts/tests/adhook-app-installer-regression.sh
+            cmp -s scripts/install_adhook_app.sh fx-module/scripts/install_adhook_app.sh
+            cmp -s scripts/remove_adhook_app.sh fx-module/scripts/remove_adhook_app.sh
+            cmp -s scripts/tests/adhook-app-installer-regression.sh fx-module/scripts/tests/adhook-app-installer-regression.sh
+          fi
+
           # Catch syntax errors in changed host scripts without invoking a full Android build.
           while IFS= read -r file; do
             [[ -f "$file" ]] || continue

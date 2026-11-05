@@ -1,0 +1,6 @@
+Build variant: release
+Signing mode: release-signed
+Build/signing mode: release-signed
+Dual entrypoints: legacy Xposed API 93+ and modern libxposed API 101
+versionCode: 10000
+Deployment: one ordinary application package installed by PackageManager
