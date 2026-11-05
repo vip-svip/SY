@@ -64,6 +64,8 @@ assert "完整 Smali 检索未发现该键的读取/消费逻辑" in global_page
 compact_main = "".join(main.split())
 assert 'getSharedPreferences("digXposed",MODE_PRIVATE).getBoolean("active_tip",true)' in compact_main, "Dia activation banner must honor the migrated active_tip preference (whitespace-insensitive)"
 assert "FxLsposedScopeBridge.isConnected()" in main, "Dia activation banner must read the real libXposed service connection"
+assert "if (hookHubVisible && hookHubLsposedState != null)" in main, "returning from Dia settings must refresh the existing activation banner"
+assert "refreshHookHubLsposedStatus(hookHubLsposedState)" in main, "active_tip changes must update the existing banner without creating a duplicate"
 assert "不代表 FX Hook 已注入" in main and "服务连接状态不等同于目标进程注入状态" in main, "banner must not confuse service connectivity with verified target process injection"
 assert "addUnavailableAction(\"设置语言\"" in global_page, "language must stay unavailable until unified locale resources/lifecycle are migrated"
 assert "showLanguagePicker" not in global_page and "addStoredSwitch(\"显示 LSPosed 激活状态提示\"" in global_page, "only a preference with a real native consumer may be enabled"
