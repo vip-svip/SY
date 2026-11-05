@@ -1,148 +1,120 @@
-#!/usr/bin/env python3
-"""Replace the restored Hosts cache mkdir lock with a POSIX noclobber file lock."""
-from pathlib import Path
-import sys
-
-module = Path(sys.argv[1] if len(sys.argv) > 1 else "fx-module")
-target = module / "scripts/apply.sh"
-if not target.is_file():
-    raise SystemExit(f"restored FX Hosts apply source missing: {target}")
-
-source = target.read_text(encoding="utf-8")
-marker = "# FX_HOSTS_FILE_LOCK_V3"
-required_lock_tokens = (
-    '_hf_release="$_hf_lock.release.$$"',
-    'mv "$_hf_lock" "$_hf_release"',
-    'if [ "$_hf_release_owner" = "$$" ]; then',
-    '_hf_stale="$_hf_lock.stale.$$.$_hf_wait"',
-    'mv "$_hf_lock" "$_hf_stale"',
-    'if [ "$_hf_moved_owner" = "$_hf_owner" ]',
-)
-if marker in source and all(token in source for token in required_lock_tokens):
-    print("Hosts cache already uses the complete POSIX atomic file lock.")
-    raise SystemExit(0)
-if marker in source:
-    print("Existing V3 Hosts lock is incomplete; repairing the entire lock block.")
-
-start_token = '  _hf_lock="$PG/cache/rules/.lock.$_hf_key"\n'
-end_token = "  # Keep a verified previous generation."
-start = source.find(start_token)
-end = source.find(end_token, start + len(start_token)) if start >= 0 else -1
-if start < 0 or end < 0:
-    raise SystemExit("Hosts cache lock block anchors missing; refusing a partial rewrite")
-
-new_block = r'''  # FX_HOSTS_FILE_LOCK_V3
-  # noclobber redirection provides portable exclusive file creation. The reader
-  # also accepts legacy PID-bearing directories during module upgrades.
+#!/bin/sh
+set -eu
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
+PATCHER="$ROOT/fx-patches/patch_hosts_file_lock.py"
+fail(){ echo "FAIL: $*" >&2; exit 1; }
+[ -s "$PATCHER" ] || fail "Hosts cache lock patcher missing"
+python3 -m py_compile "$PATCHER" || fail "Hosts cache lock patcher Python syntax invalid"
+T=$(mktemp -d "${TMPDIR:-/tmp}/fx-hosts-cache-lock.XXXXXX")
+trap 'rm -rf "$T"' EXIT HUP INT TERM
+MOD="$T/module"
+mkdir -p "$MOD/scripts"
+if [ -n "${1:-}" ]; then
+  [ -s "$1/scripts/apply.sh" ] || fail "restored apply.sh missing"
+  cp "$1/scripts/apply.sh" "$MOD/scripts/apply.sh"
+else
+  cat > "$MOD/scripts/apply.sh" <<'APPLY'
+#!/system/bin/sh
+apply_hosts_cache() {
   _hf_lock="$PG/cache/rules/.lock.$_hf_key"
-  _hf_lock_held=0
+  # Legacy lock body replaced by the patcher.
+  # Keep a verified previous generation.
+  return 0
+}
+APPLY
+fi
+chmod 0755 "$MOD/scripts/apply.sh"
+python3 "$PATCHER" "$MOD" >/dev/null || fail "Hosts cache patcher rejected its apply.sh anchors"
+first_sha=$(sha256sum "$MOD/scripts/apply.sh" | awk '{print $1}')
+python3 "$PATCHER" "$MOD" >/dev/null || fail "Hosts cache patcher second pass failed"
+second_sha=$(sha256sum "$MOD/scripts/apply.sh" | awk '{print $1}')
+[ "$first_sha" = "$second_sha" ] || fail "Hosts cache patcher changed apply.sh on its second pass"
+sh -n "$MOD/scripts/apply.sh" || fail "patched apply.sh shell syntax invalid"
+grep -Fq '# FX_HOSTS_FILE_LOCK_V3' "$MOD/scripts/apply.sh" || fail "V3 lock marker missing"
+grep -Fq 'if [ "$_hf_release_owner" = "$" ]; then' "$MOD/scripts/apply.sh" || fail "Hosts release must verify exact PID ownership"
+if grep -Fq 'rm -rf "$_hf_path"' "$MOD/scripts/apply.sh"; then
+  fail "legacy lock cleanup still recursively removes unknown directory contents"
+fi
+HELPERS="$T/lock-helpers.sh"
+sed -n '/^  _hf_read_lock_owner() {/,/^  }/p' "$MOD/scripts/apply.sh" > "$HELPERS"
+sed -n '/^  _hf_remove_lock_path() {/,/^  }/p' "$MOD/scripts/apply.sh" >> "$HELPERS"
+[ -s "$HELPERS" ] || fail "production lock helpers could not be extracted"
+sh -n "$HELPERS" || fail "extracted lock helpers shell syntax invalid"
+. "$HELPERS"
 
-  _hf_read_lock_owner() {
-    _hf_path=$1
-    [ ! -L "$_hf_path" ] || return 1
-    if [ -d "$_hf_path" ]; then
-      # A legacy directory lock is trusted only when its owner record is a
-      # regular file. Never cat a FIFO, socket, device or symlink here.
-      [ ! -L "$_hf_path/pid" ] && [ -f "$_hf_path/pid" ] || return 1
-      cat "$_hf_path/pid" 2>/dev/null
-    elif [ -f "$_hf_path" ]; then
-      cat "$_hf_path" 2>/dev/null
-    else
-      return 1
-    fi
-  }
+# Empty lock directory, PID-only legacy directory and canonical file lock are safe to retire.
+mkdir "$T/empty-lock"
+_hf_remove_lock_path "$T/empty-lock" || fail "empty legacy lock directory was not removed"
+[ ! -e "$T/empty-lock" ] || fail "empty lock directory remains"
+mkdir "$T/pid-lock"
+printf '12345\n' > "$T/pid-lock/pid"
+[ "$(_hf_read_lock_owner "$T/pid-lock")" = 12345 ] || fail "regular legacy PID owner was not read"
+_hf_remove_lock_path "$T/pid-lock" || fail "PID-only legacy lock directory was not removed"
+[ ! -e "$T/pid-lock" ] || fail "PID-only lock directory remains"
+printf '12345\n' > "$T/file-lock"
+_hf_remove_lock_path "$T/file-lock" || fail "canonical file lock was not removed"
+[ ! -e "$T/file-lock" ] || fail "canonical file lock remains"
 
-  _hf_remove_lock_path() {
-    _hf_path=$1
-    [ ! -L "$_hf_path" ] || return 1
-    if [ -d "$_hf_path" ]; then
-      # Retire only an empty directory or one containing exactly a regular,
-      # non-symlink PID file. Unknown entries are user data, not lock debris.
-      _hf_found_pid=0
-      for _hf_entry in "$_hf_path"/* "$_hf_path"/.[!.]* "$_hf_path"/..?*; do
-        [ -e "$_hf_entry" ] || [ -L "$_hf_entry" ] || continue
-        [ "$_hf_entry" = "$_hf_path/pid" ] || return 1
-        [ ! -L "$_hf_entry" ] && [ -f "$_hf_entry" ] || return 1
-        _hf_found_pid=1
-      done
-      if [ "$_hf_found_pid" = 1 ]; then
-        [ ! -L "$_hf_path/pid" ] && [ -f "$_hf_path/pid" ] || return 1
-        rm -f "$_hf_path/pid" 2>/dev/null || return 1
-      fi
-      rmdir "$_hf_path" 2>/dev/null
-    elif [ -f "$_hf_path" ]; then
-      rm -f "$_hf_path" 2>/dev/null
-    else
-      return 1
-    fi
-  }
+# Unknown and hidden entries are not lock debris and must survive cleanup attempts.
+mkdir -p "$T/unknown-lock/nested"
+printf '12345\n' > "$T/unknown-lock/pid"
+printf 'keep\n' > "$T/unknown-lock/nested/sentinel"
+if _hf_remove_lock_path "$T/unknown-lock"; then fail "lock with nested unknown data was removed"; fi
+grep -Fqx keep "$T/unknown-lock/nested/sentinel" || fail "nested unknown data was deleted"
+[ -s "$T/unknown-lock/pid" ] || fail "PID was removed despite unknown nested data"
+mkdir "$T/hidden-lock"
+printf '12345\n' > "$T/hidden-lock/pid"
+printf 'hidden\n' > "$T/hidden-lock/.keep"
+if _hf_remove_lock_path "$T/hidden-lock"; then fail "lock with hidden unknown data was removed"; fi
+grep -Fqx hidden "$T/hidden-lock/.keep" || fail "hidden unknown data was deleted"
 
-  _hf_unlock() {
-    [ "$_hf_lock_held" = 1 ] || return 0
-    _hf_owner=$(_hf_read_lock_owner "$_hf_lock" 2>/dev/null || :)
-    if [ "$_hf_owner" = "$$" ]; then
-      _hf_release="$_hf_lock.release.$$"
-      _hf_release_try=0
-      while { [ -e "$_hf_release" ] || [ -L "$_hf_release" ]; } && [ "$_hf_release_try" -lt 20 ]; do
-        _hf_release_try=$((_hf_release_try+1))
-        _hf_release="$_hf_lock.release.$$.$_hf_release_try"
-      done
-      if [ ! -e "$_hf_release" ] && [ ! -L "$_hf_release" ] &&
-         mv "$_hf_lock" "$_hf_release" 2>/dev/null; then
-        _hf_release_owner=$(_hf_read_lock_owner "$_hf_release" 2>/dev/null || :)
-        if [ "$_hf_release_owner" = "$$" ]; then
-          _hf_remove_lock_path "$_hf_release" || :
-        fi
-      fi
-    fi
-    _hf_lock_held=0
-    return 0
-  }
+# A symlinked PID or outer lock directory must be rejected without touching its target.
+mkdir "$T/symlink-pid-lock"
+printf 'outside\n' > "$T/pid-target"
+ln -s "$T/pid-target" "$T/symlink-pid-lock/pid"
+if _hf_read_lock_owner "$T/symlink-pid-lock" >/dev/null 2>&1; then fail "PID symlink was followed"; fi
+if _hf_remove_lock_path "$T/symlink-pid-lock"; then fail "PID symlink lock was removed"; fi
+[ -L "$T/symlink-pid-lock/pid" ] || fail "PID symlink was replaced"
+grep -Fqx outside "$T/pid-target" || fail "PID symlink target was modified"
+mkdir "$T/outer-target"
+printf '12345\n' > "$T/outer-target/pid"
+ln -s "$T/outer-target" "$T/outer-link"
+if _hf_remove_lock_path "$T/outer-link"; then fail "outer lock symlink was removed"; fi
+[ -s "$T/outer-target/pid" ] || fail "outer symlink target lock was modified"
 
-  _hf_wait=0
-  while :; do
-    if [ ! -L "$_hf_lock" ] && [ ! -e "$_hf_lock" ]; then
-      if ( umask 077; set -C; printf '%s\n' "$$" > "$_hf_lock" ) 2>/dev/null; then
-        _hf_lock_held=1
-        break
-      fi
-    fi
+# FIFO PID records must be refused before cat; timeout proves the reader does not block.
+command -v mkfifo >/dev/null 2>&1 || fail "mkfifo is required for FIFO lock regression"
+command -v timeout >/dev/null 2>&1 || fail "timeout is required for FIFO non-blocking regression"
+mkdir "$T/fifo-lock"
+mkfifo "$T/fifo-lock/pid"
+set +e
+timeout 2 sh -c '. "$1"; _hf_read_lock_owner "$2" >/dev/null 2>&1' sh "$HELPERS" "$T/fifo-lock"
+fifo_rc=$?
+set -e
+[ "$fifo_rc" -ne 124 ] || fail "FIFO PID reader blocked instead of rejecting"
+[ "$fifo_rc" -ne 0 ] || fail "FIFO PID record was accepted"
+if _hf_remove_lock_path "$T/fifo-lock"; then fail "FIFO PID lock directory was removed"; fi
+[ -p "$T/fifo-lock/pid" ] || fail "FIFO PID record was removed"
 
-    _hf_owner=$(_hf_read_lock_owner "$_hf_lock" 2>/dev/null || :)
-    case "$_hf_owner" in
-      ''|*[!0-9]*) : ;;
-      *)
-        if ! kill -0 "$_hf_owner" 2>/dev/null; then
-          _hf_owner2=$(_hf_read_lock_owner "$_hf_lock" 2>/dev/null || :)
-          if [ "$_hf_owner2" = "$_hf_owner" ] && ! kill -0 "$_hf_owner2" 2>/dev/null; then
-            _hf_stale="$_hf_lock.stale.$$.$_hf_wait"
-            if [ ! -e "$_hf_stale" ] && [ ! -L "$_hf_stale" ] &&
-               mv "$_hf_lock" "$_hf_stale" 2>/dev/null; then
-              _hf_moved_owner=$(_hf_read_lock_owner "$_hf_stale" 2>/dev/null || :)
-              if [ "$_hf_moved_owner" = "$_hf_owner" ] &&
-                 ! kill -0 "$_hf_moved_owner" 2>/dev/null; then
-                _hf_remove_lock_path "$_hf_stale" || :
-              elif [ ! -e "$_hf_lock" ] && [ ! -L "$_hf_lock" ]; then
-                # The owner changed between the recheck and rename; restore the
-                # moved path instead of deleting a possibly live lock.
-                mv "$_hf_stale" "$_hf_lock" 2>/dev/null || :
-              fi
-            fi
-          fi
-        fi
-        ;;
-    esac
+# A stale V3 marker must not cause the patcher to skip an incomplete lock body.
+PARTIAL="$T/partial-module"
+mkdir -p "$PARTIAL/scripts"
+cat > "$PARTIAL/scripts/apply.sh" <<'PARTIAL_APPLY'
+#!/bin/sh
+apply_hosts_cache() {
+  _hf_lock="$PG/cache/rules/.lock.$_hf_key"
+  # FX_HOSTS_FILE_LOCK_V3
+  if [ "$_hf_release_owner" = "$" ]; then
+    rm -f "$_hf_release"
+  fi
+  # Keep a verified previous generation.
+}
+PARTIAL_APPLY
+python3 "$PATCHER" "$PARTIAL" >/dev/null || fail "Hosts patcher could not repair an incomplete V3 marker"
+grep -Fq 'mv "$_hf_lock" "$_hf_release"' "$PARTIAL/scripts/apply.sh" || fail "incomplete V3 marker was not repaired with atomic release rename"
+grep -Fq 'if [ "$_hf_release_owner" = "$$" ]; then' "$PARTIAL/scripts/apply.sh" || fail "repaired V3 lock is missing exact PID ownership validation"
+partial_sha=$(sha256sum "$PARTIAL/scripts/apply.sh" | awk '{print $1}')
+python3 "$PATCHER" "$PARTIAL" >/dev/null || fail "Hosts patcher second pass on repaired V3 marker failed"
+[ "$partial_sha" = "$(sha256sum "$PARTIAL/scripts/apply.sh" | awk '{print $1}')" ] || fail "repaired V3 lock patch is not idempotent"
 
-    _hf_wait=$((_hf_wait+1))
-    if [ "$_hf_wait" -ge 200 ]; then
-      pg_log "hosts: cache lock busy; refusing concurrent cache write for [subscription URL redacted]"
-      return 1
-    fi
-    sleep 0.1 2>/dev/null || sleep 1
-  done
-
-'''
-updated = source[:start] + new_block + source[end:]
-target.write_text(updated, encoding="utf-8")
-target.chmod(0o755)
-print("Installed POSIX noclobber Hosts cache lock.")
+echo "PASS: Hosts cache lock cleanup removes only empty/PID-only locks and refuses FIFO, symlink and unknown contents"
