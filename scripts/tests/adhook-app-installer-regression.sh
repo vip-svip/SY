@@ -77,6 +77,17 @@ grep -Fq 'install -D -m 0755 scripts/install_adhook_app.sh fx-module/scripts/ins
 grep -Fq 'install -D -m 0755 scripts/remove_adhook_app.sh fx-module/scripts/remove_adhook_app.sh' "$KSU_WORKFLOW" || fail "KernelSU restore stage does not replace the Release-era remover with the canonical remover"
 grep -Fq 'cmp -s scripts/install_adhook_app.sh fx-module/scripts/install_adhook_app.sh' "$KSU_WORKFLOW" || fail "KernelSU package does not verify canonical installer sync"
 grep -Fq 'cmp -s scripts/remove_adhook_app.sh fx-module/scripts/remove_adhook_app.sh' "$KSU_WORKFLOW" || fail "KernelSU package does not verify canonical remover sync"
+python3 - "$KSU_WORKFLOW" <<'PY'
+from pathlib import Path
+import sys
+workflow = Path(sys.argv[1]).read_text(encoding="utf-8")
+backup = workflow.index('install -m 0755 fx-module/post-fs-data.sh "$RUNNER_TEMP/fx-canonical-post-fs-data.sh"')
+release_copy = workflow.index('cp -a "$source_root/." fx-module/', backup)
+restore = workflow.index('install -m 0755 "$RUNNER_TEMP/fx-canonical-post-fs-data.sh" fx-module/post-fs-data.sh', release_copy)
+verify = workflow.index('cmp -s "$RUNNER_TEMP/fx-canonical-post-fs-data.sh" fx-module/post-fs-data.sh', restore)
+assert backup < release_copy < restore < verify, \
+    "Release restore must preserve and restore the reviewed SELinux post-fs-data handler"
+PY
 if [ "$MODULE" != "$ROOT" ]; then
   if cmp -s "$ROOT/scripts/install_adhook_app.sh" "$MODULE/scripts/install_adhook_app.sh" \
       && cmp -s "$ROOT/scripts/remove_adhook_app.sh" "$MODULE/scripts/remove_adhook_app.sh"; then

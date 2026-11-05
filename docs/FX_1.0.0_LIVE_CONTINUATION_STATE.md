@@ -5759,3 +5759,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 - Host 再次运行已通过 12 项 Ad snapshot policy 测试以及前面的草稿/页面状态检查；随后失败在既有 DNS onDestroy 检查，其 Python 字符串把 `\\n` 作为字面反斜杠，而不是换行，无法匹配源码中的相邻两行。
 - 现直接截取 DNS `onDestroy()` 方法体，并比较 `loadGeneration.incrementAndGet()` 与 `worker.shutdownNow()` 的实际顺序，保持原生命周期安全要求且不依赖换行转义。
+
+
+### KernelSU Release restore 后保留 canonical post-fs-data（2026-11-06）
+
+- KernelSU package run `42097408806` 在安装器回归阶段失败：回归读取到 Release ZIP 中旧版 `fx-module/post-fs-data.sh`，缺少 `/system/app/FX` 路径派生的 `restorecon -RF` 处理，导致断言 `system-app overlay does not apply path-derived SELinux context`。
+- KSU 恢复步骤现在在覆盖模块目录前，把 checkout 中受审阅的 `fx-module/post-fs-data.sh` 保存到 `$RUNNER_TEMP`；Release 解包后恢复该文件并 `cmp -s` 字节核对。这样安装器/boot post-fs-data 检查针对的是准备打包的 canonical 实现，而不是 Release 历史副本。
+- 安装器 Host 回归已经由 `306fc0d1` 调整为优先测试根目录 canonical scripts；Host 不再把 partial `fx-module/` 快照误判为已同步产物。真实模块副本同步仍由 APK/KSU workflow 的 install+cmp 步骤负责。
+- 当前最新 APK/模块与 UI 的 CI 结果需继续按提交 HEAD 核对；本次未触发受 `migration_complete` 控制的最终 KernelSU package dispatch，也未做设备端安装、SELinux 或 overlay mount 验收。

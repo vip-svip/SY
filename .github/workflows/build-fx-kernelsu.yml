@@ -52,6 +52,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          # The Release archive can carry an older post-fs-data SELinux handler.
+          # Preserve the reviewed checkout copy before restoring the archive, then
+          # put that exact source back into the package module.
+          canonical_post_fs_data="$RUNNER_TEMP/fx-canonical-post-fs-data.sh"
+          [[ -s fx-module/post-fs-data.sh ]] || { echo "::error::Canonical post-fs-data.sh is missing from checkout."; exit 1; }
+          install -m 0755 fx-module/post-fs-data.sh "$canonical_post_fs_data"
           required=(
             module.prop customize.sh post-fs-data.sh service.sh uninstall.sh
             scripts/apply.sh scripts/default.conf scripts/util.sh
@@ -79,6 +85,8 @@ jobs:
             fi
             cp -a "$source_root/." fx-module/
           fi
+          install -m 0755 "$canonical_post_fs_data" fx-module/post-fs-data.sh
+          cmp -s "$canonical_post_fs_data" fx-module/post-fs-data.sh
           test -s fx-module/scripts/apply.sh
           test -s fx-module/scripts/util.sh
           # The stable KernelSU ZIP retires the old WebUI URL with a tiny notice page.
