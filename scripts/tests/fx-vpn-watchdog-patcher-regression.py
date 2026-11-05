@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Regression coverage for the release-archive external VPN watchdog patcher."""
+"""Regression coverage for the release-archive external VPN watchdog patcher.
+
+The release archive remains the source of truth for the watcher implementation.
+"""
 from pathlib import Path
 import subprocess
 import sys
