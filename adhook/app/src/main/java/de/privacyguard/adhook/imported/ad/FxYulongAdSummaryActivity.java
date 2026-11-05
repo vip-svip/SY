@@ -75,7 +75,7 @@ public final class FxYulongAdSummaryActivity extends de.privacyguard.adhook.FxNa
 
         status = text("正在读取本机广告过滤配置与 DNS 查询日志…", 13, 0xff526170, false);
         card("本机数据口径",
-                "汇总 FX 当前生效的游龙广告过滤主开关、规则源与域名名单；DNS 累计只返回本机当前保留日志的数字计数，不返回域名、客户端 IP 或原始记录。日志默认关闭，须由用户主动开启。",
+                "汇总 FX 当前生效的FX 广告过滤主开关、规则源与域名名单；DNS 累计只返回本机当前保留日志的数字计数，不返回域名、客户端 IP 或原始记录。日志默认关闭，须由用户主动开启。",
                 status, button("刷新总结", this::load),
                 button("查看 DNS 查询日志", () -> startActivity(new Intent(this, FxYulongDnsActivity.class))),
                 button("查看分应用流量", () -> startActivity(new Intent(this, FxYulongAppStatsActivity.class))));
