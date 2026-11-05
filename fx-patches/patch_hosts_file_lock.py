@@ -11,12 +11,13 @@ if not target.is_file():
 source = target.read_text(encoding="utf-8")
 marker = "# FX_HOSTS_FILE_LOCK_V3"
 required_lock_tokens = (
-    '_hf_release="$_hf_lock.release.$$"',
     'mv "$_hf_lock" "$_hf_release"',
-    'if [ "$_hf_release_owner" = "$$" ]; then',
-    '_hf_stale="$_hf_lock.stale.$$.$_hf_wait"',
+    'if [ "$_hf_release_owner" = ',
+    '_hf_stale="$_hf_lock.stale.',
     'mv "$_hf_lock" "$_hf_stale"',
     'if [ "$_hf_moved_owner" = "$_hf_owner" ]',
+    '( umask 077; set -C; printf ',
+    '[ ! -L "$_hf_lock" ] && [ ! -e "$_hf_lock" ]',
 )
 if marker in source and all(token in source for token in required_lock_tokens):
     print("Hosts cache already uses the complete POSIX atomic file lock.")
