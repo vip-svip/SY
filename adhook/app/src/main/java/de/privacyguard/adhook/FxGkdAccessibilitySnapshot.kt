@@ -103,7 +103,6 @@ internal class FxGkdAccessibilitySnapshot private constructor(
                 for (node in handles.asReversed()) {
                     try { node.recycle() } catch (_: RuntimeException) {}
                 }
-                emptyList<AccessibilityNodeInfo>()
                 null
             }
         }
