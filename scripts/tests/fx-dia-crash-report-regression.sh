@@ -16,6 +16,7 @@ DUMP_HOST_TEST="$ROOT/scripts/tests/FxDiaCrashDumpDirectoryHostTest.java"
 JNI_WRAPPER="$APP/java/com/babyte/breakpad/BaByteBreakpad.java"
 JNI_CALLBACK="$APP/java/com/babyte/breakpad/callback/NativeCrashCallback.java"
 UNIT="$ROOT/adhook/app/src/test/java/de/privacyguard/adhook/imported/dia/FxDiaCrashRecordTest.java"
+POLICY_UNIT="$ROOT/adhook/app/src/test/java/de/privacyguard/adhook/imported/dia/FxDiaCrashCapturePolicyTest.java"
 HOST_JNI_TEST="$ROOT/scripts/tests/DiaBreakpadJniContractHostTest.java"
 HOST_EXPORT_TEST="$ROOT/scripts/tests/DiaCrashExportFormatterHostTest.java"
 WORKFLOW="$ROOT/.github/workflows/build-fx-adhook.yml"
@@ -23,14 +24,14 @@ POLICY="$DIA/FxDiaCrashCapturePolicy.java"
 REDACTOR="$DIA/FxDiaCrashRedactor.java"
 FORMATTER="$DIA/FxDiaCrashExportFormatter.java"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
-for file in "$MAIN" "$MANIFEST" "$APPLICATION" "$STORE" "$RECORD" "$ACTIVITY" "$UNIT" "$POLICY" "$REDACTOR" "$FORMATTER" "$NATIVE_CAPTURE" "$DUMP_DIRECTORY" "$DUMP_HOST_TEST" "$JNI_WRAPPER" "$JNI_CALLBACK" "$HOST_JNI_TEST" "$HOST_EXPORT_TEST"; do
+for file in "$MAIN" "$MANIFEST" "$APPLICATION" "$STORE" "$RECORD" "$ACTIVITY" "$UNIT" "$POLICY_UNIT" "$POLICY" "$REDACTOR" "$FORMATTER" "$NATIVE_CAPTURE" "$DUMP_DIRECTORY" "$DUMP_HOST_TEST" "$JNI_WRAPPER" "$JNI_CALLBACK" "$HOST_JNI_TEST" "$HOST_EXPORT_TEST"; do
   [ -s "$file" ] || fail "Dia crash migration source missing: $file"
 done
-python3 - "$MAIN" "$MANIFEST" "$APPLICATION" "$STORE" "$RECORD" "$ACTIVITY" "$UNIT" "$REDACTOR" "$FORMATTER" "$DUMP_DIRECTORY" "$NATIVE_CAPTURE" "$JNI_WRAPPER" "$JNI_CALLBACK" "$WORKFLOW" "$HOST_EXPORT_TEST" <<'PY'
+python3 - "$MAIN" "$MANIFEST" "$APPLICATION" "$STORE" "$RECORD" "$ACTIVITY" "$UNIT" "$POLICY_UNIT" "$REDACTOR" "$FORMATTER" "$DUMP_DIRECTORY" "$NATIVE_CAPTURE" "$JNI_WRAPPER" "$JNI_CALLBACK" "$WORKFLOW" "$HOST_EXPORT_TEST" <<'PY'
 from pathlib import Path
 import sys
 import xml.etree.ElementTree as ET
-main, manifest_path, application, store, record, activity, unit, redactor, formatter, dump_directory, native_capture, jni_wrapper, jni_callback, workflow, host_export_test = [
+main, manifest_path, application, store, record, activity, unit, policy_unit, redactor, formatter, dump_directory, native_capture, jni_wrapper, jni_callback, workflow, host_export_test = [
     Path(p).read_text(encoding="utf-8") for p in sys.argv[1:]
 ]
 ns = "{http://schemas.android.com/apk/res/android}"
@@ -113,9 +114,10 @@ for token in ("ClipboardManager", "ClipData.newPlainText", "Intent.ACTION_SEND",
               "原始 crash.log 保留在 FX 私有 files 目录"):
     assert token in activity, f"native report operation missing: {token}"
 for token in ("hexEncodingIsByteAccurateAndReversible", "recordFieldsAreBounded",
-              "rawAndHexReportsAreDistinctAndClearlyLabeled",
-              "explicitEnableRequiresBothLegacyAndCurrentVetoesToBeCleared"):
+              "rawAndHexReportsAreDistinctAndClearlyLabeled"):
     assert token in unit, f"crash report unit coverage missing: {token}"
+assert "captureIsEnabledOnlyWhenBothLegacyAndCurrentVetoesAreClear" in policy_unit, "crash capture policy truth table coverage missing"
+assert "explicitEnableRequiresBothLegacyAndCurrentVetoesToBeCleared" in policy_unit, "explicit re-enable veto coverage missing"
 for token in (
     'STATE_SCROLL_Y = "fx_dia_crash_report_scroll_y"',
     'STATE_UNREADABLE_PENDING_REPORT = "fx_dia_crash_unreadable_pending_report"',
