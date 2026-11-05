@@ -1,0 +1,143 @@
+name: FX Module Runtime Regression
+
+on:
+  push:
+    branches:
+      - fx-v1.0.0-unified-hook-integration
+    paths:
+      - "fx-patches/**"
+      - "fx-module/**"
+      - "scripts/tests/**"
+      - "scripts/native-vpn-config.sh"
+      - "scripts/yulong-root-proxy.sh"
+      - ".github/workflows/fx-module-runtime-regression.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fx-module-runtime-regression-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  vpn-dns-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore the published FX module runtime and APK WebUI
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/FX-v1.0.0.zip"
+          unpack="$RUNNER_TEMP/fx-module-unpack"
+          module="$RUNNER_TEMP/fx-module"
+          curl --fail --silent --show-error --location --retry 5 --retry-delay 2 --retry-max-time 90 \
+            https://github.com/vip-svip/SY/releases/download/1.0.0/FX-v1.0.0.zip \
+            -o "$archive"
+          unzip -tq "$archive"
+          mkdir -p "$unpack" "$module"
+          unzip -q "$archive" -d "$unpack"
+          module_prop="$(find "$unpack" -maxdepth 3 -type f -name module.prop -print -quit)"
+          [[ -n "$module_prop" ]] || { echo "::error::Published module.prop is missing"; exit 1; }
+          source_root="$(dirname "$module_prop")"
+          cp -a "$source_root/." "$module/"
+          [[ -s "$module/optional/FXUnifiedHook.apk" ]] || { echo "::error::Published FX APK is missing from the module"; exit 1; }
+          mkdir -p "$module/webroot"
+          unzip -p "$module/optional/FXUnifiedHook.apk" assets/webroot/index.html > "$module/webroot/index.html"
+          test "$(wc -c < "$module/webroot/index.html")" -gt 500000
+          echo "FX_MODULE_RUNTIME=$module" >> "$GITHUB_ENV"
+          echo "Restored module runtime: $(find "$module/scripts" -maxdepth 1 -type f | wc -l) top-level scripts"
+          echo "Published TUN regression contract:"
+          sed -n '1,12p;190,212p' "$module/scripts/tests/v1.0.0-vpncore-bind-interface-config-generation-regression.sh"
+      - name: Apply the VPN, DNS, and Root proxy source patches
+        shell: bash
+        run: |
+          set -euo pipefail
+          module="$FX_MODULE_RUNTIME"
+          install -D -m 0755 scripts/native-vpn-config.sh "$module/scripts/native-vpn-config.sh"
+          install -D -m 0755 scripts/fx-vpn-coexistence-arbiter.sh "$module/scripts/fx-vpn-coexistence-arbiter.sh"
+          python3 fx-patches/patch_vpn_apps.py "$module"
+          python3 fx-patches/patch_vpn_direct_core_stop_result.py "$module"
+          python3 fx-patches/patch_vpn_core_stop_guard.py "$module"
+          python3 fx-patches/patch_vpn_toggle_external_state.py "$module"
+          python3 fx-patches/patch_vpn_toggle_mobile_layout.py "$module"
+          python3 fx-patches/patch_vpn_toggle_transparent.py "$module"
+          python3 fx-patches/patch_vpn_toggle_live_state.py "$module"
+          python3 fx-patches/patch_native_vpn_api.py "$module"
+          python3 fx-patches/patch_vpncore_default_node.py "$module"
+          python3 -m py_compile fx-patches/patch_vpn_tun_external_fallback.py
+          python3 fx-patches/patch_vpn_tun_external_fallback.py "$module"
+          python3 fx-patches/patch_vpn_yaml_inline_comments.py "$module"
+          python3 fx-patches/patch_yulong_root_proxy.py "$module" .
+          python3 fx-patches/patch_vpn_external_watchdog.py "$module"
+          python3 fx-patches/patch_atomic_cache_lock_release.py "$module"
+          echo "Published uninstall local-DNS hooks:"
+          sed -n '100,175p' "$module/uninstall.sh"
+          python3 fx-patches/patch_localdns_uninstall_shutdown.py "$module"
+          python3 fx-patches/patch_yulong_dns_upstreams.py "$module"
+      - name: Finalize Yulong DNS and external VPN watchdog patches
+        shell: bash
+        run: |
+          set -euo pipefail
+          module="$FX_MODULE_RUNTIME"
+          python3 scripts/tests/fx-vpn-watchdog-patcher-regression.py
+          python3 fx-patches/patch_yulong_ad_master.py "$module"
+          python3 fx-patches/patch_vpn_coexistence_status.py "$module"
+          sh scripts/tests/fx-vpn-coexistence-arbiter-regression.sh "$module/scripts/fx-vpn-coexistence-arbiter.sh"
+          python3 scripts/tests/fx-vpn-coexistence-status-regression.py
+          python3 fx-patches/patch_yulong_ad_dns_logs.py "$module"
+          for file in "$module/scripts/apply.sh" "$module/scripts/status.sh" "$module/scripts/fx-vpn-coexistence-arbiter.sh" "$module/scripts/vpncore.sh" "$module/scripts/vpn-external-watchdog.sh" "$module/scripts/localdns-watchdog.sh"; do
+            test -s "$file"
+            sh -n "$file"
+          done
+      - name: Run external VPN coexistence, TUN, DNS, and watchdog regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          module="$FX_MODULE_RUNTIME"
+          tests=(
+            v1.0.0-vpn-coexistence-regression.sh
+            v1.0.0-vpn-coexistence-auto-route-guard-regression.sh
+            v1.0.0-vpncore-bind-interface-config-generation-regression.sh
+            v1.0.0-vpncore-dns-block-rule-generation-regression.sh
+            v1.0.0-external-vpn-probe-owner-ui-consistency-regression.sh
+            v1.0.0-external-vpn-probe-ui-fail-safe-regression.sh
+            v1.0.0-vpninfo-authoritative-interface-regression.sh
+            v1.0.0-vpn-external-watchdog-runtime-regression.sh
+            v1.0.0-vpn-core-health-watchdog-regression.sh
+            v1.0.0-vpn-core-listener-required-regression.sh
+            v1.0.0-vpn-direct-firewall-verification-failure-regression.sh
+            v1.0.0-vpn-mode-ad-hosts-independent-regression.sh
+            v1.0.0-localdns-watchdog-regression.sh
+            v1.0.0-localdns-watchdog-chain-health-regression.sh
+            v1.0.0-vpn-external-state-regression.sh
+            v1.0.0-vpn-port-probe-fail-closed-regression.sh
+            v1.0.0-vpn-off-requires-core-stop-success-regression.sh
+            v1.0.0-yulong-per-app-vpn-regression.sh
+          )
+          pass=0
+          for name in "${tests[@]}"; do
+            test_script="$module/scripts/tests/$name"
+            [[ -s "$test_script" ]] || { echo "::error file=$test_script::Required VPN/DNS regression is missing"; exit 1; }
+            echo "::group::$name"
+            timeout 35s sh "$test_script"
+            echo "::endgroup::"
+            pass=$((pass + 1))
+          done
+          echo "VPN/DNS runtime regressions: $pass/${#tests[@]} passed" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Run patched Root proxy and native VPN integration regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          module="$FX_MODULE_RUNTIME"
+          sh scripts/tests/fx-vpn-tun-external-fallback-regression.sh "$module"
+          python3 scripts/tests/fx-unbound-stop-pid-identity-regression.py
+          sh scripts/tests/fx-yulong-root-proxy-unbound-regression.sh "$module"
+          sh scripts/tests/fx-yulong-root-proxy-runtime-regression.sh "$module"
+          sh scripts/tests/fx-native-vpn-api-regression.sh "$module/webroot/index.html"
+          sh scripts/tests/fx-native-vpn-config-lock-regression.sh "$module"
+          sh scripts/tests/fx-vpn-transparent-toggle-regression.sh "$module/webroot/index.html"
+          sh scripts/tests/fx-atomic-cache-lock-release-regression.sh "$module"
+          echo "Root proxy, native VPN API, config transaction, and cache-lock regressions: PASS" >> "$GITHUB_STEP_SUMMARY"
