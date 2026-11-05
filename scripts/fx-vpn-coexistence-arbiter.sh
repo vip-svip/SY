@@ -37,6 +37,9 @@ FX_ARB_FILTER_DNS_PORT=${FX_ARB_FILTER_DNS_PORT:-53}
 FX_ARB_PROXY_PORT=${FX_ARB_PROXY_PORT:-7890}
 FX_ARB_LINK_FILE=${FX_ARB_LINK_FILE:-}
 FX_ARB_VPNINFO_FILE=${FX_ARB_VPNINFO_FILE:-}
+FX_ARB_SELF_UID=${FX_ARB_SELF_UID:-}
+FX_ARB_SELF_VPN=false
+FX_ARB_SELF_IF=""
 FX_ARB_PROC_NET_DIR=${FX_ARB_PROC_NET_DIR:-/proc/net}
 FX_ARB_MODULE_ROOT=${FX_ARB_MODULE_ROOT:-}
 # In production the arbiter is executed from the active FX module's scripts/
@@ -241,10 +244,40 @@ fx_arb_android_vpn_info() {
   '
 }
 
-# --- 外部 VPN 探测：接口与 ownerUid 必须来自同一条有效 VpnInfo ----------------
+# Resolve FX's package UID for the active Android user. VpnInfo exposes only
+# ownerUid, not package name, so an active tunnel cannot be called third-party
+# until this package UID comparison succeeds. FX_ARB_SELF_UID is test data only.
+fx_arb_normalize_uid() {
+  _v=$1
+  case "$_v" in ''|*[!0-9]*|0) return 2 ;; esac
+  while [ "${#_v}" -gt 1 ] && [ "${_v#0}" != "$_v" ]; do _v=${_v#0}; done
+  [ "${#_v}" -le 10 ] || return 2
+  printf '%s' "$_v"
+}
+
+fx_arb_self_uid() {
+  if [ -n "$FX_ARB_SELF_UID" ]; then fx_arb_normalize_uid "$FX_ARB_SELF_UID"; return $?; fi
+  command -v am >/dev/null 2>&1 || return 1
+  _user=$(am get-current-user 2>/dev/null) || return 1
+  case "$_user" in ''|*[!0-9]*) return 1 ;; esac
+  [ "${#_user}" -le 5 ] || return 1
+  _packages=
+  if command -v cmd >/dev/null 2>&1; then _packages=$(cmd package list packages -U --user "$_user" de.privacyguard.adhook 2>/dev/null) || _packages=; fi
+  if [ -z "$_packages" ] && command -v pm >/dev/null 2>&1; then _packages=$(pm list packages -U --user "$_user" de.privacyguard.adhook 2>/dev/null) || _packages=; fi
+  [ -n "$_packages" ] || return 1
+  _uid=$(printf '%s\\n' "$_packages" | awk '
+    $1 == "package:de.privacyguard.adhook" { for (i=2; i<=NF; i++) if ($i ~ /^uid:[0-9]+$/) { split($i,a,":"); uid=a[2]; rows++ } }
+    END { if (rows == 1 && uid != "") print uid; else exit 1 }
+  ') || return 1
+  fx_arb_normalize_uid "$_uid"
+}
+
+# --- 活动 VPN 所有者探测：先排除 FX 自身 UID --------------------------------
 fx_arb_probe_external() {
   FX_ARB_EXT_IF=""
   FX_ARB_EXT_UID=""
+  FX_ARB_SELF_VPN=false
+  FX_ARB_SELF_IF=""
   FX_ARB_PROBE="ok"
 
   if [ -n "$FX_ARB_LINK_FILE" ]; then
@@ -277,14 +310,18 @@ fx_arb_probe_external() {
     _if=${_info%%|*}
     _uid=${_info#*|}
     case "$_uid" in
-      '' ) ;;
-      *[!0-9]*|0 ) FX_ARB_PROBE="ambiguous"; return 0 ;;
+      ''|*[!0-9]*|0 ) FX_ARB_PROBE="ambiguous"; return 0 ;;
     esac
     case " $_ifaces " in
       *" $_if "*) FX_ARB_EXT_IF="$_if" ;;
       *) FX_ARB_PROBE="ambiguous" ;;
     esac
-    [ -n "$FX_ARB_EXT_IF" ] && FX_ARB_EXT_UID="$_uid"
+    if [ -n "$FX_ARB_EXT_IF" ]; then
+      _uid=$(fx_arb_normalize_uid "$_uid") || { FX_ARB_PROBE="ambiguous"; FX_ARB_EXT_IF=""; return 0; }
+      _self_uid=$(fx_arb_self_uid) || { FX_ARB_PROBE="unavailable"; FX_ARB_EXT_IF=""; return 0; }
+      if [ "$_uid" = "$_self_uid" ]; then FX_ARB_SELF_VPN=true; FX_ARB_SELF_IF="$FX_ARB_EXT_IF"; FX_ARB_EXT_IF="";
+      else FX_ARB_EXT_UID="$_uid"; fi
+    fi
   elif [ -n "$_ifaces" ]; then
     # 有隧道样接口但拿不到唯一 VpnInfo/ownerUid：绝不猜哪条是外部 VPN。
     FX_ARB_PROBE="ambiguous"
@@ -307,7 +344,14 @@ fx_arb_decide() {
   FX_ARB_PROXY_OWNER=$(fx_arb_port_owner "$FX_ARB_PROXY_PORT")
   FX_ARB_CONFIG_CONFLICTS=$(fx_arb_config_conflicts)
 
-  # 1) 硬性不变量：Root 数据面占槽 = 不兼容（违反"不占 VpnService 槽"）
+  # 1) An active VPN owned by FX's package UID also violates the no-slot contract.
+  if [ "$FX_ARB_SELF_VPN" = "true" ]; then
+    FX_ARB_VERDICT="incompatible"; FX_ARB_GRADE_CN="不兼容"
+    FX_ARB_REASONS="active VPN owner UID matches FX package UID on ${FX_ARB_SELF_IF}; FX occupies Android's VPN slot"
+    FX_ARB_RC=3; return 0
+  fi
+
+  # 2) 硬性不变量：Root 数据面占槽 = 不兼容（违反"不占 VpnService 槽"）
   if [ "$FX_ARB_SLOT_USED" = "true" ]; then
     FX_ARB_VERDICT="incompatible"
     FX_ARB_GRADE_CN="不兼容"
@@ -393,27 +437,25 @@ fx_arb_decide() {
 fx_arb_json() {
   _san=$(printf '%s' "$FX_ARB_REASONS" | sed 's/[^ -~]//g; s/["\\]//g')
   if [ -n "$FX_ARB_EXT_IF" ]; then _ext=true; else _ext=false; fi
-  printf '{"ok":1,"version":"%s","verdict":"%s","grade_cn":"%s","exit":%s,' \
-    "$FX_ARB_VERSION" "$FX_ARB_VERDICT" "$FX_ARB_GRADE_CN" "$FX_ARB_RC"
-  printf '"external_vpn":%s,"external_if":"%s","external_uid":"%s","probe":"%s",' \
-    "$_ext" "$FX_ARB_EXT_IF" "$FX_ARB_EXT_UID" "$FX_ARB_PROBE"
-  case "$FX_ARB_SLOT_USED" in
-    true|false) _slot_json=$FX_ARB_SLOT_USED ;;
-    *) _slot_json=null ;;
-  esac
+  _active_if=$FX_ARB_EXT_IF; _vpn_owner=external
+  if [ "$FX_ARB_SELF_VPN" = "true" ]; then _active_if=$FX_ARB_SELF_IF; _vpn_owner=fx_uid
+  elif [ "$_ext" = "false" ]; then _vpn_owner=none; fi
+  printf '{"ok":1,"version":"%s","verdict":"%s","grade_cn":"%s","exit":%s,' "$FX_ARB_VERSION" "$FX_ARB_VERDICT" "$FX_ARB_GRADE_CN" "$FX_ARB_RC"
+  printf '"external_vpn":%s,"external_if":"%s","external_uid":"%s","active_vpn_if":"%s","vpn_owner":"%s","probe":"%s",' "$_ext" "$FX_ARB_EXT_IF" "$FX_ARB_EXT_UID" "$_active_if" "$_vpn_owner" "$FX_ARB_PROBE"
+  case "$FX_ARB_SLOT_USED" in true|false) _slot_json=$FX_ARB_SLOT_USED ;; *) _slot_json=null ;; esac
   printf '"vpn_service_slot_used":%s,' "$_slot_json"
-  printf '"config_conflicts":"%s",' "$FX_ARB_CONFIG_CONFLICTS"
-  printf '"dns":{"port":%s,"owner":"%s"},"dns_filter":{"port":%s,"owner":"%s"},"proxy":{"port":%s,"owner":"%s"},' \
-    "$(fx_arb_json_port "$FX_ARB_DNS_PORT")" "$FX_ARB_DNS_OWNER" \
-    "$(fx_arb_json_port "$FX_ARB_FILTER_DNS_PORT")" "$FX_ARB_FILTER_DNS_OWNER" \
-    "$(fx_arb_json_port "$FX_ARB_PROXY_PORT")" "$FX_ARB_PROXY_OWNER"
-  printf '"dataplane":"kernel","route_probe":"unverified","reasons":"%s"}\n' "$_san"
+  printf '"dns":{"port":%s,"owner":"%s"},"dns_filter":{"port":%s,"owner":"%s"},"proxy":{"port":%s,"owner":"%s"},' "$(fx_arb_json_port "$FX_ARB_DNS_PORT")" "$FX_ARB_DNS_OWNER" "$(fx_arb_json_port "$FX_ARB_FILTER_DNS_PORT")" "$FX_ARB_FILTER_DNS_OWNER" "$(fx_arb_json_port "$FX_ARB_PROXY_PORT")" "$FX_ARB_PROXY_OWNER"
+  printf '"dataplane":"kernel","route_probe":"unverified","reasons":"%s"}\\n' "$_san"
 }
 
 fx_arb_text() {
   echo "FX coexistence arbiter v$FX_ARB_VERSION"
   echo "  verdict : $FX_ARB_VERDICT ($FX_ARB_GRADE_CN)"
-  echo "  external: ${FX_ARB_EXT_IF:-none} uid=${FX_ARB_EXT_UID:-none} probe=$FX_ARB_PROBE"
+  _active_if=${FX_ARB_SELF_IF:-${FX_ARB_EXT_IF:-none}}
+  _vpn_owner=none
+  [ "$FX_ARB_SELF_VPN" = "true" ] && _vpn_owner=fx_uid
+  [ -n "$FX_ARB_EXT_IF" ] && _vpn_owner=external
+  echo "  active VPN: $_active_if owner=$_vpn_owner uid=${FX_ARB_EXT_UID:-none} probe=$FX_ARB_PROBE"
   echo "  slot    : vpn_service_slot_used=$FX_ARB_SLOT_USED (must be false)"
   echo "  FX port collisions: ${FX_ARB_CONFIG_CONFLICTS:-none}"
   echo "  dns upstream : port $(fx_arb_display_port "$FX_ARB_DNS_PORT") owner=$FX_ARB_DNS_OWNER"
