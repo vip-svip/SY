@@ -224,6 +224,22 @@ final class FxNativeSkin {
      * inflated its title, content and action buttons. A second pass is posted
      * after the first layout so custom EditText/List rows are included too.
      */
+    /**
+     * Skin-aware Builder for ordinary Activity dialogs. Existing listeners,
+     * validation and persistence callbacks stay on the original Builder chain;
+     * only show() is intercepted to apply the current presentation tokens.
+     */
+    static AlertDialog.Builder builder(Activity activity) {
+        if (activity == null) throw new IllegalArgumentException("Activity is required");
+        return new AlertDialog.Builder(activity) {
+            @Override public AlertDialog show() {
+                AlertDialog dialog = create();
+                FxNativeSkin.showDialog(activity, dialog);
+                return dialog;
+            }
+        };
+    }
+
     static void showDialog(Activity activity, AlertDialog dialog) {
         if (activity == null || dialog == null
                 || activity.isFinishing() || activity.isDestroyed()) return;
