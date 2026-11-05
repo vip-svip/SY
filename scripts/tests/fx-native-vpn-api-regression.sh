@@ -28,6 +28,9 @@ else
   echo "SKIP: canonical FX WebUI asset is not staged in the Host-only lane; package lane validates these WebUI contracts after Release restore."
 fi
 grep -Fq 'private void syncNativeVpnControls()' "$ACTIVITY" || fail "native VPN state synchronization missing"
+grep -Fq 'state.optString("vpn_effective_mode"' "$ACTIVITY" || fail "native VPN UI ignores the effective runtime dataplane"
+grep -Fq 'external_android_vpn_tun_to_redirect' "$ACTIVITY" || fail "native VPN UI does not explain the guarded outer-VPN fallback"
+grep -Fq 'Root REDIRECT' "$ACTIVITY" || fail "native VPN UI does not label the effective root REDIRECT mode"
 grep -Fq 'private void refreshAndroidVpnNetworkStatus()' "$ACTIVITY" || fail "active Android VPN network diagnostic missing"
 grep -Fq 'NetworkCapabilities.TRANSPORT_VPN' "$ACTIVITY" || fail "native VPN UI does not detect active VpnService networks"
 grep -Fq 'connectivity.getAllNetworks()' "$ACTIVITY" || fail "native VPN UI does not enumerate active Android networks"
