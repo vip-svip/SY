@@ -176,13 +176,28 @@ P8 整合验收：五 Skin × 六 Tab；升级/回滚/权限撤销；网络泄�
 - 不提前设置 migration_complete=true，不提前打最终 APK/KernelSU ZIP。
 - 进度报告用“已实现功能/未实现功能/验证证据”表达，不用虚高百分比。
 
-## 9. 立即开工任务
+## 9. 当前源码纠偏状态与立即开工任务（2026-11-05）
 
-1. 读取最新分支 HEAD 和本提示词、实时状态文档。
-2. 检查 MainActivity、FxNativeAppShell、导航配置、设置页面和相关测试：找出并删除“迁移应用”产品入口及其旧导航；把第二 Tab 所有显示文案统一为“Ad”；Hosts 保留为 Ad 内部页面。
-3. 修改对应路由、标题、测试断言和产品文档；确认设置不再出现来源应用入口。
-4. 直接提交代码并运行定向回归；随后继续五 Skin 和来源功能整合，不要停在汇报。
+本节覆盖此前“设置下的迁移应用”“三套来源应用独立三级入口”和“Ad/Hosts”旧说法。旧聊天、旧状态和旧测试如与本节冲突，以当前 GitHub 源码和本节为准。
 
+### 已从主应用源码移除的旧结构（静态源码核对）
+
+- `MainActivity.java` 不再包含 `migrationSuite`、`migrationCategory`、`migrationPage`、`migrationLevel`、`migrationChildActive` 等来源应用导航状态。
+- 已移除 `showImportedSuite()`、`showImportedSuiteCategory()`、`openImportedSuitePage()`、`showImportedSuitePendingPage()`、`importedSuiteTitle()`、`importedSuiteSections()` 与其旧返回栈。
+- Settings 只保留全局界面模式、壁纸、备份恢复、系统授权/诊断、许可与关于等系统级内容；不得再加回“迁移应用”或来源 APK 启动器。
+- 主导航固定为 `VPN、Ad、隐私、脚本、Hook、设置`；Native Shell 标签为 `VPN、Ad、隐私、脚本、Hook、设置`。ClassicWebCompat 的第二 Tab 路由是 `pageAd`，`pageHosts` 仅可作为旧 DOM ID 兼容别名；中文界面顶部标题也必须显示 `Ad`，不能显示 `Ad/Hosts` 或把 Tab 标成“广告”。
+- VPN 分应用路由是 VPN 内部页面，函数使用 `showNativeVpnAppManager()`；Native Tab intent 使用 `handleNativeTabIntent()`。这些是 FX 业务页，不是来源应用入口。
+- 相关回归：`scripts/tests/fx-imported-suite-back-navigation-regression.sh` 必须验证旧来源导航符号不存在；`scripts/tests/fx-unified-navigation-regression.sh` 必须验证六 Tab、Ad-only 命名、设置边界和各功能实际归属。测试不得再把已删除的迁移页方法作为必需结构。
+
+上述为源码静态核查结果，不等于 Gradle 构建、Android 单测、安装或真机 UI 验收。启动接管时必须重新读取最新 HEAD 与测试文件，不能直接相信这段历史状态。
+
+### 立即开工任务
+
+1. 读取最新分支 HEAD、`docs/FX_1.0.0_LIVE_CONTINUATION_STATE.md`、本提示词和产品重构方案；只恢复一次现场，不做无意义全仓库盘点。
+2. 先运行或等效执行本批次的 Ad-only / 无迁移入口定向回归。若失败，修复最新源码/断言；不得恢复迁移应用中心或旧的三套来源应用独立入口。
+3. 继续五种 Skin 的真实组件 renderer 与六 Tab 页面适配：ClassicWebCompat、FXLiquidNative、MiuixStyle、HUAWEI HarmonyStyle、iOS CupertinoStyle。先从仍未覆盖的列表、表单、弹窗、编辑器、扫描/统计页面入手；仅换导航颜色不得标记完成。
+4. 按 Ad、VPN、隐私、Hook、脚本各自的页面组继续迁入真实业务与服务。来源 APK/源码仅作研发证据，功能归属 FX 主 Tab；禁止仅把旧 Activity 名字放进新菜单冒充整合。
+5. 每批提交代码与最小回归，状态文档记录已实现、未实现、验证等级和下一批；不提前打包最终 APK/KernelSU ZIP。
 
 ## 10. 当前代码入口与业务 Tab 映射（2026-11-05 优先级规则）
 
