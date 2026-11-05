@@ -1,5 +1,6 @@
 plugins {
     id 'org.jetbrains.kotlin.multiplatform'
+    id 'org.jetbrains.kotlin.plugin.serialization'
 }
 
 def upstreamSelector = rootProject.file('../vendor/GKD-XA/gkd-selector/src')
@@ -27,6 +28,8 @@ kotlin {
             kotlin.srcDir(new File(upstreamSelector, 'commonTest/kotlin'))
             dependencies {
                 implementation 'org.jetbrains.kotlin:kotlin-test:2.4.21'
+                implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0'
+                implementation 'li.songe:json5:0.8.0'
             }
         }
         jvmTest {
