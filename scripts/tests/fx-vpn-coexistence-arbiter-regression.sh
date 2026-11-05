@@ -501,7 +501,7 @@ VpnService$Builder(context)
 EOF
 r=$(run_arb "$LINKS_NO_TUN" "" "$TMP/net_free" "$TMP/mod_dollar_builder")
 rc=${r%%|*}; out=${r#*|}
-[ "$rc" -eq 3 ] || fail "VpnService\$Builder helper must return rc=3, got $rc: $out"
+[ "$rc" -eq 3 ] || fail "builder-signature helper must return rc=3, got $rc: $out"
 [ "$(field "$out" "['vpn_service_slot_used']")" = "True" ] || fail "VpnService\$Builder signature was not detected"
 pass "VpnService\$Builder signature is detected"
 
