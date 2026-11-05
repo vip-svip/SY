@@ -20,7 +20,7 @@ grep -Fq 'LiquidBottomTabs(' "$shell" || { echo "FAIL: liquid renderer missing";
 grep -Fq 'MiuixTheme(' "$shell" || { echo "FAIL: Miuix renderer missing"; exit 1; }
 grep -Fq 'mode == "glass"' "$shell" || { echo "FAIL: liquid mode branch missing"; exit 1; }
 grep -Fq 'mode == "miuix"' "$shell" || { echo "FAIL: Miuix mode branch missing"; exit 1; }
-grep -Fq 'mode == "classic"' "$shell" || { echo "FAIL: classic mode branch missing"; exit 1; }
+grep -Fq '"classic" ->' "$shell" || { echo "FAIL: classic mode branch missing"; exit 1; }
 grep -Fq '"huawei".equals(uiMode)' "$activity" || { echo "FAIL: HUAWEI native page palette missing"; exit 1; }
 grep -Fq '"ios".equals(uiMode)' "$activity" || { echo "FAIL: iOS native page palette missing"; exit 1; }
 grep -Fq '"huawei" -> Color(0xFFF1F5FA)' "$shell" || { echo "FAIL: HUAWEI Harmony shell palette missing"; exit 1; }
