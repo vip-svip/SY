@@ -177,15 +177,12 @@ jobs:
           sh scripts/tests/fx-yulong-ad-operation-gate-regression.sh
           # Root Proxy staging copies the canonical source; run it before the
           # shared atomic lock patch so it cannot overwrite the lock migration.
-          python3 -m py_compile fx-patches/patch_yulong_root_proxy.py fx-patches/patch_atomic_cache_lock_release.py
+          python3 -m py_compile fx-patches/patch_yulong_root_proxy.py fx-patches/patch_atomic_cache_lock_release.py fx-patches/patch_vpn_external_watchdog.py
           python3 fx-patches/patch_yulong_root_proxy.py fx-module .
           python3 fx-patches/patch_vpn_external_watchdog.py fx-module
           sh scripts/tests/fx-vpn-external-watchdog-regression.sh
           sh scripts/tests/fx-yulong-root-proxy-unbound-regression.sh
           sh scripts/tests/fx-yulong-root-proxy-runtime-regression.sh
-          sh scripts/tests/fx-vpn-external-watchdog-regression.sh
-          grep -Fq 'vpn-external-watchdog.sh' fx-module/service.sh
-          grep -Fq 'vpn-external-watchdog.sh' fx-module/uninstall.sh
           python3 fx-patches/patch_atomic_cache_lock_release.py fx-module
           sh scripts/tests/fx-atomic-cache-lock-release-regression.sh fx-module
           sh scripts/tests/fx-yulong-schedule-default-regression.sh
