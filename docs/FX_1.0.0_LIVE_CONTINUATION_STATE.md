@@ -5959,3 +5959,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `FxDiaSessionLogActivity` 的刷新与清空共用 `checkedDirectoryPrefix()`，此前已拒绝 `/data/adb`、FX 状态目录、Dia 目录和 logs 目录的符号链接，但未验证最上层 `/data` 是否为真实目录。
 - 现对 `/data` 先检查 `-d` 且非符号链接，再执行已有的下层目录检查；读日志与清空日志都使用同一 fail-closed guard。
 - 更新 Dia monitor/session regression，验证 session guard 包含 `/data` 与 `/data/adb` 拒绝条件。尚未进行设备端路径异常注入测试或 APK 构建。
+
+
+### subfetch PID 模板断言的字面 `$` 保留修正（2026-11-06）
+
+- 修正回归测试的生成过程：使用字面回调替换保留 shell `$$`，避免 JavaScript 替换字符串语法将 `$$` 折叠为单个 `$`，造成上一次修订未实际改变文件内容。
+- 当前测试现验证生产 patcher 输出的 `$$_sl_try` PID 路径，不改变锁 patcher 或模块运行逻辑。
