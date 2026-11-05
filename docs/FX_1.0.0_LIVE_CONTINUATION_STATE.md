@@ -4116,3 +4116,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 先前 Targeted Host run 41984271284 在 GKD automation regression 的 Python 检查处失败（日志报告内联检查器 line 34）。失败 HEAD 当时的 AccessibilityService 源码确实包含 disabled 分支撤销 FLAG_REPORT_VIEW_IDS 的表达式；随后规则仓库和测试的 package-scoped API 断言经并行提交修订。最新 HEAD 的 GKD 源码对 45 项对应静态契约逐条回读匹配，但尚未取得该修订版本实际运行 GKD regression 的 CI 结果。下一次触发 GKD 相关路径时必须读完整 job 输出再关闭问题。
 - 导航重构：MainActivity 六 Tab、Ad canonical WebUI route、Settings 不含 source app hub、旧 migration router 不存在、Hook/VPN/Settings Back 顺序等 15 项源码回读检查全部 PASS。测试文件已修正，但本轮 Host success 未触发 fx-unified-navigation-regression.sh，因此该脚本本批仍未取得 CI 执行证明。
 - 下一条实际开发线：继续五 Skin 的独立 Design Tokens / Renderer 与页面控件派发，优先 Harmony/Cupertino，覆盖六 Tab 内真实控件，而不是重复增加文档或只改主壳颜色。编译、UI 自动化、模拟器和真机视觉验收仍未完成。
+
+## 2026-11-05 — 五 Skin Compose 导航 tokens 接入
+
+- 新增 `FxComposeSkinTokens.kt`，为 ClassicWebCompat、FXLiquidNative、MiuixStyle、HUAWEI HarmonyStyle、iOS CupertinoStyle 建立独立 Compose shell tokens，涵盖页面背景、壁纸遮罩、底栏背景/边框、选中/未选中颜色、圆角、高度、间距和字号。
+- `FxNativeAppShell.kt` 通过 `fxComposeShellTokens()` 选取五套 tokens；内容区 bottom inset 随底栏高度变化，不再固定 72dp。Liquid 保留 Kyant `LiquidBottomTabs` renderer，其余模式使用对应 surface/border/shape。
+- Harmony/Cupertino tokens 已接入 Java `HarmonySkinTokens` / `CupertinoSkinTokens` 的颜色、形状、间距、字体定义；Android View renderer 通过 `HarmonySkinRenderer.palette()` 与 `CupertinoSkinRenderer.palette()` 复用对应色板。
+- 新增 `FxComposeSkinTokensTest.kt`：覆盖五套几何、Liquid renderer 选择、Harmony/iOS 色板差异、Miuix 动态颜色和未知模式回退。
+- 更新 `fx-global-ui-modes-regression.sh` 检查五套 token 与 Java renderer 接线；更新 `fx-hook-native-ui-regression.sh`，从固定 72dp 改为检查 Skin 对应的动态高度。
+- 相关提交：`ee05a9cd4aa0cc171a616ef9bc3ca1ff4fa10a06`、`81c2cde1d7e1dc45b0c7c8601d6622bb1aa460e9`、`2792bc67d839205ea1f0f5c26bb7af3dcaa287ec`、`a25235f055411593f2b7b422bc864dd11ff49cf1`、`a0a7d50bc5a718d3f58cd40ef2c99adf0ae609b8`、`9dbe40882cee7829eb03a0c226fb21a42cdf6baa`、`2e19a6ecd2cb8602bd3e90e564824962e67fb778`。
+- GitHub Host regression runs `41984541289`（`826f20761f236c627828a2a6a4b7e0e6ffd83dcf`）与 `41984658383`（`e5c9cb7d44ced68cba6136e191736c01bb9e7a09`）成功，包含五 Skin regression、统一导航、Hook 原生 UI 检查通过。Host-only job 未构建 APK，因此 Gradle/JUnit、APK、UI 自动化和真机验收仍未验证。
+- 尚未完成五 Skin 的全部六 Tab 逐页组件；Harmony/Cupertino 的 TopBar、Card、ListItem、Dialog、Sheet、Switch、Search、InsetGroupedList、FormRow、Alert、ActionSheet 等仍需继续开发。ClassicWebCompat 还需对照 10.0.2 原始资源逐页验收。
+- 下一步：优先把 Harmony/Cupertino renderer 扩展到六 Tab 共用的 TopBar、卡片、表单行、开关、列表、Dialog/Sheet，再做截图/UI 自动化；随后进入 Ad 完整真实过滤链或 VPN Root 数据面共存安全链。
