@@ -20,8 +20,9 @@
 #         3=不兼容（真违规：FX 自身占槽，或本地服务端口被他人占用且无回退）
 #
 # 测试注入点（仅回归使用；生产留空即读真实系统）：
-#   FX_ARB_LINK_CMD     替代 `ip -o link show`
-#   FX_ARB_VPNINFO_CMD  产出 "<iface>|<ownerUid>" 或空
+#   FX_ARB_LINK_FILE    回归夹具：只读文件，内容为 ip -o link show 输出
+#   FX_ARB_VPNINFO_FILE 回归夹具：只读文件，内容为 "<iface>|<ownerUid>" 或空
+#   测试注入只读数据，不执行环境变量中的命令。
 #   FX_ARB_PROC_NET_DIR 替代 /proc/net（含 tcp tcp6 udp udp6）
 #   FX_ARB_MODULE_ROOT  静态槽位不变量扫描根目录
 #   FX_ARB_DNS_PORT / FX_ARB_FILTER_DNS_PORT / FX_ARB_PROXY_PORT  本地服务端口
