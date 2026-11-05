@@ -82,4 +82,23 @@ grep -Fq '_FX_SCHEDULER_LOG=/dev/null' "$SOURCE" || fail "uninstall has no safe 
 grep -Fq '[ ! -L "$_FX_SCHEDULER_STATE_DIR/jsruntime" ]' "$SOURCE" || fail "scheduler log writer does not reject a symlinked runtime directory"
 grep -Fq '[ ! -L "$_FX_SCHEDULER_STATE_DIR/jsruntime/scheduler.log" ]' "$SOURCE" || fail "scheduler log writer does not reject dangling log symlinks"
 
+# A symlinked network teardown log must be rejected before either network
+# helper runs; the external target must remain untouched.
+cat > "$MOD/scripts/vpn-external-watchdog.sh" <<'WATCHDOG'
+#!/bin/sh
+printf 'vpn-watchdog:%s\\n' "$*" >> "$ORDER_LOG"
+WATCHDOG
+chmod 0755 "$MOD/scripts/vpn-external-watchdog.sh"
+printf '%s\\n' outside > "$T/outside-network.log"
+ln -s "$T/outside-network.log" "$PG/vpn-external-watchdog.log"
+: > "$LOG"
+if ORDER_LOG="$LOG" PG="$PG" MODDIR="$MOD" sh "$MOD/uninstall.sh" > "$T/log-link.out" 2>&1; then
+  fail "uninstall accepted a symlinked network teardown log"
+fi
+[ "$(cat "$LOG")" = 'scheduler:uninstall' ] || fail "network helper ran before symlinked teardown log was rejected"
+[ "$(cat "$T/outside-network.log")" = outside ] || fail "external log target was modified"
+[ -L "$PG/vpn-external-watchdog.log" ] || fail "symlinked network log was removed"
+grep -Fq 'network teardown log is a symlink or non-regular file' "$T/log-link.out" || fail "symlinked teardown log refusal was not reported"
+rm -f "$PG/vpn-external-watchdog.log"
+
 echo "PASS: FX uninstall safely validates state root, stops Root Proxy before firewall teardown and retires deployment markers only after successful Hook removal"
