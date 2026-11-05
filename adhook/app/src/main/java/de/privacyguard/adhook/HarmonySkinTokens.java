@@ -71,7 +71,7 @@ final class HarmonySkinTokens {
         static final int CARD_HORIZONTAL_PADDING_DP = 16;
         static final int CARD_VERTICAL_PADDING_DP = 12;
         static final int ROW_MIN_HEIGHT_DP = 52;
-        static final int INPUT_MIN_HEIGHT_DP = 48;
+
         private HarmonySpacingTokens() { }
     }
 }
