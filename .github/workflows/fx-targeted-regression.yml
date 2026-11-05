@@ -129,7 +129,7 @@ jobs:
             run_py scripts/tests/fx-dia-frida-target-loader-regression.py
           fi
 
-          if [[ "$changed" == "ALL" || "$changed" =~ (FxHookConfigPublisher|UnifiedHookConfigParser|UnifiedHookConfigSerializer|HookTargetConfigParser|UnifiedHookConfigParserTest|HookTargetConfigParserTest|AdVisibilityHook|fx-hook-config-stream-publish) ]]; then
+          if [[ "$changed" == "ALL" || "$changed" =~ (FxHookConfigPublisher|UnifiedHookConfigParser|UnifiedHookConfigSerializer|HookTargetConfigParser|UnifiedHookConfigParserTest|UnifiedHookConfigSerializerTest|HookTargetConfigParserTest|AdVisibilityHook|fx-hook-config-stream-publish) ]]; then
             run_sh scripts/tests/fx-hook-config-stream-publish-regression.sh
           fi
 

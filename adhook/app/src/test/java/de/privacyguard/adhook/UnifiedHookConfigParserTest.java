@@ -22,6 +22,10 @@ public class UnifiedHookConfigParserTest {
         String serialized = UnifiedHookConfigSerializer.serialize(false, false, parsed.targets);
         assertTrue(serialized.contains("dev_rule_b64_1="));
         assertTrue(serialized.contains("dev_rule_b64_2="));
+        UnifiedHookConfigParser.Result roundTrip = UnifiedHookConfigParser.parse(serialized);
+        assertEquals(2, roundTrip.targets.get("com.example.owned").developerRules.size());
+        assertEquals("old", roundTrip.targets.get("com.example.owned").developerRules.get(0).id);
+        assertEquals("next", roundTrip.targets.get("com.example.owned").developerRules.get(1).id);
     }
 
     @Test
