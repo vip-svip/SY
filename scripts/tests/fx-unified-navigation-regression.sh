@@ -55,9 +55,12 @@ ad_start = activity.index("    private void buildNativeHostsPage()")
 ad_end = activity.index("    private void refreshHostsStatus(", ad_start)
 ad_page = activity[ad_start:ad_end]
 for feature in ("FxYulongAdActivity.class", "FxYulongAdGeneralActivity.class",
-                "FxYulongAdSummaryActivity.class", "FxYulongFirewallActivity.class",
+                "FxYulongAdSummaryActivity.class", "FxYulongDnsActivity.class",
+                "FxYulongAppStatsActivity.class", "FxYulongFirewallActivity.class",
                 "FxYulongAppWhitelistActivity.class"):
     assert feature in ad_page, f"migrated Ad feature is not reachable from Ad tab: {feature}"
+assert "游龙广告插件" not in ad_page, "Ad home still exposes a source-app identity"
+assert "不会启动来源 APK 或第二套过滤服务" in ad_page, "Ad home must clarify unified FX service ownership"
 
 # Imported Ad activities are internal screens of the Ad destination; they must
 # not retain the source plugin identity or send users back to an external hub.
