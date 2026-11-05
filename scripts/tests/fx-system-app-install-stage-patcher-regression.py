@@ -66,8 +66,9 @@ with tempfile.TemporaryDirectory(prefix="fx-system-app-stage-") as tmp:
         "FX_SYSTEM_APP_STATE_DIR",
     ):
         assert required in patched_post_fs, f"missing early-boot overlay contract: {required}"
-    assert ' [ -d "$APP_DIR" ] && [ ! -L "$APP_DIR" ] || exit 0' not in patched_post_fs, \\
-        "missing system-app overlay must create a retry marker, not silently skip"
+    assert (
+        '[ -d "$APP_DIR" ] && [ ! -L "$APP_DIR" ] || exit 0' not in patched_post_fs
+    ), "missing system-app overlay must create a retry marker, not silently skip"
     template = (ROOT / "fx-patches/fx_system_app_post_fs_data.sh").read_text(encoding="utf-8")
     assert patched_post_fs.count(template.strip()) == 1, "packaged post-fs-data block must match the canonical fail-closed template"
     subprocess.run(["sh", "-n", str(post_fs)], check=True)
