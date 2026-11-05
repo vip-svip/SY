@@ -27,6 +27,7 @@ on:
       - 'adhook/app/src/main/res/xml/fx_accessibility_service.xml'
       - 'adhook/app/src/main/res/values/fx_strings.xml'
       - 'scripts/tests/fx-gkd-automation-regression.sh'
+      - 'adhook/app/src/test/java/de/privacyguard/adhook/imported/shield/FxYulongVirusDbTest.java'
   pull_request:
     branches:
       - fx-v1.0.0-unified-hook-integration
@@ -53,6 +54,7 @@ on:
       - 'adhook/app/src/main/res/xml/fx_accessibility_service.xml'
       - 'adhook/app/src/main/res/values/fx_strings.xml'
       - 'scripts/tests/fx-gkd-automation-regression.sh'
+      - 'adhook/app/src/test/java/de/privacyguard/adhook/imported/shield/FxYulongVirusDbTest.java'
   workflow_dispatch:
 
 permissions:
