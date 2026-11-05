@@ -135,7 +135,7 @@ public final class FxYulongRescueActivity extends de.privacyguard.adhook.FxNativ
                         status.setText("无法打开悬浮窗设置：" + e.getClass().getSimpleName());
                     }
                 }),
-                button("返回安全护盾主页", this::returnToShieldHub));
+                button("返回隐私防护中心", this::returnToShieldHub));
     }
 
     private void returnToShieldHub() {
