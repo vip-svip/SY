@@ -7,9 +7,9 @@ import androidx.activity.ComponentActivity;
 import androidx.compose.ui.platform.ComposeView;
 
 /**
- * Shared host for native imported-suite pages that must retain FX's six
+ * Shared host for native feature screens integrated into FX's six
  * primary destinations. The Activity owns the real page and lifecycle;
- * Compose supplies only the persistent native navigation chrome.
+ * Compose supplies the persistent FX navigation chrome.
  */
 public abstract class FxNativeTabActivity extends ComponentActivity {
     private boolean fxTabNavigationStarted;
@@ -19,7 +19,7 @@ public abstract class FxNativeTabActivity extends ComponentActivity {
             throw new IllegalArgumentException("pageContent must not be null");
         }
         // All Activity hosts must resolve the same canonical mode model as
-        // MainActivity. Do not silently downgrade HUAWEI/iOS skins in imported
+        // MainActivity. Do not silently downgrade HUAWEI/iOS skins in integrated
         // feature pages or when legacy aliases are encountered.
         String mode = FxUiMode.read(this).getStorageId();
         // Translate known legacy page/card/text colors into the selected
