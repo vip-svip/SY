@@ -24,8 +24,8 @@ v = vpncore_path.read_text(encoding="utf-8")
 old_a = "pg_get vpn_mode direct 2>/dev/null"
 old_b = "pg_get vpn_mode direct"
 helper = '''vpncore_effective_mode() {
-  case "@{PG_VPN_MODE_OVERRIDE:-}" in
-    direct|redirect|rule|tun) printf '%s\\\\n' "$PG_VPN_MODE_OVERRIDE" ;;
+  case "${PG_VPN_MODE_OVERRIDE:-}" in
+    direct|redirect|rule|tun) printf '%s\\n' "$PG_VPN_MODE_OVERRIDE" ;;
     *) pg_get vpn_mode direct 2>/dev/null ;;
   esac
 }
@@ -42,6 +42,7 @@ else:
         raise SystemExit("vpncore: existing effective-mode helper is malformed")
 vpncore_path.write_text(v, encoding="utf-8")
 vpncore_path.chmod(0o755)
+
 a = apply_path.read_text(encoding="utf-8")
 old_guard = '''VPN_MODE=$(pg_get vpn_mode direct)
 # Root-managed sing-box TUN cannot safely stack with an active/uncertain Android VPN.
@@ -57,14 +58,13 @@ fx_select_vpn_effective_mode() {
   _fx_req="$1"; _fx_blocked="$2"; _fx_if="$3"; _fx_unknown="$4"
   _fx_uid="$5"; _fx_compat="$6"; _fx_route="$7"
   if [ "$_fx_req" = "tun" ] && { [ "$_fx_blocked" = "1" ] || [ -n "$_fx_if" ]; }; then
-    if [ "$_fx_compat" = "1" ] && [ "$_fx_unknown" = "0" ] &&
-       [ -n "$_fx_if" ] && [ -n "$_fx_uid" ] && [ "$_fx_route" = "1" ]; then
-      printf '%s\\\\n' redirect
+    if [ "$_fx_compat" = "1" ] && [ "$_fx_unknown" = "0" ] && [ -n "$_fx_if" ] && [ -n "$_fx_uid" ] && [ "$_fx_route" = "1" ]; then
+      printf '%s\\n' redirect
     else
-      printf '%s\\\\n' direct
+      printf '%s\\n' direct
     fi
   else
-    printf '%s\\\\n' "$_fx_req"
+    printf '%s\\n' "$_fx_req"
   fi
 }
 VPN_MODE=$(pg_get vpn_mode direct)
@@ -83,7 +83,6 @@ fi
 PG_VPN_MODE_OVERRIDE=$VPN_MODE
 export PG_VPN_MODE_OVERRIDE
 '''
-
 if "fx_select_vpn_effective_mode() {" not in a:
     a = once(a, old_guard, new_guard, "apply TUN guard")
 elif "external_android_vpn_tun_to_redirect" not in a:
@@ -94,9 +93,7 @@ pending = '''VPN_ON=0
 VPN_LP=""
 _PG_VPN_EFFECTIVE_TMP=$(mktemp "$PG/vpn-effective-mode.XXXXXX" 2>/dev/null || true)
 if [ -n "$_PG_VPN_EFFECTIVE_TMP" ]; then
-  if { printf 'requested=%s\\\\neffective=unknown\\\\nfallback=%s\\\\n' "$_PG_VPN_MODE_REQUESTED" "$_PG_VPN_MODE_FALLBACK_REASON" > "$_PG_VPN_EFFECTIVE_TMP"; } 2>/dev/null \\\\
-      && chmod 600 "$_PG_VPN_EFFECTIVE_TMP" \\\\
-      && mv -f "$_PG_VPN_EFFECTIVE_TMP" "$PG/vpn-effective-mode" 2>/dev/null; then
+  if { printf 'requested=%s\\neffective=unknown\\nfallback=%s\\n' "$_PG_VPN_MODE_REQUESTED" "$_PG_VPN_MODE_FALLBACK_REASON" > "$_PG_VPN_EFFECTIVE_TMP"; } 2>/dev/null && chmod 600 "$_PG_VPN_EFFECTIVE_TMP" && mv -f "$_PG_VPN_EFFECTIVE_TMP" "$PG/vpn-effective-mode" 2>/dev/null; then
     :
   else
     rm -f "$_PG_VPN_EFFECTIVE_TMP" 2>/dev/null || :
@@ -118,9 +115,7 @@ case "$VPN_MODE" in
 esac
 _PG_VPN_EFFECTIVE_TMP=$(mktemp "$PG/vpn-effective-mode.XXXXXX" 2>/dev/null || true)
 if [ -n "$_PG_VPN_EFFECTIVE_TMP" ]; then
-  if { printf 'requested=%s\\\\neffective=%s\\\\nfallback=%s\\\\n' "$_PG_VPN_MODE_REQUESTED" "$_PG_VPN_EFFECTIVE_MODE" "$_PG_VPN_MODE_FALLBACK_REASON" > "$_PG_VPN_EFFECTIVE_TMP"; } 2>/dev/null \\\\
-      && chmod 600 "$_PG_VPN_EFFECTIVE_TMP" \\\\
-      && mv -f "$_PG_VPN_EFFECTIVE_TMP" "$PG/vpn-effective-mode" 2>/dev/null; then
+  if { printf 'requested=%s\\neffective=%s\\nfallback=%s\\n' "$_PG_VPN_MODE_REQUESTED" "$_PG_VPN_EFFECTIVE_MODE" "$_PG_VPN_MODE_FALLBACK_REASON" > "$_PG_VPN_EFFECTIVE_TMP"; } 2>/dev/null && chmod 600 "$_PG_VPN_EFFECTIVE_TMP" && mv -f "$_PG_VPN_EFFECTIVE_TMP" "$PG/vpn-effective-mode" 2>/dev/null; then
     :
   else
     rm -f "$_PG_VPN_EFFECTIVE_TMP" 2>/dev/null || :
@@ -157,6 +152,7 @@ if old_text in s:
     s = once(s, old_text, new_text, "status text")
 elif new_text not in s:
     raise SystemExit("status text anchor missing")
+
 old_json = '"vpn_mode":"%s","vpn_on":'
 new_json = '"vpn_mode":"%s","vpn_effective_mode":"%s","vpn_mode_fallback_reason":"%s","vpn_on":'
 if old_json in s:
