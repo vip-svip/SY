@@ -20,15 +20,16 @@ elif [ -s "$_FX_SCHEDULER_STATE_DIR/jsruntime/scheduler.pid" ]; then
 fi
 unset _FX_SCHEDULER_STATE_DIR
 # FX_QUICKJS_SCHEDULER_STOP_END
-# Stop the external-VPN watcher first; its stop path also retires FX-owned
-# Root Proxy redirects. Fall back to the direct helper only when no watcher
-# is installed, and fail closed if residual state cannot be cleaned.
+# Stop the published external-VPN state watcher before removing Root Proxy
+# redirects. Its stop command owns only the watcher process; Root Proxy teardown
+# remains an explicit, separately verified step below.
 if [ -f "$MODDIR/scripts/vpn-external-watchdog.sh" ]; then
-  if ! sh "$MODDIR/scripts/vpn-external-watchdog.sh" uninstall "$MODDIR" "$STATE_DIR" >> "$STATE_DIR/vpn-external-watchdog.log" 2>&1; then
-    _mitm_warn "external VPN watcher / Root Proxy cleanup was not confirmed; preserving state and aborting uninstall"
+  if ! sh "$MODDIR/scripts/vpn-external-watchdog.sh" stop "$MODDIR" "$STATE_DIR" >> "$STATE_DIR/vpn-external-watchdog.log" 2>&1; then
+    _mitm_warn "external VPN watcher shutdown was not confirmed; preserving state and aborting uninstall"
     exit 1
   fi
-elif [ -f "$MODDIR/scripts/yulong-root-proxy.sh" ]; then
+fi
+if [ -f "$MODDIR/scripts/yulong-root-proxy.sh" ]; then
   if ! MP="$MODDIR" PG="$STATE_DIR" CONF="$STATE_DIR/settings.conf" \
       sh "$MODDIR/scripts/yulong-root-proxy.sh" uninstall >> "$STATE_DIR/yulong-root-proxy.log" 2>&1; then
     _mitm_warn "Root Proxy cleanup was not confirmed; preserving state and aborting uninstall"
