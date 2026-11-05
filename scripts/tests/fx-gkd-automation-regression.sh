@@ -35,6 +35,7 @@ assert "getRootInActiveWindow()" in service
 assert 'android:name=".FxAccessibilityService"' in manifest
 assert manifest.count('android:name=".FxAccessibilityService"') == 1
 assert 'android:name=".FxGkdAutomationActivity" android:exported="false"' in manifest
+assert manifest.count('android:name=".FxGkdAutomationActivity"') == 1
 assert manifest.count('android.intent.category.LAUNCHER') == 1
 assert not any(token in manifest for token in ("gkd.app.App", "gkd.service.", "GkdA11yService"))
 
@@ -67,7 +68,8 @@ for forbidden in ("dispatchGesture(", "takeScreenshot(", "HttpURLConnection", "O
     assert forbidden not in runtime, f"unexpected unscoped GKD capability: {forbidden}"
 
 # Hook page, per-rule UI and six-tab entry.
-assert 'addNativeActionCard("GKD 辅助自动化"' in main
+assert main.count('addNativeActionCard("GKD 选择器自动化"') == 1
+assert 'addNativeActionCard("GKD 辅助自动化"' not in main
 assert "FxGkdAutomationActivity.class" in main
 for token in ("FxGkdRuleStore.isEnabled(this)", "FxGkdRuleStore.setEnabled(this, checked)",
               "FxGkdRuleStore.addRule(", "isInstalledUserApplication(pkg)",
@@ -82,6 +84,8 @@ assert 'android:canRetrieveWindowContent="true"' in service_xml
 assert 'android:canPerformGestures="false"' in service_xml
 assert 'android:accessibilityEventTypes="typeWindowStateChanged"' in service_xml
 assert "只有用户在 FX 的 GKD 页面主动启用总开关" in strings
+assert "限额 Accessibility 节点快照、本地规则匹配与 Click 执行" in activity
+assert "尚未接入：上游订阅源、规则组/排除项、AI 服务商、触发历史、云同步与上游备份格式" in activity
 
 # Upstream parser adapter behavior is exercised on the FX node model.
 for test_name in ("matchesUpstreamAttributeAndWidgetSelectors",
