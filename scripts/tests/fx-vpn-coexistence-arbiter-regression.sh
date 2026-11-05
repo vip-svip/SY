@@ -366,6 +366,19 @@ rc=${r%%|*}; out=${r#*|}
 [ "$(field "$out" "['vpn_service_slot_used']")" = "True" ] || fail "slot must be flagged as used"
 pass "slot-occupying dataplane rejected"
 
+echo "== case 8b: newly added module shell helper cannot bypass the slot scan =="
+cp -a "$TMP/mod_clean/." "$TMP/mod_extra/"
+cat > "$TMP/mod_extra/scripts/new-dataplane-helper.sh" <<'EOF'
+#!/system/bin/sh
+VpnService.prepare(context)
+EOF
+r=$(run_arb "$LINKS_NO_TUN" "" "$TMP/net_free" "$TMP/mod_extra")
+rc=${r%%|*}; out=${r#*|}
+[ "$rc" -eq 3 ] || fail "new module shell helper calling VpnService must return rc=3, got $rc: $out"
+[ "$(field "$out" "['verdict']")" = "incompatible" ] || fail "new module shell helper bypassed VpnService scan: $out"
+[ "$(field "$out" "['vpn_service_slot_used']")" = "True" ] || fail "new module helper must be reported as slot-using"
+pass "all top-level module shell helpers are included in the VpnService invariant scan"
+
 echo "== case 9: unreadable port state -> never claimed as free =="
 mkdir -p "$TMP/net_missing"
 r=$(run_arb "$LINKS_NO_TUN" "" "$TMP/net_missing" "$TMP/mod_clean")
