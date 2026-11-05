@@ -7,8 +7,15 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 PATCHER = ROOT / "fx-patches/patch_system_app_install_stage.py"
+BUILD_WORKFLOW = ROOT / ".github/workflows/build-fx-kernelsu.yml"
 BEGIN = "# >>> fx-system-app-install-stage"
 END = "# <<< fx-system-app-install-stage"
+
+build_workflow = BUILD_WORKFLOW.read_text(encoding="utf-8")
+assert "python3 fx-patches/patch_system_app_install_stage.py fx-module" in build_workflow, \
+    "KernelSU ZIP build must apply the install-time system-app deployment stage"
+assert "python3 scripts/tests/fx-system-app-install-stage-patcher-regression.py" in build_workflow, \
+    "KernelSU ZIP build must execute the system-app stage regression"
 
 with tempfile.TemporaryDirectory(prefix="fx-system-app-stage-") as tmp:
     module = Path(tmp)
