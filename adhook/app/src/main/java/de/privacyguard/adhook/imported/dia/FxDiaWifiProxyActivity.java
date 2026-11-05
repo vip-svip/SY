@@ -214,7 +214,7 @@ public final class FxDiaWifiProxyActivity extends de.privacyguard.adhook.FxNativ
             status.setText(invalid.getMessage());
             return;
         }
-        new AlertDialog.Builder(this).setTitle("启用全局 HTTP 代理？")
+        fxDialogBuilder().setTitle("启用全局 HTTP 代理？")
                 .setMessage("将 Android 全局 http_proxy 设置为：\n" + target
                         + "\n\n所有使用系统代理的应用都可能受到影响。FX 会保存旧值，并在关闭时尝试恢复。")
                 .setNegativeButton("取消", null)
@@ -289,7 +289,7 @@ public final class FxDiaWifiProxyActivity extends de.privacyguard.adhook.FxNativ
             status.setText("FX 当前没有启用系统代理。");
             return;
         }
-        new AlertDialog.Builder(this).setTitle("恢复原系统代理？")
+        fxDialogBuilder().setTitle("恢复原系统代理？")
                 .setMessage("仅当当前 global http_proxy 仍为 FX 上次写入值时恢复保存的旧值。")
                 .setNegativeButton("取消", null)
                 .setPositiveButton("恢复", (dialog, which) -> restoreProxyConfirmed())
@@ -330,7 +330,7 @@ public final class FxDiaWifiProxyActivity extends de.privacyguard.adhook.FxNativ
             status.setText("FX 当前没有正在管理的系统代理。");
             return;
         }
-        new AlertDialog.Builder(this).setTitle("解除 FX 代理管理？")
+        fxDialogBuilder().setTitle("解除 FX 代理管理？")
                 .setMessage("只清除 FX 保存的旧值和管理标记，不会修改 Android 当前 global http_proxy。"
                         + "\n\n如果系统代理已被其他程序更改，请使用此项解除冲突。")
                 .setNegativeButton("取消", null)
