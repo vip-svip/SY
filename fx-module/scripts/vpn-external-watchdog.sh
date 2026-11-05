@@ -61,7 +61,7 @@ case "$cmd" in
     MODDIR=${2:-$MODDIR}; PG=${3:-$PG}; PROXY="$MODDIR/scripts/yulong-root-proxy.sh"; PIDFILE="$PG/vpn-external-watchdog.pid"; LOG="$PG/vpn-external-watchdog.log"
     [ -f "$PROXY" ] || { log "cannot start: Root Proxy helper missing"; exit 1; }
     mkdir -p "$PG" || exit 1
-    [ ! -L "$PIDFILE" ] || { log "refusing symlink PID record"; exit 1; }
+    [ ! -L "$PIDFILE" ] || { log "refusing symlink PID record"; echo "refusing symlink PID record: $PIDFILE" >&2; exit 1; }
     if _old=$(read_pid) && pid_matches "$_old"; then log "watcher already running pid=$_old"; exit 0; fi
     rm -f "$PIDFILE" || exit 1
     nohup sh "$MODDIR/scripts/vpn-external-watchdog.sh" _watch "$MODDIR" "$PG" </dev/null >> "$LOG" 2>&1 &
