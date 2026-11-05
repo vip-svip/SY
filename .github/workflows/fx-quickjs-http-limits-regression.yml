@@ -1,0 +1,31 @@
+name: FX QuickJS HTTP Limits Regression
+
+on:
+  push:
+    branches:
+      - fx-v1.0.0-unified-hook-integration
+    paths:
+      - "fx-patches/patch_quickjs_http_limits.py"
+      - "scripts/tests/fx-jsruntime-http-limits-regression.sh"
+      - ".github/workflows/fx-quickjs-http-limits-regression.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fx-quickjs-http-limits-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  patcher-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate QuickJS HTTP patcher and failure safety
+        shell: bash
+        run: |
+          set -euo pipefail
+          sh -n scripts/tests/fx-jsruntime-http-limits-regression.sh
+          sh scripts/tests/fx-jsruntime-http-limits-regression.sh
