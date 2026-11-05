@@ -711,14 +711,18 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
 
     private String readTransientFridaScriptDraft() {
         android.util.AtomicFile atomic = transientFridaScriptDraftFile();
-        try (InputStream input = atomic.openRead();
-             java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream()) {
-            byte[] buffer = new byte[8192];
+        try (java.io.Reader input = new java.io.InputStreamReader(
+                atomic.openRead(), StandardCharsets.UTF_8)) {
+            // Decode incrementally: converting a large script through both a
+            // ByteArrayOutputStream and a second byte[] temporarily duplicates
+            // the entire payload and can exhaust the app heap on rotation.
+            StringBuilder source = new StringBuilder();
+            char[] buffer = new char[8192];
             int count;
             while ((count = input.read(buffer)) != -1) {
-                output.write(buffer, 0, count);
+                source.append(buffer, 0, count);
             }
-            return new String(output.toByteArray(), StandardCharsets.UTF_8);
+            return source.toString();
         } catch (java.io.FileNotFoundException missing) {
             return null;
         } catch (Exception error) {
