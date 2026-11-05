@@ -90,10 +90,12 @@ checks = {
 for label, ok in checks.items():
     if not ok:
         raise SystemExit(f"FAIL: {label}")
-if "Activity 启动入口观察" not in main:
-    raise SystemExit("FAIL: AppEntry observer page is missing from Dia migration menu")
-if 'case "Activity 启动入口观察":' not in main:
-    raise SystemExit("FAIL: AppEntry observer page is not routed to its native Frida screen")
+# AppEntry observer is now a Frida-tool subpage inside FX Hook, not a
+# source-app migration-menu item in MainActivity.
+if 'addNativeActionCard("Frida 环境与注入"' not in hook_hub:
+    raise SystemExit("FAIL: Hook hub is missing the integrated Frida tool entry")
+if "Activity 启动入口观察" not in frida:
+    raise SystemExit("FAIL: Frida Activity is missing the AppEntry observer subpage")
 if 'button("载入 Activity 创建入口观察", () -> loadDiaMonitorTemplate("appentry"))' not in frida:
     raise SystemExit("FAIL: AppEntry observer cannot be loaded manually")
 if 'else if ("Activity 启动入口观察".equals(title))' not in frida:
