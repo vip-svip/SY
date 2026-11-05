@@ -233,7 +233,8 @@ for token in (
     "mktemp /data/local/tmp/fx-hosts.XXXXXXXX",
     "trap 'rm -f \"$tmp\"' EXIT;",
     'if [ ! -f \"$tmp\" ] || [ -L \"$tmp\" ]; then',
-    "base64 -d > \"$tmp\"",
+    "shellQuote(encoded)",
+    "base64 -d > \"$tmp\" || exit 42;",
     "fileedit.sh",
     "replacepage",
 ):
