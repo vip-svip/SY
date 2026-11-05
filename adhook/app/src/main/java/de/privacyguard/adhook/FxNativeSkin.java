@@ -168,7 +168,8 @@ final class FxNativeSkin {
         Drawable background = view.getBackground();
         if (background instanceof ColorDrawable) {
             int oldColor = ((ColorDrawable) background).getColor();
-            Drawable replacement = replacementBackgroundDrawable(oldColor, palette, wallpaperActive);
+            float density = activity.getResources().getDisplayMetrics().density;
+            Drawable replacement = replacementBackgroundDrawable(oldColor, palette, wallpaperActive, density);
             if (replacement != null) view.setBackground(replacement);
         }
 
@@ -299,7 +300,7 @@ final class FxNativeSkin {
     }
 
     private static Drawable replacementBackgroundDrawable(int color, Palette p,
-                                                            boolean wallpaperActive) {
+                                                            boolean wallpaperActive, float density) {
         switch (color) {
             case 0xfff7f8fa:
             case 0xfff4f6f8:
@@ -308,10 +309,10 @@ final class FxNativeSkin {
             case 0xfff0f3f7:
             case 0xffffffff:
                 // Only known neutral legacy card tokens receive rounded surfaces.
-                return roundedSurface(p.surface, Math.max(10, p.cornerRadiusDp - 4), p.divider);
+                return roundedSurface(p.surface, Math.max(10, p.cornerRadiusDp - 4) * density, p.divider);
             case 0xffe9eef3:
             case 0xffe5e5ea:
-                return roundedSurface(p.surfaceVariant, Math.max(8, p.cornerRadiusDp - 8), p.divider);
+                return roundedSurface(p.surfaceVariant, Math.max(8, p.cornerRadiusDp - 8) * density, p.divider);
             case 0xffe3e8ee:
                 return new ColorDrawable(p.divider);
             default:
@@ -320,10 +321,10 @@ final class FxNativeSkin {
         }
     }
 
-    private static GradientDrawable roundedSurface(int color, int radiusDp, int strokeColor) {
+    private static GradientDrawable roundedSurface(int color, float radiusPx, int strokeColor) {
         GradientDrawable surface = new GradientDrawable();
         surface.setColor(color);
-        surface.setCornerRadius(radiusDp);
+        surface.setCornerRadius(radiusPx);
         if (strokeColor != 0) surface.setStroke(1, strokeColor);
         return surface;
     }
