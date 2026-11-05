@@ -115,15 +115,33 @@ final class FxNativeSkin {
         final float inputTextSizeSp;
         final int inputMinHeightDp;
 
+        // Legacy 24-argument constructor retained for Classic/Liquid/Miuix call sites.
         Palette(int background, int surface, int surfaceVariant, int divider,
                 int primaryText, int secondaryText, int actionBackground,
                 int actionBorder, int accent, int switchOffTrack, int cornerRadiusDp,
-                int inputBorder, int cardCornerRadiusDp,
-                float buttonTextSizeSp, int buttonMinHeightDp,
+                int inputBorder, float buttonTextSizeSp, int buttonMinHeightDp,
                 int buttonMinWidthDp, int buttonHorizontalPaddingDp, int buttonVerticalPaddingDp,
                 float buttonElevationDp, float switchTextSizeSp, int switchHorizontalPaddingDp,
                 int switchVerticalPaddingDp, float choiceTextSizeSp,
                 float inputTextSizeSp, int inputMinHeightDp) {
+            this(background, surface, surfaceVariant, divider, primaryText, secondaryText,
+                    actionBackground, actionBorder, accent, switchOffTrack, cornerRadiusDp,
+                    inputBorder, Math.max(16, cornerRadiusDp - 4), buttonTextSizeSp,
+                    buttonMinHeightDp, buttonMinWidthDp, buttonHorizontalPaddingDp,
+                    buttonVerticalPaddingDp, buttonElevationDp, switchTextSizeSp,
+                    switchHorizontalPaddingDp, switchVerticalPaddingDp, choiceTextSizeSp,
+                    inputTextSizeSp, inputMinHeightDp);
+        }
+
+        // Full constructor for independently tokenized Harmony and Cupertino renderers.
+        Palette(int background, int surface, int surfaceVariant, int divider,
+                int primaryText, int secondaryText, int actionBackground,
+                int actionBorder, int accent, int switchOffTrack, int cornerRadiusDp,
+                int inputBorder, int cardCornerRadiusDp, float buttonTextSizeSp,
+                int buttonMinHeightDp, int buttonMinWidthDp, int buttonHorizontalPaddingDp,
+                int buttonVerticalPaddingDp, float buttonElevationDp, float switchTextSizeSp,
+                int switchHorizontalPaddingDp, int switchVerticalPaddingDp,
+                float choiceTextSizeSp, float inputTextSizeSp, int inputMinHeightDp) {
             this.background = background;
             this.surface = surface;
             this.surfaceVariant = surfaceVariant;
