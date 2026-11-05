@@ -65,8 +65,8 @@ run_arb() {
   printf '%s\n' "$_links" > "$TMP/links.txt"
   if [ -n "$_info" ]; then printf '%s\n' "$_info" > "$TMP/info.txt"; else : > "$TMP/info.txt"; fi
   _out=$(
-    FX_ARB_LINK_CMD="cat '$TMP/links.txt'" \
-    FX_ARB_VPNINFO_CMD="cat '$TMP/info.txt'" \
+    FX_ARB_LINK_FILE="$TMP/links.txt" \
+    FX_ARB_VPNINFO_FILE="$TMP/info.txt" \
     FX_ARB_PROC_NET_DIR="$_net" \
     FX_ARB_MODULE_ROOT="$_mod" \
     sh "$ARB" 2>&1
@@ -79,8 +79,8 @@ run_arb() {
 run_arb_port() {
   _kind=$1; _port=$2
   _out=$(env "FX_ARB_${_kind}_PORT=$_port" \
-    FX_ARB_LINK_CMD="cat '$TMP/links.txt'" \
-    FX_ARB_VPNINFO_CMD="cat '$TMP/info.txt'" \
+    FX_ARB_LINK_FILE="$TMP/links.txt" \
+    FX_ARB_VPNINFO_FILE="$TMP/info.txt" \
     FX_ARB_PROC_NET_DIR="$TMP/net_free" \
     FX_ARB_MODULE_ROOT="$TMP/mod_clean" \
     sh "$ARB" 2>&1)
@@ -131,8 +131,10 @@ pass "incomplete module source fails closed"
 
 # The production default derives the module root from scripts/<arbiter> path.
 cp "$ARB" "$TMP/mod_clean/scripts/fx-vpn-coexistence-arbiter.sh"
-_auto_out=$(FX_ARB_LINK_CMD="printf '%s\\n' '$LINKS_NO_TUN'" \
-  FX_ARB_VPNINFO_CMD="printf ''" FX_ARB_PROC_NET_DIR="$TMP/net_free" FX_ARB_MODULE_ROOT= \
+printf '%s\\n' "$LINKS_NO_TUN" > "$TMP/auto-links.txt"
+: > "$TMP/auto-info.txt"
+_auto_out=$(FX_ARB_LINK_FILE="$TMP/auto-links.txt" \
+  FX_ARB_VPNINFO_FILE="$TMP/auto-info.txt" FX_ARB_PROC_NET_DIR="$TMP/net_free" FX_ARB_MODULE_ROOT= \
   sh "$TMP/mod_clean/scripts/fx-vpn-coexistence-arbiter.sh")
 [ "$(field "$_auto_out" "['vpn_service_slot_used']")" = "False" ] || fail "arbiter did not verify slot status from its installed module path"
 pass "production arbiter auto-discovers its module root"
@@ -308,7 +310,7 @@ pass "arbiter observes only"
 
 echo "== case 11: --text mode renders the same verdict =="
 printf '%s\n' "$LINKS_TUN" > "$TMP/links.txt"; printf 'tun0|10123\n' > "$TMP/info.txt"
-tout=$(FX_ARB_LINK_CMD="cat '$TMP/links.txt'" FX_ARB_VPNINFO_CMD="cat '$TMP/info.txt'" \
+tout=$(FX_ARB_LINK_FILE="$TMP/links.txt" FX_ARB_VPNINFO_FILE="$TMP/info.txt" \
        FX_ARB_PROC_NET_DIR="$TMP/net_free" FX_ARB_MODULE_ROOT="$TMP/mod_clean" \
        sh "$ARB" --text 2>&1)
 rc=$?
