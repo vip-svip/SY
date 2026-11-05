@@ -18,7 +18,8 @@ fail(){ echo "FAIL: $*" >&2; exit 1; }
 # in the APK/ZIP build lane. Never treat their absence in this source checkout
 # as a product regression or fabricate placeholder production scripts.
 if [ ! -s "$APPLY" ] || [ ! -s "$SUBFETCH" ]; then
-  echo "SKIP: full Hosts/subscription cache-lock regression requires a restored FX Release module (apply.sh + subfetch.sh); testing the tracked Root Proxy lock independently."
+  echo "SKIP: full Hosts/subscription cache-lock regression requires a restored FX Release module (apply.sh + subfetch.sh); running the standalone Hosts lock safety fixture and tracked Root Proxy lock."
+  sh "$ROOT/scripts/tests/fx-hosts-cache-lock-regression.sh" || fail "standalone Hosts cache lock safety regression failed"
   [ -s "$MODULE/scripts/tests/v1.0.0-yulong-root-proxy-lock-regression.sh" ] || fail "tracked Root Proxy lock regression missing"
   sh "$MODULE/scripts/tests/v1.0.0-yulong-root-proxy-lock-regression.sh" || fail "tracked Root Proxy atomic lock regression failed"
   sh "$ROOT/scripts/tests/fx-vpn-tun-external-fallback-regression.sh" || fail "tracked VPN TUN external-fallback regression failed"

@@ -5525,3 +5525,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Host Regression 发现无参数模式读取仓库 `fx-module/` 下的旧 Release 快照，而不是 canonical `scripts/yulong-app-firewall.sh`；该快照尚未运行 package lane 的 source-restoration patcher，因此缺少 UID 变更拒绝逻辑。
 - 无参数 Host lane 现直接测试 canonical 脚本；显式传入模块目录的 package/runtime lane 仍测试 patcher 恢复后的模块副本。两条路径分别验证源码本体与最终模块产物。
 - 前一 Host run `42093526987` 因该错误源选择导致 UID mismatch 回归失败；当前修订等待新 CI 验证。
+
+
+### Hosts 锁安全回归在 Host-only lane 独立运行（2026-11-06）
+
+- `fx-atomic-cache-lock-release-regression.sh` 在普通 Host checkout 中因 Release-only `apply.sh` / `subfetch.sh` 缺失，会提前跳过完整缓存锁链路。此前虽然新增了独立合成夹具，但该早退分支未调用它，导致 Host lane 没有真正执行这项新回归。
+- 现将独立 Hosts lock safety regression 放到早退分支，在缺少 Release module 时仍直接动态运行补丁器与生产锁 helper；Release module 存在时则由完整缓存锁回归调用。
+- `e6120449` 的 Host Regression 与 Six UI Modes 均通过。Module Runtime Regression 仍在进行；其中 VPN 共存/TUN/DNS/watchdog 步骤已经 SUCCESS，等待 Root Proxy/native VPN 集成步骤结束。
