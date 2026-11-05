@@ -5715,3 +5715,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 回归现在检查完整往返：只允许 debuggable 用户应用选择具体方法；DEX 浏览页返回包名和 descriptor；MainActivity 再校验目标包状态、debuggable/system 标志及 `DeveloperHookRule` 语法，然后打开自定义 Hook 目标页。
 - 同时验证 Hook app picker 仍选择底部 Hook tab（index 4），返回按钮回到 Hook 应用列表；Targeted Host 映射覆盖 MainActivity 与 FxDiaDexBrowserActivity 改动。
 - 旧 APK migration run `42094851449` 在 Release merge 后执行旧导航断言时失败；本修订只同步回归契约，不改变功能实现。
+
+
+### Ad 首页未知态回归断言对齐（2026-11-06）
+
+- 新增的 12 项 Android-free 快照策略 Host 用例已通过；Targeted Host 在同一脚本后续阶段失败，原因是既有编辑草稿契约列表仍要求 `out.putBundle(STATE_DRAFTS,drafts);`，而当前实现实际保存 `retainedDrafts`，并且前面已有正确断言覆盖该路径。
+- 将过期字面断言同步到实际保存的 `retainedDrafts` 变量，不改变编辑器保存/恢复行为；本修正提交后重新核对 Host Regression。

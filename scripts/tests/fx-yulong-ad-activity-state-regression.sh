@@ -48,7 +48,7 @@ required = [
     'page=b.getString(STATE_PAGE,"首页与防护");',
     'restoreDrafts(pendingRestoredDrafts);pendingRestoredDrafts=null;',
     'out.putString(STATE_PAGE,page);',
-    'out.putBundle(STATE_DRAFTS,drafts);',
+    'out.putBundle(STATE_DRAFTS,retainedDrafts);',
     'private static final int BULK_DRAFT_MAX_CHARS=48*1024;',
     'private static final int TEXT_DRAFT_MAX_CHARS=4096;',
     'field.setFilters(new InputFilter[]{new InputFilter.LengthFilter(maxChars)});',
