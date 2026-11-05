@@ -45,6 +45,8 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
     private static final String STATE_PENDING_IMPORT_URI_PERSISTED = "fx_dia_script_library_pending_import_uri_persisted";
     private static final String STATE_SEARCH = "fx_dia_script_library_search";
     private static final String STATE_SCROLL_Y = "fx_dia_script_library_scroll_y";
+    private static final String STATE_PAGE = "fx_dia_script_library_page";
+    private static final int PAGE_SIZE = 50;
     private static final String STATE_OPENING_INITIAL_EDITOR = "fx_dia_script_library_opening_initial_editor";
     private static final String STATE_CREATE_DIALOG_PENDING = "fx_dia_script_library_create_dialog_pending";
     private static final String STATE_CREATE_NAME_DRAFT = "fx_dia_script_library_create_name_draft";
@@ -72,6 +74,10 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
     private boolean createDialogRestorePending;
     private String createNameDraft = "";
     private EditText createNameInput;
+    private int currentPage;
+    private TextView pageInfo;
+    private Button previousPage;
+    private Button nextPage;
 
     private int dp(float value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
@@ -137,6 +143,7 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
             }
             restoredSearch = state.getString(STATE_SEARCH, "");
             restoredScrollY = Math.max(0, state.getInt(STATE_SCROLL_Y, 0));
+            currentPage = Math.max(0, state.getInt(STATE_PAGE, 0));
             restoreScrollPending = true;
             openingInitialEditor = state.getBoolean(STATE_OPENING_INITIAL_EDITOR,
                     getIntent() != null && getIntent().getBooleanExtra("open_new_script", false));
@@ -187,10 +194,27 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
         rows = new LinearLayout(this);
         rows.setOrientation(LinearLayout.VERTICAL);
         body.addView(rows, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout paging = new LinearLayout(this);
+        paging.setGravity(Gravity.CENTER_VERTICAL);
+        paging.setPadding(dp(10), dp(4), dp(10), dp(8));
+        previousPage = button("上一页", () -> {
+            if (currentPage > 0) { currentPage--; renderRows(); }
+        });
+        pageInfo = text("分页信息加载中…", 11, 0xff617080, false);
+        pageInfo.setGravity(Gravity.CENTER);
+        nextPage = button("下一页", () -> {
+            currentPage++;
+            renderRows();
+        });
+        paging.addView(previousPage, new LinearLayout.LayoutParams(0, -2, 1));
+        paging.addView(pageInfo, new LinearLayout.LayoutParams(0, -2, 2));
+        paging.addView(nextPage, new LinearLayout.LayoutParams(0, -2, 1));
+        body.addView(paging, new LinearLayout.LayoutParams(-1, -2));
 
         search.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                currentPage = 0;
                 renderRows();
             }
             @Override public void afterTextChanged(Editable editable) { }
@@ -243,12 +267,24 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
         }
         Collections.sort(names, String.CASE_INSENSITIVE_ORDER);
         if (names.isEmpty()) {
+            if (pageInfo != null) pageInfo.setText("0 个脚本");
+            if (previousPage != null) previousPage.setEnabled(false);
+            if (nextPage != null) nextPage.setEnabled(false);
             rows.addView(text(query.isEmpty()
                     ? "脚本库为空。可新建脚本，或导入兼容的 FX-DIA-FRIDA-SCRIPTS-1 JSON。"
                     : "没有匹配的脚本名称。", 13, 0xff617080, false));
             return;
         }
-        for (String name : names) {
+        int pageCount = (names.size() + PAGE_SIZE - 1) / PAGE_SIZE;
+        currentPage = Math.max(0, Math.min(currentPage, pageCount - 1));
+        int from = currentPage * PAGE_SIZE;
+        int to = Math.min(names.size(), from + PAGE_SIZE);
+        if (pageInfo != null) pageInfo.setText("第 " + (currentPage + 1) + " / " + pageCount
+                + " 页 · 显示 " + (from + 1) + "–" + to + " / " + names.size() + " 个脚本");
+        if (previousPage != null) previousPage.setEnabled(currentPage > 0);
+        if (nextPage != null) nextPage.setEnabled(currentPage + 1 < pageCount);
+        for (int i = from; i < to; i++) {
+            String name = names.get(i);
             String source = scripts.optString(name, "");
             int bytes = source.getBytes(StandardCharsets.UTF_8).length;
             LinearLayout row = new LinearLayout(this);
@@ -585,6 +621,7 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
         out.putString(STATE_SEARCH,
                 search == null || search.getText() == null ? "" : search.getText().toString());
         out.putInt(STATE_SCROLL_Y, libraryScroll == null ? 0 : libraryScroll.getScrollY());
+        out.putInt(STATE_PAGE, currentPage);
         out.putBoolean(STATE_OPENING_INITIAL_EDITOR, openingInitialEditor);
         super.onSaveInstanceState(out);
     }

@@ -109,6 +109,22 @@ if "new String(output.toByteArray(), StandardCharsets.UTF_8)" in source[source.i
 if "new java.io.InputStreamReader(" not in source[source.index("private String readTransientFridaScriptDraft()"):source.index("private void deleteTransientFridaScriptDraft()")]:
     raise SystemExit("FAIL: large Frida draft restore is not incrementally decoded")
 
+library_paging_required = {
+    "script library has a page size but no total script-count ceiling": "private static final int PAGE_SIZE = 50",
+    "previous-page action is wired": 'button("上一页", () ->',
+    "next-page action is wired": 'button("下一页", () ->',
+    "rendering is restricted to the visible page": "for (int i = from; i < to; i++)",
+    "page count is derived from the full filtered result": "(names.size() + PAGE_SIZE - 1) / PAGE_SIZE",
+    "search resets to the first page": "currentPage = 0;\n                renderRows();",
+    "page is retained across Activity recreation": "out.putInt(STATE_PAGE, currentPage)",
+    "page is restored across Activity recreation": "state.getInt(STATE_PAGE, 0)",
+}
+for label, needle in library_paging_required.items():
+    if needle not in library:
+        raise SystemExit(f"FAIL: missing script-library pagination behavior {label}: {needle}")
+if "for (String name : names)" in library:
+    raise SystemExit("FAIL: script library still inflates every matching row at once")
+
 store_required = {
     "stable JSON schema": 'public static final String SCHEMA = "FX-DIA-FRIDA-SCRIPTS-1"',
     "legacy stored schema validation": "if (!schema.isEmpty() && !SCHEMA.equals(schema))",
