@@ -11,11 +11,12 @@ from pathlib import Path
 import sys
 import xml.etree.ElementTree as ET
 main, manifest_path, activity = [Path(x).read_text(encoding="utf-8") for x in sys.argv[1:]]
-assert '{"应用与模块", "应用选择", "目标应用", "模块配置", "模块功能", "系统扩展", "Activity 入口与禁用", "隐藏应用"}' in main,     "Dia native migration menu must expose SystemExpand under application/module tools"
-start = main.index('case "系统扩展":')
-route = main[start:start + 300]
-assert "FxDiaSystemExpandActivity.class" in route, "SystemExpand menu item must open its native Activity"
-assert 'case "系统扩展":' in route and "return;" in route
+assert 'section("Hook 工具与调试");' in main, "Dia SystemExpand must remain inside the unified FX Hook hub"
+start = main.index('addNativeActionCard("系统扩展",')
+route = main[start:start + 600]
+assert "FxDiaSystemExpandActivity.class" in route, "SystemExpand Hook action card must open its native Activity"
+assert '"打开系统扩展"' in route, "SystemExpand must have an explicit native action label"
+assert "selectedBottomTab = 4;" in main and "hookHubVisible = true;" in main, "SystemExpand entry must be reachable from the Hook primary tab"
 manifest = ET.fromstring(manifest_path)
 ns = "{http://schemas.android.com/apk/res/android}"
 nodes = [x for x in manifest.findall("./application/activity")
@@ -39,5 +40,5 @@ for token in (
     "systemExpandScroll == scroll && scroll.getParent() != null",
     "scroll.scrollTo(0, restoreY);"):
     assert token in activity, f"SystemExpand page state restoration missing: {token}"
-print("PASS: Dia SystemExpand native screen is reachable from the correct four-level menu and restores its scroll position safely")
+print("PASS: Dia SystemExpand native screen is reachable from the unified Hook hub and restores its scroll position safely")
 PY
