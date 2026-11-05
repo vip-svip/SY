@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit;
 /** FX Ad local protection summary backed by the active filter configuration and retained DNS query log. */
 public final class FxYulongAdSummaryActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
-            1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(8),
+            1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(1),
             r -> { Thread t = new Thread(r, "fx-yulong-ad-summary"); t.setDaemon(true); return t; },
             new ThreadPoolExecutor.AbortPolicy());
     private LinearLayout body;

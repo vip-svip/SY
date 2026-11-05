@@ -5447,3 +5447,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 将该补丁器接入 targeted Host 回归，修复只修改 `fx-patches/ensure_lsposed_manager_notice.py` 时被误判“没有 Host 回归映射”的 CI 阻断。
 - Tasker 回执回归调整为检查实际实现的 `target` 局部变量与 Intent extra，避免依赖旧的内联三元表达式写法；同时明确将 Tasker receiver / General Activity 改动映射到 Tasker 并发回归及 Widget 回归。
 - 本批代码与工作流改动已提交；验证以新提交 Actions 结果为准，未声称 Android 构建或设备端验收。
+
+
+### Ad 本机总结刷新队列容量回归修正（2026-11-06）
+
+- 首次提交的定向 Host 回归指出 Summary Activity 的线程池容量仍是旧值 8；最新请求替换逻辑已存在，但队列并未真正收紧。现将容量修正为 1，与单 active + 单 waiter 的设计和测试断言一致。
+- 上一提交 run `42092065276` 的 Host Regression 为 FAILURE，失败位置为 `fx-yulong-ad-dns-summary-regression.sh` 的队列容量断言；当前修订等待新的 Host/UI/Runtime 回归。
