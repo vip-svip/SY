@@ -267,7 +267,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
     }
 
     private void confirmCacheFlush() {
-        new AlertDialog.Builder(this).setTitle("清理本机 DNS 缓存")
+        fxDialogBuilder().setTitle("清理本机 DNS 缓存")
                 .setMessage("将停止并重新启动 FX 管理的本地 Unbound / AdGuard Home，以清空它们的进程内缓存。期间 DNS 可能短暂中断。不会清理 Android 系统 DNS 缓存、Hosts 或查询日志。")
                 .setNegativeButton("取消", null)
                 .setPositiveButton("重启并清理", (dialog, which) -> {
@@ -290,7 +290,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
     }
 
     private void confirmClear() {
-        new AlertDialog.Builder(this).setTitle("清理本地 DNS 查询日志")
+        fxDialogBuilder().setTitle("清理本地 DNS 查询日志")
                 .setMessage("只清理 FX AdGuard Home 自己的 querylog.json 文件，不修改 DNS 规则、Hosts 或系统日志。")
                 .setNegativeButton("取消", null)
                 .setPositiveButton("清理", (d, w) -> {
