@@ -15,6 +15,8 @@ fail(){ echo "FAIL: $*" >&2; exit 1; }
 [ -s "$WORKFLOW" ] || fail "FX APK build workflow missing"
 [ -s "$KSU_WORKFLOW" ] || fail "KernelSU ZIP build workflow missing"
 grep -Fq '_overlay_apk="$MODDIR/system/app/FX/FX.apk"' "$INSTALLER" || fail "installer does not prefer the system-app overlay"
+grep -Fq 'refusing ordinary-app fallback' "$INSTALLER" || fail "installer may silently downgrade a mounted system-app overlay"
+grep -Fq 'if [ -s "$_overlay_apk" ] && [ "$_is_system_app" != 1 ]; then' "$INSTALLER" || fail "installer does not require PackageManager system classification for the overlay"
 grep -Fq 'install -m 0644 "$BUILT_APK" fx-module/system/app/FX/FX.apk' "$KSU_WORKFLOW" || fail "KernelSU release pipeline does not stage the APK as a system app"
 grep -Fq 'sha256sum FX.apk > FX.apk.sha256' "$KSU_WORKFLOW" || fail "KernelSU system-app overlay checksum is missing"
 grep -Fq 'test "$BUILT_APK_SHA" = "$SYSTEM_APK_SHA"' "$KSU_WORKFLOW" || fail "KernelSU ZIP overlay is not verified against the signed build output"
