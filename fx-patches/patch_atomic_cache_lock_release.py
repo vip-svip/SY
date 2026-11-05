@@ -191,7 +191,7 @@ new_sub_unlock = '''subfetch_unlock() {
     done
     if [ ! -e "$_sl_release" ] && mv "$LOCK" "$_sl_release" 2>/dev/null; then
       _sl_release_owner=$(cat "$_sl_release/pid" 2>/dev/null || :)
-      if [ "$_sl_release_owner" = "$" ]; then rm -rf "$_sl_release" 2>/dev/null || :; fi
+      if [ "$_sl_release_owner" = "$$" ]; then rm -rf "$_sl_release" 2>/dev/null || :; fi
     fi
   fi
   LOCK_HELD=0
