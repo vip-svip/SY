@@ -6480,3 +6480,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - CI：修复后 HEAD `a028a5183fcc2421af4a16d868bb7bddf2797439` 已触发 Targeted Host Regression、FX Six UI Modes、Hook APK validation；读取时均为 pending。较早提交的 Module Runtime Regression `42107809526` 为 in_progress，VPN arbiter `42107810109` 为 queued。尚无本次修复后完整通过结果，不能标记 CI 通过。
 - 既有证据：此前某次 FX VPN/DNS runtime workflow 的 18/18 子回归和后续 Root Proxy/native VPN 集成步骤成功；该结果只适用于当时 runner 下载并应用 patch 的 Release 模块快照，不代表当前 HEAD 的整包或真机验证。
 - 未执行：Android Gradle/APK 构建、KernelSU ZIP 最终打包、OnePlus 12 真机 VPN/TUN/DNS 共存与 SELinux/PackageManager 测试。
+
+
+## 2026-11-06 — VPN coexistence arbiter latest regression green
+
+- After stabilizing the PackageManager UID fixture and the source-inventory failure injection, GitHub Actions run `42107853148` on commit `d700c68f9a7b8069de50be1cbaee07b0faa8783f` completed **SUCCESS**.
+- Passed steps: POSIX shell/Python syntax checks, full coexistence regression (including duplicate FX DNS/filter/proxy listener collisions and all fail-closed cases), read-only network mutation guard, and live runner smoke assertion.
+- This run validates the arbiter on a GitHub Linux host only. It does not establish Android device routing, packet forwarding/return path, vendor VPN chaining, or OnePlus 12 compatibility. Those remain unverified and are not claimed complete.
