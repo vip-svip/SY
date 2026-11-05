@@ -159,7 +159,7 @@ assert "finally {\n                clearPendingNativeScriptExport();\n          
 assert "clearPendingNativeScriptExport();" in main, "cancel/launch failure must clear staged export payload"
 for page in pages:
     assert "extends de.privacyguard.adhook.FxNativeTabActivity" in page
-    assert "setContentViewWithNativeTabs(root, 5);" in page
+    assert "setContentViewWithNativeTabs(root, 4);" in page
     assert "setContentView(root);" not in page
     assert "onCreate(" in page
 file_page = next(p for p in pages if "class FxDiaFileActivity" in p)
