@@ -63,7 +63,7 @@ printf '%064d  FX.apk\n' 0 > "$APP4/FX.apk.sha256"
 mkdir -p "$STATE4"
 printf 'keep-me\n' > "$T/sentinel"
 PIDFILE="$T/child.pid"; GO="$T/go"
-sh -c 'printf "%s\n" "$$" > "$1"; while [ ! -e "$2" ]; do sleep 0.01; done; exec sh "$3"' sh "$PIDFILE" "$GO" "$SOURCE" &
+FX_SYSTEM_APP_DIR="$APP4" FX_SYSTEM_APP_STATE_DIR="$STATE4" sh -c 'printf "%s\n" "$" > "$1"; while [ ! -e "$2" ]; do sleep 0.01; done; exec sh "$3"' sh "$PIDFILE" "$GO" "$SOURCE" &
 child=$!
 tries=0
 while [ ! -s "$PIDFILE" ] && [ "$tries" -lt 200 ]; do tries=$((tries+1)); sleep 0.01; done
@@ -81,7 +81,7 @@ APP5="$T/system5/app/FX"; STATE5="$T/state5"; make_payload "$APP5" bad-marker-te
 mkdir -p "$STATE5"
 printf 'keep-marker\n' > "$T/marker-sentinel"
 PIDFILE5="$T/child5.pid"; GO5="$T/go5"
-sh -c 'printf "%s\n" "$$" > "$1"; while [ ! -e "$2" ]; do sleep 0.01; done; exec sh "$3"' sh "$PIDFILE5" "$GO5" "$SOURCE" &
+FX_SYSTEM_APP_DIR="$APP5" FX_SYSTEM_APP_STATE_DIR="$STATE5" sh -c 'printf "%s\n" "$" > "$1"; while [ ! -e "$2" ]; do sleep 0.01; done; exec sh "$3"' sh "$PIDFILE5" "$GO5" "$SOURCE" &
 child5=$!
 tries=0
 while [ ! -s "$PIDFILE5" ] && [ "$tries" -lt 200 ]; do tries=$((tries+1)); sleep 0.01; done
