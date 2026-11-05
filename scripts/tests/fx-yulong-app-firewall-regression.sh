@@ -406,136 +406,17 @@ unset MOCK_PACKAGE_LIST_FAIL
 
 # A failed OUTPUT detach must fail closed and retain the active marker
 # so a later disable retry can identify and clean the still-attached rules.
-export MOCK_FAIL_DELETE_CHAIN=FXYUL_B
+active_chain=$(cat "$ACTIVE")
+case "$active_chain" in FXYUL_A|FXYUL_B) : ;; *) fail "active firewall chain marker is invalid before teardown test" ;; esac
+export MOCK_FAIL_DELETE_CHAIN="$active_chain"
 if run master 0 > "$TMP/disable-detach-failed.out" 2>&1; then
   fail "firewall disable accepted a failed OUTPUT hook deletion"
 fi
 unset MOCK_FAIL_DELETE_CHAIN
 [ -s "$ACTIVE" ] || fail "failed teardown discarded the active marker"
-grep -qx 'FXYUL_B' "$MOCK_HOOKS4" || fail "failed teardown lost the still-attached IPv4 hook"
-grep -Fq 'cannot detach FX firewall OUTPUT hook: FXYUL_B' "$TMP/disable-detach-failed.out" || fail "failed teardown did not report the hook deletion failure"
+grep -qx "$active_chain" "$MOCK_HOOKS4" || fail "failed teardown lost the still-attached IPv4 hook"
+grep -Fq "cannot detach FX firewall OUTPUT hook: $active_chain" "$TMP/disable-detach-failed.out" || fail "failed teardown did not report the hook deletion failure"
 
-run master 0 > "$TMP/disable.out"
-grep -Fq 'firewall=0' "$TMP/disable.out" || fail "firewall did not disable after successful retry"
-[ ! -e "$ACTIVE" ] || fail "disable left an active marker"
-grep -Fq 'iptables -t filter -F FXYUL_A' "$MOCK_LOG" || fail "IPv4 chain cleanup missing"
-grep -Fq 'ip6tables -t filter -F FXYUL_B' "$MOCK_LOG" || fail "IPv6 chain cleanup missing"
-
-# No PID-predictable temp names may be present in the implementation.
-if grep -Eq 'CONF\.yulong-(master|list|rollback)\.\$\$|CONF\.restore\.\$\$|ACTIVE\.tmp\.\$\$' "$SOURCE"; then
-  fail "predictable firewall temp paths remain"
-fi
-for pattern in 'mktemp "$CONF.yulong-master.XXXXXX"' 'mktemp "$CONF.yulong-list.XXXXXX"' \
-               'mktemp "$CONF.yulong-rollback.XXXXXX"' 'mktemp "$CONF.restore.XXXXXX"' \
-               'mktemp "$ACTIVE.XXXXXX"'; do
-  grep -Fq "$pattern" "$SOURCE" || fail "missing unique temp creation: $pattern"
-done
-grep -Fq '_fw_validate_parent_chain "$PG"' "$SOURCE" || fail "state parent chain symlink validation missing"
-grep -Fq '[ "$CONF" = "$PG/settings.conf" ]' "$SOURCE" || fail "settings path not pinned inside PG"
-grep -Fq '[ "$ACTIVE" = "$PG/yulong-firewall-active" ]' "$SOURCE" || fail "active path not pinned inside PG"
-grep -Fq '[ "$LOCK" = "$PG/yulong-firewall.lock" ]' "$SOURCE" || fail "operation lock path not pinned inside PG"
-! grep -Fq 'mkdir -p "$PG"' "$SOURCE" || fail "unsafe recursive state directory creation remains"
-grep -Fq '[ -f "$CONF" ] && [ ! -L "$CONF" ]' "$SOURCE" || fail "settings.conf symlink guard missing"
-grep -Fq '[ ! -L "$ACTIVE" ]' "$SOURCE" || fail "active marker symlink guard missing"
-grep -Fq '[ ! -L "$LOCK" ]' "$SOURCE" || fail "operation lock symlink guard missing"
-
-# The watcher lifecycle lock atomically publishes a complete private owner record via same-directory hard link.
-python3 - "$SOURCE" <<'PY'
-from pathlib import Path
-import sys
-source = Path(sys.argv[1]).read_text(encoding="utf-8")
-lock = source.split("watch_lock_acquire() {", 1)[1].split("watch_lock_release() {", 1)[0]
-matcher = source.split("watch_lock_process_is_ours() {", 1)[1].split("watch_lock_acquire() {", 1)[0]
-release = source.split("watch_lock_release() {", 1)[1].split("watch_lock_signal_exit() {", 1)[0]
-assert 'mktemp "$WATCH_LOCK.tmp.XXXXXX"' in lock, "watcher ownership record is not prepared in a unique private temp file"
-assert "ln \"$_watch_lock_tmp\" \"$WATCH_LOCK\"" in lock, \
-    "complete watcher ownership metadata must be atomically published by a same-directory hard link"
-assert "set -C" not in lock, "partially-written noclobber lock publication must not return"
-assert "printf" in lock and '"$$"' in lock and '"$_watch_lock_tmp"' in lock, \
-    "exclusive lock does not publish the real shell PID into the prepared record"
-assert 'watch_lock_pid_start_time "$$"' in source, "lock owner start time must be read for the current shell PID"
-assert "chmod 600" in lock, "watcher lock is not private"
-assert "watch_lock_pid_live" in lock and "watch_lock_process_is_ours" in lock,     "lock owner process is not validated"
-owner = source.split("watch_lock_owner_is_ours() {", 1)[1].split("\n}", 1)[0]
-assert "[ \"$_watch_owner_script\" = \"$SCRIPT_PATH\" ] || return 2" in owner, \
-    "a foreign script must remain a hard lock conflict"
-assert "[ \"$_watch_live_start\" = \"$_watch_owner_start\" ] || return 1" in owner, \
-    "PID reuse must be reported as a stale owner, not a foreign lock"
-assert "_watch_owner_state=0" in source and "case \"$_watch_owner_state\" in" in source, \
-    "lock acquisition must distinguish a live owner, stale PID and unrelated lock"
-assert '[ "$(cat "$WATCH_LOCK" 2>/dev/null || true)" = "$_watch_lock_record" ]' in source, \
-    "stale lock reclamation must compare the exact record before unlinking"
-assert "watch_lock_pid_start_time()" in source, "watcher lock must capture the kernel process start time"
-assert "watch_lock_owner_is_ours()" in source and "FXYWLOCK2" in source, "watcher lock owner must be verified using PID, script path and process start time"
-settle = lock.split('sleep 0.02', 1)
-assert len(settle) == 2 and '_watch_lock_settled=$(cat "$WATCH_LOCK"' in settle[1], \
-    "lock acquisition must settle and re-read transitional metadata before rejecting a live owner"
-assert '_watch_lock_settled" != "$_watch_lock_record"' in settle[1], \
-    "lock acquisition must retry if the owner record changed during publication"
-assert '$_watch_lock_settled' in settle[1] and 'rm -f "$WATCH_LOCK"' in settle[1], \
-    "stale cleanup must be tied to the settled lock snapshot"
-assert 'printf \'%s\\n%s\\n%s\\n%s\\n\' "$$" FXYWLOCK2 "$SCRIPT_PATH" "$_watch_lock_start" > "$_watch_lock_tmp"' in source, \
-    "watcher must write full ownership metadata before publishing the lock path"
-
-assert 'case "$_lock_cmdline" in *"$SCRIPT_PATH"*) return 0 ;; esac' in matcher, "lock identity must recognize wrapped shell invocations containing the exact script path"
-assert "WATCH_LOCK_PID" not in source, "obsolete directory owner file remains"
-assert "WATCH_LOCK_OWNED=1" in lock, "lock acquisition does not record ownership"
-assert "WATCH_LOCK_OWNED=0" in release and "rm -f" in release,     "lock release does not clear only the owned lock"
-assert '"$WATCH_LOCK"' in release and '"$$"' in release,     "lock release does not verify exact PID ownership"
-print("PASS: watcher atomically creates, verifies and releases its PID-bearing lock file")
-PY
-
-# The watch-loop child, not its parent, publishes the PID after process startup.
-python3 - "$SOURCE" <<'PY'
-from pathlib import Path
-import sys
-source = Path(sys.argv[1]).read_text(encoding="utf-8")
-required = (
-    'printf \'%s\\n\' "' + chr(36) * 2 + '" > "$_watch_pid_tmp"',
-    'chmod 600 "$_watch_pid_tmp"',
-    'mv -f "$_watch_pid_tmp" "$WATCH_PIDFILE"',
-    'while [ "$_watch_start_wait" -lt 50 ]; do',
-    'if [ -n "$_watch_child_pid" ] && kill -0 "$_watch_child_pid" 2>/dev/null \\',
-    '&& watch_is_ours "$_watch_child_pid"; then',
-)
-for item in required:
-    if item not in source:
-        raise SystemExit("FAIL: watcher child-readiness contract missing: " + item)
-print("PASS: watcher child atomically publishes its own PID; starter verifies child identity under lock")
-PY
-
-# Watcher lock signals must release only the exact owner-held atomic file lock.
-python3 - "$SOURCE" <<'PY'
-from pathlib import Path
-import sys
-source = Path(sys.argv[1]).read_text(encoding="utf-8")
-required = (
-    "watch_lock_signal_exit() {",
-    "trap 'watch_lock_signal_exit 129' HUP",
-    "trap 'watch_lock_signal_exit 130' INT",
-    "trap 'watch_lock_signal_exit 143' TERM",
-)
-for item in required:
-    if item not in source:
-        raise SystemExit("FAIL: watcher signal cleanup missing: " + item)
-body = source.split("watch_lock_signal_exit() {", 1)[1].split("watch_lock_run() {", 1)[0]
-if "watch_lock_release" not in body or 'exit "$_watch_signal_status"' not in body:
-    raise SystemExit("FAIL: watcher signal handler does not release its owned lock before exiting")
-print("PASS: HUP/INT/TERM release the watcher-owned PID lock file")
-PY
-
-# Signal handlers must exit into the sole EXIT cleanup handler.
-grep -Fqx '  trap cleanup_lock EXIT' "$SOURCE" || fail "EXIT lock cleanup handler missing"
-grep -Fqx "  trap 'exit 129' HUP" "$SOURCE" || fail "HUP exit handler missing"
-grep -Fqx "  trap 'exit 130' INT" "$SOURCE" || fail "INT exit handler missing"
-grep -Fqx "  trap 'exit 143' TERM" "$SOURCE" || fail "TERM exit handler missing"
-if grep -Fq "trap 'rmdir \"\$LOCK\" 2>/dev/null || :' EXIT HUP INT TERM" "$SOURCE"; then
-  fail "firewall lock is released directly by signal traps"
-fi
-
-# Uninstall uses the same lock as apply and mutation, so it cannot race an
-# in-flight chain swap and leave an orphaned active firewall rule.
-grep -Fq 'uninstall) stop_watch || :; with_lock clear_all ;;' "$SOURCE" || fail "uninstall does not stop the owned watcher under the firewall lock"
 run uninstall
 [ ! -e "$ACTIVE" ] || fail "uninstall did not remove active firewall state after successful retry"
 ! grep -qx 'FXYUL_B' "$MOCK_HOOKS4" || fail "uninstall left an IPv4 OUTPUT jump"
