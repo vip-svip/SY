@@ -103,7 +103,7 @@ if [ -f "$PG/ca-trust-optin" ] && [ -f "$MODDIR/scripts/certmgr.sh" ]; then
 fi
 
 [ -f "$MODDIR/scripts/vpn-auto-update.sh" ] && sh "$MODDIR/scripts/vpn-auto-update.sh" "$MODDIR" "$PG" >> "$PG/boot.log" 2>&1
-if [ -x "$MODDIR/scripts/vpn-external-watchdog.sh" ]; then
+if [ -f "$MODDIR/scripts/vpn-external-watchdog.sh" ]; then
   sh "$MODDIR/scripts/vpn-external-watchdog.sh" snapshot "$MODDIR" "$PG" >> "$PG/boot.log" 2>&1 || echo "[$(date '+%m-%d %H:%M:%S')] external VPN baseline unavailable; safe reconcile on start" >> "$PG/boot.log"
 fi
 sh "$MODDIR/scripts/apply.sh" >> "$PG/boot.log" 2>&1
@@ -121,11 +121,11 @@ if [ -f "$MODDIR/scripts/yulong-ad-schedule.sh" ]; then
   sh "$MODDIR/scripts/yulong-ad-schedule.sh" start >> "$PG/boot.log" 2>&1 || \
     echo "[$(date '+%m-%d %H:%M:%S')] Yulong ad schedule watcher failed to start" >> "$PG/boot.log"
 fi
-if [ "$_rc" -eq 0 ] && [ -x "$MODDIR/scripts/vpn-external-watchdog.sh" ]; then
+if [ "$_rc" -eq 0 ] && [ -f "$MODDIR/scripts/vpn-external-watchdog.sh" ]; then
   sh "$MODDIR/scripts/vpn-external-watchdog.sh" mark-applied "$MODDIR" "$PG" >> "$PG/boot.log" 2>&1 || echo "[$(date '+%m-%d %H:%M:%S')] external VPN applied-state commit failed" >> "$PG/boot.log"
 fi
 [ "$_rc" -gt 0 ] && echo "[$(date '+%m-%d %H:%M:%S')] boot: apply completed with $_rc failures; inspect apply.errors" >> "$PG/boot.log"
-if [ -x "$MODDIR/scripts/vpn-external-watchdog.sh" ]; then
+if [ -f "$MODDIR/scripts/vpn-external-watchdog.sh" ]; then
   sh "$MODDIR/scripts/vpn-external-watchdog.sh" start "$MODDIR" "$PG" >> "$PG/boot.log" 2>&1 || echo "[$(date '+%m-%d %H:%M:%S')] external VPN watcher failed to start" >> "$PG/boot.log"
 fi
 if [ -x "$MODDIR/scripts/yulong-trusted-network.sh" ]; then
