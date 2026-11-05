@@ -232,7 +232,7 @@ for token in ('panel.setTag("fx-card")', 'row.setTag("fx-card-group")',
               'summary.setTag("fx-card-detail")', 'detail.setTag("fx-card-body")',
               'toggle.setTag(key)', 'toggle.setOnCheckedChangeListener'):
     assert token in method, f"privacy dialog component integration missing: {token}"
-assert method.index("FxNativeSkin.applyComponents(this, panel)") < method.index("new AlertDialog.Builder(this).setTitle(title)")
+assert method.index("FxNativeSkin.applyComponents(this, panel)") < method.index("FxNativeSkin.builder(this).setTitle(title)")
 assert method.index("toggle.setTag(key)") < method.index("toggle.setOnCheckedChangeListener")
 print("PASS: dynamic Privacy dialog is skinned without changing its persisted key or toggle listener.")
 PY
