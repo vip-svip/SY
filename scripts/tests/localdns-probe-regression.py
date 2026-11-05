@@ -68,7 +68,7 @@ def main():
         assert "PASS" in run_case(binary, 0x8183).stdout
 
         # The response must match the outstanding query and be a DNS response.
-        assert run_case(binary, 0x8080, 73).returncode == 73  # QR missing
+        assert run_case(binary, 0x0180, 73).returncode == 73  # QR missing\n        assert run_case(binary, 0x8080, 73).returncode == 73  # RD missing
         assert run_case(binary, 0x8980, 73).returncode == 73  # non-zero opcode
         assert run_case(binary, 0x8380, 73).returncode == 73  # truncated UDP reply
         assert run_case(binary, mutate=flip_transaction_id, expect=73).returncode == 73
