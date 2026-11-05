@@ -159,20 +159,20 @@ assert "if (clearButton != null) clearButton.setEnabled(false);" in dns, \
     "DNS log clear must prevent duplicate queued destructive operations"
 
 for label, source, capacity in (("Ad backup", general, "ArrayBlockingQueue<>(8)"),
-                                ("DNS log", dns, "ArrayBlockingQueue<>(16)")):
+                                ("DNS log", dns, "ArrayBlockingQueue<>(16)"),
+                                ("daily summary", summary, "ArrayBlockingQueue<>(1)")):
     assert capacity in source, f"{label} worker queue must remain bounded"
     assert "new ThreadPoolExecutor.AbortPolicy()" in source, f"{label} worker must fail closed on queue saturation"
     assert "RejectedExecutionException" in source, f"{label} queue saturation must be handled"
     assert "worker.shutdownNow()" in source, f"{label} worker must stop with Activity lifecycle"
 
-# Daily summary reads only local SharedPreferences and ActivityManager state.
-# It performs no Root/network work, so a worker thread/queue is not required.
-assert "SharedPreferences p=getSharedPreferences(PREFS,MODE_PRIVATE);" in summary, \
-    "daily summary must use local persisted counters"
-assert "isServiceRunning(FxYulongProtectionService.class)" in summary, \
-    "daily summary must report the real protection-service state"
-assert "isServiceRunning(FxYulongRescueOverlayService.class)" in summary, \
-    "daily summary must report the real rescue-overlay state"
+# Summary combines the active module configuration and local retained DNS
+# counters through Root; stale generations must never overwrite a newer refresh.
+assert 'final int generation = ++loadGeneration;' in summary
+assert 'root("list", generation' in summary and 'root("dns-log-summary", generation' in summary
+assert "generation != loadGeneration" in summary
+assert "loadGeneration++;" in summary
+assert 'if (isFinishing() || isDestroyed()) return;' in summary
 assert "RootAccess" not in summary and "ThreadPoolExecutor" not in summary, \
     "local-only daily summary must not add unnecessary Root/background work"
 assert "private void submitWorker(Runnable task)" in general, "backup import/export must surface worker rejection"

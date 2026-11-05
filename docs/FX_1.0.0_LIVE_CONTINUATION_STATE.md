@@ -5797,3 +5797,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `42098602252`（HEAD `22ff74cd`）Targeted Host Regression 在 Ad Activity 状态测试中失败：每日安全总结断言要求本机 `shield_prefs` 计数和 Protection/Rescue 服务运行状态，却错误地读取 `imported/ad/FxYulongAdSummaryActivity.java`。
 - 实际每日安全总结页面是 `imported/shield/FxYulongDailySummaryActivity.java`；其实现读取本地 SharedPreferences、查询两个本机服务状态，不执行 Root 或网络请求。Ad 的 `FxYulongAdSummaryActivity` 则是另一页本机广告过滤/DNS汇总，保留原实现不变。
 - 仅将回归测试目标路径改为正确的 Shield 页面，业务代码不变；本修订等待新 HEAD 的 Host 回归确认。
+
+
+### 游龙 Ad 总结页生命周期测试恢复真实 Root 数据口径（2026-11-06）
+
+- Host run `42098602252` 指出上一版测试错误地断言“日常总结只读本地 SharedPreferences/ActivityManager”，但 `FxYulongAdSummaryActivity` 实际需要 Root 读取当前广告过滤配置和 DNS 保留日志数字统计；这属于测试契约错误，不是产品代码缺陷。
+- 恢复对 Summary Activity 的真实边界检查：单执行线程 + 1 个待执行槽位、AbortPolicy、RejectedExecutionException 处理、Activity 销毁 shutdownNow，以及同一刷新代次贯穿 `list` 和 `dns-log-summary` 两次 Root 读取。
+- 同时保留 generation 失效检查，确保过期配置或 DNS 统计不会覆盖新刷新结果；不把 Root 读取伪称为本地-only。
