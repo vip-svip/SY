@@ -6423,3 +6423,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 首次 Arbiter Actions run `42107291150` 失败于既有新增用例 case 1f：裁决器已在 `reasons` 输出重复服务端口，但 JSON 缺少测试/状态消费者要求的独立 `config_conflicts` 字段。
 - 修复提交：`c48f2379211b3e05459c2f32a21374345e08f22b`，在 JSON 状态中发布规范化后的 `config_conflicts`。分支回读确认字段已存在。
 - 新一轮 Arbiter run：`42107395857`；记录时状态为 queued，尚不能记为通过。Android Gradle、KernelSU ZIP、真实设备 VPN/TUN/DNS 路径仍未验证。
+
+
+## 2026-11-06 — VPN arbiter 源码清单失败回归
+
+- 测试提交：`0516184bb5cb9be19d0d5cc6aec2c72677ca84c9`。
+- 新增用例：用 PATH 前置的伪 `find` 返回非零，模拟模块 shell 源码清单命令失败；断言 arbiter 返回 `unknown`、退出码 2、`vpn_service_slot_used=null`，不得把扫描失败误判为不占槽。
+- 本次只增加回归夹具，没有改变设备路由、防火墙或服务状态。完整 regression/CI 运行尚待确认。
