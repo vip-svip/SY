@@ -425,7 +425,7 @@ pass "production PackageManager UID match detects FX-owned VpnService"
 echo "== case 5c3: unavailable FX PackageManager UID fails closed =="
 cat > "$TMP/fakebin/dumpsys" <<'EOF'
 #!/bin/sh
-printf '%s\\n' 'ConnectivityService:' '  mVpns:' '    VpnInfo{ownerUid=10123 vpnIface=tun0}'
+printf '%s\n' 'ConnectivityService:' '  mVpns:' '    VpnInfo{ownerUid=10123 vpnIface=tun0}'
 EOF
 cat > "$TMP/fakebin/cmd" <<'EOF'
 #!/bin/sh
