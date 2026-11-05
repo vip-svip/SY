@@ -225,8 +225,11 @@ _clear_all() {
     _log "ERROR: one or more FX-owned DNS OUTPUT hooks could not be detached; preserving state markers for retry"
     return 1
   fi
-  rm -f "$ACTIVE" "$ACTIVE_META" "$EGRESS" "$EGRESS.tmp."* 2>/dev/null || {
-    _log "ERROR: unable to remove Root Proxy state markers after redirect cleanup"
+  # Keep the egress marker until the shared Unbound process has either
+  # reloaded without its VPN binding or been confirmed stopped. If both
+  # operations fail, the marker is the recovery signal for the next retry.
+  rm -f "$ACTIVE" "$ACTIVE_META" "$EGRESS.tmp."* 2>/dev/null || {
+    _log "ERROR: unable to remove Root Proxy active markers after redirect cleanup"
     return 1
   }
   return 0
@@ -235,31 +238,73 @@ _stop_engines() {
   # These resolver daemons are shared with the independent local-DNS feature.
   # Root Proxy owns only its DNS redirection rules; stopping it must not tear
   # down a resolver that remains enabled outside the external-VPN fallback.
+  _engine_failed=0
   if [ "$(pg_get dns_engine_adguardhome 0 2>/dev/null)" != "1" ]; then
-    sh "$MP/scripts/adguardhome.sh" stop "$MP" "$PG" >> "$LOG" 2>&1 || :
+    if ! sh "$MP/scripts/adguardhome.sh" stop "$MP" "$PG" >> "$LOG" 2>&1; then
+      _log "ERROR: could not stop non-independent AdGuard Home"
+      _engine_failed=1
+    fi
   else
     _log "keeping AdGuard Home running: independent local-DNS engine is enabled"
   fi
   if [ "$(pg_get dns_forward 0 2>/dev/null)" != "1" ]; then
-    sh "$MP/scripts/unbound.sh" stop "$MP" "$PG" >> "$LOG" 2>&1 || :
+    if sh "$MP/scripts/unbound.sh" stop "$MP" "$PG" >> "$LOG" 2>&1; then
+      rm -f "$EGRESS" || {
+        _log "ERROR: Unbound stopped but its obsolete VPN egress marker could not be removed"
+        _engine_failed=1
+      }
+    else
+      _log "ERROR: could not stop non-independent Unbound; preserving VPN egress marker for recovery"
+      _engine_failed=1
+    fi
   else
-    # _clear_all has removed the VPN egress marker. Re-render the shared
-    # resolver so it no longer retains the previous tunnel's outgoing address.
+    # Stage the previous binding so a failed unpin AND failed stop can restore
+    # the marker. A later status/reconcile/stop then knows cleanup is incomplete.
+    _egress_backup=""
+    if [ -e "$EGRESS" ] || [ -L "$EGRESS" ]; then
+      if [ ! -f "$EGRESS" ] || [ -L "$EGRESS" ]; then
+        _log "ERROR: unsafe Unbound VPN egress marker; refusing to claim DNS cleanup"
+        return 1
+      fi
+      _egress_backup=$(mktemp "$EGRESS.rollback.XXXXXX") || {
+        _log "ERROR: unable to stage Unbound VPN egress marker for safe unpin"
+        return 1
+      }
+      if [ ! -f "$_egress_backup" ] || [ -L "$_egress_backup" ] ||
+          ! cat "$EGRESS" > "$_egress_backup" || ! chmod 600 "$_egress_backup"; then
+        rm -f "$_egress_backup" 2>/dev/null || :
+        _log "ERROR: unable to preserve previous Unbound VPN egress marker"
+        return 1
+      fi
+      if ! rm -f "$EGRESS"; then
+        rm -f "$_egress_backup" 2>/dev/null || :
+        _log "ERROR: unable to clear Unbound VPN egress marker before reload"
+        return 1
+      fi
+    fi
     if sh "$MP/scripts/unbound.sh" ensure "$MP" "$PG" >> "$LOG" 2>&1; then
+      [ -z "$_egress_backup" ] || rm -f "$_egress_backup" 2>/dev/null || :
       _log "refreshed independent Unbound without stale external-VPN egress binding"
       _log "keeping Unbound running: independent local-DNS forwarding is enabled"
     else
-      # Do not leave a resolver process running with a stale outgoing-interface
-      # that may no longer exist or may route outside the intended VPN. Prefer
-      # temporary DNS unavailability over silently retaining an obsolete path.
       _log "WARNING: independent Unbound refresh failed after VPN egress marker removal; stopping resolver to prevent stale egress"
       if sh "$MP/scripts/unbound.sh" stop "$MP" "$PG" >> "$LOG" 2>&1; then
+        [ -z "$_egress_backup" ] || rm -f "$_egress_backup" 2>/dev/null || :
         _log "stopped Unbound after failed VPN-binding refresh; local DNS will recover on the next ensure"
       else
+        if [ -n "$_egress_backup" ]; then
+          if mv -f "$_egress_backup" "$EGRESS"; then
+            _log "restored VPN egress marker because Unbound stop failed; cleanup remains retryable"
+          else
+            _log "ERROR: Unbound stop and egress marker restoration both failed"
+          fi
+        fi
         _log "ERROR: Unbound stop also failed; stale resolver process may remain and requires watchdog/manual recovery"
+        _engine_failed=1
       fi
     fi
   fi
+  [ "$_engine_failed" = 0 ]
 }
 _stop_locked() {
   if ! _clear_all; then
@@ -268,7 +313,10 @@ _stop_locked() {
     _log "ERROR: Root Proxy cleanup incomplete; DNS engines left running for safety"
     return 1
   fi
-  _stop_engines
+  if ! _stop_engines; then
+    _log "ERROR: DNS engine shutdown/rebind could not be confirmed; cleanup remains retryable"
+    return 1
+  fi
   _log "stopped; removed only FX-owned DNS redirection chains"
 }
 _route_uses_if() {
