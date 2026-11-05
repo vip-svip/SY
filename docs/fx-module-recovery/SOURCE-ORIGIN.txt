@@ -1,0 +1,4 @@
+source=GitHub Release 1.0.0
+archive=FX-v1.0.0.zip
+recovery_branch=fx-v1.0.0-unified-hook-integration
+recovery_commit=f6a95832f8a209aa048f43caf9488a272ee26c92
