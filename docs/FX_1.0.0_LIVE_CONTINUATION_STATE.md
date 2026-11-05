@@ -4785,3 +4785,18 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 最新分支提交 `9ddb49d8535292a50255c629f795522e1745d008` 对应 FX Targeted Host Regression run `42010843009` 已完成，结论 `success`： https://github.com/vip-svip/SY/actions/runs/42010843009
 - Android APK/KernelSU 构建没有在本轮执行：`.github/workflows/build-fx-adhook.yml` 只允许 workflow_dispatch 或 PR 触发，且 APK 构建还受迁移完成验收门控；KernelSU 最终打包 workflow 也要求显式 workflow_dispatch 且 migration_complete=true。不能在未完成全部迁移验收时伪造该输入。
 - 本次 CI 是 Host regression，不等于 Android Gradle compile/assemble、APK 安装、KernelSU/Magisk overlay、SELinux 或真机验证。后续应继续 VPN/本地 DNS 的数据面共存与恢复测试，并完成所有迁移验收后再按仓库工作流授权构建。
+
+
+## 2026-11-05 — Root Proxy 与独立本地 DNS 引擎生命周期隔离
+
+- 发现的真实缺陷：`fx-module/scripts/yulong-root-proxy.sh` 的 `_stop_engines()` 无条件停止 AdGuard Home 和 Unbound。两者同时也是独立本地 DNS 功能的共享 resolver；关闭外部 VPN DNS fallback、故障 fail-open 或 Root Proxy stop 时，可能连带中断仍单独启用的本地 DNS。
+- 已直接修改 `fx-module/scripts/yulong-root-proxy.sh`：停止 Root Proxy 时只清理 FX 自己的 DNS 重定向链；分别读取 `dns_engine_adguardhome` 与 `dns_forward`，独立引擎仍启用时保留对应守护进程，只停止不再被独立 DNS 配置使用的引擎。
+- 已扩展 `fx-module/scripts/tests/v1.0.0-yulong-root-proxy-lock-regression.sh`：加入 Package config `pg_get` fixture 和引擎 stop 记录，覆盖两个独立 DNS 引擎均启用时不停止、仅 AdGuard Home 启用时只停止 Unbound、仅 Unbound 启用时只停止 AdGuard Home；保留原有锁文件并发、陈旧锁和旧目录迁移用例。
+- GitHub 提交：
+  - `ea4c36e5b990001c305d314b5cf83cb1355a8c8a` — `fix(vpn): preserve independently enabled local DNS engines`。
+  - `30a142302c5406556ef97cc393a78bb7f47428ca` — `test(vpn): cover independent local DNS engine ownership`。
+  - `10279a4182e01d96960af03626ba45282672a386` — 修正新增 Host fixture 的 POSIX shell 参数展开。
+- 已通过 GitHub API 回读验证源码和测试文件的新 blob SHA、独立 DNS 分支判断、三组引擎生命周期断言及测试 fixture。回读是静态核对，不等于测试执行。
+- 自动 Host regression 由 `fx-targeted-regression.yml` 的 `fx-module/scripts/**` / `fx-module/scripts/tests/**` push 路径触发；本记录写入时尚未取得本批 run 的完成结果。Shell regression、Android Gradle 构建、设备 DNS 生命周期、第三方 VPN 共存和真机测试均未在本轮执行/验证。
+- 本批没有改动 Android VpnService 注册、第三方 VPN 路由或系统防火墙；未改变版本号，未生成 APK/KernelSU ZIP。
+- 下一批：读取本批 Host regression 结果；继续梳理独立 DNS 的开机启动/配置/停止路径与 Root Proxy 共享引擎所有权，补齐真实服务状态和回滚测试。
