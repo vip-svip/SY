@@ -3,6 +3,7 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
 PATCHER="$ROOT/fx-patches/patch_native_script_scheduler.py"
 SOURCE="$ROOT/fx-patches/native-script-scheduler.sh"
+# Only build-lane callers pass a restored module path; the Host checkout is an overlay, not the Release staging tree.
 MOD_EXPLICIT=0
 if [ "$#" -gt 0 ]; then MOD=$1; MOD_EXPLICIT=1; else MOD="$ROOT/fx-module"; fi
 fail(){ echo "FAIL: $*" >&2; exit 1; }
