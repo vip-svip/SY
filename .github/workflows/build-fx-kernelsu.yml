@@ -52,6 +52,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          # Preserve integration-branch lifecycle overrides before the published
+          # archive is restored; the archive is canonical for missing runtime
+          # assets such as scripts/apply.sh, but must not erase branch fixes.
+          overrides="$RUNNER_TEMP/fx-module-overrides"
+          mkdir -p "$overrides/scripts"
+          for f in service.sh uninstall.sh; do
+            [[ -s "fx-module/$f" ]] && cp "fx-module/$f" "$overrides/$f"
+          done
+          [[ -s fx-module/scripts/vpn-external-watchdog.sh ]] && cp fx-module/scripts/vpn-external-watchdog.sh "$overrides/scripts/vpn-external-watchdog.sh"
           required=(
             module.prop customize.sh post-fs-data.sh service.sh uninstall.sh
             scripts/apply.sh scripts/default.conf scripts/util.sh
@@ -78,8 +87,15 @@ jobs:
               source_root="$(dirname "$module_prop")"
             fi
             cp -a "$source_root/." fx-module/
-
           fi
+          for f in service.sh uninstall.sh; do
+            [[ -s "$overrides/$f" ]] && install -m 0755 "$overrides/$f" "fx-module/$f"
+          done
+          if [[ -s "$overrides/scripts/vpn-external-watchdog.sh" ]]; then
+            install -D -m 0755 "$overrides/scripts/vpn-external-watchdog.sh" fx-module/scripts/vpn-external-watchdog.sh
+          fi
+          test -s fx-module/scripts/apply.sh
+          test -s fx-module/scripts/util.sh
           # The stable KernelSU ZIP retires the old WebUI URL with a tiny notice page.
           # Recover the canonical full UI from the already packaged Hook APK before
           # running compatibility patches or rebuilding; otherwise release-to-release
@@ -180,6 +196,9 @@ jobs:
           python3 fx-patches/patch_yulong_root_proxy.py fx-module .
           sh scripts/tests/fx-yulong-root-proxy-unbound-regression.sh
           sh scripts/tests/fx-yulong-root-proxy-runtime-regression.sh
+          sh scripts/tests/fx-vpn-external-watchdog-regression.sh
+          grep -Fq 'vpn-external-watchdog.sh' fx-module/service.sh
+          grep -Fq 'vpn-external-watchdog.sh' fx-module/uninstall.sh
           python3 fx-patches/patch_atomic_cache_lock_release.py fx-module
           sh scripts/tests/fx-atomic-cache-lock-release-regression.sh fx-module
           sh scripts/tests/fx-yulong-schedule-default-regression.sh
