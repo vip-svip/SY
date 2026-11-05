@@ -104,7 +104,7 @@ jobs:
           # Refresh the target-based PR branch from the latest integration HEAD.
           # Resolve same-path conflicts in favor of the current integration tree;
           # the recovery branch contributes missing legacy runtime files only.
-          recovery_branch=fx-module-source-recovery-pr
+          recovery_branch=fx-module-source-recovery-target
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin \
