@@ -55,6 +55,21 @@ grep -Fq 'p.cardCornerRadiusDp - 4) * density' "$skin" || { echo "FAIL: native n
 grep -Fq 'palette.cornerRadiusDp * density' "$skin" || { echo "FAIL: native action buttons must retain the independent action radius"; exit 1; }
 grep -Fq 'return HarmonySkinRenderer.palette();' "$skin" || { echo "FAIL: Android Views do not use the Harmony renderer"; exit 1; }
 grep -Fq 'return CupertinoSkinRenderer.palette();' "$skin" || { echo "FAIL: Android Views do not use the Cupertino renderer"; exit 1; }
+grep -Fq 'HarmonySkinRenderer.applyTaggedComponent(activity, view)' "$skin" || { echo "FAIL: Harmony component renderer is not in the shared native Skin walk"; exit 1; }
+grep -Fq 'CupertinoSkinRenderer.applyTaggedComponent(activity, view)' "$skin" || { echo "FAIL: Cupertino component renderer is not in the shared native Skin walk"; exit 1; }
+grep -Fq 'FxNativeSkin.shouldPreserveSemanticAction(action)' "$harmony_renderer" || { echo "FAIL: Harmony renderer may recolor semantic actions"; exit 1; }
+grep -Fq 'FxNativeSkin.shouldPreserveSemanticAction(action)' "$cupertino_renderer" || { echo "FAIL: Cupertino renderer may recolor semantic actions"; exit 1; }
+for role in 't.setTag("fx-title:" + size)' 'button.setTag("fx-action-row")' 'card.setTag("fx-card")' 'card.setTag("fx-setting-card")' 't.setTag("fx-section:" + s)'; do
+  grep -Fq "$role" "$activity" || { echo "FAIL: shared native component role missing: $role"; exit 1; }
+done
+for role in 'role.startsWith("fx-title:")' 'role.startsWith("fx-section:")' '"fx-card".equals(role)' '"fx-action-row".equals(role)'; do
+  grep -Fq "$role" "$harmony_renderer" || { echo "FAIL: Harmony component role renderer missing: $role"; exit 1; }
+  grep -Fq "$role" "$cupertino_renderer" || { echo "FAIL: Cupertino component role renderer missing: $role"; exit 1; }
+done
+for token in 'CARD_SURFACE' 'CARD_STROKE' 'ROW_RIPPLE' 'SECTION_RADIUS_DP' 'PAGE_TITLE_SP' 'SECTION_TITLE_SP' 'CARD_TITLE_SP' 'ROW_MIN_HEIGHT_DP'; do
+  grep -Fq "$token" "$harmony_tokens" || { echo "FAIL: Harmony component token missing: $token"; exit 1; }
+  grep -Fq "$token" "$cupertino_tokens" || { echo "FAIL: Cupertino component token missing: $token"; exit 1; }
+done
 grep -Fq 'applyTextInputSkin(activity, (EditText) view, mode, palette)' "$skin" || { echo "FAIL: EditText controls must use skin hint tokens"; exit 1; }
 grep -Fq 'applySpinnerSkin(activity, (Spinner) view, mode, palette)' "$skin" || { echo "FAIL: Spinner controls must use skin selection tokens"; exit 1; }
 grep -Fq 'control.setHintTextColor(palette.secondaryText)' "$skin" || { echo "FAIL: EditText placeholder color is not skin-aware"; exit 1; }
@@ -195,4 +210,22 @@ sh "$root/scripts/tests/fx-native-vpn-api-regression.sh"
 sh "$root/scripts/tests/fx-vpn-transparent-toggle-regression.sh"
 sh "$root/scripts/tests/v1.0.0-fxhook-capture-privacy-wiring-regression.sh"
 sh "$root/scripts/tests/vpncore-default-node-fallback-regression.sh"
+python3 - "$harmony_tokens" "$cupertino_tokens" "$skin" <<'PY'
+from collections import Counter
+from pathlib import Path
+import re
+import sys
+
+for name in sys.argv[1:3]:
+    source = Path(name).read_text(encoding="utf-8")
+    fields = re.findall(r"static final (?:int|float|long|boolean|String)\\s+(\\w+)\\s*=", source)
+    duplicates = [key for key, count in Counter(fields).items() if count > 1]
+    assert not duplicates, f"{name}: duplicate Java token fields: {duplicates}"
+
+skin = Path(sys.argv[3]).read_text(encoding="utf-8")
+assert "int inputBorder, int cardCornerRadiusDp, float buttonTextSizeSp" in skin
+assert "this.cardCornerRadiusDp = cardCornerRadiusDp;" in skin
+assert "static boolean shouldPreserveSemanticAction(Button button)" in skin
+print("PASS: Harmony/Cupertino token declarations are unique and native Skin palette constructor fields are wired.")
+PY
 echo "PASS: five global UI modes share persistence, shell rendering, and live tokens on MainActivity and imported pages."
