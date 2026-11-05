@@ -4796,6 +4796,7 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - `ea4c36e5b990001c305d314b5cf83cb1355a8c8a` — `fix(vpn): preserve independently enabled local DNS engines`。
   - `30a142302c5406556ef97cc393a78bb7f47428ca` — `test(vpn): cover independent local DNS engine ownership`。
   - `10279a4182e01d96960af03626ba45282672a386` — 修正新增 Host fixture 的 POSIX shell 参数展开。
+  - `83fa0617fbe8c63e8644ffa6bc9d1abecb9aeda4` — 将 DNS 设置键放在 canonical settings 全局段，避免 fixture 误用列表段布局。
 - 已通过 GitHub API 回读验证源码和测试文件的新 blob SHA、独立 DNS 分支判断、三组引擎生命周期断言及测试 fixture。回读是静态核对，不等于测试执行。
 - 自动 Host regression 由 `fx-targeted-regression.yml` 的 `fx-module/scripts/**` / `fx-module/scripts/tests/**` push 路径触发；本记录写入时尚未取得本批 run 的完成结果。Shell regression、Android Gradle 构建、设备 DNS 生命周期、第三方 VPN 共存和真机测试均未在本轮执行/验证。
 - 本批没有改动 Android VpnService 注册、第三方 VPN 路由或系统防火墙；未改变版本号，未生成 APK/KernelSU ZIP。
