@@ -160,7 +160,7 @@ public final class FxYulongAdActivity extends de.privacyguard.adhook.FxNativeTab
    page=getIntent().getStringExtra("suite_page");
    if(page==null)page="首页与防护";
   }
-  LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setBackgroundColor(0xfff7f8fa);LinearLayout h=new LinearLayout(this);h.setGravity(Gravity.CENTER_VERTICAL);h.setPadding(dp(10),dp(6),dp(12),dp(6));h.addView(btn("‹ 返回 Ad",this::finish));h.addView(txt("Ad · 广告过滤控制中心",18,0xff17212b,true),new LinearLayout.LayoutParams(0,-2,1));root.addView(h);pageScroll=new ScrollView(this);pageScroll.setFillViewport(true);body=new LinearLayout(this);body.setOrientation(1);body.setPadding(0,dp(4),0,dp(20));pageScroll.addView(body);root.addView(pageScroll,new LinearLayout.LayoutParams(-1,0,1));setContentViewWithNativeTabs(root, 1);render();restoreDrafts(pendingRestoredDrafts);pendingRestoredDrafts=null;load();}
+  LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setBackgroundColor(0xfff7f8fa);LinearLayout h=new LinearLayout(this);h.setGravity(Gravity.CENTER_VERTICAL);h.setPadding(dp(10),dp(6),dp(12),dp(6));h.addView(btn("‹ 返回 Ad",this::finish));TextView adTitle=txt("Ad · 广告过滤控制中心",18,0xff17212b,true);adTitle.setTag("fx-title:18");h.addView(adTitle,new LinearLayout.LayoutParams(0,-2,1));root.addView(h);pageScroll=new ScrollView(this);pageScroll.setFillViewport(true);body=new LinearLayout(this);body.setOrientation(1);body.setPadding(0,dp(4),0,dp(20));pageScroll.addView(body);root.addView(pageScroll,new LinearLayout.LayoutParams(-1,0,1));setContentViewWithNativeTabs(root, 1);render();restoreDrafts(pendingRestoredDrafts);pendingRestoredDrafts=null;load();}
  private Bundle captureDrafts(){
   Bundle drafts=new Bundle(retainedDrafts);
   for(java.util.Map.Entry<String,EditText> entry:draftFields.entrySet()){
@@ -176,7 +176,7 @@ public final class FxYulongAdActivity extends de.privacyguard.adhook.FxNativeTab
   if(pageScroll!=null)out.putInt(STATE_SCROLL_Y,Math.max(0,pageScroll.getScrollY()));
   super.onSaveInstanceState(out);
  }
- private void render(){trustedNetworkGeneration++;trustedPauseSwitch=null;trustedSsidRows=null;trustedNetworkStatus=null;rootProxyStatus=null;rootProxyStatusGeneration++;draftFields.clear();body.removeAllViews();status=txt("正在读取 FX 配置…",12,0xff526170,false);card("运行架构","游龙原版 AdBlockVpnService / RootProxyService 不会启动；过滤、DNS 和代理继续由 FX 单一网络入口处理。",btn("应用级网络拦截",()->startActivity(new Intent(this,FxYulongFirewallActivity.class))));card("状态","设备端真实配置与应用结果",status);LinearLayout nav=new LinearLayout(this);nav.setOrientation(0);nav.addView(btn("首页",()->open("首页与防护")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("过滤",()->open("过滤列表")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("DNS",()->open("DNS 设置")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("名单",()->open("域名名单")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("计划",()->open("计划任务")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("配置档",()->open("保护配置档")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("可信",()->open("信任的网络")),new LinearLayout.LayoutParams(0,-2,1));body.addView(nav);body.addView(txt("当前页面："+page,13,0xff617080,true));if("过滤列表".equals(page))renderRules();else if("DNS 设置".equals(page))renderDns();else if("域名名单".equals(page))renderDomains();else if("信任的网络".equals(page))renderTrustedNetworks();else if("VPN 与 Root Proxy".equals(page)){
+ private void render(){trustedNetworkGeneration++;trustedPauseSwitch=null;trustedSsidRows=null;trustedNetworkStatus=null;rootProxyStatus=null;rootProxyStatusGeneration++;draftFields.clear();body.removeAllViews();status=txt("正在读取 FX 配置…",12,0xff526170,false);card("运行架构","游龙原版 AdBlockVpnService / RootProxyService 不会启动；过滤、DNS 和代理继续由 FX 单一网络入口处理。",btn("应用级网络拦截",()->startActivity(new Intent(this,FxYulongFirewallActivity.class))));card("状态","设备端真实配置与应用结果",status);LinearLayout nav=new LinearLayout(this);nav.setTag("fx-card-group");nav.setOrientation(0);nav.addView(btn("首页",()->open("首页与防护")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("过滤",()->open("过滤列表")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("DNS",()->open("DNS 设置")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("名单",()->open("域名名单")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("计划",()->open("计划任务")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("配置档",()->open("保护配置档")),new LinearLayout.LayoutParams(0,-2,1));nav.addView(btn("可信",()->open("信任的网络")),new LinearLayout.LayoutParams(0,-2,1));body.addView(nav);TextView currentPage=txt("当前页面："+page,13,0xff617080,true);currentPage.setTag("fx-card-detail");body.addView(currentPage);if("过滤列表".equals(page))renderRules();else if("DNS 设置".equals(page))renderDns();else if("域名名单".equals(page))renderDomains();else if("信任的网络".equals(page))renderTrustedNetworks();else if("VPN 与 Root Proxy".equals(page)){
   rootProxyStatus=txt("正在读取 Root Proxy 实际运行状态…",12,0xff617080,false);
   card("FX 唯一 VPN/TUN","节点、直连/全局/规则由 FX 管理。游龙原版第二个 VpnService 不会启动。",
     dnsSwitch("允许第三方 VPN 下启用 FX Root DNS Proxy","vpn_external_dns_proxy"),
@@ -204,6 +204,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
 
   private void renderTrustedNetworks() {
     trustedPauseSwitch = new Switch(this);
+     trustedPauseSwitch.setTag("fx-switch-row");
     trustedPauseSwitch.setText("连接可信 Wi-Fi 时自动暂停FX 广告过滤");
     trustedPauseSwitch.setTextSize(14);
     trustedPauseSwitch.setOnCheckedChangeListener((button, enabled) -> {
@@ -217,10 +218,12 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
       });
     });
     trustedNetworkStatus = txt("正在读取当前 Wi-Fi 和可信网络列表…",12,0xff617080,false);
+     trustedNetworkStatus.setTag("fx-card-detail");
     trustedSsidInput = draftField("trusted_ssid");
     trustedSsidInput.setSingleLine(true);
     trustedSsidInput.setHint("输入 Wi-Fi SSID（最多 32 字节）");
     trustedSsidRows = new LinearLayout(this);
+     trustedSsidRows.setTag("fx-card-group");
     trustedSsidRows.setOrientation(LinearLayout.VERTICAL);
     card("可信网络自动暂停",
         "仅当自动暂停已启用、当前 SSID 命中名单、游龙广告总开关开启且周计划处于活动时，才暂停游龙广告规则列表。退出可信网络后只恢复本功能自己暂停的门控；不会修改 FX Hosts、96110、VPN/TUN 或用户手动广告开关。",
@@ -291,8 +294,9 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
       if (ssids.isEmpty()) trustedSsidRows.addView(txt("暂无可信 Wi-Fi。",12,0xff718091,false));
       else for (String ssid : ssids) {
         LinearLayout row = new LinearLayout(this);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.addView(txt(ssid,13,0xff17212b,true),new LinearLayout.LayoutParams(0,-2,1));
+        row.setTag("fx-list-row");
+         row.setGravity(Gravity.CENTER_VERTICAL);
+        TextView ssidLabel=txt(ssid,13,0xff17212b,true);ssidLabel.setTag("fx-list-title");row.addView(ssidLabel,new LinearLayout.LayoutParams(0,-2,1));
         row.addView(btn("移除",() -> removeTrustedSsid(ssid)));
         trustedSsidRows.addView(row);
       }
@@ -377,7 +381,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
    proxyWhitelistSearch=draftField("rootproxy_whitelist_search");
    proxyWhitelistSearch.setSingleLine(true);
    proxyWhitelistSearch.setHint("搜索应用名称或包名");
-   proxyWhitelistRows=new LinearLayout(this);
+   proxyWhitelistRows=new LinearLayout(this);proxyWhitelistRows.setTag("fx-card-group");
    proxyWhitelistRows.setOrientation(1);
    card("应用 DNS 例外名单",
        "被选中的应用及共享同一 Android UID 的应用，其明文 DNS 不会被 FX Root Proxy 重定向；不改变应用 VPN 路由。卸载后保留包名，重装时重新解析新 UID。",
@@ -834,7 +838,7 @@ private boolean adMaster(){
   return true;
 }
 private String dnsValue(String key){for(String line:snapshot.split("\\r?\\n")){String[] p=line.split("\\|",-1);if(p.length==3&&p[0].equals("DNS")&&p[1].equals(key))return p[2];}return "0";}
- private void domainRow(Row e,boolean allow){LinearLayout r=new LinearLayout(this);r.setOrientation(1);r.setPadding(dp(8),dp(5),dp(8),dp(5));r.addView(txt((allow?"白名单 · ":"黑名单 · ")+e.value,13,0xff17212b,true));r.addView(txt(e.title,10,0xff718091,false));r.addView(btn("移除",()->apply((allow?"allow-remove ":"block-remove ")+q(e.value),"名单移除")));entries.addView(r);}
+ private void domainRow(Row e,boolean allow){LinearLayout r=new LinearLayout(this);r.setTag("fx-list-row");r.setOrientation(1);r.setPadding(dp(8),dp(5),dp(8),dp(5));TextView domain=txt((allow?"白名单 · ":"黑名单 · ")+e.value,13,0xff17212b,true);domain.setTag("fx-list-title");r.addView(domain);TextView source=txt(e.title,10,0xff718091,false);source.setTag("fx-list-subtitle");r.addView(source);r.addView(btn("移除",()->apply((allow?"allow-remove ":"block-remove ")+q(e.value),"名单移除")));entries.addView(r);}
  @Override protected void onDestroy(){trustedNetworkGeneration++;trustedNetworkStatus=null;rootProxyStatusGeneration++;rootProxyStatus=null;proxyWhitelistGeneration++;worker.shutdownNow();super.onDestroy();}
  private void profileRoot(String args,java.util.function.Consumer<RootAccess.Result> cb){
   Runnable task=()->{
