@@ -1,6 +1,8 @@
 package de.privacyguard.adhook;
 
 import android.app.Activity;
+import android.os.Handler;
+import android.os.Looper;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.view.View;
@@ -22,26 +24,37 @@ final class FxNativeSkin {
     // A weak registry prevents duplicate listeners if a page is re-mounted.
     private static final WeakHashMap<View, Boolean> WATCHED = new WeakHashMap<>();
 
+    private static final long REAPPLY_DEBOUNCE_MS = 80L;
+
     static void watch(Activity activity, View pageContent) {
         if (activity == null || pageContent == null) return;
-        apply(activity, pageContent);
+        FxUiMode mode = FxUiMode.read(activity);
+        boolean wallpaperActive = FxWallpaperStore.currentPath(activity) != null;
+        apply(activity, pageContent, mode, wallpaperActive);
         synchronized (WATCHED) {
             if (WATCHED.containsKey(pageContent)) return;
             WATCHED.put(pageContent, Boolean.TRUE);
         }
 
-        // Register against the ViewTreeObserver only after the page is attached.
-        // Compose's AndroidView may attach the pageContent after this method returns;
-        // observers obtained before attachment can be replaced during attach.
-        final ViewTreeObserver.OnGlobalLayoutListener layoutListener =
-                new ViewTreeObserver.OnGlobalLayoutListener() {
-            @Override public void onGlobalLayout() {
-                if (activity.isFinishing() || activity.isDestroyed()) return;
-                // View additions, async list population and size changes all
-                // converge here; replacement of known legacy colors is idempotent.
-                apply(activity, pageContent);
+        Handler mainHandler = new Handler(Looper.getMainLooper());
+        Runnable reapplyAfterLayout = () -> {
+            if (!activity.isFinishing() && !activity.isDestroyed()
+                    && pageContent.isAttachedToWindow()) {
+                // Reuse the Activity's initial presentation snapshot. Skin/wallpaper
+                // changes rebuild the page shell, so layout passes never hit disk or
+                // SharedPreferences while walking a potentially large app list.
+                apply(activity, pageContent, mode, wallpaperActive);
             }
         };
+        // Debounce repeated layout notifications: a burst of async list rows is
+        // re-skinned once after the current layout transaction settles, not once
+        // per frame or once per inserted child.
+        ViewTreeObserver.OnGlobalLayoutListener layoutListener =
+                () -> {
+                    if (activity.isFinishing() || activity.isDestroyed()) return;
+                    mainHandler.removeCallbacks(reapplyAfterLayout);
+                    mainHandler.postDelayed(reapplyAfterLayout, REAPPLY_DEBOUNCE_MS);
+                };
         pageContent.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
             private ViewTreeObserver observedTree;
 
@@ -50,6 +63,8 @@ final class FxNativeSkin {
                 if (observer.isAlive()) {
                     observedTree = observer;
                     observer.addOnGlobalLayoutListener(layoutListener);
+                    mainHandler.removeCallbacks(reapplyAfterLayout);
+                    mainHandler.postDelayed(reapplyAfterLayout, REAPPLY_DEBOUNCE_MS);
                 }
             }
 
@@ -58,6 +73,7 @@ final class FxNativeSkin {
                     observedTree.removeOnGlobalLayoutListener(layoutListener);
                 }
                 observedTree = null;
+                mainHandler.removeCallbacks(reapplyAfterLayout);
             }
         });
     }
@@ -83,9 +99,14 @@ final class FxNativeSkin {
 
     static void apply(Activity activity, View pageContent) {
         if (activity == null || pageContent == null) return;
-        FxUiMode mode = FxUiMode.read(activity);
+        apply(activity, pageContent, FxUiMode.read(activity),
+                FxWallpaperStore.currentPath(activity) != null);
+    }
+
+    private static void apply(Activity activity, View pageContent,
+                              FxUiMode mode, boolean wallpaperActive) {
+        if (activity == null || pageContent == null) return;
         Palette palette = palette(mode);
-        boolean wallpaperActive = FxWallpaperStore.currentPath(activity) != null;
         transformKnownLegacyTokens(pageContent, palette, wallpaperActive);
         // Root surface is always the Presentation backdrop. With a selected
         // wallpaper it must be transparent; child cards remain styled surfaces.
