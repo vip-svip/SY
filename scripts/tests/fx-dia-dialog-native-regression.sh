@@ -132,7 +132,7 @@ assert 'showAppList("按键控制")' in hook_hub
 assert "showDiaKeyControlTarget(ai)" in ui
 assert "动作一：关闭当前 Activity" in ui and "动作二：暂停 / 恢复当前应用的 Dialog 规则" in ui
 assert "key_finish_trigger" in ui and "key_dialog_toggle_trigger" in ui
-assert ".hasOverlappingTriggers(finishTrigger, dialogTrigger)" in ui, "ActivityKey page must reject overlapping gestures through the shared policy"
+assert "FxDiaKeyGesturePolicy" in ui and "hasOverlappingTriggers(finishTrigger, dialogTrigger)" in ui, "ActivityKey page must reject overlapping gestures through the shared policy"
 assert "Dialog 切换动作需要先配置有效的 debuggable Dialog 规则。" in ui
 assert "FLAG_UPDATED_SYSTEM_APP" in ui and "不会强制停止进程" in ui
 assert "key_finish_trigger" in parser and "key_dialog_toggle_trigger" in parser
