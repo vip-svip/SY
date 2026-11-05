@@ -5641,3 +5641,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 对共享 UID 的列表行显示影响范围；快速开关变更和详细配置入口均先展示明确确认对话框，说明规则会影响该 UID 下的全部应用。用户取消时快速开关会回滚；单 UID 应用保持原来的直接操作路径。
 - 扩展 Android-free UID policy 与 Host 单测，覆盖唯一 UID、重复 UID、未知 UID、无效 UID、缺失快照；将 JDK Host test 接入 fx-yulong-firewall-activity-regression.sh。
 - 验证：提交后由 Targeted Host Regression 与 Six UI Modes 执行；本批未进行 Android Gradle 构建、模拟器或真机 shared-UID 网络阻断测试。
+
+
+### KernelSU 包装流程同步 canonical Hook installer/remover（2026-11-06）
+
+- KernelSU package run `42096247931` 已通过 DEX 资源暂存、Release 模块恢复及 Yulong 7.0.1 规则解码/导入；在“应用 reviewed FX source compatibility patches”阶段，`adhook-app-installer-regression.sh` 发现恢复版 Release 模块仍携带旧 `fx-module/scripts/install_adhook_app.sh`，缺少新系统应用覆盖层优先策略。
+- 在运行安装器回归之前，KernelSU workflow 现在显式将仓库 canonical `scripts/install_adhook_app.sh` 与 `scripts/remove_adhook_app.sh` 以 0755 暂存到 `fx-module/scripts/`。boot service、uninstall hook 和回归测试因此针对同一份已审阅实现。
+- 不改变 APK 签名、PackageManager 或 SELinux 策略；此改动确保发布模块不会继续打包过期安装器。下一次 KernelSU package run 将继续验证 QuickJS-NG、APK Gradle 构建和最终 ZIP。
