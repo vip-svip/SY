@@ -75,9 +75,11 @@ fx_arb_port_owner() {
   _port=$1
   _hx=$(fx_arb_port_hex "$_port") || { printf 'unknown'; return 0; }
   _files="$FX_ARB_PROC_NET_DIR/tcp $FX_ARB_PROC_NET_DIR/tcp6 $FX_ARB_PROC_NET_DIR/udp $FX_ARB_PROC_NET_DIR/udp6"
-  _readable=0
-  for _f in $_files; do [ -r "$_f" ] && _readable=1; done
-  [ "$_readable" = "1" ] || { printf 'unknown'; return 0; }
+  # A partial inventory is not evidence that the missing protocol/family is
+  # free. Require every proc-net table before making a negative assertion.
+  for _f in $_files; do
+    [ -r "$_f" ] || { printf 'unknown'; return 0; }
+  done
 
   if fx_arb_listening "$_hx" $_files; then
     printf 'other'
