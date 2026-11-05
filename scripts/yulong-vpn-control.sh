@@ -34,6 +34,8 @@ status_json() {
   esac
   _fx_root_proxy_on=false
   _fx_root_proxy_known=false
+  _fx_private_dns_mode=unknown
+  _fx_dns_filter_coverage=unknown
   if [ -x "$MP/scripts/yulong-root-proxy.sh" ]; then
     _fx_root_proxy_status=$(MP="$MP" PG="$PG" sh "$MP/scripts/yulong-root-proxy.sh" status 2>/dev/null) || {
       echo "Root Proxy status is unavailable; refusing to mutate an unknown network route" >&2
@@ -41,10 +43,13 @@ status_json() {
     }
     _fx_root_proxy_known=true
     printf '%s\n' "$_fx_root_proxy_status" | grep -Fqx 'active=1' && _fx_root_proxy_on=true
+    _fx_private_dns_mode=$(printf '%s\n' "$_fx_root_proxy_status" | sed -n 's/^private_dns_mode=//p' | head -1)
+    _fx_dns_filter_coverage=$(printf '%s\n' "$_fx_root_proxy_status" | sed -n 's/^dns_filter_coverage=//p' | head -1)
   fi
-  printf '%s,"root_proxy_on":%s,"root_proxy_known":%s}\n' \
-    "$_fx_status" "$_fx_root_proxy_on" "$_fx_root_proxy_known"
-}
+  case "$_fx_private_dns_mode" in off|opportunistic|hostname|unknown) : ;; *) _fx_private_dns_mode=unknown ;; esac
+  case "$_fx_dns_filter_coverage" in port53_redirect_active|opportunistic_private_dns_may_bypass_redirect|strict_private_dns_bypasses_redirect|unknown) : ;; *) _fx_dns_filter_coverage=unknown ;; esac
+  printf '%s,"root_proxy_on":%s,"root_proxy_known":%s,"private_dns_mode":"%s","dns_filter_coverage":"%s"}\n' \
+    "$_fx_status" "$_fx_root_proxy_on" "$_fx_root_proxy_known" "$_fx_private_dns_mode" "$_fx_dns_filter_coverage"
 is_vpn_running() { printf '%s' "$1" | grep -Eq '"vpn_on"[[:space:]]*:[[:space:]]*true'; }
 is_root_proxy_running() { printf '%s' "$1" | grep -Eq '"root_proxy_on"[[:space:]]*:[[:space:]]*true'; }
 is_running() { is_vpn_running "$1" || is_root_proxy_running "$1"; }
