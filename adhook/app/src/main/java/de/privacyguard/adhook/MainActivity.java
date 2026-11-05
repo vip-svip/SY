@@ -5702,7 +5702,7 @@ public final class MainActivity extends ComponentActivity {
 
         section("按目标应用匹配 Dialog");
         TextView details = new TextView(this);
-        details.setText("只处理明确命中的普通 Dialog / Window。文本为不区分大小写的字面包含匹配（不是正则）；资源 ID 为精确匹配，支持完整名称、entry name、十进制或十六进制 ID。每行一条；文本规则与资源 ID 规则各最多 32 条，单条最多 96 字符，每个输入框最多 1 KiB。空规则绝不全拦截；全屏窗口会跳过。");
+        details.setText("只处理明确命中的普通 Dialog / Window。文本为不区分大小写的字面包含匹配（不是正则）；资源 ID 为精确匹配，支持完整名称、entry name、十进制或十六进制 ID。每行一条；规则按字面匹配并自动去重；空规则不会拦截全部窗口。空规则绝不全拦截；全屏窗口会跳过。");
         details.setTextColor(0xff697681);
         details.setPadding(dp(18), dp(2), dp(18), dp(12));
         content.addView(details);
@@ -5870,7 +5870,7 @@ public final class MainActivity extends ComponentActivity {
 
         section("Toast 过滤范围");
         TextView details = new TextView(this);
-        details.setText("按当前目标包隔离。每行一个关键词，采用不区分大小写的字面包含匹配，不执行正则表达式。最多 32 条、每条最多 96 字符、输入总量最多 1 KiB。启用时必须至少填写一条规则；空关键词不会屏蔽全部 Toast。匹配时仅取消当前 Toast，不记录 Toast 正文。");
+        details.setText("按当前目标包隔离。每行一个关键词，采用不区分大小写的字面包含匹配，不执行正则表达式。规则按字面匹配并自动去重；空关键词不会屏蔽全部 Toast。启用时必须至少填写一条规则；空关键词不会屏蔽全部 Toast。匹配时仅取消当前 Toast，不记录 Toast 正文。");
         details.setTextColor(0xff697681);
         details.setPadding(dp(18), dp(2), dp(18), dp(12));
         content.addView(details);

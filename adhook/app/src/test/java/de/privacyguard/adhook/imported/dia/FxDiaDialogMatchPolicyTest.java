@@ -39,19 +39,23 @@ public final class FxDiaDialogMatchPolicyTest {
                 "com.example:id/alert_close", "alert_close", terms));
     }
 
-    @Test public void rejectsMoreThanThirtyTwoTerms() {
+    @Test public void acceptsMoreThanThirtyTwoLongTerms() {
         StringBuilder value = new StringBuilder();
-        for (int i = 0; i < 33; i++) value.append("term").append(i).append('\n');
-        invalid(value.toString());
+        for (int i = 0; i < 40; i++) {
+            value.append("term").append(i).append('-').append(repeat('界', 120)).append('\n');
+        }
+        List<String> terms = FxDiaDialogMatchPolicy.parseTerms(value.toString());
+        assertEquals(40, terms.size());
+        assertTrue(terms.get(0).length() > 96);
     }
 
-    @Test public void rejectsOverlongAndControlCharacterTerms() {
-        invalid(repeat('x', 97));
+    @Test public void acceptsRawRuleTextOverOneKiB() {
+        String value = repeat('界', 400);
+        assertEquals(Collections.singletonList(value), FxDiaDialogMatchPolicy.parseTerms(value));
+    }
+
+    @Test public void rejectsControlCharacterTerms() {
         invalid("first\u0001second");
-    }
-
-    @Test public void rejectsRawRuleTextOverOneKiB() {
-        invalid(repeat('界', 400));
     }
 
     private static String repeat(char value, int count) {

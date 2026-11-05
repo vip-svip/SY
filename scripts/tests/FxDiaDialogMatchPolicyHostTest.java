@@ -56,12 +56,19 @@ public final class FxDiaDialogMatchPolicyHostTest {
                 "com.example:id/alert_close", "alert_close", idTerms),
                 "NO_ID never matches");
 
-        rejects("x".repeat(97), "single-term length cap");
-        StringBuilder tooMany = new StringBuilder();
-        for (int i = 0; i < 33; i++) tooMany.append("term").append(i).append('\n');
-        rejects(tooMany.toString(), "unique term count cap");
+        StringBuilder largeRules = new StringBuilder();
+        String longTerm = "界".repeat(120);
+        for (int i = 0; i < 40; i++) {
+            largeRules.append("term").append(i).append('-').append(longTerm).append('\n');
+        }
+        List<String> largeTerms = FxDiaDialogMatchPolicy.parseTerms(largeRules.toString());
+        check(largeTerms.size() == 40, "more than 32 unique terms are accepted");
+        check(largeTerms.get(0).length() > 96, "long literal terms are accepted");
+        check(largeRules.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 1024,
+                "rule text beyond 1 KiB is accepted");
+        check(FxDiaDialogMatchPolicy.parseTerms("界".repeat(400)).size() == 1,
+                "single UTF-8 rule beyond 1 KiB is accepted");
         rejects("x\u0001y", "control characters rejected");
-        rejects("界".repeat(400), "raw UTF-8 byte cap");
 
         StringBuilder longText = new StringBuilder();
         for (int i = 0; i < 4300; i++) longText.append('a');

@@ -46,7 +46,7 @@ assert "textTerms.addTextChangedListener" in ui and "idTerms.addTextChangedListe
 assert ".remove(draftEnabledKey)" in ui and ".remove(draftTextKey)" in ui
 assert ".remove(draftIdsKey)" in ui and ".remove(draftNotifyKey)" in ui
 assert "dialog_text_terms_b64=" in ui and "dialog_id_terms_b64=" in ui
-assert "文本规则与资源 ID 规则各最多 32 条" in ui
+assert "文本规则与资源 ID 规则各最多 32 条" not in ui and "规则按字面匹配并自动去重" in ui
 assert "targetDebuggable &&" in ui, "publish path must re-check debuggable targets"
 
 # Wi-Fi identity simulation drafts survive recreation and publish atomically.
@@ -68,7 +68,7 @@ assert "Toast 规则未能写入本地存储" in ui and "toast_filter=1,toast_te
 assert "FLAG_SYSTEM" in ui and "FLAG_UPDATED_SYSTEM_APP" in ui, "system and updated-system apps must not be Toast targets"
 assert "FLAG_UPDATED_SYSTEM_APP" in hook and "final boolean toastFilterForPackage = !systemTarget && target != null" in hook
 
-# Unified parser/serializer validation and bounded literal matching.
+# Unified parser/serializer validation and uncapped literal rule input.
 for key in ("dialog_match", "dialog_notify", "dialog_text_terms_b64", "dialog_id_terms_b64"):
     assert key in parser, f"parser does not consume {key}"
 for key in ("toast_filter", "toast_text_terms_b64"):
@@ -77,7 +77,7 @@ assert "toast filtering requires explicit text rules" in parser
 assert "toast text rules require toast_filter=1" in parser
 assert "dialogNotify && !dialogMatchEnabled" in parser
 assert "dialog_notify" in ser and "dialog rules/feedback require dialogMatchEnabled" in ser
-assert "MAX_TERMS = 32" in policy and "MAX_RAW_UTF8_BYTES = 1024" in policy
+assert "MAX_TERMS" not in policy and "MAX_RAW_UTF8_BYTES" not in policy and "MAX_TERM_CHARS" not in policy
 assert "MAX_TEXT_CHARS = 4096" in policy
 assert "matchesResourceIdExactly" in policy_test
 
