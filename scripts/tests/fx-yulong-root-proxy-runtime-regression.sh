@@ -316,4 +316,18 @@ run_stop "$CASE_DIR" MOCK_ADGUARD_INDEPENDENT=0 MOCK_UNBOUND_INDEPENDENT=0 >/dev
 grep -Fq adguard-stop "$CASE_DIR/engines.log" || fail "Root Proxy did not stop disabled AdGuard"
 grep -Fq unbound-stop "$CASE_DIR/engines.log" || fail "Root Proxy did not stop disabled Unbound"
 
-echo "PASS: Root Proxy runtime route/UID proofs, dual-stack rules, state-path symlink guards and fail-open rollback"
+# Each resolver can also be owned independently; stopping Root Proxy must not
+# stop the enabled resolver merely because the other engine is disabled.
+prepare_case adguard-only-local-dns
+run_proxy "$CASE_DIR" >/dev/null || fail "Root Proxy setup failed for AdGuard-only DNS ownership"
+run_stop "$CASE_DIR" MOCK_ADGUARD_INDEPENDENT=1 MOCK_UNBOUND_INDEPENDENT=0 >/dev/null || fail "Root Proxy stop failed with independent AdGuard"
+! grep -Fq adguard-stop "$CASE_DIR/engines.log" || fail "Root Proxy stopped independently enabled AdGuard"
+grep -Fq unbound-stop "$CASE_DIR/engines.log" || fail "Root Proxy did not stop non-independent Unbound"
+
+prepare_case unbound-only-local-dns
+run_proxy "$CASE_DIR" >/dev/null || fail "Root Proxy setup failed for Unbound-only DNS ownership"
+run_stop "$CASE_DIR" MOCK_ADGUARD_INDEPENDENT=0 MOCK_UNBOUND_INDEPENDENT=1 >/dev/null || fail "Root Proxy stop failed with independent Unbound"
+! grep -Fq unbound-stop "$CASE_DIR/engines.log" || fail "Root Proxy stopped independently enabled Unbound"
+grep -Fq adguard-stop "$CASE_DIR/engines.log" || fail "Root Proxy did not stop non-independent AdGuard"
+
+echo "PASS: Root Proxy runtime route/UID proofs, dual-stack rules, state-path symlink guards, independent DNS ownership and fail-open rollback"
