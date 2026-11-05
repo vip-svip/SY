@@ -11,7 +11,18 @@ COSMETIC="$MODULE/rulefiles/Yulong_AdBlock_Cosmetic.txt"
 CONF="$MODULE/scripts/default.conf"
 UTIL="$MODULE/scripts/util.sh"
 AGH="$MODULE/scripts/adguardhome.sh"
-[ -s "$RULE" ] && [ -s "$COSMETIC" ] && [ -s "$CONF" ] && [ -s "$UTIL" ] && [ -s "$AGH" ]
+# The decoded Yulong rule payload is generated from the checksum-pinned APK
+# only in the KernelSU packaging lane. Host-only source checkouts intentionally
+# omit those generated files; an explicitly supplied module path is strict.
+if [ ! -s "$RULE" ] || [ ! -s "$COSMETIC" ]; then
+  if [ -z "${1:-}" ]; then
+    echo "SKIP: generated Yulong DNS/Cosmetic rule payload is absent in the Host-only source checkout; the KernelSU package lane supplies the restored module explicitly."
+    exit 0
+  fi
+  echo "FAIL: explicitly supplied module is missing decoded Yulong DNS/Cosmetic rule payload." >&2
+  exit 1
+fi
+[ -s "$CONF" ] && [ -s "$UTIL" ] && [ -s "$AGH" ]
 python3 - "$RULE" "$COSMETIC" <<'PY'
 import pathlib,re,sys
 rules=pathlib.Path(sys.argv[1]).read_text(encoding="utf-8").splitlines()

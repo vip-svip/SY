@@ -5617,3 +5617,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - KernelSU package run `42095725390` 已完成 ZIP 解码、规则分类和 Hosts/AdGuard 注册检查，失败仅在回归仍固定期待 210,097 个 DNS 域名；当前校验过 SHA-256 的上游资产实际解码出 210,118 个唯一域名（增加 21 条），cosmetic/exception 规则数仍为 3,476。
 - 将精确域名基线更新为 210,118，并显式断言输出无重复；不改变规则解码、过滤或合并逻辑。由于上游 ZIP SHA-256 固定，此基线仍可重复验证。
 - 当前修订等待新的 KernelSU package workflow；先前该 run 在规则数量断言失败后未进入补丁整合、APK/QuickJS 编译或 ZIP 打包阶段。
+
+
+### Yulong DNS 规则 Host-only / Package lane 分界修正（2026-11-06）
+
+- `22144b49` 更新固定规则数量后，Targeted Host Regression 运行 `fx-yulong-ad-rule-import-regression.sh` 时没有传入恢复后的模块路径；Host-only checkout 不包含由校验过的 Yulong APK Trie 解码生成的 `Yulong_AdBlock.txt` 与 Cosmetic 文件，因此在预检处触发 FileNotFoundError。
+- 回归脚本现明确区分：未传模块路径且生成规则文件不存在时，Host-only lane 输出 SKIP；KernelSU package lane 显式传入恢复模块目录，文件缺失仍为 FAIL，继续执行 210,118 DNS 域名、3,476 Cosmetic 规则和 Hosts/AdGuard/sing-box 集成断言。
+- 不跳过规则解码器的 Bloom/TRIE 校验，也不在 package lane 放宽数据数量/内容断言。待本提交 Host、Module Runtime 和 KernelSU package workflow 验证。
