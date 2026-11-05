@@ -11,11 +11,19 @@ LOG_FILE="$LOG_DIR/system-app-overlay.log"
 DEPLOYMENT_MARKER="$STATE_DIR/system-app-apk.sha256"
 RETRY_MARKER="$STATE_DIR/system-app-retry"
 
-log(){ mkdir -p "$LOG_DIR" 2>/dev/null || :; chmod 0700 "$LOG_DIR" 2>/dev/null || :; printf '%s\n' "$*" >> "$LOG_FILE" 2>/dev/null || :; }
-retry(){ 
+log(){
+  [ ! -L "$STATE_DIR" ] || return 0
+  mkdir -p "$LOG_DIR" 2>/dev/null || return 0
+  [ -d "$LOG_DIR" ] && [ ! -L "$LOG_DIR" ] || return 0
+  chmod 0700 "$LOG_DIR" 2>/dev/null || :
+  printf '%s\\n' "$*" >> "$LOG_FILE" 2>/dev/null || :
+}
+retry(){
   log "RETRY: $*"
-  mkdir -p "$STATE_DIR" 2>/dev/null || :
-  ( umask 077; printf '%s\n' "$(date '+%m-%d %H:%M:%S' 2>/dev/null)" > "$RETRY_MARKER.tmp.$$" ) 2>/dev/null &&
+  [ ! -L "$STATE_DIR" ] || exit 0
+  mkdir -p "$STATE_DIR" 2>/dev/null || exit 0
+  [ -d "$STATE_DIR" ] && [ ! -L "$STATE_DIR" ] && [ ! -L "$RETRY_MARKER" ] || exit 0
+  ( umask 077; printf '%s\\n' "$(date '+%m-%d %H:%M:%S' 2>/dev/null)" > "$RETRY_MARKER.tmp.$$" ) 2>/dev/null &&
     mv -f "$RETRY_MARKER.tmp.$$" "$RETRY_MARKER" 2>/dev/null || rm -f "$RETRY_MARKER.tmp.$$" 2>/dev/null || :
   exit 0
 }
