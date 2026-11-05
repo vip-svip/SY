@@ -213,6 +213,39 @@ def main() -> None:
         assert (state1 / "system-app-apk.sha256").read_text() == first, "repeat deployment changed the marker"
         print("  ok: repeat deployment stable")
 
+        case("case 8: symlinked APK leaf is rejected without mutating its target")
+        module8 = tmp / "c8/module"
+        state8 = tmp / "c8/state"
+        outside = tmp / "c8/outside.apk"
+        outside.parent.mkdir(parents=True, exist_ok=True)
+        outside.write_bytes(b"DO-NOT-CHOWN-OR-CHMOD")
+        outside.chmod(0o640)
+        overlay8 = module8 / "system/app/FX"
+        overlay8.mkdir(parents=True)
+        (overlay8 / "FX.apk").symlink_to(outside)
+        (overlay8 / "FX.apk.sha256").write_text(f"{sha256_of(outside)}  FX.apk\\n", encoding="utf-8")
+        symlink_apk = run_stage(stage, tmp, module8, state8)
+        assert symlink_apk.returncode != 0, "symlinked APK must fail closed"
+        assert outside.read_bytes() == b"DO-NOT-CHOWN-OR-CHMOD", "symlink target content was modified"
+        assert (outside.stat().st_mode & 0o777) == 0o640, "symlink target permissions were modified"
+        assert not (state8 / "system-app-apk.sha256").exists(), "symlinked APK must not receive a deployment marker"
+        print("  ok: symlinked APK refused without touching external target")
+
+        case("case 9: symlinked system-app parent is rejected")
+        module9 = tmp / "c9/module"
+        state9 = tmp / "c9/state"
+        external_dir = tmp / "c9/external-app"
+        external_dir.mkdir(parents=True)
+        external_apk = external_dir / "FX.apk"
+        external_apk.write_bytes(b"EXTERNAL-APK")
+        (module9 / "system/app").mkdir(parents=True)
+        (module9 / "system/app/FX").symlink_to(external_dir, target_is_directory=True)
+        symlink_parent = run_stage(stage, tmp, module9, state9)
+        assert symlink_parent.returncode != 0, "symlinked overlay directory must fail closed"
+        assert external_apk.read_bytes() == b"EXTERNAL-APK", "symlinked parent target was modified"
+        assert not (state9 / "system-app-apk.sha256").exists(), "symlinked parent must not receive a marker"
+        print("  ok: symlinked overlay parent refused")
+
     print("PASS: install-stage system-app deployment validates, stages, fails closed and stays idempotent")
 
 
