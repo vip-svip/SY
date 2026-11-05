@@ -7,7 +7,8 @@ public final class FxYulongScanCompleteness {
     public static boolean isComplete(boolean inventoryComplete, boolean contentScanEnabled,
                                      boolean contentDatabaseReady, boolean contentTruncated,
                                      int contentReadFailures) {
-        if (!inventoryComplete || contentReadFailures > 0 || contentTruncated) return false;
+        // A negative count is invalid input; fail closed rather than treating it as zero failures.
+        if (!inventoryComplete || contentReadFailures < 0 || contentReadFailures > 0 || contentTruncated) return false;
         return !contentScanEnabled || contentDatabaseReady;
     }
 
