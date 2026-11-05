@@ -1,0 +1,211 @@
+#!/usr/bin/env python3
+"""Fix uninstall warning helper ordering and point installer guidance at native Hook UI."""
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1] if len(sys.argv) > 1 else "fx-module")
+uninstall = root / "uninstall.sh"
+customize = root / "customize.sh"
+service = root / "service.sh"
+if not uninstall.is_file() or not customize.is_file() or not service.is_file():
+    raise SystemExit("FX uninstall.sh, customize.sh, or service.sh is missing")
+
+source = uninstall.read_text(encoding="utf-8")
+helper = '''_mitm_warn() {
+  _msg="PrivacyGuard uninstall warning: $*"
+  echo "$_msg" >&2
+  if command -v log >/dev/null 2>&1; then log -p w -t PrivacyGuardUninstall "$_msg" 2>/dev/null; fi
+}
+'''
+if source.count(helper) != 1:
+    raise SystemExit("uninstall warning helper does not match the reviewed source")
+source = source.replace(helper, "", 1)
+shebang_end = source.find("\n")
+if not source.startswith("#!") or shebang_end < 0:
+    raise SystemExit("uninstall shebang is missing; refusing to move warning helper")
+source = source[:shebang_end + 1] + helper + source[shebang_end + 1:]
+scheduler_call = source.find('_mitm_warn "scheduler PID')
+definition = source.find("_mitm_warn() {")
+if scheduler_call < 0 or definition < 0 or definition > scheduler_call:
+    raise SystemExit("uninstall warning helper is not defined before the scheduler cleanup path")
+uninstall.write_text(source, encoding="utf-8")
+
+ui = customize.read_text(encoding="utf-8")
+# Release ZIPs may contain older customize.sh revisions whose wording differs
+# from the exact source strings. Normalize the whole guidance lines instead of
+# silently leaving stale split-WebUI/FXAdHook instructions behind.
+import re
+stale_patterns = (
+    r"FX\s*WebUI.*Hook",
+    r"Hook.*目标应用.*管理界面",
+    r"FXAdHook\s*APK",
+    r"FX\s*Ad\s*Hook",
+    r"PrivacyGuardHook",
+)
+lines = ui.splitlines()
+normalized = []
+guidance = 'ui_print "    Hook 应用列表与按应用配置位于 FX Hook 原生 App 的 Hook 标签页。"'
+for line in lines:
+    if line.lstrip().startswith("ui_print") and any(
+        re.search(pattern, line, re.IGNORECASE) for pattern in stale_patterns
+    ):
+        # Replace each stale output line in place. Removing one can leave an
+        # otherwise empty if/then block and make customize.sh unparseable.
+        indent = line[:len(line) - len(line.lstrip())]
+        normalized.append(indent + guidance)
+    else:
+        normalized.append(line)
+ui = "\n".join(normalized) + ("\n" if ui.endswith("\n") else "")
+if any(
+    re.search(pattern, line, re.IGNORECASE)
+    for line in ui.splitlines() if line.lstrip().startswith("ui_print")
+    for pattern in stale_patterns
+):
+    raise SystemExit("installer still advertises the retired WebUI/split Hook entry")
+customize.write_text(ui, encoding="utf-8")
+
+# settings.conf can contain subscription bearer URLs. The first-install copy in
+# customize.sh bypasses service.sh's "file absent" chmod branch, so explicitly
+# harden it after migration and again on every boot (including upgrades).
+customize_text = customize.read_text(encoding="utf-8")
+customize_block = '''if [ -f /data/adb/privacyguard/settings.conf ]; then
+  chown 0:0 /data/adb/privacyguard/settings.conf 2>/dev/null || true
+  if ! chmod 600 /data/adb/privacyguard/settings.conf 2>/dev/null; then
+    ui_print "  [!] 无法将 settings.conf 权限收紧为 600；请检查 /data/adb/privacyguard/settings.conf"
+  fi
+fi
+'''
+customize_anchor = 'ui_print "- 清理历史版本残留的证书覆盖层/暂存区(如有)..."'
+if customize_block not in customize_text:
+    if customize_text.count(customize_anchor) != 1:
+        raise SystemExit("customize.sh settings permission insertion anchor changed")
+    customize_text = customize_text.replace(customize_anchor, customize_block + customize_anchor, 1)
+customize.write_text(customize_text, encoding="utf-8")
+
+installer = root / "scripts/install_adhook_app.sh"
+if not installer.is_file():
+    raise SystemExit("FX unified Hook installer is missing")
+installer_text = installer.read_text(encoding="utf-8")
+log_init = ': >> "$LOG" 2>/dev/null || LOG=/dev/null'
+if log_init not in installer_text:
+    lines = installer_text.splitlines(keepends=True)
+    candidates = [
+        i for i, line in enumerate(lines)
+        if line.lstrip().startswith("mkdir -p ")
+        and '"$STATE_DIR"' in line and '"$TMP_DIR"' in line
+    ]
+    if len(candidates) != 1:
+        raise SystemExit("Hook installer log initialization anchor changed")
+    lines.insert(candidates[0] + 1, log_init + "\n")
+    installer_text = "".join(lines)
+installer.write_text(installer_text, encoding="utf-8")
+
+installer_test = root / "scripts/tests/adhook-app-installer-regression.sh"
+if not installer_test.is_file():
+    raise SystemExit("unified Hook installer regression is missing")
+installer_test_text = installer_test.read_text(encoding="utf-8")
+assertion = '[ -f "$TMP/state/install.log" ] || fail "installer did not create its log before counting prior lines"'
+if assertion not in installer_test_text:
+    lines = installer_test_text.splitlines(keepends=True)
+    candidates = [
+        i for i, line in enumerate(lines)
+        if 'sh "$INSTALLER" "$TMP/mod" >/dev/null || fail "first unified install failed"' in line
+    ]
+    if len(candidates) != 1:
+        raise SystemExit("Hook installer regression log assertion anchor changed")
+    lines.insert(candidates[0] + 1, assertion + "\n")
+    installer_test_text = "".join(lines)
+installer_test.write_text(installer_test_text, encoding="utf-8")
+
+service_text = service.read_text(encoding="utf-8")
+service_block = '''# Protect subscription URLs and other private configuration on every boot.
+if [ -f "$PG/settings.conf" ]; then
+  chown 0:0 "$PG/settings.conf" 2>/dev/null || :
+  if ! chmod 600 "$PG/settings.conf" 2>/dev/null; then
+    echo "[$(date '+%m-%d %H:%M:%S')] WARNING: unable to restrict settings.conf permissions to 0600" >> "$PG/boot.log"
+  fi
+fi
+'''
+service_anchor = '# Restore only CA trust that the user explicitly enabled in WebUI.'
+if service_block not in service_text:
+    if service_text.count(service_anchor) != 1:
+        raise SystemExit("service.sh settings permission insertion anchor changed")
+    service_text = service_text.replace(service_anchor, service_block + service_anchor, 1)
+service.write_text(service_text, encoding="utf-8")
+# Recreate the KernelSU uninstall entrypoint after restoring an older published ZIP.
+# The workflow may replace fx-module wholesale when the checkout lacks legacy files;
+# keep the ownership-safe Hook remover sourced from the reviewed repository script.
+repo_root = Path(__file__).resolve().parent.parent
+canonical_remover = repo_root / "scripts" / "remove_adhook_app.sh"
+packaged_remover = root / "scripts" / "remove_adhook_app.sh"
+if not canonical_remover.is_file():
+    raise SystemExit("canonical ownership-safe Hook remover is missing")
+packaged_remover.parent.mkdir(parents=True, exist_ok=True)
+packaged_remover.write_text(canonical_remover.read_text(encoding="utf-8"), encoding="utf-8")
+packaged_remover.chmod(0o755)
+
+# Keep the package's installer and its regression fixture synchronized with
+# the reviewed repository source. The restored release archive may contain an
+# older copy, so patching only the remover leaves a stale destructive test path.
+canonical_installer = repo_root / "scripts" / "install_adhook_app.sh"
+packaged_installer = root / "scripts" / "install_adhook_app.sh"
+if not canonical_installer.is_file():
+    raise SystemExit("canonical unified Hook installer is missing")
+packaged_installer.parent.mkdir(parents=True, exist_ok=True)
+packaged_installer.write_text(canonical_installer.read_text(encoding="utf-8"), encoding="utf-8")
+packaged_installer.chmod(0o755)
+
+canonical_installer_test = repo_root / "scripts" / "tests" / "adhook-app-installer-regression.sh"
+packaged_installer_test = root / "scripts" / "tests" / "adhook-app-installer-regression.sh"
+if not canonical_installer_test.is_file():
+    raise SystemExit("canonical unified Hook installer regression is missing")
+packaged_installer_test.parent.mkdir(parents=True, exist_ok=True)
+packaged_installer_test.write_text(canonical_installer_test.read_text(encoding="utf-8"), encoding="utf-8")
+packaged_installer_test.chmod(0o755)
+
+kernel_uninstall = root / "uninstall.sh"
+kernel_source = kernel_uninstall.read_text(encoding="utf-8")
+hook_cleanup = '''# Remove only the unified Hook APK explicitly installed and owned by FX.
+STATE_DIR="$PG"
+REMOVER="$MODDIR/scripts/remove_adhook_app.sh"
+if [ -f "$REMOVER" ]; then
+  if ! sh "$REMOVER" "$MODDIR" "$STATE_DIR"; then
+    _mitm_warn "one or more FX-managed Hook app packages could not be removed; see $STATE_DIR/adhook-install.log"
+    PG_CLEANUP_INCOMPLETE=1
+  fi
+fi
+'''
+# Replace the existing late cleanup block instead of adding a second early pass.
+# This preserves uninstall ordering and keeps package removal idempotent.
+legacy_cleanup = '''# Remove only Hook APK packages managed by FX. This is package-manager cleanup only;
+# it does not alter routing, DNS or firewall state. Failures are logged separately.
+if [ -f "$MODDIR/scripts/remove_adhook_app.sh" ]; then
+  if ! sh "$MODDIR/scripts/remove_adhook_app.sh" "$MODDIR" "$PG"; then
+    _mitm_warn "one or more FX-managed Hook app packages could not be removed; see $PG/adhook-install.log"
+  fi
+fi
+'''
+if kernel_source.count(hook_cleanup) == 0:
+    # Some Release archives already contain the ownership-safe remover but add
+    # trusted-network / firewall shutdown between STATE_DIR and REMOVER. Accept
+    # that reviewed shape by checking the unique assignment, unique invocation,
+    # and that package removal occurs before user-data cleanup.
+    remover_assignment = 'REMOVER="$MODDIR/scripts/remove_adhook_app.sh"'
+    remover_invocation = 'sh "$REMOVER" "$MODDIR" "$STATE_DIR"'
+    cleanup_marker = 'rm -rf "$PG" "$XDIR"'
+    has_single_owned_remover = (
+        kernel_source.count(remover_assignment) == 1
+        and kernel_source.count(remover_invocation) == 1
+        and kernel_source.count('STATE_DIR="$PG"') == 1
+        and kernel_source.find(remover_invocation) >= 0
+        and kernel_source.find(cleanup_marker) > kernel_source.find(remover_invocation)
+    )
+    if not has_single_owned_remover:
+        if kernel_source.count(legacy_cleanup) != 1:
+            raise SystemExit("existing late Hook cleanup block changed; refusing duplicate or misplaced cleanup")
+        kernel_source = kernel_source.replace(legacy_cleanup, hook_cleanup, 1)
+
+kernel_uninstall.write_text(kernel_source, encoding="utf-8")
+kernel_uninstall.chmod(0o755)
+
+print("Fixed uninstall warning order, native Hook installer guidance, private settings.conf permissions, and preserved full KernelSU uninstall flow and integrated a single late ownership-safe Hook cleanup.")
