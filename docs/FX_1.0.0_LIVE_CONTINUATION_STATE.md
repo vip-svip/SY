@@ -4812,3 +4812,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 提交后 GitHub Actions run `42011770715`（HEAD 同上）已完成，`host-regressions` job 结论 `success`：https://github.com/vip-svip/SY/actions/runs/42011770715
 - 已回读验证测试文件新 blob SHA `0df968ba3c34647a6695f783cc71caf856918365`，确认冲突断言已移除；源码 blob SHA 仍为 `350d261ae1023007869f881c77c1e877c0b3f9ff`。
 - 此次通过的是 GitHub Actions Host regression，不代表 Android Gradle 构建、设备内核路由、第三方 VpnService 共存或真机 DNS 验证通过。
+
+
+## 接管资料可用性补记（2026-11-05）
+
+- 已读取 Library `/FX` 当前完整目录清单。可见原始 `Dia_23.11.apk` 与 `游龙广告插件_7.0.1.apk`；未见项目交接指令中提到的五份 `*_src.zip` 源码包。当前也未在 `/FX` 清单中找到《FX_1.0.0_项目接管总档_自主开发与查漏补缺.md》及《FX_1.0.0_快速推进与主动修复执行档.md`；按其准确路径读取 GitHub `docs/` 同样返回 404。
+- 已读可用的《FX_1.0.0_UI优先自主推进与中断续接执行总指令.md》《FX_1.0.0_UI优先提速与自主开工提示词.md》及新对话启动提示词；它们确认 UI 优先、垂直功能闭环、不得虚报测试和真机结果。
+- `.gitmodules` 确认 `vendor/GKD-XA` 指向 `https://github.com/84593320z/GKD-XA.git`。本批没有读取该子模块的完整树，也没有把缺失的源码压缩包当作已检查。
+- 因此，本轮仅对当前 VPN/DNS 源码实施了定向修复；Dia、GKD-XA、游龙广告/安全护盾原始 APK 的全量 Manifest/Smali/资源对照仍未完成，后续需使用已存在 APK 或取得缺失源码包后按页面批次继续。
