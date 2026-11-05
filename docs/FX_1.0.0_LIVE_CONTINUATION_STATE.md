@@ -6389,3 +6389,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 新增时序契约：KernelSU systemless `/system/app/FX` overlay 必须在启动早期由 post-fs-data 校验/恢复 SELinux 标签；Hook 的 PackageManager 检查/安装入口必须位于 `sys.boot_completed=1` 等待之后，避免与 Android 首轮系统应用扫描竞争。
 - 回归还断言 post-fs-data 不直接执行 `pm install` / `pm path`，将 overlay 标签处理与 PackageManager 阶段隔离。
 - GitHub 回读：新 Python 顺序断言和 post-fs-data 断言已确认进入分支。尚未执行该 Shell 回归或 Python 子断言；相关 Actions 结果未确认。没有声称系统应用真机部署通过。
+
+
+## 2026-11-06 — VPN arbiter 生产脚本纳入 CI 触发路径
+
+- CI 修复提交：`c14961926d9e6e25a44e5c8e499f2cf0ba888b45`。
+- 发现：workflow 的 job 条件已经能识别 `scripts/fx-vpn-coexistence-arbiter.sh`，但 push/PR 的 `paths` 过滤器遗漏了该生产脚本。只修改裁决器源码时，整个 workflow 可能不会启动，导致刚修复的检测器没有自动回归。
+- 修复：将生产脚本路径同时加入目标分支 push 与 pull_request 的路径过滤器；测试文件仍由既有 `scripts/tests/**` 覆盖，job 内按文件名条件执行 arbiter regression。
+- GitHub 回读：workflow blob `f36be3b4b426d29a2518972d437c60ce7c2b4ea6`，确认 push 和 PR 路径过滤器均含生产脚本。
+- 验证等级：workflow 源码静态回读确认；未触发 workflow_dispatch，也未取得该提交实际 Actions run。不能报告 CI 通过。
