@@ -152,7 +152,8 @@ echo "== case 0: incomplete module source -> unknown slot state =="
 r=$(run_arb "$LINKS_NO_TUN" "" "$TMP/net_free" "$TMP/mod_incomplete")
 rc=${r%%|*}; out=${r#*|}
 [ "$rc" -eq 2 ] || fail "incomplete module scan must return rc=2, got $rc: $out"
-[ "$(field "$out" "['verdict']")" = "unknown" ] || fail "incomplete module scan must grade unknown"
+actual_verdict=$(field "$out" "['verdict']")
+[ "$actual_verdict" = "unknown" ] || fail "incomplete module scan must grade unknown (got: $actual_verdict; JSON: $out)"
 [ "$(field "$out" "['vpn_service_slot_used']")" = "None" ] || fail "incomplete module slot must be JSON null"
 pass "incomplete module source fails closed"
 
