@@ -102,7 +102,7 @@ public final class FxYulongIntegrityActivity extends de.privacyguard.adhook.FxNa
         body.addView(text("原版 PiracyWarningActivity 校验游龙原 APK 专属证书。合入 FX 后包名和签名证书已改变，不能沿用旧固定指纹，否则会误锁正式 FX。原版 SelfDefense 的强停、冻结、自动重新启用、无障碍权限恢复和自动修复动作未迁入；本页仅报告当前状态。",
                 12, 0xff8a5b12, false));
 
-        setContentViewWithNativeTabs(root, 5);
+        setContentViewWithNativeTabs(root, 2);
         checkModule();
     }
 
