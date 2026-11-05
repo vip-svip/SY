@@ -109,7 +109,11 @@ assert "showCustomRuleDialog(restorePreset, restoreSlot);" in main
 assert "new android.text.InputFilter.LengthFilter(65536)" not in main, "JSON import editor must not reintroduce an arbitrary character ceiling"
 assert "getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 65536" not in main, "JSON import parser must not reintroduce an arbitrary UTF-8 byte ceiling"
 assert "new org.json.JSONArray(raw)" in main and "new org.json.JSONObject(raw)" in main, "JSON import must retain array/object parsing after removing the fixed ceiling"
-assert 'getPreferences(0).edit().putString(importDraftKey,' in main, "JSON import draft must survive Activity recreation"
+assert 'getPreferences(0).getString(importDraftKey, "")' in main, "JSON import dialog must restore its saved draft"
+assert "scheduleCustomRuleImportDraftWrite(input, selectedPackage);" in main, "JSON import edits must persist through the debounced draft writer"
+assert "private void scheduleCustomRuleImportDraftWrite(EditText input, String targetPackage)" in main, "JSON import draft writer is missing"
+assert 'putString(targetPackage + ":dev_rule_import_json_draft", draft)' in main, "JSON import draft must be keyed to its target package"
+assert "flushCustomRuleImportDraftWrite();" in main, "JSON import must flush pending draft writes before closing"
 assert "clearCustomRuleEditorDialogState();" in main
 assert '.setNegativeButton("取消", (dialog, which) -> clearCustomRuleEditorDialogState())' in main
 assert '.setOnCancelListener(dialog -> clearCustomRuleEditorDialogState())' in main
