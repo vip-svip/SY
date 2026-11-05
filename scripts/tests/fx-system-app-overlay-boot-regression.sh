@@ -76,4 +76,23 @@ wait "$child"
 [ "$(cat "$T/sentinel")" = "keep-me" ] || { echo "FAIL: retry temp symlink target was overwritten" >&2; exit 1; }
 [ ! -e "$STATE4/system-app-retry" ] || { echo "FAIL: unsafe retry temp unexpectedly committed" >&2; exit 1; }
 
-echo "PASS: early-boot overlay digest, atomic markers, ancestor symlink and retry-temp symlink regressions"
+echo "== pre-created deployment marker temp symlink cannot redirect root write =="
+APP5="$T/system5/app/FX"; STATE5="$T/state5"; make_payload "$APP5" bad-marker-temp
+mkdir -p "$STATE5"
+printf 'keep-marker\n' > "$T/marker-sentinel"
+PIDFILE5="$T/child5.pid"; GO5="$T/go5"
+sh -c 'printf "%s\\n" "$" > "$1"; while [ ! -e "$2" ]; do sleep 0.01; done; exec sh "$3"' sh "$PIDFILE5" "$GO5" "$SOURCE" &
+child5=$!
+tries=0
+while [ ! -s "$PIDFILE5" ] && [ "$tries" -lt 200 ]; do tries=$((tries+1)); sleep 0.01; done
+[ -s "$PIDFILE5" ] || { echo "FAIL: deployment-marker child did not publish PID" >&2; exit 1; }
+child5_pid=$(cat "$PIDFILE5")
+[ "$child5_pid" = "$child5" ] || { echo "FAIL: deployment-marker wrapper PID changed before exec" >&2; exit 1; }
+ln -s "$T/marker-sentinel" "$STATE5/system-app-apk.sha256.tmp.$child5_pid"
+touch "$GO5"
+wait "$child5"
+[ "$(cat "$T/marker-sentinel")" = "keep-marker" ] || { echo "FAIL: deployment marker temp symlink target was overwritten" >&2; exit 1; }
+[ -s "$STATE5/system-app-retry" ] || { echo "FAIL: unsafe deployment marker temp did not produce a retry marker" >&2; exit 1; }
+[ ! -e "$STATE5/system-app-apk.sha256" ] || { echo "FAIL: unsafe deployment marker temp unexpectedly committed" >&2; exit 1; }
+
+echo "PASS: early-boot overlay digest, atomic markers, ancestor symlink, retry-temp and deployment-marker-temp symlink regressions"
