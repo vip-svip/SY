@@ -290,12 +290,36 @@ final class FxNativeSkin {
 
     private static Integer replacementText(int color, Palette p) {
         switch (color) {
+            // Legacy primary text tokens used by the native VPN, Hook and editor pages.
             case 0xff17212b:
+            case 0xff263443:
+            case 0xff263238:
+            case 0xff344451:
                 return p.primaryText;
+
+            // Neutral helper/metadata tokens. Warning, error and success colors
+            // (red/amber/green) are intentionally not included here.
             case 0xff617080:
             case 0xff66727e:
             case 0xff718091:
+            case 0xff697681:
+            case 0xff687582:
+            case 0xff687681:
+            case 0xff536170:
+            case 0xff526170:
+            case 0xff75808a:
+            case 0xff637080:
+            case 0xff667784:
+            case 0xff596775:
+            case 0xff37474f:
                 return p.secondaryText;
+
+            // Legacy blue link/selection colors follow the selected Skin accent.
+            case 0xff155a9c:
+            case 0xff276b9a:
+            case 0xff3478f6:
+            case 0xff1769aa:
+                return p.accent;
             default:
                 return null;
         }
