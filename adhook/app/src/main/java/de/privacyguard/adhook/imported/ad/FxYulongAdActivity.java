@@ -72,7 +72,7 @@ public final class FxYulongAdActivity extends de.privacyguard.adhook.FxNativeTab
  private static final class Row {String kind,value,title;boolean enabled;Row(String k,String v,String t,boolean e){kind=k;value=v;title=t;enabled=e;}}
  private int dp(float n){return (int)(n*getResources().getDisplayMetrics().density+0.5f);}
  private TextView txt(String s,int size,int color,boolean bold){TextView v=new TextView(this);v.setText(s);v.setTextSize(size);v.setTextColor(color);if(bold)v.setTypeface(Typeface.DEFAULT,Typeface.BOLD);v.setPadding(dp(4),dp(5),dp(4),dp(5));return v;}
- private Button btn(String s,Runnable r){Button b=new Button(this);b.setAllCaps(false);b.setText(s);b.setOnClickListener(v->r.run());return b;}
+ private Button btn(String s,Runnable r){Button b=new Button(this);b.setTag("fx-action-row");b.setAllCaps(false);b.setText(s);b.setOnClickListener(v->r.run());return b;}
  private EditText draftField(String key){
   EditText field=new EditText(this);
   field.setTag("fx-yulong-ad-draft:"+key);
@@ -87,7 +87,7 @@ public final class FxYulongAdActivity extends de.privacyguard.adhook.FxNativeTab
    if(saved.containsKey(entry.getKey()))entry.getValue().setText(saved.getString(entry.getKey(),""));
   }
  }
- private void card(String title,String detail,View... views){LinearLayout p=new LinearLayout(this);p.setOrientation(1);p.setPadding(dp(14),dp(10),dp(14),dp(10));p.setBackgroundColor(0xfff0f3f7);p.addView(txt(title,15,0xff17212b,true));p.addView(txt(detail,12,0xff617080,false));for(View v:views)p.addView(v);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(dp(12),dp(5),dp(12),dp(5));body.addView(p,lp);}
+ private void card(String title,String detail,View... views){LinearLayout p=new LinearLayout(this);p.setTag("fx-card");p.setOrientation(1);p.setPadding(dp(14),dp(10),dp(14),dp(10));p.setBackgroundColor(0xfff0f3f7);TextView heading=txt(title,15,0xff17212b,true);heading.setTag("fx-card-title");p.addView(heading);TextView description=txt(detail,12,0xff617080,false);description.setTag("fx-card-detail");p.addView(description);for(View v:views)p.addView(v);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(dp(12),dp(5),dp(12),dp(5));body.addView(p,lp);}
  private String q(String s){return "'"+(s==null?"":s.replace("'","'\\''"))+"'";}
  private String cmd(String args){return "MP=''; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard /data/adb/modules/privacy_guard /data/adb/modules/pg; do if [ -s \"$d/module.prop\" ] && grep -q '^id=privacyguard$' \"$d/module.prop\"; then MP=\"$d\"; break; fi; done; [ -n \"$MP\" ] || exit 20; sh \"$MP/scripts/yulong-ad-control.sh\" "+args;}
  private void root(String args,java.util.function.Consumer<RootAccess.Result> cb){
