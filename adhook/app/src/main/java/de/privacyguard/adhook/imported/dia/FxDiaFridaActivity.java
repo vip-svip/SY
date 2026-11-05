@@ -1622,6 +1622,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 + "mkdir \"$lock\" 2>/dev/null || { echo FX_FRIDA_SERVER_START_BUSY; exit 10; }; "
                 + "tmp=; spawned_pid=; spawned_start=; "
                 + "cleanup_start() { [ -z \"$tmp\" ] || rm -f \"$tmp\"; "
+                + "if [ -n \"$spawned_pid\" ] && [ -n \"$spawned_start\" ] && [ -f \"$pidfile\" ] && [ ! -L \"$pidfile\" ]; then expected_record=$(printf '%s\\n%s\\n%s\\n%s' \"$spawned_pid\" \"$server\" 27042 \"$spawned_start\"); actual_record=$(cat \"$pidfile\" 2>/dev/null || :); if [ \"$actual_record\" = \"$expected_record\" ]; then unlink \"$pidfile\" 2>/dev/null || :; fi; fi;"
                 + "if [ -n \"$spawned_pid\" ] && [ -n \"$spawned_start\" ] "
                 + "&& [ \"$(server_pid_starttime \"$spawned_pid\" 2>/dev/null || :)\" = \"$spawned_start\" ] "
                 + "&& server_pid_matches \"$spawned_pid\"; then kill -TERM \"$spawned_pid\" 2>/dev/null || :; fi; "
