@@ -196,7 +196,7 @@ fx_arb_slot_used() {
       _missing=1
       continue
     fi
-    if grep -Eq '^[[:space:]]*[^#].*VpnService[[:space:]]*\\.[[:space:]]*(prepare|Builder)|^[[:space:]]*[^#].*VpnService\\$Builder' "$_f" 2>/dev/null; then
+    if grep -Eq '^[[:space:]]*[^#].*VpnService[[:space:]]*[.][[:space:]]*(prepare|Builder)|^[[:space:]]*[^#].*VpnService[$]Builder' "$_f" 2>/dev/null; then
       _hit=1
     fi
   done
