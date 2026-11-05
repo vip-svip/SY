@@ -7,6 +7,7 @@ on:
       - ".github/workflows/build-unbound-android-arm64.yml"
       - ".github/dns/Unbound-root.hints"
       - "scripts/localdns-probe.c"
+      - "scripts/tests/localdns-probe-regression.py"
 
 permissions:
   contents: read
@@ -36,6 +37,12 @@ jobs:
           grep -q 'A.ROOT-SERVERS.NET.*198.41.0.4' artifact/root.hints
           grep -q 'M.ROOT-SERVERS.NET.*202.12.27.33' artifact/root.hints
           sha256sum artifact/root.key.seed artifact/root.hints | tee artifact/DATA-SHA256SUMS
+
+      - name: Run host-side DNS probe integration regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/tests/localdns-probe-regression.py
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
