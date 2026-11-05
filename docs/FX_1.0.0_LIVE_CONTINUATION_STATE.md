@@ -4858,3 +4858,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 该 artifact 不含原始 `_10.10.62_src.zip`，也未发现 `GKD-XA_1.4.8_src.zip`；GKD-XA 仍以仓库 `.gitmodules` 指向的独立上游 submodule 为来源，需单独回读 gitlink/commit。Artifact 内三个解包目录不是原始 ZIP 本体，不能把它们描述成五份源码 ZIP 全部齐备。
 - 架构约束：原游龙 7.0.1 的 `AdBlockVpnService` 不得直接迁入 FX Manifest 形成第二个 VpnService；FX 应继续使用自己的 Root/系统网络栈数据面与 Root Proxy，按 Android 单 VPN 槽限制检测外部 VPN。
 - 已用 artifact SHA、Manifest 包名和组件数完成来源身份初步核验；尚未完成 Dia/7.0.1/9.9.60 的完整 Smali/资源/许可证逐项映射，也未核验 10.10.62 源码。
+
+
+## 单独本地 DNS 引擎所有权回归扩展（2026-11-05）
+
+- 在已被 CI 实际执行的 `scripts/tests/fx-yulong-root-proxy-runtime-regression.sh` 中新增两种单引擎组合：仅 AdGuard Home 独立启用时，停止 Root Proxy 只停止 Unbound；仅 Unbound 独立启用时，只停止 AdGuard Home。
+- 原有两种组合继续保留：两个引擎都独立启用时都保留；两个引擎都未独立启用时都释放。这样覆盖完整 2×2 引擎所有权矩阵，而不是只测“全开/全关”。
+- 提交：`ecaedb06db86c8cdc5a9bb704d23d36016dedfc8`（`test(vpn): cover single-engine local DNS ownership`）。提交后已回读新测试文件 blob SHA `29f2bcffa320e16df81807bb71257983d6145f42`。
+- 该文件路径会触发 `fx-targeted-regression.yml` 的 push host regression；本次新提交的 Actions run ID 尚未从 GitHub API 读取。此前 run `42011770715` 对同一 Root Proxy runtime regression 的原有全开/全关测试通过，不应把此前结果冒充本次新增两项的执行结果。
