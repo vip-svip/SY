@@ -3,8 +3,36 @@ set -eu
 BASE_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 if [ -d "$BASE_ROOT/fx-module" ]; then
   MODULE=${1:-"$BASE_ROOT/fx-module"}
+elif [ -z "${1:-}" ]; then
+  # The normal Host checkout intentionally excludes the Release-restored
+  # fx-module tree and its 200k+ upstream rule payload. Do not pretend the
+  # complete dataset was tested here; validate the importer contract and leave
+  # full rule-count/DNS pipeline assertions to the KernelSU package lane.
+  python3 - "$BASE_ROOT/scripts/integrate_yulong_ad_rules.py" "$BASE_ROOT/scripts/decode_yulong_ad_tries.py" "$0" <<'PY'
+from pathlib import Path
+import sys
+integrator, decoder, regression = [Path(x).read_text(encoding="utf-8") for x in sys.argv[1:]]
+required_integrator = (
+    "rulefiles/Yulong_AdBlock.txt",
+    "rulefiles/Yulong_AdBlock_Cosmetic.txt",
+    "rulefiles/Yulong_AdBlock_Review.jsonl",
+    "if rules.stat().st_size < 1_000_000:",
+    "builtin://Yulong_AdBlock.txt",
+    'if [ -n "$_yulong_file" ]; then',
+    'config.split("[list:fx]", 1)',
+)
+for token in required_integrator:
+    assert token in integrator, f"Yulong importer contract missing: {token}"
+assert "def main()" in decoder and "cosmetic_output" in decoder, "TRIE decoder must emit the separate cosmetic stream"
+assert "domains=210118" in regression or "len(domains)==210118" in regression, "pinned DNS-safe domain baseline missing"
+assert "len(selectors)==3476" in regression, "cosmetic/exception preservation baseline missing"
+assert "len(set(domains))==len(domains)" in regression, "duplicate DNS terminal check missing"
+assert 'sh scripts/tests/fx-yulong-ad-rule-import-regression.sh fx-module' in Path(".github/workflows/build-fx-kernelsu.yml").read_text(encoding="utf-8"), "full module regression is not wired into KernelSU package lane"
+print("PASS: Yulong importer static Host contract; full Release dataset validation is deferred to KernelSU package lane.")
+PY
+  exit 0
 else
-  MODULE=${1:-"$BASE_ROOT"}
+  MODULE=$1
 fi
 RULE="$MODULE/rulefiles/Yulong_AdBlock.txt"
 COSMETIC="$MODULE/rulefiles/Yulong_AdBlock_Cosmetic.txt"

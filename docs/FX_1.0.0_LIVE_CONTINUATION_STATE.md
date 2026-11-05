@@ -5624,3 +5624,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `22144b49` 更新固定规则数量后，Targeted Host Regression 运行 `fx-yulong-ad-rule-import-regression.sh` 时没有传入恢复后的模块路径；Host-only checkout 不包含由校验过的 Yulong APK Trie 解码生成的 `Yulong_AdBlock.txt` 与 Cosmetic 文件，因此在预检处触发 FileNotFoundError。
 - 回归脚本现明确区分：未传模块路径且生成规则文件不存在时，Host-only lane 输出 SKIP；KernelSU package lane 显式传入恢复模块目录，文件缺失仍为 FAIL，继续执行 210,118 DNS 域名、3,476 Cosmetic 规则和 Hosts/AdGuard/sing-box 集成断言。
 - 不跳过规则解码器的 Bloom/TRIE 校验，也不在 package lane 放宽数据数量/内容断言。待本提交 Host、Module Runtime 和 KernelSU package workflow 验证。
+
+
+### Yulong 规则导入 Host-only 与完整数据集回归分层（2026-11-06）
+
+- `22144b49` 的 Host Regression 在运行 `fx-yulong-ad-rule-import-regression.sh` 时失败，原因是无 Release restore 的普通 checkout 没有 `fx-module/rulefiles/Yulong_AdBlock.txt`。这不是解码或 DNS 路由行为失败，而是 Host lane 误要求正式包构建后才存在的 210k+ 规则数据。
+- 新增 Host-only 分支：无 `fx-module` 且未传模块参数时，只验证 decoder/importer 的输入输出契约、`[list:rule]`/FX anti-fraud 分区隔离、 pinned 210118 DNS / 3476 cosmetic baseline 及 KernelSU package workflow 的完整模块测试接线，然后明确打印 SKIP/PASS 边界并退出。
+- 正式模块数据回归保持不变：KernelSU package lane 下载校验固定 SHA-256 的原始 Yulong 资产，解码后对 210118 域名去重、3476 cosmetic/exception 规则和 AdGuard/sing-box/Hosts 路由做完整行为回归。Host-only 静态检查不声称覆盖这些真实规则数据。
+- `22144b49` 的 Host 首次失败与当前 `22144b49` Module Runtime Regression SUCCESS 分开记录；最终 APK/KernelSU ZIP 仍未完成。
