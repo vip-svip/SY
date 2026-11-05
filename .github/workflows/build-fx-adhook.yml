@@ -561,15 +561,21 @@ jobs:
           unzip -p "$apk" assets/webroot/index.html > "$RUNNER_TEMP/fx-apk-webroot.html"
           grep -q 'id="pageVpn"' "$RUNNER_TEMP/fx-apk-webroot.html"
           grep -q 'id="pageHosts"' "$RUNNER_TEMP/fx-apk-webroot.html"
-          mkdir -p fx-module/optional
+          mkdir -p fx-module/optional fx-module/system/app/FX
           cp "$apk" fx-module/optional/FXUnifiedHook.apk
           sha256sum fx-module/optional/FXUnifiedHook.apk > fx-module/optional/FXUnifiedHook.apk.sha256
+          # KernelSU/Magisk systemless overlay: PackageManager discovers this
+          # at boot as a system app. Use /system/app, not priv-app: the APK is
+          # not platform-signed and must not claim privileged permissions.
+          install -m 0644 "$apk" fx-module/system/app/FX/FX.apk
+          sha256sum fx-module/system/app/FX/FX.apk > fx-module/system/app/FX/FX.apk.sha256
           cat > fx-module/optional/FXUnifiedHook-BUILD-INFO.txt <<'BUILD_INFO'
           Build variant: debug-signed APK
           Build/signing mode: debug-signed
           Dual entrypoints: legacy Xposed API 93+ and modern libxposed API 101
           versionCode: 10000
-          ordinary application deployment
+          systemless system-app overlay: system/app/FX/FX.apk
+          not a privileged app; no platform signature or privileged permission grant is implied
           BUILD_INFO
           sh scripts/tests/v1.0.0-fxhook-single-apk-merge-audit-regression.sh
           sh fx-module/scripts/tests/v1.0.0-lsposed-ad-hook-apk-regression.sh
