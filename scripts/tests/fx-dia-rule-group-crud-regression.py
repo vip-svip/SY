@@ -10,7 +10,7 @@ def body(signature, next_signature):
     end = source.index(next_signature, start)
     return source[start:end]
 
-groups = body("private java.util.LinkedHashSet<String> getCustomRuleGroups(", "private void ensureCustomRuleGroup(")
+groups = body("private java.util.LinkedHashSet<String> getCustomRuleGroups(", "private boolean ensureCustomRuleGroup(")
 add = body("private void showAddCustomRuleGroupDialog(", "private void showCustomRuleGroupsDialog()")
 manager = body("private void showCustomRuleGroupsDialog()", "private void showCustomRuleGroupActions(")
 actions = body("private void showCustomRuleGroupActions(", "private boolean renameCustomRuleGroup(")
