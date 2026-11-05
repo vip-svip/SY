@@ -571,8 +571,7 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
         if (createNameInput != null && createNameInput.getText() != null)
             createNameDraft = createNameInput.getText().toString();
         out.putBoolean(STATE_CREATE_DIALOG_PENDING, createDialogRestorePending);
-        out.putString(STATE_CREATE_NAME_DRAFT, createNameDraft.length() > 64
-                ? createNameDraft.substring(0, 64) : createNameDraft);
+        out.putString(STATE_CREATE_NAME_DRAFT, createNameDraft);
         out.putString(STATE_SEARCH,
                 search == null || search.getText() == null ? "" : search.getText().toString());
         out.putInt(STATE_SCROLL_Y, libraryScroll == null ? 0 : libraryScroll.getScrollY());

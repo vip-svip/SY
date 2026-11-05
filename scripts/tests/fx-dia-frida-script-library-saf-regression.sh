@@ -71,14 +71,13 @@ policy = Path(sys.argv[4]).read_text(encoding="utf-8")
 required = {
     "export request code": "REQUEST_EXPORT_LIBRARY = 7105",
     "import request code": "REQUEST_IMPORT_LIBRARY = 7106",
-    "bounded JSON import/export": "MAX_LIBRARY_JSON_BYTES = 1024 * 1024",
+    "unbounded JSON import/export": "MAX_LIBRARY_JSON_BYTES" not in source and "MAX_LIBRARY_JSON_BYTES" not in library,
     "create-document export": "Intent.ACTION_CREATE_DOCUMENT",
     "open-document import": "Intent.ACTION_OPEN_DOCUMENT",
     "JSON MIME export": 'create.setType("application/json")',
     "JSON MIME import": 'pick.setType("application/json")',
     "real SAF export callback": "requestCode == REQUEST_EXPORT_LIBRARY",
     "real SAF import callback": "requestCode == REQUEST_IMPORT_LIBRARY",
-    "bounded streaming import": "MAX_LIBRARY_JSON_BYTES - count",
     "strict UTF-8 decoding for JSON SAF imports": "FxDiaScriptLibraryPolicy.decodeUtf8(output.toByteArray())",
     "strict UTF-8 decoding for standalone JS SAF imports": "String source = FxDiaScriptLibraryPolicy.decodeUtf8(output.toByteArray())",
     "private-cache export staging": 'File.createTempFile(PENDING_LIBRARY_EXPORT_PREFIX, ".tmp", getCacheDir())',
@@ -88,7 +87,7 @@ required = {
     "rotation saves only filename": "outState.putString(STATE_PENDING_LIBRARY_EXPORT, pendingFridaLibraryExportFileName)",
     "rotation restores filename": "state.getString(STATE_PENDING_LIBRARY_EXPORT)",
     "large script draft cache": "new android.util.AtomicFile(new File(getCacheDir(), SCRIPT_DRAFT_CACHE_NAME))",
-    "large script draft size cap": "MAX_FRIDA_DRAFT_BYTES = 512 * 1024",
+    "large script draft cache remains file-backed": "MAX_FRIDA_DRAFT_BYTES = 512 * 1024",
     "large script draft Bundle marker": "outState.putBoolean(STATE_SCRIPT_DRAFT_FILE, true)",
     "large script draft restore": "readTransientFridaScriptDraft()",
     "large script draft atomic write": "atomic.finishWrite(output)",
@@ -119,15 +118,8 @@ store_required = {
 for label, needle in store_required.items():
     if needle not in store:
         raise SystemExit(f"FAIL: missing store {label}: {needle}")
-policy_required = {
-    "per-script byte limit": "MAX_SOURCE_BYTES = 128 * 1024",
-    "per-script UTF-8 validation": "source.getBytes(StandardCharsets.UTF_8).length > MAX_SOURCE_BYTES",
-    "script-count limit": "MAX_SCRIPTS = 64",
-    "library JSON byte limit": "MAX_LIBRARY_JSON_BYTES = 1024 * 1024",
-}
-for label, needle in policy_required.items():
-    if needle not in policy:
-        raise SystemExit(f"FAIL: missing policy {label}: {needle}")
+if "MAX_" in policy or "MAX_" in store or "MAX_LIBRARY_JSON_BYTES" in source or "MAX_LIBRARY_JSON_BYTES" in library:
+    raise SystemExit("FAIL: arbitrary script-library name/source/count/JSON capacity cap remains")
 for label, needle in {
     "file import previews overlaps": "previewAndImportFridaScriptLibraryJson(json)",
     "clipboard import previews overlaps": "previewAndImportFridaScriptLibraryJson(input.getText().toString())",
@@ -154,7 +146,7 @@ if 'if (isFinishing()) deleteTransientFridaScriptDraft();' not in source:
     raise SystemExit("FAIL: private large-script draft cache is not cleaned on Activity finish")
 if "importFridaScriptLibrary() {\n        EditText input" in source:
     raise SystemExit("FAIL: primary script library import still only uses clipboard paste")
-print("PASS: Dia Frida script library supports bounded SAF JSON import/export, cancellation and rotation state")
+print("PASS: Dia Frida script library supports unbounded SAF JSON import/export, cancellation and rotation state")
 
 for label, needle in {
     "search query saved": "out.putString(STATE_SEARCH",
@@ -166,15 +158,16 @@ for label, needle in {
     "editor return target preserved": "out.putString(STATE_EDITING_NAME, editingName)",
     "create dialog pending state saved": "out.putBoolean(STATE_CREATE_DIALOG_PENDING, createDialogRestorePending)",
     "create dialog pending state restored": "state.getBoolean(STATE_CREATE_DIALOG_PENDING, false)",
-    "create name draft saved": "out.putString(STATE_CREATE_NAME_DRAFT, createNameDraft.length() > 64",
+    "create name draft saved without truncation": "out.putString(STATE_CREATE_NAME_DRAFT, createNameDraft)",
     "create name draft restored into input": "input.setText(createNameDraft)",
     "create dialog reopens after reload": "else if (createDialogRestorePending) {\n                    createScript();",
-    "create dialog input bounded": "new android.text.InputFilter.LengthFilter(64)",
     "create dialog clears on explicit cancel": '.setNegativeButton("取消", (d, which) -> clearCreateScriptDialogState())',
     "rotation cancel retains pending draft": "if (!isChangingConfigurations()) clearCreateScriptDialogState();",
 }.items():
     if needle not in library:
         raise SystemExit(f"FAIL: script library state restoration missing {label}: {needle}")
+if "InputFilter.LengthFilter(64)" in library or "createNameDraft.length() > 64" in library:
+    raise SystemExit("FAIL: script name length cap remains in the native create dialog or rotation state")
 if "openingInitialEditor = state.getBoolean(STATE_OPENING_INITIAL_EDITOR" not in library:
     raise SystemExit("FAIL: rotation can replay the initial new-script request")
 print("PASS: Dia Frida script-library search, scroll, pending editor return and initial-create intent survive recreation")

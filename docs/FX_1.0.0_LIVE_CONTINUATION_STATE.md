@@ -4947,3 +4947,5 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Post-commit review correction: the Java Host test's control-character fixture is encoded as an actual newline escape (not a literal backslash sequence), and the full conflict preview no longer appends the obsolete “等” suffix after listing every conflict.
 
 - Regression-script cleanup: removed a stale assertion for a newline-delimited conflict list; the actual native preview uses the localized full-name list and is now asserted directly. The check also verifies the obsolete truncation suffix is absent.
+
+- Follow-up compatibility fix: aligned the legacy Frida SAF regression with the unbounded library contract, retained its separate file-backed draft safeguards for later editor transport work, and removed the remaining 64-character name truncation during Activity rotation.
