@@ -126,13 +126,28 @@ object FxGkdSelectorRuntime {
         fastQuery: Boolean = true,
     ): List<AccessibilityNodeInfo> {
         val safeLimit = limit.coerceIn(1, MAX_FAST_QUERY_RESULTS)
-        val options = MatchOptions(fastQuery = fastQuery)
         val output = ArrayList<AccessibilityNodeInfo>(minOf(safeLimit, 16))
         val seen = HashSet<AccessibilityNodeInfo>()
-        ACCESSIBILITY_ADAPTER.querySelectorAll(root, compiled.selector, options).forEach { node ->
-            if (seen.add(node)) output += node
+        val options = MatchOptions(fastQuery = fastQuery)
+
+        fun collect(node: AccessibilityNodeInfo?) {
+            if (node == null || output.size >= safeLimit || !seen.add(node)) return
+            compiled.selector.match(node, ACCESSIBILITY_ADAPTER, options)?.let(output::add)
         }
-        return output.take(safeLimit)
+
+        // GKD selectors can explicitly target the root. Test it once, then
+        // walk descendants incrementally so the result cap bounds memory/work.
+        collect(root)
+        val candidates = if (fastQuery && compiled.selector.fastQueryList.isNotEmpty()) {
+            ACCESSIBILITY_ADAPTER.getFastQueryDescendants(root, compiled.selector.fastQueryList.toList())
+        } else {
+            ACCESSIBILITY_ADAPTER.getDescendants(root)
+        }
+        for (candidate in candidates) {
+            if (output.size >= safeLimit) break
+            collect(candidate)
+        }
+        return output
     }
 
     private val ACCESSIBILITY_ADAPTER = object : NodeAdapter<AccessibilityNodeInfo>() {
@@ -177,7 +192,8 @@ object FxGkdSelectorRuntime {
             val node = target as? AccessibilityNodeInfo ?: return null
             if (name != "getChild") return null
             val index = args.firstOrNull() as? Int ?: return null
-            return safe { node.getChild(index.coerceIn(0, MAX_CHILDREN_PER_NODE - 1)) }
+            if (index < 0 || index >= getChildCount(node)) return null
+            return getChild(node, index)
         }
 
         override fun getName(node: AccessibilityNodeInfo): String? =
@@ -244,7 +260,12 @@ object FxGkdSelectorRuntime {
                 }
                 for (candidate in candidates) {
                     if (total >= MAX_FAST_QUERY_RESULTS) break
-                    if (yielded.add(candidate) && query.accepts(getAttr(candidate, query.attributeName)?.toString() ?: "")) {
+                    val attribute = when (query) {
+                        is FastQuery.Id -> getAttr(candidate, "id")
+                        is FastQuery.Vid -> getAttr(candidate, "vid")
+                        is FastQuery.Text -> getAttr(candidate, "text")
+                    }
+                    if (yielded.add(candidate) && query.accepts(attribute?.toString() ?: "")) {
                         total++
                         yield(candidate)
                     }
