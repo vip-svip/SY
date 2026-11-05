@@ -301,12 +301,12 @@ public final class FxDiaMonitorEventsActivity extends de.privacyguard.adhook.FxN
             eventText.setPadding(dp(12), dp(8), dp(12), dp(8));
             row.addView(eventText);
             row.setOnClickListener(v -> {
-                AlertDialog dialog = new AlertDialog.Builder(this)
+                AlertDialog dialog = fxDialogBuilder()
                         .setTitle("监控事件 · " + event.category)
                         .setMessage(event.toDisplayString())
                         .setPositiveButton("关闭", null)
                         .create();
-                FxNativeSkin.showDialog(this, dialog);
+                showFxDialog(dialog);
             });
             rows.addView(row, new LinearLayout.LayoutParams(-1, -2));
             shown++;
