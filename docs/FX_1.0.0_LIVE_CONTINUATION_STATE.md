@@ -6014,3 +6014,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - General 页面单独构建的批量导入事务也使用同一个 prefix，避免从普通 Root 入口绕过校验。
 - 新增 standalone JDK Host test 和 `fx-yulong-root-module-command-regression.sh`，检查 allowlist 拒绝任意脚本名及三页所有 Root 调用点均接入 helper；workflow 加入路径触发。
 - 本批提交后需检查 Host、六 UI 与 Module Runtime 结果。未声称 Android Gradle build、Root 设备执行或应用白名单真机流量验收已完成。
+
+
+## 2026-11-06 — 六种界面模式选择器可访问性与名称校正
+
+- 代码提交：`c0072e157e5c8deef8a594dca3e6fbfea803ef76`。
+- 修改 `FxUiMode.kt)：保留 `default/classic/glass/miuix/huawei/ios` 稳定存储 ID 和旧值映射；将五种皮肤显示名改为明确的中文产品名称，默认模式仍独立排第一。
+- 修改 `FxDesignModePanel.kt)：模式卡片由普通 clickable 改为带 `Role.RadioButton` 的 selectable，向 TalkBack/Compose 无障碍语义暴露真实选中状态；点击仍只调用既有模式选择回调。
+- 修改 `FxUiModeTest.kt`：新增六种显示名称及顺序断言。
+- GitHub 回读：三个文件均从目标分支重新读取并核对；名称、RadioButton 语义和测试断言均存在。
+- 验证等级：源码回读通过；对应 `FX Six UI Modes` 与 `FX Targeted Host Regression` Actions 已排队（run `42102008681`、`42102008707`），尚无通过结论。未运行 Gradle、APK 构建、模拟器或真机测试。
+- 不改变业务服务、VPN、DNS、Hook 或脚本生命周期；不改变产品版本号。
+- 下一批：检查六种模式在各主 Tab/二级页的 renderer 覆盖和真实页面回归，不将选择器本身的完成误报为全应用皮肤覆盖完成。
