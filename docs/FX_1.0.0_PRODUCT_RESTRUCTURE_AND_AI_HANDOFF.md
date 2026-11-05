@@ -338,7 +338,7 @@ FX 必须内置可用的默认网络内核，同时提供可切换的内核管�
 ### 4.1 分层
 
 - **Presentation**：五套 UI Skin（ClassicWebCompat、FXLiquidNative、MiuixStyle、HUAWEI HarmonyStyle、iOS CupertinoStyle），共享路由和页面状态。
-- **Domain**：Ad、VPN、Privacy、Hook、Script、Migration 等业务接口和用例。
+- **Domain**：Ad、VPN、Privacy、Hook、Script、Settings 等产品业务接口和用例；来源 APK 导入/差异比对仅属于开发期 Source Intake 流程，不是用户业务域。
 - **Data**：Room/现有配置存储适配器、规则仓库、节点仓库、脚本仓库、壁纸仓库；保留旧配置迁移器。
 - **Platform**：VpnService/TUN、DNS、Root broker、Hosts writer、Accessibility、LSPosed bridge、PackageManager、证书管理、通知/Tile/Widget。
 - **Runtime**：QuickJS 脚本执行、Frida 会话（若已实现并许可）、规则引擎。
@@ -438,7 +438,7 @@ FX 必须内置可用的默认网络内核，同时提供可切换的内核管�
 - 先迁移主壳和最常用页面；旧 Web 兼容模式保留。五种 Skin 均须接入统一 Skin Host 与六 Tab renderer；HUAWEI/iOS 不得只增加选择器枚举，必须提供独立 tokens、真实组件 renderer 和逐页适配。
 - 完成五种 Skin 下的六 Tab 基础布局与无数据/错误/权限状态，并对 HUAWEI/iOS 单独覆盖状态栏、导航栏、返回手势、字体缩放、无障碍、横竖屏和大屏布局。
 
-### P2 — 来源应用页面全量映射
+### P2 — 来源功能逐项归并（仅限开发期，不形成来源应用入口）
 - Dia、游龙广告各版本、游龙安全护盾、GKD-XA 分别建立页面映射。
 - 原生 UI 按完整页面组实施，优先列表/详情/设置/编辑器/弹窗/菜单/返回链。
 - 逐项记录来源版本差异，避免遗漏旧版独有功能。
@@ -550,7 +550,7 @@ E. iOS CupertinoStyle：在 Android APK 内实现 Cupertino 视觉与交互风�
 
 【架构要求】
 - Presentation：ClassicWebCompat / FXLiquidNative / MiuixStyle / HUAWEI HarmonyStyle / iOS CupertinoStyle 五种 skin。
-- Domain：Ad、VPN、Privacy、Hook、Script、Migration。
+- Domain：Ad、VPN、Privacy、Hook、Script、Settings；Source Intake 仅是研发工作流，不得生成应用内 Migration 页面或设置入口。
 - Data：统一仓库、版本化 schema、迁移/备份/回滚。
 - Platform：Root broker、内核级代理数据面（policy routing/iptables/nftables/TPROXY 等受支持后端）、DNS、Hosts writer、可选备用 VpnService/TUN、Accessibility、LSPosed bridge、证书管理。
 - FX 内核级代理主路径不得占用 Android VPN 槽；备用 VpnService 只能在未有第三方 VPN 占槽时启动。
@@ -673,3 +673,48 @@ GKD-XA 包含独立 Application/MainActivity/AppRoot、Room 数据库、AIDL 特
 - 已从 Wallpaper 实现证据确认的用户可见行为：弹窗名“壁纸随心换”，操作为“上传本地图片”和“恢复默认壁纸”；所选图复制到应用私有目录，最长边压至 1920 px，JPEG quality 85，使用 SharedPreferences `native_wallpaper_prefs/wallpaper_path` 保存文件路径。FX 已在 `FxWallpaperStore` 与全局六 Tab Compose 壳接入该契约。
 - 证据边界：当前已核验 APK 文件哈希、ZIP 成员清单和 DEX 符号；尚未完成完整 JADX/资源解密与原版逐页截图审计，不能声称 ClassicWebCompat 已逐像素复制 10.0.2 原 WebUI，也不能直接把加密的 index.java/bizhi.png 当普通网页和图片资源复制。
 - 下一步：继续以该哈希作为不可变参考原件，对 DEX/加密资产/内嵌 APK 做受控提取；建立 10.0.2 的六 Tab/页面/壁纸与 FX 映射表，再决定哪些原始资源可合法复用，哪些应重建。
+
+
+---
+
+## 13. 2026-11-05 导航清理落地记录与功能完成边界
+
+### 产品导航更正
+
+- 最终用户产品只有一个 FX APK、一个启动入口、六个固定 Tab：VPN、Ad、隐私、脚本、Hook、设置。
+- 禁止“迁移应用”页面、来源 APK 启动器、来源套件首页/分类树、来源应用并列入口。Dia、游龙广告插件、游龙安全护盾、GKD-XA 只保留在开发证据、许可证、功能映射与诊断记录中。
+- 设置仅放外观与个性化（五 Skin/壁纸/主题/动效）、权限、统一备份恢复、通知/诊断偏好和关于；Root/模块/LSPosed 的业务控制归隐私或 Hook，不得以“迁移应用”为父级。
+- 第二 Tab 的所有可见标签必须是 Ad。Hosts 是 Ad 内的页面/编辑器/重定向层。旧 WebView 的 pageHosts 仅允许作为历史 DOM ID 兼容别名；新的主导航和路由必须使用 pageAd。
+- Tab 索引：VPN=0、Ad=1、隐私=2、脚本=3、Hook=4、设置=5。不得添加“Ad/Hosts”并列标题。
+
+### 本批源码改动（GitHub 已提交）
+
+- MainActivity 已删除旧来源应用目录的顶层、分类、子页待迁移占位和来源应用返回栈代码；DEX 选择后回到统一 Hook 目标/应用列表，不再回到 Dia 来源分类树。代码提交：6d4bda992cd4172243509db69bcd8b6e3acf0dd2。
+- Web 兼容路由将 pageAd 设为 Ad 的标准页面 ID，pageHosts 只作旧资源兼容别名；导航标签归一到 ad。该改动包含在上述 MainActivity 提交中。
+- scripts/tests/fx-unified-navigation-regression.sh 新增断言：Ad 主路由、旧 pageHosts 兼容别名、Settings 无来源应用入口、MainActivity 不再含旧 migration hub 符号。提交：9423cd6cece752e3fc8f32e452a2667f9e758947。
+- scripts/tests/fx-imported-suite-back-navigation-regression.sh 已改为检查旧来源应用目录已移除，并检查 Ad/隐私/Hook/脚本功能仍留在对应业务入口。提交：c08c17c6eecfc826c05fc286db8a33a5262da60c。
+- 这些源码改动属于导航和路由清理，不代表所有来源应用功能已完整迁移，更不等于真实后端已全部完成。
+
+### 当前功能状态必须如实报告
+
+- Ad：FX Ad 页面可达，具备 Hosts、本地/订阅规则管理入口，并接入部分游龙广告来源页面。不得仅凭 Activity 可打开就声明 DNS 多层、所有 Firewall/Tasker/Widget/Tile/计划任务已完整运行。
+- VPN：存在原生控制页面、节点/订阅/分应用配置和若干代理/网络组件；必须继续验证内核级主数据面与第三方 VPN 共存、防回环、防 DNS/IPv6 泄漏、断线保护及真实待机耗电。
+- 隐私：已有原生隐私页与部分 Shield 来源页面/扫描实现；完整扫描覆盖率、数据库更新、后台守护和全部安全护盾行为仍须以代码与实测逐项验收。
+- Hook：Dia 工具中的部分页面已映射到 Hook，Frida/LSPosed 能力必须区分页面入口、Runtime 存在、目标进程注入和真实执行；不能用配置已保存替代注入成功。
+- GKD-XA：目前仓库锁定上游 v1.4.8 源码并有融合计划；不等于其 UI、selector、数据库、Accessibility runtime 已并入 FX APK。
+- 脚本：已有 Frida JS 脚本库入口；Loon/Shadowrocket 等代理脚本、MITM request/response 和浏览器 UserScript/扩展必须分别证明解析、API 适配和实际执行，不得只做格式导入。
+- UI：五 Skin 的模式 ID、选择器和全局导航基础分支已存在；HUAWEI/iOS 独立组件 tokens、六 Tab 逐页 renderer、截图与设备验收仍未全部完成。
+- 壁纸：已按 10.0.2 已核验的“壁纸随心换”上传/恢复契约建设 FX 私有壁纸层；裁剪/定位/模糊/遮罩等超出原版证据的功能必须标注为 FX 扩展，不可误称为 10.0.2 原版能力。
+
+### 永久禁止的完成声明
+
+- 不得宣称“全部功能已迁入”，除非每项均有 UI、真实业务逻辑、权限与持久化、错误处理、生命周期和匹配风险等级的验证证据。
+- 不得宣称 Android 的 Always-on VPN 零耗电或与 iOS 生命周期完全相同；只能提交设备测得的待机功耗和唤醒数据。
+- 不得承诺任何第三方应用必定信任用户/系统 CA；证书锁定、自定义信任库、QUIC/HTTP3 和应用内 TLS 实现需单独列出兼容性。
+- 不得承诺 Root/模块/LSPosed 对所有应用绝对隐藏；按 Android 版本、ROM、框架、目标进程和检测方式记录结果。
+- “Hook VIP”只能用于合法授权、用户自有应用和测试 entitlement；不伪造付费资格、不绕过付费授权。
+- 自定义位置仅按用户明确授权的 Android 测试/隐私模拟场景实现；不保证第三方服务接受或把模拟坐标宣称为真实 GPS。
+
+### 跨 AI 执行文件
+
+新接手的 AI 必须以 docs/FX_1.0.0_AUTONOMOUS_CROSS_AI_HANDOFF_PROMPT.md 为可执行提示词，以本文件为产品规格，以 docs/FX_1.0.0_LIVE_CONTINUATION_STATE.md 为事实进度。旧的 Library 提示词若要求 Settings 下出现迁移应用、使用 Ad/Hosts Tab 名或保留来源应用目录，均视为过期，不得照做。
