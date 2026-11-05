@@ -205,3 +205,32 @@ P8 整合验收：五 Skin × 六 Tab；升级/回滚/权限撤销；网络泄�
 - Ad 子页统一 FX Ad 品牌；Shield 子页归隐私；Dia 子页按实际业务分别归 Hook/Script/VPN/设置。
 
 验收必须覆盖上述路由、标题、返回链和底栏选中态；来源 app 页面不可通过 Settings 再次作为独立应用入口暴露。
+
+
+## 11. GKD-XA 1.4.8 完整功能单 APK 融合（来源已锁定，运行时尚未迁入）
+
+用户指定来源已固定为 Git submodule：
+
+- 上游：`https://github.com/84593320z/GKD-XA`
+- Release：`v1.4.8`（2026-10-31）
+- 固定 commit：`8a6ce935da11671dac7e1a7595416ec99ee07436`
+- FX 路径：`vendor/GKD-XA`
+- 许可证：GPL-3.0。任何组合分发必须保留版权/许可证/修改标记和对应源代码提供义务；不能把上游代码改标为 FX 独有或闭源。
+
+**明确禁止：** 把 GKD-XA 当作第二 APK 安装、添加“打开 GKD-XA”来源入口，或只在 FX 增加一个无障碍开关就称为 GKD 全功能完成。
+
+必须从锁定的源码实际迁移并测试：
+- `gkd-selector` 高级选择器解析/编译、节点关系/属性、fastQuery 和全量查询回退；
+- `gkd-app` 订阅源、本地订阅、规则组/分类/应用范围/排除项、订阅文件持久化、导入导出、规则执行/触发历史/快照/AI 加强模式/多 AI 服务商；
+- `gkd-db` Room schema 和配置一致性；
+- `gkd-aidl` 特权调用契约；
+- `gkd-hidden-api` 需按 Android 版本和 SELinux 单独审计；
+- Accessibility runtime、Job/Boot/Notification/Quick Settings/外部调用与保活机制。
+
+GKD-XA 上游包含自己的 `Application`、`MainActivity`、`AppRoot`、ViewModel、Room DB、无障碍服务、Provider、Receiver、JobService 和 TileService。不得机械复制 Manifest 或启动第二套引擎。必须先设计单一 FX Accessibility orchestrator，避免两个服务重复截图/匹配/点击和耗电；保留订阅/数据库数据迁移、并发写入、备份/回滚。
+
+**Gradle 兼容性先行：** FX 当前 AGP 9.1.1 / Kotlin 2.4.21 / Java 17；GKD-XA v1.4.8 AGP 9.4.1 / Kotlin 2.4.20 / JVM 21。先完成兼容构建 spike 和 Manifest 冲突审计，再把 selector/订阅核心模块迁入。未完成构建 spike 前禁止直接合并整个 gkd-app，禁止开启 `migration_complete=true`。
+
+业务归属：Hook（应用/每应用规则/选择器/事件/快照/自动化）为主要入口；脚本（脚本与 AI 规则编辑）按真实能力归入；Ad 只接收明确广告跳过规则，不把所有 GKD 规则都算广告；设置承载全局工作模式/权限/备份。全部页面使用 FX 六 Tab 和五 Skin。
+
+权威实施清单：`docs/FX_GKD_XA_1.4.8_INTEGRATION_PLAN.md`。来源锁定回归：`scripts/tests/fx-gkd-xa-source-lock-regression.sh`。当前事实是**源码 submodule 已固定，但 GKD-XA 运行时/服务/UI/数据库/selector 尚未合并进 FX APK**；必须按实际提交和测试逐项更新状态，不能写成已完成。
