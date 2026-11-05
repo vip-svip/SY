@@ -10,6 +10,11 @@ mkdir -p "$STATE_DIR" "$TMP_DIR" 2>/dev/null || :
 : >> "$LOG" 2>/dev/null || LOG=/dev/null
 log_msg(){ _msg="$(date '+%m-%d %H:%M:%S' 2>/dev/null) install_adhook_app: $*"; printf '%s\n' "$_msg" >> "$LOG" 2>/dev/null || :; printf '%s\n' "$*"; }
 package_present(){ pm path "$1" 2>/dev/null | grep -q '^package:'; }
+package_is_system(){
+  # Updated system apps may live under /data/app while PackageManager still
+  # classifies them as system packages; check both the code path and -s list.
+  pm list packages -s "$1" 2>/dev/null | grep -Fqx "package:$1"
+}
 retire_legacy_standalone(){
   # Remove the legacy app only when FX ownership and the exact installed APK
   # digest prove it is the old FX-managed package. Never uninstall a user app.
@@ -92,13 +97,36 @@ force_replace_signature_mismatch(){
   return 1
 }
 install_one(){
-  _pkg=de.privacyguard.adhook; _slug=fxunifiedhook; _apk="$MODDIR/optional/FXUnifiedHook.apk"
+  _pkg=de.privacyguard.adhook; _slug=fxunifiedhook
+  # New module archives carry a systemless /system/app overlay. Keep the
+  # optional payload as a compatibility fallback for older module ZIPs.
+  _overlay_apk="$MODDIR/system/app/FX/FX.apk"
+  if [ -s "$_overlay_apk" ]; then _apk="$_overlay_apk"; else _apk="$MODDIR/optional/FXUnifiedHook.apk"; fi
   _marker="$STATE_DIR/adhook-apk-$_slug.sha256"; _owned="$STATE_DIR/adhook-apk-$_slug.fx-owned"
   [ -s "$_apk" ] || { log_msg "ERROR: unified Hook APK missing: $_apk"; return 1; }
   command -v pm >/dev/null 2>&1 || { log_msg "WARN: pm unavailable; defer Hook installation"; return 1; }
   _actual=$(sha256sum "$_apk" 2>/dev/null | awk 'NR==1 {print $1}')
   [ -n "$_actual" ] || { log_msg "ERROR: cannot calculate unified APK digest"; return 1; }
   if [ -s "$_apk.sha256" ]; then _expected=$(awk 'NR==1 {print $1}' "$_apk.sha256"); [ "$_expected" = "$_actual" ] || { log_msg "ERROR: unified APK checksum mismatch; refusing install"; return 1; }; fi
+  if package_present "$_pkg"; then
+    _paths=$(pm path "$_pkg" 2>/dev/null | sed -n 's/^package://p')
+    _system_path=$(printf '%s\n' "$_paths" | awk '/^\/system\// || /^\/product\// || /^\/vendor\// {print; exit}')
+    if [ -n "$_system_path" ] || package_is_system "$_pkg"; then
+      if [ -n "$_system_path" ]; then
+        _installed_digest=$(sha256sum "$_system_path" 2>/dev/null | awk 'NR==1 {print $1}')
+        if [ -z "$_installed_digest" ] || [ "$_installed_digest" != "$_actual" ]; then
+          log_msg "ERROR: system FX Hook path does not match the module APK digest; refusing an unsafe overwrite"
+          return 1
+        fi
+        log_msg "verified FX Hook as a system app from the systemless /system/app overlay"
+        retire_legacy_standalone || return 1
+        return 0
+      fi
+      # An updated system app can be stored in /data/app. Keep PackageManager's
+      # system classification and update that data-side package in place below.
+      log_msg "FX Hook is an updated system app under /data/app; checking module APK update"
+    fi
+  fi
   _prior=$(cat "$_marker" 2>/dev/null); _was_present=0; package_present "$_pkg" && _was_present=1
   if [ "$_was_present" = 1 ] && [ "$_prior" = "$_actual" ]; then
     retire_legacy_standalone || return 1
@@ -156,7 +184,12 @@ install_one(){
   done
   rm -f "$_stage" 2>/dev/null
   [ "$_installed" = 1 ] || { log_msg "ERROR: unable to install unified Hook; core FX installation continues"; return 1; }
-  log_msg "installed unified dual-entry Hook APK; configure LSPosed module and target scope, then reboot"
+  if [ -s "$_overlay_apk" ]; then
+    log_msg "WARN: systemless overlay is not visible to PackageManager; installed compatibility copy as an ordinary app"
+  else
+    log_msg "installed unified Hook APK from legacy optional payload as an ordinary app"
+  fi
+  log_msg "configure LSPosed module and target scope, then reboot"
   retire_legacy_standalone || return 1
   return 0
 }
