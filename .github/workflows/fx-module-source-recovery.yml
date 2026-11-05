@@ -65,11 +65,16 @@ jobs:
           curl --fail --silent --show-error --location \
             https://github.com/vip-svip/SY/releases/download/1.0.0/FXUnifiedHook.apk \
             -o "$apk"
-          mkdir -p recovered-fx-module/webroot
-          unzip -p "$apk" assets/webroot/index.html > recovered-fx-module/webroot/index.html
-          [[ "$(wc -c < recovered-fx-module/webroot/index.html)" -gt 500000 ]] || {
+          webroot="$RUNNER_TEMP/fx-recovered-webroot.html"
+          unzip -p "$apk" assets/webroot/index.html > "$webroot"
+          [[ "$(wc -c < "$webroot")" -gt 500000 ]] || {
             echo "::error::Recovered WebUI is not the complete packaged UI"; exit 1;
           }
+          # The Release APK contains a legacy UI snapshot. Keep it as validation
+          # evidence only; the build workflow restores this asset and applies the
+          # current native VPN/Hosts patches before packaging. Never commit stale UI.
+          rm -f recovered-fx-module/webroot/index.html
+          rmdir recovered-fx-module/webroot 2>/dev/null || :
           if [[ -d "$source_root/bin" ]]; then
             find "$source_root/bin" -type f -printf '%P\t%s bytes\n' | sort > recovered-fx-module/BIN-MANIFEST.txt
           fi
