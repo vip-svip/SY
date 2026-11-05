@@ -186,14 +186,14 @@ fx_arb_slot_used() {
   _scan_count=0
   _find_failed=0
   _scan_files=$(find "$_root" \( -type f -o -type l \) -name '*.sh' -print 2>/dev/null) || _find_failed=1
-  for _f in $_scan_files; do
+  # find does not follow directory symlinks. Reject links below scripts/ so
+  # a linked directory cannot conceal a nested shell helper from this scan.
+  _script_links=$(find "$_root/scripts" -type l -print 2>/dev/null) || _find_failed=1
+  [ -z "$_script_links" ] || _missing=1
+  while IFS= read -r _f; do
+    [ -n "$_f" ] || continue
     [ "$_f" = "$_root/scripts/fx-vpn-coexistence-arbiter.sh" ] && continue
-    # The arbiter contains the literal VpnService API signature in its own
-    # detector pattern and documentation. It is an observer, not a dataplane
-    # helper, so scanning itself would self-report a false VPN-slot violation.
-    if [ "$_f" = "$0" ]; then
-      continue
-    fi
+    [ "$_f" = "$0" ] && continue
     _scan_count=$((_scan_count + 1))
     if [ -L "$_f" ] || [ ! -f "$_f" ] || [ ! -r "$_f" ]; then
       _missing=1
@@ -201,8 +201,13 @@ fx_arb_slot_used() {
     fi
     if grep -v '^[[:space:]]*#' "$_f" 2>/dev/null | grep -Eq 'VpnService[[:space:]]*[.][[:space:]]*(prepare|Builder)|VpnService[$]Builder'; then
       _hit=1
+    else
+      _grep_rc=$?
+      [ "$_grep_rc" -eq 1 ] || _missing=1
     fi
-  done
+  done <<EOF
+$_scan_files
+EOF
   [ "$_find_failed" = "0" ] || _missing=1
   [ "$_scan_count" -gt 0 ] || _missing=1
 
