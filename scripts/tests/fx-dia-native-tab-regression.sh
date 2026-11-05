@@ -159,7 +159,11 @@ assert "finally {\n                clearPendingNativeScriptExport();\n          
 assert "clearPendingNativeScriptExport();" in main, "cancel/launch failure must clear staged export payload"
 for page in pages:
     assert "extends de.privacyguard.adhook.FxNativeTabActivity" in page
-    assert "setContentViewWithNativeTabs(root, 4);" in page
+    expected_tab = 3 if "class FxDiaScriptLibraryActivity" in page else 0 if "class FxDiaWifiProxyActivity" in page else 4
+    assert f"setContentViewWithNativeTabs(root, {expected_tab});" in page, (
+        "Dia Activity must select its owning FX destination: "
+        + ("Scripts" if expected_tab == 3 else "VPN" if expected_tab == 0 else "Hook")
+    )
     assert "setContentView(root);" not in page
     assert "onCreate(" in page
 file_page = next(p for p in pages if "class FxDiaFileActivity" in p)
