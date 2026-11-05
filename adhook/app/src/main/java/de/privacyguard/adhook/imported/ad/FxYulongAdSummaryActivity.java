@@ -17,7 +17,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-/** Local Yulong AdBlock daily protection summary backed by FX's own config and DNS query log. */
+/** FX Ad local protection summary backed by the active filter configuration and retained DNS query log. */
 public final class FxYulongAdSummaryActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
             1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(8),
