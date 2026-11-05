@@ -67,7 +67,7 @@ ad_tile_command = method(ad_tile, "private String command(String args)", "privat
 assert 'FxYulongRootModuleCommand.command("yulong-ad-control.sh", args)' in ad_tile_command and "MP='';" not in ad_tile_command
 vpn_tile_command = method(vpn_tile, "private String vpnCommand(String action)", "private VpnState readState()")
 assert 'FxYulongRootModuleCommand.command("yulong-vpn-control.sh"' in vpn_tile_command
-assert '"$MP" /data/adb/privacyguard' in vpn_tile_command and "MP='';" not in vpn_tile_command
+assert r'\\"$MP\\" /data/adb/privacyguard' in vpn_tile_command and "MP='';" not in vpn_tile_command
 tasker_prefix = method(tasker, "private static String modulePrefix(String requiredScript)", "@Override public void onReceive")
 assert "FxYulongRootModuleCommand.prefix(requiredScript)" in tasker_prefix and "MP='';" not in tasker_prefix
 assert 'modulePrefix(adFilterAction ? "yulong-ad-control.sh" : "yulong-vpn-control.sh")' in tasker
