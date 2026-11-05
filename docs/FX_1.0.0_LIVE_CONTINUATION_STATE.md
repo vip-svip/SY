@@ -3820,3 +3820,31 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 源码提交、回归提交：稍后写入实际 SHA；尚未完成 Gradle 编译/真机控件验收。
 
 - 提交：FxNativeSkin `95212688f0e75c760ed32ee899c32e2b7a4be64e`；回归脚本 `4bcbe3f51c81f2b82493805e14af4afc18873a93`。
+
+
+## 2026-11-05 — 五种 Skin 的原生控件令牌扩展与回归通过
+
+### 本批实际实现
+- 扩展 `FxNativeSkin.java` 的五组 Palette：新增按钮背景/边框/主题强调色、开关未选中轨道色和模式圆角令牌。
+- 原生 `Button` 现在按模式生成带 RippleDrawable 的动作表面，统一 AllCaps、触控高度、内边距、文字尺寸、强调色与圆角；液态模式保留轻微浮起，其余模式不额外增加 elevation。
+- 原生 `Switch` 使用各模式的 thumb/track 状态色；`CheckBox`/`RadioButton` 使用对应模式的 button tint。
+- 特殊控件派发顺序已修正：先识别 Switch 与 CompoundButton，再处理普通 Button，避免继承关系令开关误进通用按钮渲染分支。
+- 保留 Switch 原有行/卡片背景，不以透明背景覆盖其容器；Button/Switch 样式按控件弱引用登记，避免每次布局回调重复重建 RippleDrawable。
+- 继续使用共享动态布局适配器覆盖 MainActivity 与所有接入 `FxNativeTabActivity` 的迁入页面。
+
+### 相关提交
+- `df2cb7dbed4597099d1bd890c7bc81f98e9c51fe`：五模式 Button/Switch 首批 Skin
+- `877a8053f3df46eae2156d1eaaa0708bc816cdfd`：保留 Switch 行背景并接入 Radio/Choice 控件
+- `215b129df3a774e80ea34b74342db22da15391a8`：新增按钮/开关/选项控件回归断言
+- `95212688f0e75c760ed32ee899c32e2b7a4be64e`：修正 Switch/CompoundButton 与 Button 的继承派发顺序
+- `4bcbe3f51c81f2b82493805e14af4afc18873a93`：验证控件派发顺序的回归断言
+
+### 验证
+- GitHub Actions Host 回归 Run `41981291404`（HEAD `4bcbe3f51c81f2b82493805e14af4afc18873a93`）成功。
+- 日志确认：Switch 与 CheckBox/RadioButton 令牌派发顺序检查通过；壁纸回归确认 10.0.2 存储格式、限幅解码、Classic WebUI 透明背景，以及 Ad/Shield/Dia 迁入页面共用壁纸层。
+- Host lane 明确 SKIP 需要从 Release 恢复的完整 WebUI/module 资源检查；这不等于失败，也不等于这些资源已在本 lane 编译。
+- 尚未执行 Gradle `testDebugUnitTest`/`assembleDebug`、APK 安装、真机逐页截图、按钮触控测试或 VPN/DNS/Hook/脚本服务无中断实测。不能称为 APK 构建通过或真机验收完成。
+
+### 下一批
+- 继续五 Skin 页面级适配，重点检查表单、列表、弹窗、RadioGroup、编辑器、统计/扫描页面，不只停留在底部导航和通用控件。
+- 继续核对来源功能映射：旧来源名称不得回到用户主导航；功能必须真实归到 Ad/VPN/隐私/脚本/Hook。
