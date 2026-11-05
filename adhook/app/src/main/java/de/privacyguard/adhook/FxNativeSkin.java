@@ -168,10 +168,20 @@ final class FxNativeSkin {
                                                     FxUiMode mode, Palette palette,
                                                     boolean wallpaperActive) {
         Drawable background = view.getBackground();
+        int legacyBackgroundColor = Integer.MIN_VALUE;
         if (background instanceof ColorDrawable) {
-            int oldColor = ((ColorDrawable) background).getColor();
+            legacyBackgroundColor = ((ColorDrawable) background).getColor();
+        } else if (background instanceof GradientDrawable) {
+            // Imported Activity pages frequently use solid GradientDrawable cards.
+            // Adapt only a single-color drawable with a known legacy token; do not
+            // flatten gradients, selectors, ripples or arbitrary user drawables.
+            ColorStateList fill = ((GradientDrawable) background).getColor();
+            if (fill != null) legacyBackgroundColor = fill.getDefaultColor();
+        }
+        if (legacyBackgroundColor != Integer.MIN_VALUE) {
             float density = activity.getResources().getDisplayMetrics().density;
-            Drawable replacement = replacementBackgroundDrawable(oldColor, palette, wallpaperActive, density);
+            Drawable replacement = replacementBackgroundDrawable(
+                    legacyBackgroundColor, palette, wallpaperActive, density);
             if (replacement != null) view.setBackground(replacement);
         }
 
