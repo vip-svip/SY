@@ -33,19 +33,19 @@ if notice not in hub:
 # The per-target editor's publish action writes FX configuration and Remote Files;
 # it deliberately does not request or revoke any LSPosed scope.
 publish_notice = "保存并发布 Hook 配置只更新 FX 设备端配置和 Remote Files 发布状态，不会自动授予或修改 LSPosed 作用域。目标应用作用域由 LSPosed Manager 单独管理；上方的作用域申请仍须经过 Manager 审查和批准。"
-publish_anchor = "        renderCustomRules();" + chr(10) + '        Button save=new Button(this); save.setText("保存并发布 Hook 配置");'
-publish_replacement = '''        renderCustomRules();
-        TextView publishScopeNotice = new TextView(this);
-        publishScopeNotice.setText("保存并发布 Hook 配置只更新 FX 设备端配置和 Remote Files 发布状态，不会自动授予或修改 LSPosed 作用域。目标应用作用域由 LSPosed Manager 单独管理；上方的作用域申请仍须经过 Manager 审查和批准。");
-        publishScopeNotice.setTextColor(0xff697681);
-        publishScopeNotice.setTextSize(12);
-        publishScopeNotice.setPadding(dp(16), dp(4), dp(16), dp(10));
-        content.addView(publishScopeNotice);
-        Button save=new Button(this); save.setText("保存并发布 Hook 配置");'''
+publish_control = '        Button save=new Button(this); save.setText("\u4fdd\u5b58\u5e76\u53d1\u5e03 Hook \u914d\u7f6e");'
+publish_insert = (
+    '        TextView publishScopeNotice = new TextView(this);' + chr(10)
+    + '        publishScopeNotice.setText("' + publish_notice + '");' + chr(10)
+    + '        publishScopeNotice.setTextColor(0xff697681);' + chr(10)
+    + '        publishScopeNotice.setTextSize(12);' + chr(10)
+    + '        publishScopeNotice.setPadding(dp(16), dp(4), dp(16), dp(10));' + chr(10)
+    + '        content.addView(publishScopeNotice);' + chr(10)
+)
 if publish_notice not in source:
-    if source.count(publish_anchor) != 1:
+    if source.count(publish_control) != 1:
         raise SystemExit("cannot locate unique Hook config publish control; refusing to patch unrelated UI")
-    source = source.replace(publish_anchor, publish_replacement, 1)
+    source = source.replace(publish_control, publish_insert + publish_control, 1)
 
 if notice not in source:
     raise SystemExit("LSPosed Manager authority notice was not written into native Hook UI")
