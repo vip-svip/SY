@@ -409,7 +409,11 @@ unset MOCK_PACKAGE_LIST_FAIL
 active_chain=$(cat "$ACTIVE")
 case "$active_chain" in FXYUL_A|FXYUL_B) : ;; *) fail "active firewall chain marker is invalid before teardown test" ;; esac
 export MOCK_FAIL_DELETE_CHAIN="$active_chain"
+grep -qx "$active_chain" "$MOCK_HOOKS4" || fail "active IPv4 hook is absent before failure injection"
+grep -qx "$active_chain" "$MOCK_HOOKS6" || fail "active IPv6 hook is absent before failure injection"
 if run master 0 > "$TMP/disable-detach-failed.out" 2>&1; then
+  cat "$TMP/disable-detach-failed.out" >&2
+  tail -n 30 "$MOCK_LOG" >&2
   fail "firewall disable accepted a failed OUTPUT hook deletion"
 fi
 unset MOCK_FAIL_DELETE_CHAIN
