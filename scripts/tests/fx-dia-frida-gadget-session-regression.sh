@@ -388,7 +388,7 @@ chmod 600 "$log"
 mkfifo -m 600 "$pipe"
 nohup "$cli" -H "127.0.0.1:$port" -n Gadget -l "$script" < "$pipe" >> "$log" 2>&1 &
 cli_pid=$!
-nohup sh -c 'while kill -0 "$1" 2>/dev/null; do sleep 1; done' "fx-gadget-feed-$port" "$cli_pid" "$pipe" > "$pipe" 2>/dev/null < /dev/null &
+nohup sh -c 'while :; do state=$(sed 's/^.*) //' "/proc/$1/stat" 2>/dev/null | cut -d " " -f1); case "$state" in Z|X|x) exit 0;; esac; kill -0 "$1" 2>/dev/null || exit 0; sleep 1; done' "fx-gadget-feed-$port" "$cli_pid" "$pipe" > "$pipe" 2>/dev/null < /dev/null &
 feed_pid=$!
 pid_tmp=$(mktemp "$dir/.gadget-$port.pid.XXXXXX")
 printf '%s\n%s\n%s\n%s\n%s\n%s\n' "$cli_pid" "$feed_pid" "$cli" "$pkg" "$port" "$proc" > "$pid_tmp"
@@ -483,6 +483,30 @@ if "$T/start.sh" "$T/frida" "com.example.debuggable" "$T/logs" "com.example.debu
   exit 1
 fi
 grep -Fq FX_GADGET_TARGET_PROCESS_NOT_RUNNING "$T/foreign-uid-process.result"
+# A real zombie child must be treated as exited by the feeder itself.
+sh -c 'exit 0' &
+zombie_cli=$!
+_zombie_wait=0
+while :; do
+  zombie_state=$(sed 's/^.*) //' "/proc/$zombie_cli/stat" 2>/dev/null | cut -d ' ' -f1)
+  [ "$zombie_state" = Z ] && break
+  [ "$_zombie_wait" -lt 20 ] || { echo "FAIL: could not create zombie CLI fixture" >&2; exit 1; }
+  sleep 0.05
+  _zombie_wait=$((_zombie_wait+1))
+done
+mkfifo "$T/zombie-feeder.stdin"
+nohup sh -c 'while :; do state=$(sed 's/^.*) //' "/proc/$1/stat" 2>/dev/null | cut -d " " -f1); case "$state" in Z|X|x) exit 0;; esac; kill -0 "$1" 2>/dev/null || exit 0; sleep 1; done' "fx-gadget-feed-zombie-test" "$zombie_cli" "$T/zombie-feeder.stdin" > "$T/zombie-feeder.stdin" 2>/dev/null < /dev/null &
+zombie_feeder=$!
+_zombie_wait=0
+while kill -0 "$zombie_feeder" 2>/dev/null; do
+  [ "$_zombie_wait" -lt 20 ] || { echo "FAIL: feeder remained alive for zombie CLI" >&2; exit 1; }
+  sleep 0.05
+  _zombie_wait=$((_zombie_wait+1))
+done
+wait "$zombie_feeder" 2>/dev/null || :
+wait "$zombie_cli" 2>/dev/null || :
+rm -f "$T/zombie-feeder.stdin"
+
 "$T/start.sh" "$T/frida-ignore-term" "com.example.debuggable" "$T/logs" "com.example.debuggable:remote" > "$T/start.result"
 grep -Fq "FX_GADGET_SESSION_STARTED" "$T/start.result"
 sleep 0.2

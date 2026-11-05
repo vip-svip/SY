@@ -5174,3 +5174,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 修正 feeder 自身监控循环：除 kill -0 外，读取 /proc/<cli-pid>/stat 的进程状态；遇到 Z、X 或 x 立即退出，避免 CLI 已成为僵尸时 feeder 仍持续占用 FIFO。
 - 保留 feeder 固定端口身份、PID 绑定与现有 FIFO 生命周期管理；回归增加源码契约断言，确保生产 feeder 具备 zombie-aware 退出条件。
 - 本次代码与回归验证覆盖 Linux/GitHub Actions 主机环境；Android Root Shell 和真机进程回收行为仍需设备验证。
+
+
+## 2026-11-05 — Gadget feeder 僵尸退出行为测试
+
+- 将 Gadget 会话行为夹具中的 feeder 命令同步为生产实现，并新增真实 Linux 僵尸子进程场景：验证 feeder 在 CLI 状态为 Z 时快速退出，而不是等待 PID 被父进程回收。
+- 此项是主机进程状态行为测试；Android Root Shell 上 /proc 可见性与设备内核进程回收仍需真机验证。
