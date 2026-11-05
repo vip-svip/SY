@@ -18,6 +18,8 @@ import xml.etree.ElementTree as ET
 main_path, manifest_path, global_path, expand_path = map(Path, sys.argv[1:])
 main = main_path.read_text(encoding="utf-8")
 global_page = global_path.read_text(encoding="utf-8")
+assert "Hook · 工具与运行设置" in global_page, "Dia global settings must be presented as an FX Hook page"
+assert "setContentViewWithNativeTabs(root, 4);" in global_page, "Dia global settings must select the Hook tab, not Settings"
 expand_page = expand_path.read_text(encoding="utf-8")
 manifest = ET.parse(manifest_path).getroot()
 ns = "{http://schemas.android.com/apk/res/android}"
