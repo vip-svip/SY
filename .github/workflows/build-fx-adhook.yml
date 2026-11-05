@@ -632,6 +632,7 @@ jobs:
             fx-module/post-fs-data.sh
             fx-module/service.sh
             fx-module/uninstall.sh
+            fx-module/system/app/FX/
             fx-module/scripts/
             fx-module/webroot/index.html
             fx-module/lsposed/app/src/main/java/de/privacyguard/hook/MainHook.java
