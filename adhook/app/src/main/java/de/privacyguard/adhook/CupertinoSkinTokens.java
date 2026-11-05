@@ -14,6 +14,7 @@ final class CupertinoSkinTokens {
         static final int SURFACE = 0xeaffffff;
         static final int SURFACE_VARIANT = 0xffe5e5ea;
         static final int DIVIDER = 0x1f8e8e93;
+        static final int SELECTED_TAB_SURFACE = 0x1a007aff;
         static final int PRIMARY_TEXT = 0xff1c1c1e;
         static final int SECONDARY_TEXT = 0xff6c6c70;
         static final int ACCENT = 0xff007aff;
