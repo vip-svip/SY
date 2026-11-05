@@ -33,7 +33,7 @@ path_components_are_safe(){
 log(){
   path_components_are_safe "$STATE_DIR" || return 0
   mkdir -p "$LOG_DIR" 2>/dev/null || return 0
-  path_components_are_safe "$LOG_DIR" && [ -d "$LOG_DIR" ] &&
+  path_components_are_safe "$LOG_DIR" && [ -d "$LOG_DIR" ] && [ ! -L "$LOG_DIR" ] &&
     [ ! -L "$LOG_FILE" ] && { [ ! -e "$LOG_FILE" ] || [ -f "$LOG_FILE" ]; } || return 0
   chmod 0700 "$LOG_DIR" 2>/dev/null || :
   printf '%s\n' "$*" >> "$LOG_FILE" 2>/dev/null || :
