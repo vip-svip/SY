@@ -52,8 +52,7 @@ for required in (
     '"\\\\nAccessibility：" + accessibilityStatus',
 ):
     assert required in method, "privacy authorization summary missing live-state contract: " + required
-assert 'json.optBoolean("root", false) ? "已授权" : "未授权"' in method, \\
-    "reported Root state must remain distinct from unavailable Root state"
+assert 'json.optBoolean("root", false) ? "已授权" : "未授权"' in method, "reported Root state must remain distinct from unavailable Root state"
 print("PASS: privacy authorization summary distinguishes unknown Root state and reports system-enabled/FX-connected Accessibility state")
 PY
   echo "SKIP: module-backed privacy settings behavior requires restored FX module archive; static authorization checks passed."
