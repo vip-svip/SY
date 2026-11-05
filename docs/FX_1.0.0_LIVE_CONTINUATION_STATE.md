@@ -6236,3 +6236,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 前一版权限加固以 `mktemp` 建立状态快照临时文件，但目标 Host/模块回归中的实际执行返回码为 2，导致正常快照未创建；已撤回对 `mktemp` 的依赖。
 - 现使用 POSIX `mkdir` 的原子创建语义：在 `umask 077` 下创建 PID-scoped 私有临时目录，再在目录内以 noclobber 创建状态文件；文件必须通过 `chmod 0600`、非空/JSON 标记检查及原子 `mv` 才能替换正式快照。
 - 任何写入/权限/替换失败均只清理该次临时文件和空目录，不覆盖原快照、不改变 VPN/DNS 路由；chmod 故障注入回归保持启用。新版本的 Host/Module Runtime 结果尚待当前 HEAD 的 Actions 核验。
+
+## 2026-11-06 — Hook Kotlin signature Host verification and early-boot APK marker hardening
+
+- Follow-up to the Kotlin signature integration above: the JDK-only regression now explicitly asserts `kotlin.Unit`, primitive-array and Kotlin collection erasure coverage. GitHub Actions run `42104749088` (`FX Targeted Host Regression`, HEAD `0cdf698c`) completed successfully and its log contains `PASS: Kotlin source and Frida signatures resolve to exact erased JVM descriptors`.
+- Early-boot system-app verifier had a real path uniqueness defect: retry/deployment marker temp names ended in a literal `$` rather than the running shell PID. Canonical patch source `fx-patches/fx_system_app_post_fs_data.sh` and tracked module `fx-module/post-fs-data.sh` now use `.tmp.$$` for both marker types.
+- Expanded `fx-system-app-overlay-boot-regression.sh` to exercise retry-temp and deployment-marker-temp symlink protection with the real FX state/app paths. The test fixtures publish the shell PID, then create the matching symlink before allowing the verifier to proceed.
+- GitHub Actions run `42104541678` (`FX System App Install Stage`, HEAD `899ae53d`) completed successfully: patcher idempotence, installer behavior, shell validity, early-boot digest/SELinux/marker regression and packaging integration all passed.
+- These are Host/CI results only. No Android Gradle APK build, KernelSU ZIP build, LSPosed injection, root-device SELinux verification or real-device VPN/DNS test is claimed.
