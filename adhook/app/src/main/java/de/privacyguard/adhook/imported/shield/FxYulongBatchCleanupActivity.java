@@ -265,7 +265,7 @@ public final class FxYulongBatchCleanupActivity extends de.privacyguard.adhook.F
             return;
         }
 
-        new AlertDialog.Builder(this)
+        fxDialogBuilder()
                 .setTitle("确认打开系统卸载界面")
                 .setMessage(labels.get(index) + "\n" + packageName
                         + "\n\nFX 不会自动点击系统确认按钮。")
