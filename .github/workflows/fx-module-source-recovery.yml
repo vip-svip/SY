@@ -123,17 +123,20 @@ jobs:
             git merge --allow-unrelated-histories --no-commit -X ours "origin/$recovery_branch" || merge_status=$?
             unmerged=$(git diff --name-only --diff-filter=U | LC_ALL=C sort)
             if [[ -n "$unmerged" ]]; then
-              expected=$(printf '%s\n' fx-module/module.prop fx-module/post-fs-data.sh scripts/tests/fx-native-privacy-settings-regression.sh | LC_ALL=C sort)
-              if [[ "$unmerged" != "$expected" ]]; then
-                echo "::error::Unexpected source-import merge conflicts:"
-                printf '%s\\n' "$unmerged"
+              # The integration branch is authoritative for files it already
+              # owns. Recovery import below is additive (cp -an), so retain ours
+              # for overlapping module runtime and regression-test paths.
+              unexpected=$(printf '%s\n' "$unmerged" | grep -Ev '^(fx-module/|scripts/tests/|docs/fx-module-recovery/)' || :)
+              if [[ -n "$unexpected" ]]; then
+                echo "::error::Unexpected source-import conflicts outside additive recovery paths:"
+                printf '%s\n' "$unexpected"
                 exit 1
               fi
-              # These two installer metadata files are branch-owned. Keep the
-              # current integration versions; the import contributes missing
-              # runtime files only.
-              git checkout --ours -- fx-module/module.prop fx-module/post-fs-data.sh scripts/tests/fx-native-privacy-settings-regression.sh
-              git add fx-module/module.prop fx-module/post-fs-data.sh scripts/tests/fx-native-privacy-settings-regression.sh
+              while IFS= read -r conflict_path; do
+                [[ -n "$conflict_path" ]] || continue
+                git checkout --ours -- "$conflict_path"
+                git add -- "$conflict_path"
+              done <<< "$unmerged"
             elif [[ "$merge_status" -ne 0 ]]; then
               echo "::error::Unrelated source-history merge failed without resolvable file conflicts."
               exit "$merge_status"
