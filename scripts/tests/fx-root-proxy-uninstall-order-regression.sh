@@ -40,6 +40,8 @@ ORDER_LOG="$LOG" PG="$PG" MODDIR="$MOD" sh "$MOD/uninstall.sh" > "$T/success.out
 [ "$(cat "$PG/unrelated-state")" = unrelated ] || fail "uninstall removed unrelated PrivacyGuard state"
 
 # An unconfirmed cleanup must abort before firewall teardown and preserve state.
+printf '%s\n' verified-digest > "$PG/system-app-apk.sha256"
+printf '%s\n' retry > "$PG/system-app-retry"
 : > "$LOG"
 : > "$PG/yulong-root-proxy-active"
 if ORDER_LOG="$LOG" MOCK_PROXY_FAIL=1 PG="$PG" MODDIR="$MOD" sh "$MOD/uninstall.sh" > "$T/failure.out" 2>&1; then
