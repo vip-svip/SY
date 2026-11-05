@@ -31,6 +31,7 @@ object FxGkdRuleStore {
     private const val PREFS = "fx_gkd_automation"
     private const val KEY_MASTER_ENABLED = "enabled"
     private const val KEY_RULES = "rules_json"
+    const val MAX_RULES = 128
     const val MIN_COOLDOWN_MS = 1_000L
     const val MAX_COOLDOWN_MS = 60_000L
     const val DEFAULT_COOLDOWN_MS = 3_000L
@@ -82,7 +83,7 @@ object FxGkdRuleStore {
         val parsed = try {
             val array = JSONArray(raw)
             buildList {
-                for (index in 0 until array.length()) {
+                for (index in 0 until minOf(array.length(), MAX_RULES)) {
                     val item = array.optJSONObject(index) ?: continue
                     val id = item.optString("id").takeIf { it.length in 1..64 } ?: continue
                     val pkg = item.optString("package").takeIf(::isValidPackageName) ?: continue
@@ -149,6 +150,10 @@ object FxGkdRuleStore {
         var skipped = 0
 
         for (index in 0 until sourceRules.length()) {
+            if (merged.size >= MAX_RULES) {
+                skipped += sourceRules.length() - index
+                break
+            }
             val item = sourceRules.optJSONObject(index)
             if (item == null) {
                 skipped++
@@ -213,6 +218,7 @@ object FxGkdRuleStore {
         val compiled = FxGkdSelectorEngine.compile(expression)
         if (!compiled.isValid) return null
         val existing = getRules(context)
+        if (existing.size >= MAX_RULES) return null
         val rule = FxGkdRule(
             id = UUID.randomUUID().toString(),
             packageName = pkg,
@@ -247,6 +253,7 @@ object FxGkdRuleStore {
             value.matches(Regex("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+"))
 
     private fun writeRules(context: Context, rules: List<FxGkdRule>): Boolean {
+        if (rules.size > MAX_RULES) return false
         val array = JSONArray()
         rules.forEach { rule ->
             array.put(JSONObject()
