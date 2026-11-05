@@ -3234,7 +3234,7 @@ public final class MainActivity extends ComponentActivity {
         addNativeActionCard("APK 签名信息", "读取已安装应用或指定 APK 的签名证书指纹，不伪造签名或修改校验结果。", "查看签名信息", () ->
                 startActivity(new Intent(this,
                         de.privacyguard.adhook.imported.dia.FxDiaSignatureActivity.class)));
-        addNativeActionCard("崩溃诊断报告", "查看 FX 收集并保存在本机的崩溃诊断记录；导出前会处理敏感字段。", "查看崩溃报告", () ->
+        addNativeActionCard("崩溃报告", "查看 FX 收集并保存在本机的崩溃诊断记录；导出前会处理敏感字段。", "查看崩溃报告", () ->
                 startActivity(new Intent(this,
                         de.privacyguard.adhook.imported.dia.FxDiaCrashReportActivity.class)));
         addNativeActionCard("DEX 类与方法浏览", "扫描目标用户应用的 DEX，并将经过校验的方法签名带入自定义 Hook 编辑器。", "浏览 DEX 并选取方法", () -> {
