@@ -76,7 +76,7 @@ stop = source[source.index("private void stopGadgetSession()"):
                source.index("private void showGadgetSessionLog()")]
 
 for label, needle in (
-    ("status checker rejects symlinked session directories", '[ ! -L \"$dir\" ]'),
+    ("status checker rejects symlinked session directories", '[ ! -L \\"$dir\\" ]'),
     ("status checker rejects symlinked PID records", "FX_GADGET_PIDFILE_SYMLINK_REJECTED"),
     ("status checker validates stored target identity", "FX_GADGET_SESSION_TARGET_CONFLICT"),
     ("status checker verifies live PID state", "pid_active()"),
