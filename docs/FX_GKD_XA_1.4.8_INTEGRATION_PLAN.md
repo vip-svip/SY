@@ -114,3 +114,52 @@ GKD-XA 根工程把 Kotlin JVM target 设为 21，并依赖 Compose、Room 3、K
 - `fx-open-source-licenses-regression.sh` 检查许可原文资产、设置查看入口、来源 commit 和完整文本。
 - **发行法律门禁仍未解除**：FX 仓库根目录目前没有项目级 LICENSE。GKD 选择器源码现在编译进单 APK，是否构成需要将整个组合程序按 GPLv3 兼容方式授权/分发，必须由项目权利人确认并完成对应源代码、版权和修改声明安排。不能只因为 APK 内附了 GPL 文本就声称整个 FX 发行合规；在权利与许可范围没有确认前，不得发布为闭源/专有产品，也不得把上游 GKD 代码重新标成 FX 独有。
 - 独立选择器 CI 已覆盖 upstream `:fx-gkd-selector:jvmTest`；FX 集成工作流正在增加 Android App 编译和 `FxGkdSelectorRuntimeTest`。应分别报告 upstream JVM 测试、FX App 编译/单测与真机服务验收，不能合并成一个“全部通过”。
+
+
+## 2026-11-05 — FX 单服务本地规则 Click 试点（覆盖前述“只读、尚无 Hook UI”状态）
+
+> 本节是当前最新实现状态。此前“FxGkdSelectorRuntime 只读匹配”“Hook UI 尚未接入”等状态描述属于更早阶段，现由本节修正。只完成本节列明的功能，不代表 GKD-XA 1.4.8 全量迁移。
+
+### 已落地的源码
+
+1. **上游选择器引擎**
+   - FX 工程：`adhook/fx-gkd-selector`，JVM 17，直接编译仓库固定的 GKD-XA v1.4.8 `gkd-selector` 源码；不复制一个简化 selector 实现来替代上游。
+   - FX 适配：`FxGkdSelectorEngine.kt`，完成 parse/compile、默认类型模型校验、属性与关系查询，并将 FX 自有节点快照适配到上游 `NodeAdapter`。
+   - 选择器输入限制 512 字符；匹配结果最多 12 项。
+
+2. **FX 本地规则存储**
+   - `FxGkdRuleStore.kt` 使用独立的 `fx_gkd_automation` SharedPreferences；不与 FX QuickJS 脚本、Ad 订阅规则或旧 GKD 数据库混用。
+   - 规则最大 128 条，目标包名必须符合包名格式；UI 新建规则要求目标是已安装的普通用户应用，不能选 FX 自身或系统应用。
+   - 冷却限制 1–60 秒；规则默认关闭全局总开关，必须由用户单独启用。
+   - 支持新增、逐条启用/停用、删除，以及执行前重新确认当前规则仍启用。
+
+3. **Hook 页面**
+   - 新增 `FxGkdAutomationActivity`，作为 FX Hook 第五 Tab 下的内部页面；MainActivity Hook 中有“GKD 选择器自动化”入口。
+   - UI 提供系统无障碍授权状态、FX 服务连接状态、GKD 总开关、本地规则新增/编辑（当前支持新增/启停/删除）和规则冷却信息。
+   - 刷新规则列表会保留总开关和“添加规则”控件；该行为纳入静态回归。
+
+4. **唯一 AccessibilityService 的事件链**
+   - 沿用 FX 原有 `FxAccessibilityService`，没有注册第二个 GKD AccessibilityService、Application、Launcher 或 APK。
+   - `canRetrieveWindowContent=true` 是 Android 无障碍能力声明；实际读取树仍由 GKD 总开关和指定包名的启用规则双重门控。
+   - 总开关关闭时仅订阅前台窗口变化；启用并存在规则时才动态加入 window-content-changed / view-scrolled 事件。
+   - 服务只处理当前事件包名与活动窗口 root 包名一致的树；单线程、单任务并发门、最小事件间隔、节点数/深度/子节点/文本上限，避免并发扫描与无限遍历。
+   - Snapshot 不读取密码或可编辑输入框的文本/描述；不截图、不上传、不记录页面文本。
+   - 首批动作仅执行用户配置选择器命中的、可见、可点击且非密码/非编辑节点的 `ACTION_CLICK`；不执行手势、不长按、不自动滑动。每规则冷却限制，并在点击前重新检查总开关、规则状态、服务连接和前台包名；目标应用切换或用户关闭后会取消排队动作。
+
+### 第一阶段验收与边界
+
+- 新增 `FxGkdSelectorEngineTest.kt`：覆盖上游属性选择器、Widget 类名、节点关系、无效语法/类型和结果数量上限。
+- 新增 `fx-gkd-automation-regression.sh`：检查单 FX AccessibilityService、Hook 子页注册、manifest 无第二 Launcher、总开关/逐应用范围、隐私与树遍历上限、点击前撤销/前台复核。
+- `.github/workflows/fx-gkd-selector.yml`：JDK 17 下执行上游 selector JVM 测试、FX App Kotlin/Java 编译、FX GKD selector 单测和上述静态安全回归。
+- `.github/workflows/build-fx-adhook.yml` 的静态 Host lane 也执行 GKD 自动化回归脚本。
+- 当前 GitHub Actions run `41983507306` 曾在该分支开始运行；后续提交会触发更新 run。必须读取最新 run 的最终结果后，才可报告 compile/test 通过。
+- **尚未完成 GKD-XA 全量迁移**：上游订阅下载/导入/刷新、规则组/分类/排除项、完整规则语法与动作模型、快照审查/AI、历史/日志、AI Provider、Room 数据迁移、备份/恢复、Shizuku/AIDL、开机/通知/Tile/后台服务生命周期均仍未接入。
+- **未做真机验收**：AOSP/ColorOS/HyperOS 的无障碍授权、跨应用事件行为、节点有效期、ACTION_CLICK 成功率、切换前台后的取消时序、耗电与内存仍需要实机验证。
+- GPL-3.0 分发/项目整体许可边界仍须权利人确认；附带 LICENSE 不能自动视作闭源发行合规。
+
+### 下一阶段
+
+1. 先让当前 Android App compile + GKD selector tests + automation regression 全部通过；修复实际日志暴露的问题。
+2. 增加事件去重键、每窗口处理预算、每节点动作结果记录与崩溃/撤销恢复；真机验证动作只触发一次。
+3. 实现本地规则组、应用范围/排除项和版本化仓库；再审计上游订阅格式与合法性。
+4. 之后再迁移 GKD snapshot/history/AI providers、权限/备份/特权能力，逐项映射到 Hook/脚本页面。不得把 GKD 所有规则默认归入 Ad。
