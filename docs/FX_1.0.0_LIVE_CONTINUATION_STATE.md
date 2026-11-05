@@ -6536,3 +6536,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 同一提交：FX VPN Coexistence Arbiter run `42107900674` 成功；FX Targeted Host Regression run `42107900785` 成功。
 - Runtime 覆盖包括 TUN 与外部 VPN 冲突保护、TUN→REDIRECT 有条件回退、DNS 双端口监听与规则生成、VPN watchdog 生命周期、per-app VPN 列表事务、Root Proxy 路由/UID 证明和独立 DNS 归属。
 - 这组 CI 是 Linux Host 上基于已发布模块包加当前分支补丁的可执行回归，不是 Android 真机实测，也不证明第三方 VPN 的所有设备/ROM/厂商内核均可并行转发。
+
+
+## 2026-11-06 — 并行 AI 推送下补齐 VPN / System App / GKD 验证队列保护
+
+- 为避免同一集成分支的并行 AI push 取消正在执行的验证，以下纯验证 workflow 均改为 `cancel-in-progress: false`：
+  - `.github/workflows/fx-vpn-shell-regression.yml`（提交 `655f88c1fd38cc01031baaaabd2d0d9ac07ce6f6`；回读 blob `93ade6f893cfe79728aed644a5d4e9a3c03a4ee0`）。
+  - `.github/workflows/fx-system-app-install-stage.yml`（提交 `ddf388846d69b652a8cdf83da045c36c82227056`；回读 blob `a9c7d7638dc187fa07a64390946072e58aa71a9b`）。
+  - `.github/workflows/fx-gkd-selector.yml`（提交 `55f3e2790753b1f8194fe78f757b53fbebcfc2e3`；回读 blob `e9517b0af0e1db8fb4344b8057f4ce78dae2ddec`）。
+- 已读 CI：VPN shell regression run `42108118475` SUCCESS；System App Install Stage run `42108131514` SUCCESS。GKD-XA Selector run `42108252274` 在读取时仍为 in_progress，尚不记为通过。
+- 正式 KernelSU ZIP 构建 workflow `.github/workflows/build-fx-kernelsu.yml` 保留原来的取消策略，不把旧正式打包队列与验证队列混为一谈。
+- 本次状态记录前分支 HEAD：`30e9cfa16318d7b7a7feb69f3253450dd86fcf34`。所有三个 workflow 已从目标分支回读确认；不声称 GKD 本轮已通过，也不声称真机测试。
