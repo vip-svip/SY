@@ -126,7 +126,10 @@ import sys
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
 transform = source[source.index("private static void transformKnownLegacyTokens"):source.index("private static void applyButtonSkin")]
 assert "background instanceof ColorDrawable" in transform
-assert "replacementBackgroundDrawable(oldColor, palette, wallpaperActive, density)" in transform
+assert "background instanceof GradientDrawable" in transform
+assert "ColorStateList fill = ((GradientDrawable) background).getColor()" in transform
+assert "if (fill != null) legacyBackgroundColor = fill.getDefaultColor()" in transform
+assert "replacementBackgroundDrawable(" in transform and "legacyBackgroundColor, palette, wallpaperActive, density" in transform
 helper = source[source.index("private static Drawable replacementBackgroundDrawable"):source.index("private static Integer replacementText")]
 assert "case 0xfff0f3f7:" in helper and "case 0xffffffff:" in helper
 assert "case 0xffe9eef3:" in helper and "case 0xffe5e5ea:" in helper
@@ -137,7 +140,7 @@ assert "surface.setCornerRadius(radiusPx)" in helper
 assert "surface.setStroke(1, strokeColor)" in helper
 assert helper.index("default:") > helper.index("case 0xffe3e8ee:"), "unknown custom backgrounds must fall through untouched"
 assert "return null;" in helper, "unknown/custom background tokens must remain untouched"
-print("PASS: known neutral cards receive density-scaled five-skin radii while custom drawables remain intact.")
+print("PASS: known neutral ColorDrawable and solid GradientDrawable cards receive five-skin surfaces; gradients, selectors, ripples and unknown drawables remain intact.")
 PY
 grep -Fq 'addOnGlobalLayoutListener' "$skin" || { echo "FAIL: dynamic native pages are not re-skinned after layout"; exit 1; }
 grep -Fq 'addOnAttachStateChangeListener' "$skin" || { echo "FAIL: Skin observer is not attached to the live page root"; exit 1; }
