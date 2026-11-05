@@ -1,0 +1,141 @@
+name: FX Rule Conflict Check
+
+# Requirement G of the FX 1.0.0 handoff asks each rule format for a parser, a
+# validator *and* a conflict check. Hosts, AdGuard/ABP and PAC now each have a
+# parser, but a device carries all of them at once and they can contradict each
+# other:
+#
+#   * a domain blocked at the DNS layer but routed through a proxy by PAC makes
+#     the operator's proxy route unexercisable;
+#   * a domain blocked and allowed by different sources;
+#   * a blocked subdomain sitting under a broader allow rule;
+#   * a PAC rule that an earlier rule already covers, so it never applies.
+#
+# Those are only visible when the sources are read together. This workflow gates
+# the cross-format join on every change to the integration branch.
+
+on:
+  push:
+    branches:
+      - fx-v1.0.0-unified-hook-integration
+      - main
+  pull_request:
+    branches:
+      - fx-v1.0.0-unified-hook-integration
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fx-rule-conflict-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  cross-format-conflicts:
+    name: cross-format-conflicts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Byte-compile the checker and its regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/fx-rule-conflict-check.py
+          python3 -m py_compile scripts/tests/fx-rule-conflict-check-regression.py
+
+      - name: Run the cross-format conflict regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/tests/fx-rule-conflict-check-regression.py
+
+      - name: Verify every finding code is still produced
+        shell: bash
+        run: |
+          set -euo pipefail
+          checker=scripts/fx-rule-conflict-check.py
+
+          for code in \
+            blocked_and_allowed \
+            block_under_allow \
+            blocked_domain_is_proxied \
+            allowed_domain_is_proxied \
+            unreachable_pac_rule \
+            cidr_needs_live_dns
+          do
+            grep -Fq "\"$code\"" "$checker" \
+              || { echo "::error::conflict check lost the finding code: $code"; exit 1; }
+          done
+
+          # The gate must be severity driven, not a fixed constant.
+          grep -Fq 'threshold = {"none": 99, "warning": 2, "error": 3}' "$checker" \
+            || { echo "::error::the --fail-on severity gate is gone"; exit 1; }
+
+          # Sources must be joined, never rewritten.
+          if grep -Eq 'write_text|open\([^)]*"w"' "$checker"; then
+            echo "::error::the conflict check must not rewrite its rule sources"
+            exit 1
+          fi
+
+          echo "all finding codes, the severity gate and read-only behaviour are present"
+          echo "cross-format conflict contract: PASS" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Join the three formats end to end
+        shell: bash
+        run: |
+          set -euo pipefail
+          workdir=$(mktemp -d)
+          trap 'rm -rf "$workdir"' EXIT
+
+          printf '%s\n' \
+            '0.0.0.0 proxied.example' \
+            '0.0.0.0 clean.example' \
+            > "$workdir/hosts.txt"
+
+          printf '%s\n' \
+            'function FindProxyForURL(url, host) {' \
+            '  if (shExpMatch(host, "*.proxied.example")) return "PROXY 10.0.0.5:8080";' \
+            '  return "DIRECT";' \
+            '}' \
+            > "$workdir/in.pac"
+
+          python3 scripts/fx-pac-profile.py "$workdir/in.pac" \
+            --normalized "$workdir/out.pac" \
+            --routing-json "$workdir/routing.json" \
+            --report "$workdir/pacreport.json"
+
+          # The blocked-and-proxied pair must fail the gate.
+          if python3 scripts/fx-rule-conflict-check.py \
+               --hosts "$workdir/hosts.txt" \
+               --pac-routing "$workdir/routing.json" \
+               --report "$workdir/report.json" \
+               --fail-on error
+          then
+            echo "::error::a DNS-blocked domain that PAC proxies did not fail the gate"
+            exit 1
+          fi
+
+          python3 scripts/tests/fx-rule-conflict-check-report-check.py "$workdir/report.json"
+
+          # With the proxy route removed there is no conflict, so the gate passes.
+          printf '%s\n' \
+            'function FindProxyForURL(url, host) {' \
+            '  return "DIRECT";' \
+            '}' \
+            > "$workdir/direct.pac"
+          python3 scripts/fx-pac-profile.py "$workdir/direct.pac" \
+            --normalized "$workdir/direct.out.pac" \
+            --routing-json "$workdir/direct.json" \
+            --report "$workdir/directreport.json"
+          python3 scripts/fx-rule-conflict-check.py \
+            --hosts "$workdir/hosts.txt" \
+            --pac-routing "$workdir/direct.json" \
+            --report "$workdir/clean.json" \
+            --fail-on error
+
+          echo "cross-format join behaves correctly in both directions"
