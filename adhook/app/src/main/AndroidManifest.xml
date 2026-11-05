@@ -21,6 +21,7 @@
         <activity android:name=".FxOpenSourceLicensesActivity" android:exported="false" />
         <activity android:name=".FxHookObservationLogsActivity" android:exported="false" />
         <activity android:name=".FxGkdAutomationActivity" android:exported="false" />
+        <activity android:name=".FxGkdAutomationActivity" android:exported="false" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
