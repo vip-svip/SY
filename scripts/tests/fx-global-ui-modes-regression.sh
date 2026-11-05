@@ -146,8 +146,8 @@ helper = source[source.index("private static Drawable replacementBackgroundDrawa
 assert "case 0xfff0f3f7:" in helper and "case 0xffffffff:" in helper
 assert "case 0xffe9eef3:" in helper and "case 0xffe5e5ea:" in helper
 assert "roundedSurface(p.surface," in helper and "roundedSurface(p.surfaceVariant," in helper
-assert "p.cornerRadiusDp - 4) * density" in helper
-assert "p.cornerRadiusDp - 8) * density" in helper
+assert "Math.max(10, p.cardCornerRadiusDp - 4) * density" in helper
+assert "Math.max(8, p.cardCornerRadiusDp - 8) * density" in helper
 assert "surface.setCornerRadius(radiusPx)" in helper
 assert "surface.setStroke(1, strokeColor)" in helper
 assert helper.index("default:") > helper.index("case 0xffe3e8ee:"), "unknown custom backgrounds must fall through untouched"
