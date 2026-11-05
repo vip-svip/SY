@@ -1,0 +1,112 @@
+name: FX PAC Profile Compiler
+
+# Requirement G of the FX 1.0.0 handoff requires Hosts / DNS blocklist / ABP and
+# PAC to each have a separate parser, validator and conflict check. PAC had no
+# implementation at all, so a supplied PAC file was never parsed.
+#
+# A PAC script is arbitrary JavaScript; this compiler accepts a documented
+# declarative subset and refuses everything else with a reason. The refusal
+# paths are the safety property, so they are pinned here as a contract.
+
+on:
+  push:
+    branches:
+      - fx-v1.0.0-unified-hook-integration
+      - main
+  pull_request:
+    branches:
+      - fx-v1.0.0-unified-hook-integration
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fx-pac-profile-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  pac-compiler:
+    name: pac-compiler
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Byte-compile the compiler and its regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/fx-pac-profile.py
+          python3 -m py_compile scripts/tests/fx-pac-profile-regression.py
+
+      - name: Run the PAC compiler regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/tests/fx-pac-profile-regression.py
+
+      - name: Verify the refusal contract is still enforced
+        shell: bash
+        run: |
+          set -euo pipefail
+          compiler=scripts/fx-pac-profile.py
+
+          for marker in \
+            'refused construct' \
+            'else branches are refused' \
+            'variable assignment is refused' \
+            'no default return' \
+            'is not contiguous' \
+            'unsupported PAC condition' \
+            'only a leading' \
+            'DIRECT takes no address' \
+            'single-label host' \
+            'default return must be the final statement'
+          do
+            grep -Fq "$marker" "$compiler" \
+              || { echo "::error::PAC compiler lost the refusal path: $marker"; exit 1; }
+          done
+
+          grep -Fq 'def code_only' "$compiler" \
+            || { echo "::error::refusal checks no longer distinguish code from string data"; exit 1; }
+
+          grep -Fq 'does not round-trip' "$compiler" \
+            || { echo "::error::the emitted-PAC round-trip self check is gone"; exit 1; }
+
+          echo "PAC refusal paths, code/data separation and round-trip check are present"
+          echo "PAC compiler contract: PASS" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Compile a representative PAC end to end
+        shell: bash
+        run: |
+          set -euo pipefail
+          workdir=$(mktemp -d)
+          trap 'rm -rf "$workdir"' EXIT
+
+          printf '%s\n' \
+            'function FindProxyForURL(url, host) {' \
+            '  if (shExpMatch(host, "*.corp.example")) return "PROXY 10.0.0.5:8080; DIRECT";' \
+            '  if (isInNet(host, "10.20.0.0", "255.255.0.0")) return "SOCKS5 127.0.0.1:1080";' \
+            '  return "DIRECT";' \
+            '}' \
+            > "$workdir/in.pac"
+
+          python3 scripts/fx-pac-profile.py "$workdir/in.pac" \
+            --normalized "$workdir/out.pac" \
+            --routing-json "$workdir/routing.json" \
+            --report "$workdir/report.json"
+
+          python3 scripts/tests/fx-pac-profile-report-check.py "$workdir/routing.json" "$workdir/report.json"
+
+          # Recompiling the emitted script must be a no-op.
+          python3 scripts/fx-pac-profile.py "$workdir/out.pac" \
+            --normalized "$workdir/out2.pac" \
+            --routing-json "$workdir/routing2.json" \
+            --report "$workdir/report2.json"
+          cmp "$workdir/out.pac" "$workdir/out2.pac" \
+            || { echo "::error::recompiling the emitted PAC changed it"; exit 1; }
+
+          echo "representative PAC compile and round-trip are correct"
