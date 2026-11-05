@@ -137,8 +137,13 @@ _owned_pid() {
   _is_uint "$_p" || return 1
   [ "$_p" -gt 1 ] 2>/dev/null || return 1
   [ -r "/proc/$_p/cmdline" ] || return 1
-  _cmd=$(tr '\000' ' ' < "/proc/$_p/cmdline" 2>/dev/null)
-  case "$_cmd" in *"$BIN"*"$CFG"*) printf '%s\n' "$_p"; return 0 ;; *) return 1 ;; esac
+  # Keep argv boundaries intact: substring matching a flattened cmdline can
+  # mistake an unrelated process argument for the managed resolver executable.
+  _argv=$(tr '\000' '\n' < "/proc/$_p/cmdline" 2>/dev/null) || return 1
+  printf '%s\n' "$_argv" | grep -Fqx -- "$BIN" || return 1
+  printf '%s\n' "$_argv" | grep -Fqx -- "$CFG" || return 1
+  printf '%s\n' "$_p"
+
 }
 _vpn_egress_config() {
   # Root Proxy currently proves an IPv4 source/route only. Disable IPv6
