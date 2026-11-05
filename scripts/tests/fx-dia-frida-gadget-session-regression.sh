@@ -35,6 +35,8 @@ required = {
     "process enumeration verifies target app UID": r'\"$uid\" = \"$target_uid\"',
     "process UID comes from proc status": r'\"$proc_root/$pid/status\"',
     "Frida script execution size is bounded": "sourceBytes.length > MAX_FRIDA_SOURCE_BYTES",
+    "Frida source ceiling is 8 MiB": "MAX_FRIDA_SOURCE_BYTES = 8 * 1024 * 1024",
+    "large Frida source streams through RootAccess stdin": "RootAccess.executeWithInput(command, input, timeout",
     "Frida script rejects NUL": "source.indexOf(0) >= 0",
     "Gadget script uses random private temp": '.gadget-$port.XXXXXX',
     "Gadget script temp is private": "chmod 600",
