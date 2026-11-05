@@ -3,6 +3,7 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 HTML="${1:-$ROOT/fx-module/webroot/index.html}"
 ACTIVITY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
+MANIFEST="$ROOT/adhook/app/src/main/AndroidManifest.xml"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 # The targeted Host workflow intentionally does not unpack the published
 # KernelSU module archive. In that lane, retain all MainActivity/Root backend
@@ -29,6 +30,9 @@ fi
 grep -Fq 'private void syncNativeVpnControls()' "$ACTIVITY" || fail "native VPN state synchronization missing"
 grep -Fq 'private void refreshAndroidVpnNetworkStatus()' "$ACTIVITY" || fail "active Android VPN network diagnostic missing"
 grep -Fq 'NetworkCapabilities.TRANSPORT_VPN' "$ACTIVITY" || fail "native VPN UI does not detect active VpnService networks"
+grep -Fq 'connectivity.getAllNetworks()' "$ACTIVITY" || fail "native VPN UI does not enumerate active Android networks"
+grep -Fq 'android.permission.ACCESS_NETWORK_STATE' "$MANIFEST" || fail "network-state permission missing for VPN transport detection"
+! grep -Eq 'android\.net\.VpnService|BIND_VPN_SERVICE' "$MANIFEST" || fail "FX kernel proxy must not register an Android VpnService or consume its system slot"
 grep -Fq 'FX Root 内核代理不占用 VpnService 名额' "$ACTIVITY" || fail "VPN UI does not explain the independent Root proxy data plane"
 ! grep -Fq '第三方 VPN / Root DNS 保护正在运行' "$ACTIVITY" || fail "Root proxy state must not be mislabeled as a third-party VPN"
 grep -Fq 'RootAccess.execute(nativeVpnRootCommand("status", "")' "$ACTIVITY" || fail "native VPN status is not read from the root backend"
