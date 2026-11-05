@@ -25,7 +25,6 @@ final class CupertinoSkinTokens {
         static final int ACTION_BACKGROUND = 0xffe5e5ea;
         static final int ACTION_BORDER = 0x1f8e8e93;
         static final int SWITCH_OFF_TRACK = 0xffd1d1d6;
-        static final int INPUT_BORDER = 0x338e8e93;
         static final int INPUT_BORDER = 0xffc6c6cc;
         private CupertinoColorTokens() { }
     }
