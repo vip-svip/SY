@@ -104,6 +104,25 @@ final class CupertinoSkinRenderer {
             detail.setLineSpacing(dp(2, density), 1.05f);
             return;
         }
+        if ("fx-card-title".equals(role) && view instanceof TextView) {
+            TextView title = (TextView) view;
+            title.setTextColor(CupertinoColorTokens.PRIMARY_TEXT);
+            title.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+            title.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,
+                    CupertinoTypographyTokens.CARD_TITLE_SP);
+            title.setLetterSpacing(-0.005f);
+            return;
+        }
+        if ("fx-card-detail".equals(role) && view instanceof TextView) {
+            TextView detail = (TextView) view;
+            detail.setTextColor(CupertinoColorTokens.SECONDARY_TEXT);
+            detail.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+            detail.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,
+                    CupertinoTypographyTokens.CARD_DESCRIPTION_SP);
+            detail.setLineSpacing(dp(1, density), 1.0f);
+            detail.setPadding(0, dp(4, density), 0, dp(6, density));
+            return;
+        }
         if (("fx-card".equals(role) || "fx-setting-card".equals(role)) && view instanceof ViewGroup) {
             ViewGroup card = (ViewGroup) view;
             card.setBackground(rounded(CupertinoColorTokens.CARD_SURFACE,
@@ -112,6 +131,20 @@ final class CupertinoSkinRenderer {
                     dp(CupertinoSpacingTokens.CARD_VERTICAL_PADDING_DP, density),
                     dp(CupertinoSpacingTokens.CARD_HORIZONTAL_PADDING_DP, density),
                     dp(CupertinoSpacingTokens.CARD_VERTICAL_PADDING_DP, density));
+            return;
+        }
+        if ("fx-switch-row".equals(role) && view instanceof android.widget.Switch) {
+            android.widget.Switch row = (android.widget.Switch) view;
+            row.setTextColor(CupertinoColorTokens.PRIMARY_TEXT);
+            row.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,
+                    CupertinoTypographyTokens.SWITCH_LABEL_SP);
+            row.setMinimumHeight(dp(CupertinoSpacingTokens.ROW_MIN_HEIGHT_DP, density));
+            row.setPadding(dp(CupertinoSpacingTokens.SWITCH_HORIZONTAL_PADDING_DP, density),
+                    dp(CupertinoSpacingTokens.SWITCH_VERTICAL_PADDING_DP, density),
+                    dp(CupertinoSpacingTokens.SWITCH_HORIZONTAL_PADDING_DP, density),
+                    dp(CupertinoSpacingTokens.SWITCH_VERTICAL_PADDING_DP, density));
+            row.setBackground(rounded(CupertinoColorTokens.CARD_SURFACE,
+                    CupertinoColorTokens.CARD_STROKE, CupertinoShapeTokens.SECTION_RADIUS_DP, density));
             return;
         }
         if ("fx-action-row".equals(role) && view instanceof Button) {
