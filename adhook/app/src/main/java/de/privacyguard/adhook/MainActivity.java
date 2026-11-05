@@ -190,7 +190,7 @@ public final class MainActivity extends ComponentActivity {
     // Keep only the newest Root authorization check eligible to update the Hook UI.
     private volatile Thread hookRootCheckThread;
     private int hookRootCheckGeneration;
-    // Legacy migration navigation state is ignored; Settings is no longer a source-app hub.
+    // Settings is reserved for global preferences and never acts as a source-feature hub.
     private String uiMode = "classic";
     private int selectedBottomTab = 0;
     private int lastWebTabIndex = 0;
@@ -2950,9 +2950,8 @@ public final class MainActivity extends ComponentActivity {
             selectedBottomTab = 5;
             showSettings();
         } else if (index == 4) {
-            // Selecting the top-level Hook tab leaves the the nested Hook navigation stack.
-            // Hook target routes remain inside the Hook destination.
-                selectedBottomTab = 4;
+            // Selecting Hook opens its app list; target details remain inside the Hook destination.
+            selectedBottomTab = 4;
             showAppList();
         } else if (index >= 0 && index <= 3) {
             if (!hookUiVisible && !settingsUiVisible && nativePageContent != null) {
