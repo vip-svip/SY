@@ -261,6 +261,8 @@ jobs:
           sh fx-module/scripts/tests/v1.0.0-yulong-per-app-vpn-regression.sh
           python3 fx-patches/patch_yulong_ad_master.py fx-module && python3 fx-patches/patch_vpn_coexistence_status.py fx-module && python3 scripts/tests/fx-vpn-coexistence-status-regression.py
           python3 fx-patches/patch_yulong_dns_upstreams.py fx-module
+          # Migrate Yulong ProtectionProfile controls and weekly scheduling into the FX module runtime.
+          python3 fx-patches/patch_yulong_profiles.py fx-module
           python3 fx-patches/patch_yulong_app_firewall.py fx-module .
           sh scripts/tests/fx-yulong-app-firewall-regression.sh fx-module
           sh scripts/tests/fx-yulong-ad-operation-gate-regression.sh
