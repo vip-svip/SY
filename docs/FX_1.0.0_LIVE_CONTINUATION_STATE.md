@@ -5159,4 +5159,4 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Gadget 重连发现旧 CLI 已退出、但归属校验通过的 stdin feeder 仍存活时，先向 feeder 发送终止信号，再最多等待 5 秒确认其退出，之后才允许删除旧 PID 记录/FIFO 并创建新管道。
 - 等待超时返回 `FX_GADGET_FEEDER_STOP_TIMEOUT`，保留旧会话记录和 FIFO，避免旧 feeder 与新 FIFO 生命周期重叠。
 - Frida 进程身份回归增加有界等待及 degraded/feeder PID 冲突断言。
-- 需以本次提交对应的 Host Regression 和 Module Runtime Regression 结果为准；之前 `756feee` 的两项 CI 均通过。
+- 本次提交 `9e22a3d378fa02a1c67dc9e3c76746a19d689de4` 对应的 FX Targeted Host Regression（运行 `42054317181`）与 FX Module Runtime Regression（运行 `42054317293`）均通过。该结果为 GitHub Actions 主机/模块回归，不代表 Android 真机验证。
