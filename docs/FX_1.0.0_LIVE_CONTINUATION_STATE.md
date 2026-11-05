@@ -5104,3 +5104,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Extended `scripts/tests/fx-custom-hook-passthrough-regression.sh` to assert the editor/parser path has no fixed character or byte ceiling. The test uses the method boundary in source to avoid false positives from unrelated size policies elsewhere in MainActivity.
 - This removes an arbitrary product-level import cap; Android memory/storage and parser resource constraints still apply. The edit-time draft remains in app preferences.
 - Source and regression are committed on this branch. Await the push-triggered FX Targeted Host Regression result before marking this regression passed. No Android Gradle build, APK install, KernelSU deployment, or device test is implied.
+
+
+## 2026-11-05 — Native script capacity and file-backed transport
+
+- Removed fixed native-script source, catalog-count, and aggregate-config ceilings: editor/import validation no longer rejects at 64 KiB, the store/runner no longer assumes 128 entries, and the config store no longer rejects at 700 KiB.
+- Removed the APK's 1 MiB script-file import cap and 512 KiB script-export cap.
+- Added a file-backed `add-file` operation. APK text edits and JSON import entries are staged under the app cache and passed to the root module by path, not as a Base64 shell argument. Arbitrarily large source text therefore no longer hits Linux's per-argument `MAX_ARG_STRLEN` boundary.
+- File picker imports are copied to app-cache staging incrementally; non-JSON script files are sent to the module store by path. JSON document parsing still consumes memory proportional to the JSON document because the existing Android JSON object model is in-memory.
+- The module store snapshots the staged file under its existing list lock, validates HTTPS subscription syntax or stores local source as Base64, then commits the updated config using the existing atomic rewrite/rollback path. Existing SHA-256 runner verification, explicit execution confirmation, 25-second timeout, HTTPS-only remote subscriptions, and 512-character display-name validation remain.
+- Regression coverage now includes 70 KiB sources, 140+ entries, aggregate storage beyond the former 700 KiB threshold, file-backed imports, and exact source bytes reaching the QuickJS runner.
+- CI: targeted Host regressions passed on `4fbf64e2e9f503b35850f7a41a6eb9c904f3866b`; VPN/DNS/Root-proxy runtime regressions also passed on that commit. The newer HEAD `1c1ad6a86ae22d981a7eb7118f020476ea750d01` has a passing targeted Host run; its matching VPN/DNS runtime run was still executing when this note was written.
+- Hard limits remain those of the Android device: available RAM/storage, Java heap, filesystem capacity, Shell/kernel argument limits for unrelated commands, and the JSON parser's in-memory representation. No physical Android device test is claimed.
