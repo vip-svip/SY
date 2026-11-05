@@ -3,6 +3,7 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
 PATCHER="$ROOT/fx-patches/patch_native_script_scheduler.py"
 SOURCE="$ROOT/fx-patches/native-script-scheduler.sh"
+# Only build-lane callers pass a restored module path; the Host checkout is an overlay, not the Release staging tree.
 MOD_EXPLICIT=0
 if [ "$#" -gt 0 ]; then MOD=$1; MOD_EXPLICIT=1; else MOD="$ROOT/fx-module"; fi
 fail(){ echo "FAIL: $*" >&2; exit 1; }
@@ -129,6 +130,7 @@ python3 "$PATCHER" "$OLD_FIXTURE" >/dev/null || fail "second previous-marker pat
 grep -Fq 'STOPFILE="$STATE_DIR/scheduler.stop"' "$SOURCE" || fail "cooperative stop marker is missing"
 grep -Fq 'pid_fields "$$" 2>/dev/null' "$SOURCE" || fail "scheduler does not capture its own PID start time"
 grep -Fq "awk '{print \$20}'" "$SOURCE" || fail "scheduler does not capture Linux proc starttime field 22"
+grep -Fq 'grep -F -x "$SCRIPT_PATH"' "$SOURCE" || fail "scheduler owner must match exact argv token"
 grep -Fq 'stop_requested()' "$SOURCE" || fail "scheduler does not poll owned stop requests"
 if grep -Fq 'kill -TERM "$_stop_pid"' "$SOURCE"; then fail "scheduler stop still signals a PID"; fi
 echo "PASS: QuickJS scheduler staging, cooperative ownership lifecycle, unrelated-PID refusal, symlink rejection and uninstall cleanup"
