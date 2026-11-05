@@ -5048,3 +5048,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - FX Module Runtime Regression run 42030977447 completed SUCCESS on the installer change: 18/18 VPN/DNS runtime regressions passed, followed by restored-module tests for TUN-to-REDIRECT external-VPN proof, Unbound VPN-bound egress, Root Proxy dual-stack state/rollback, native VPN transactions and atomic Hosts/subscription locks. The latest branch run 42031415700 is still in progress at this snapshot.
 - The earlier Targeted Host run 42030977468 failed only at the stale SystemExpand navigation assertion after the installer test itself passed; the corrected regression subsequently passed as recorded above.
 - No Android Gradle build, APK installation, KernelSU/Magisk device deployment, PackageManager visibility on a physical ROM, SELinux device behavior, or real-device VPN coexistence/power test is claimed.
+
+## 2026-11-05 — Latest post-hardening VPN/DNS module regression
+
+- Branch HEAD at this verification: 881397499c3e2083788513261e6a026899f1de3c.
+- FX Module Runtime Regression run 42031415700 completed SUCCESS against commit b4d0808d1e7d6ec934145d193363cc91969d32dc. Logs confirm VPN/DNS runtime regressions 18/18 passed, plus restored-release runtime tests for verified outer-VPN TUN-to-REDIRECT fallback, Unbound VPN-bound IPv4 egress, Root Proxy dual-stack route/UID proof and fail-open rollback, native VPN lifecycle/config locking, transparent VPN control and atomic Hosts/subscription/Root Proxy locks.
+- This is GitHub Actions host-side execution with mocked Android networking/package commands and restored module source. It does not verify a physical Android device, ROM-specific netfilter, SELinux, Android Framework VPN multi-instance support, actual third-party VPN inner traffic, radio wakeups or power draw.
