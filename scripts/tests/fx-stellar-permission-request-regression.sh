@@ -12,8 +12,8 @@ import sys
 activity, service, manifest = (Path(p).read_text(encoding="utf-8") for p in sys.argv[1:])
 assert 'value.replace("\\r", "").replace("\\n", " ")' in activity, "request text must remove CR and flatten line feeds"
 assert 'value.replace("\\\\r", "").replace("\\\\n", " ")' not in activity, "request text must not search for literal backslash sequences"
-assert 'label + "\\n" + sourcePackage' not in activity, "package identity card must render an actual line break"
-assert 'permission + "\\n请求代码' not in activity, "permission details card must render an actual line break"
+assert 'label + "\\n" + sourcePackage' in activity, "package identity card must render an actual line break"
+assert 'permission + "\\n请求代码' in activity, "permission details card must render an actual line break"
 for token in ('getIntExtra("uid", -1)', 'getIntExtra("pid", -1)',
               'getIntExtra("requestCode", -1)', 'getStringExtra("sourcePackage")',
               'getStringExtra("permission")', 'replyMessenger.send(response)',
