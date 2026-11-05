@@ -1,0 +1,240 @@
+#!/system/bin/sh
+# FX-owned local recursive DNS resolver: root/TLD/authoritative recursion + on-device cache.
+# This is not a forwarder to Tencent/Alibaba/Cloudflare; it queries authoritative DNS directly.
+set -u
+case "$0" in
+  */scripts/unbound.sh) MODDIR=${0%/scripts/unbound.sh} ;;
+  *) MODDIR=${MODDIR:-/data/adb/modules/privacyguard} ;;
+esac
+ACTION=${1:-status}
+[ "$#" -ge 2 ] && MODDIR=$2
+PG=${3:-/data/adb/privacyguard}
+ROOT="$MODDIR/engines/unbound"
+BIN="$ROOT/unbound"
+CHECKBIN="$ROOT/unbound-checkconf"
+ANCHOR="$ROOT/unbound-anchor"
+PROBE="$ROOT/fx-dns-probe"
+ROOT_HINTS="$ROOT/root.hints"
+ROOT_KEY_SEED="$ROOT/root.key.seed"
+STATE="$PG/unbound"
+CFG="$STATE/unbound.conf"
+WORK="$STATE/work"
+PIDFILE="$STATE/managed.pid"
+LOG="$STATE/engine.log"
+PATH=/system/bin:/system/xbin:/sbin:/vendor/bin:/usr/bin:/bin
+export PATH
+
+_log() {
+  mkdir -p "$STATE" 2>/dev/null || :
+  printf '[%s] unbound: %s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$*" >> "$LOG" 2>/dev/null || :
+}
+_is_uint() { case "${1:-}" in ''|*[!0-9]*) return 1;; *) return 0;; esac; }
+_hash() {
+  _file=$1
+  _sidecar="$2"
+  [ -s "$_file" ] && [ -s "$_sidecar" ] || { _log "file or hash sidecar missing: $_file"; return 1; }
+  _expected=$(awk 'NF && length($1)==64 && $1 ~ /^[a-fA-F0-9]+$/ {print tolower($1); exit}' "$_sidecar" 2>/dev/null)
+  [ "${#_expected}" -eq 64 ] || { _log "invalid SHA-256 sidecar: $_sidecar"; return 1; }
+  if command -v sha256sum >/dev/null 2>&1; then
+    _actual=$(sha256sum "$_file" 2>/dev/null | awk '{print tolower($1)}')
+  elif command -v toybox >/dev/null 2>&1; then
+    _actual=$(toybox sha256sum "$_file" 2>/dev/null | awk '{print tolower($1)}')
+  else
+    _log 'SHA-256 command unavailable; refusing recursive DNS startup'; return 1
+  fi
+  [ "$_actual" = "$_expected" ] || { _log "SHA-256 mismatch: $_file"; return 1; }
+  return 0
+}
+_check_files() {
+  [ -x "$BIN" ] && [ -x "$CHECKBIN" ] && [ -x "$ANCHOR" ] && [ -x "$PROBE" ] || { _log 'unbound runtime/checker/anchor/probe missing or not executable'; return 1; }
+  _hash "$BIN" "$ROOT/unbound.sha256" || return 1
+  _hash "$CHECKBIN" "$ROOT/unbound-checkconf.sha256" || return 1
+  _hash "$ANCHOR" "$ROOT/unbound-anchor.sha256" || return 1
+  _hash "$PROBE" "$ROOT/fx-dns-probe.sha256" || return 1
+  _hash "$ROOT_HINTS" "$ROOT/root.hints.sha256" || return 1
+  _hash "$ROOT_KEY_SEED" "$ROOT/root.key.seed.sha256" || return 1
+  grep -q 'A.ROOT-SERVERS.NET.*198.41.0.4' "$ROOT_HINTS" || { _log 'root hints A-root entry missing'; return 1; }
+  grep -q 'M.ROOT-SERVERS.NET.*202.12.27.33' "$ROOT_HINTS" || { _log 'root hints M-root entry missing'; return 1; }
+  grep -Eq '^\.[[:space:]]+IN[[:space:]]+DNSKEY[[:space:]]+257[[:space:]]+3[[:space:]]+8[[:space:]]' "$ROOT_KEY_SEED" || { _log 'root trust-anchor seed malformed'; return 1; }
+  return 0
+}
+# Avoid deleting a replacement resolver's PID marker when an older start/stop
+# operation finishes after another lifecycle operation has published a new PID.
+_remove_pid_marker_if_matches() {
+  _expected=$1
+  [ -n "$_expected" ] || return 0
+  _current=$(cat "$PIDFILE" 2>/dev/null)
+  [ "$_current" = "$_expected" ] || return 0
+  rm -f "$PIDFILE" 2>/dev/null || :
+}
+_owned_pid() {
+  _p=$(cat "$PIDFILE" 2>/dev/null)
+  _is_uint "$_p" || return 1
+  [ "$_p" -gt 1 ] 2>/dev/null || return 1
+  [ -r "/proc/$_p/cmdline" ] || return 1
+  _cmd=$(tr '\000' ' ' < "/proc/$_p/cmdline" 2>/dev/null)
+  case "$_cmd" in *"$BIN"*"$CFG"*) printf '%s\n' "$_p"; return 0 ;; *) return 1 ;; esac
+}
+_render_config() {
+  cat <<EOF_CFG
+server:
+  username: ""
+  chroot: ""
+  directory: "$WORK"
+  pidfile: "$STATE/unbound.pid"
+  logfile: "$LOG"
+  use-syslog: no
+  verbosity: 1
+  num-threads: 1
+  interface: 127.0.0.1
+  port: 5353
+  access-control: 127.0.0.0/8 allow
+  do-ip4: yes
+  do-ip6: yes
+  do-udp: yes
+  do-tcp: yes
+  root-hints: "$ROOT_HINTS"
+  auto-trust-anchor-file: "$STATE/root.key"
+  module-config: "validator iterator"
+  qname-minimisation: yes
+  harden-glue: yes
+  harden-dnssec-stripped: yes
+  hide-identity: yes
+  hide-version: yes
+  aggressive-nsec: yes
+  prefetch: yes
+  prefetch-key: yes
+  serve-expired: yes
+  serve-expired-ttl: 86400
+  serve-expired-reply-ttl: 30
+  edns-buffer-size: 1232
+  max-udp-size: 1232
+  msg-cache-size: 8m
+  rrset-cache-size: 16m
+  key-cache-size: 4m
+  neg-cache-size: 2m
+  cache-max-ttl: 86400
+  cache-min-ttl: 0
+  unwanted-reply-threshold: 10000000
+EOF_CFG
+}
+_maybe_refresh_anchor() {
+  [ -x "$ANCHOR" ] || return 0
+  [ -s "$STATE/root.key" ] || return 0
+  # Unbound auto-updates RFC5011 anchors while online. If the device was offline
+  # for more than two weeks, make one bounded startup refresh attempt after the
+  # old process is stopped; network failure is non-fatal because the bundled
+  # DNSKEY seed remains valid and the resolver's health probe decides activation.
+  _old_anchor=$(find "$STATE/root.key" -mtime +14 -print -quit 2>/dev/null)
+  [ -n "$_old_anchor" ] || return 0
+  if command -v timeout >/dev/null 2>&1; then
+    _tmp_anchor="$STATE/root.key.before-refresh.$$"
+    cp "$STATE/root.key" "$_tmp_anchor" 2>/dev/null || return 0
+    chmod 600 "$_tmp_anchor" 2>/dev/null || :
+    if timeout 5 "$ANCHOR" -a "$STATE/root.key" >> "$LOG" 2>&1; then
+      _log 'stale root trust anchor refresh helper completed'
+    else
+      _log 'bounded root trust-anchor refresh unavailable; retaining previous valid anchor if output is invalid'
+    fi
+    if ! grep -Eq '^\.[[:space:]]+IN[[:space:]]+DNSKEY[[:space:]]+257[[:space:]]+3[[:space:]]+8[[:space:]]' "$STATE/root.key" 2>/dev/null; then
+      mv -f "$_tmp_anchor" "$STATE/root.key" 2>/dev/null || cp "$_tmp_anchor" "$STATE/root.key" 2>/dev/null || :
+      _log 'root trust anchor refresh output failed validation; previous file restored'
+    fi
+    rm -f "$_tmp_anchor" 2>/dev/null || :
+  else
+    _log 'timeout helper unavailable; skipping offline trust-anchor refresh to avoid unbounded boot delay'
+  fi
+  return 0
+}
+_probe() {
+  "$PROBE" 127.0.0.1 5353 5 >> "$LOG" 2>&1
+}
+_stop() {
+  _p=$(_owned_pid 2>/dev/null) || _p=''
+  if [ -z "$_p" ]; then
+    _stale=$(cat "$PIDFILE" 2>/dev/null)
+    _remove_pid_marker_if_matches "$_stale"
+    return 0
+  fi
+  kill -TERM "$_p" 2>/dev/null || :
+  _i=0
+  while [ "$_i" -lt 20 ] && kill -0 "$_p" 2>/dev/null; do
+    _same=$(_owned_pid 2>/dev/null) || _same=''
+    [ "$_same" = "$_p" ] || break
+    sleep 0.25; _i=$((_i+1))
+  done
+  _same=$(_owned_pid 2>/dev/null) || _same=''
+  if [ "$_same" = "$_p" ] && kill -0 "$_p" 2>/dev/null; then
+    _same=$(_owned_pid 2>/dev/null) || _same=''
+    [ "$_same" = "$_p" ] && kill -KILL "$_p" 2>/dev/null || :
+  fi
+  _i=0
+  while [ "$_i" -lt 10 ] && kill -0 "$_p" 2>/dev/null; do sleep 0.2; _i=$((_i+1)); done
+  _same=$(_owned_pid 2>/dev/null) || _same=''
+  if [ "$_same" = "$_p" ] && kill -0 "$_p" 2>/dev/null; then _log 'stop timed out; preserving PID marker'; return 1; fi
+  _remove_pid_marker_if_matches "$_p"
+  _log 'stopped managed recursive resolver'
+  return 0
+}
+_ensure() {
+  mkdir -p "$STATE" "$WORK" || return 1
+  chmod 700 "$STATE" "$WORK" 2>/dev/null || :
+  _check_files || { _stop || :; return 1; }
+  if [ ! -s "$STATE/root.key" ] || ! grep -Eq '^\.[[:space:]]+IN[[:space:]]+DNSKEY[[:space:]]+257[[:space:]]+3[[:space:]]+8[[:space:]]' "$STATE/root.key" 2>/dev/null; then
+    _tmp_key="$STATE/root.key.tmp.$$"
+    cp "$ROOT_KEY_SEED" "$_tmp_key" || return 1
+    chmod 600 "$_tmp_key" 2>/dev/null || :
+    mv -f "$_tmp_key" "$STATE/root.key" || { rm -f "$_tmp_key"; return 1; }
+  fi
+  _tmp="$CFG.tmp.$$"
+  _render_config > "$_tmp" || { rm -f "$_tmp"; return 1; }
+  chmod 600 "$_tmp" 2>/dev/null || :
+  if ! "$CHECKBIN" "$_tmp" >> "$LOG" 2>&1; then
+    _log 'generated recursive resolver config rejected by pinned unbound-checkconf'; rm -f "$_tmp"; return 1
+  fi
+  _p=$(_owned_pid 2>/dev/null) || _p=''
+  if [ -n "$_p" ] && [ -s "$CFG" ] && cmp -s "$_tmp" "$CFG"; then
+    rm -f "$_tmp"
+    if _probe; then return 0; fi
+    _log 'existing resolver failed unique uncached query; restarting'
+    _stop || return 1
+  elif [ -n "$_p" ]; then
+    _stop || { rm -f "$_tmp"; return 1; }
+  fi
+  _maybe_refresh_anchor
+  mv -f "$_tmp" "$CFG" || { rm -f "$_tmp"; return 1; }
+  chmod 600 "$CFG" 2>/dev/null || :
+  nohup "$BIN" -d -c "$CFG" >/dev/null 2>&1 &
+  _new=$!
+  printf '%s\n' "$_new" > "$PIDFILE.tmp.$$" || { rm -f "$PIDFILE.tmp.$$" 2>/dev/null || :; kill "$_new" 2>/dev/null || :; return 1; }
+  chmod 600 "$PIDFILE.tmp.$$" 2>/dev/null || :
+  mv -f "$PIDFILE.tmp.$$" "$PIDFILE" || { rm -f "$PIDFILE.tmp.$$" 2>/dev/null || :; kill "$_new" 2>/dev/null || :; return 1; }
+  _i=0; _same=''
+  while [ "$_i" -lt 20 ]; do
+    _same=$(_owned_pid 2>/dev/null) || _same=''
+    [ "$_same" = "$_new" ] && break
+    if ! kill -0 "$_new" 2>/dev/null; then _log 'process exited during recursive DNS startup'; _remove_pid_marker_if_matches "$_new"; return 1; fi
+    _i=$((_i+1)); sleep 1
+  done
+  if [ "$_same" = "$_new" ] && _probe; then
+    _log 'ready; uncached root-recursive DNS query succeeded'
+    return 0
+  fi
+  _log 'startup or uncached recursive-DNS health probe failed; resolver stopped and forwarding path remains untouched'
+  _stop || :
+  return 1
+}
+
+case "$ACTION" in
+  render-config) _render_config ;;
+  ensure) _ensure ;;
+  stop) _stop ;;
+  status)
+    if _p=$(_owned_pid 2>/dev/null); then
+      if _probe; then echo ready; exit 0; fi
+      echo running-unhealthy; exit 1
+    fi
+    echo stopped; exit 1
+    ;;
+  *) echo 'usage: unbound.sh {render-config|ensure|stop|status} [module_dir] [data_dir]' >&2; exit 64 ;;
+esac
