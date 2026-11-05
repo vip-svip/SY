@@ -134,6 +134,31 @@ if "Commit the effective dataplane only after" not in a:
 apply_path.write_text(a, encoding="utf-8")
 apply_path.chmod(0o755)
 
+# The published 1.0.0 regression checks the pre-refactor inline TUN guard.
+# Its semantics are now covered by fx_select_vpn_effective_mode(); update only
+# that obsolete source assertion in the staged release test, leaving its
+# runtime/config-generation checks intact.
+legacy_guard_test = module / "scripts/tests/v1.0.0-vpncore-bind-interface-config-generation-regression.sh"
+if legacy_guard_test.is_file():
+    import re
+    test_lines = legacy_guard_test.read_text(encoding="utf-8").splitlines()
+    changed_test = False
+    for index, line in enumerate(test_lines):
+        if "TUN external-VPN conflict guard missing" not in line:
+            continue
+        updated_line, count = re.subn(
+            r"grep\\s+-Fq\\s+(['\\\"]).*?\\1",
+            "grep -Fq 'fx_select_vpn_effective_mode() {'",
+            line,
+            count=1,
+        )
+        if count != 1:
+            raise SystemExit("legacy TUN conflict assertion could not be safely updated")
+        test_lines[index] = updated_line
+        changed_test = True
+    if changed_test:
+        legacy_guard_test.write_text("\\n".join(test_lines) + "\\n", encoding="utf-8")
+
 s = status_path.read_text(encoding="utf-8")
 status_anchor = '''VPN_MODE=${VPN_MODE:-direct}
 VPN_NODE=$(grep -m1 '^vpn_node=' "$PG/settings.conf" 2>/dev/null | cut -d= -f2-)
