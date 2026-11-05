@@ -45,8 +45,8 @@ public final class FxYulongAdSummaryActivity extends de.privacyguard.adhook.FxNa
     }
     private String moduleShell(String scriptArgs) {
         return "[ -d '/data' ] && [ ! -L '/data' ] && [ -d '/data/adb' ] "
-                + "&& [ ! -L '/data/adb' ] && [ ! -L '/data/adb/modules' ] "
-                + "&& [ ! -L '/data/adb/modules_update' ] || exit 71; "
+                + "&& [ ! -L '/data/adb' ] && [ -d '/data/adb/modules' ] && [ ! -L '/data/adb/modules' ] "
+                + "&& [ ! -L '/data/adb/modules_update' ] && { [ ! -e '/data/adb/modules_update' ] || [ -d '/data/adb/modules_update' ]; } || exit 71; "
                 + "MP=''; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard "
                 + "/data/adb/modules/privacy_guard /data/adb/modules/pg; do "
                 + "if [ -d \"$d\" ] && [ ! -L \"$d\" ] "
