@@ -49,6 +49,7 @@ fx_coexist_status_write() {
   _fx_cs_verdict=""
   _fx_cs_grade=""
   _fx_cs_probe=""
+  _fx_cs_route_probe="unverified"
   # apply.sh 使用 MODDIR（不是 MODPATH）；MODDIR 未定义时必须留空而不是崩溃。
   _fx_cs_arb=${FX_COEXIST_ARBITER:-${MODDIR:-}/scripts/fx-vpn-coexistence-arbiter.sh}
   if [ -r "$_fx_cs_arb" ]; then
@@ -56,6 +57,7 @@ fx_coexist_status_write() {
     _fx_cs_verdict=$(printf '%s' "$_fx_cs_out" | sed -n 's/.*"verdict":"\([a-z_]*\)".*/\1/p')
     _fx_cs_grade=$(printf '%s' "$_fx_cs_out" | sed -n 's/.*"grade_cn":"\([^"]*\)".*/\1/p')
     _fx_cs_probe=$(printf '%s' "$_fx_cs_out" | sed -n 's/.*"probe":"\([a-z_]*\)".*/\1/p')
+    _fx_cs_route_probe=$(printf '%s' "$_fx_cs_out" | sed -n 's/.*"route_probe":"\([a-z_]*\)".*/\1/p')
   fi
 
   # 本地保守兜底：绝不把未知说成并行。
@@ -67,12 +69,11 @@ fx_coexist_status_write() {
       _fx_cs_verdict="unknown"; _fx_cs_grade="探测不可用"
     elif [ -z "$_fx_cs_if" ]; then
       _fx_cs_verdict="kernel_only"; _fx_cs_grade="内核级独立"
-    elif [ -n "$_fx_cs_uid" ]; then
-      _fx_cs_verdict="full_parallel"; _fx_cs_grade="完全并行"
     else
-      _fx_cs_verdict="chained"; _fx_cs_grade="受支持链式"
+      _fx_cs_verdict="partial"; _fx_cs_grade="部分兼容"
     fi
     _fx_cs_probe=${_fx_cs_probe:-unknown}
+    _fx_cs_route_probe="unverified"
   fi
 
   _fx_cs_ext=false
