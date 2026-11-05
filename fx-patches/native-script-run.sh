@@ -16,7 +16,6 @@ expected_sha=$2
 case "$expected_sha" in ''|*[!0-9a-fA-F]*) echo '{"ok":false,"error":"invalid expected source hash"}'; exit 64 ;; esac
 [ "${#expected_sha}" -eq 64 ] || { echo '{"ok":false,"error":"invalid expected source hash length"}'; exit 64; }
 case "$index" in ''|*[!0-9]*|0) echo '{"ok":false,"error":"invalid script index"}'; exit 64 ;; esac
-[ "$index" -le 128 ] 2>/dev/null || { echo '{"ok":false,"error":"script index out of range"}'; exit 64; }
 umask 077
 mkdir -p "$STATE/local" || exit 73
 chmod 700 "$STATE" "$STATE/local" 2>/dev/null || :
@@ -66,7 +65,7 @@ source64=${stored#FXSRC_B64:}
 printf '%s' "$source64" | base64 -d > "$TMP" 2>/dev/null || { echo '{"ok":false,"error":"local JavaScript source is corrupted"}'; exit 65; }
 size=$(wc -c < "$TMP" | tr -d ' ')
 case "$size" in ''|*[!0-9]*) size=0 ;; esac
-[ "$size" -gt 0 ] && [ "$size" -le 65536 ] || { echo '{"ok":false,"error":"local JavaScript source size is invalid"}'; exit 65; }
+[ "$size" -gt 0 ] || { echo '{"ok":false,"error":"local JavaScript source is empty"}'; exit 65; }
 chmod 600 "$TMP" 2>/dev/null || :
 actual_sha=$(sha256sum "$TMP" 2>/dev/null | awk '{print $1}')
 [ "$actual_sha" = "$expected_sha" ] || { echo '{"ok":false,"error":"script list changed; refresh the Script page before running"}'; exit 75; }

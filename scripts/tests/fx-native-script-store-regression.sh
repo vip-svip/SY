@@ -61,6 +61,23 @@ case "$stored_row" in FXSRC_B64:*) stored=$(printf '%s' "${stored_row#FXSRC_B64:
 [ "$stored" = "$multiline" ] || fail "multiline local source round-trip corrupted content"
 http64=$(printf '%s' 'http://insecure.example/script.js' | base64 | tr -d '\n')
 if sh "$SCRIPT" add "$http64" "$multi_note" 1 >/dev/null 2>&1; then fail "insecure HTTP subscription unexpectedly accepted"; fi
+# Remove product-level ceilings on individual sources, total entries and aggregate size.
+large_source=$(awk 'BEGIN { for (i=0; i<70000; i++) printf "x" }')
+large64=$(printf '%s' "$large_source" | base64 | tr -d '\n')
+[ "$(sh "$SCRIPT" add "$large64" "$multi_note" 1)" = "OK" ] || fail "70 KiB local script was rejected"
+[ "$(sh "$SCRIPT" list | grep -c '|')" -eq 4 ] || fail "large script was not retained"
+i=1
+while [ "$i" -le 7 ]; do
+  [ "$(sh "$SCRIPT" add "$large64" "$multi_note" 1)" = "OK" ] || fail "large aggregate entry $i was rejected"
+  i=$((i+1))
+done
+i=1
+while [ "$i" -le 140 ]; do
+  encoded=$(printf 'https://bulk.example/%s.js' "$i" | base64 | tr -d '\n')
+  [ "$(sh "$SCRIPT" add "$encoded" "$note64" 1)" = "OK" ] || fail "script entry $i was rejected"
+  i=$((i+1))
+done
+[ "$(sh "$SCRIPT" list | grep -c '|')" -eq 151 ] || fail "catalog truncated above 128 entries or former aggregate limit"
 # The parser/serializer must decode FXSRC_B64 rows while keeping HTTPS URLs readable.
 grep -Fq 'function pgDecodeScriptValue(s)' "$ROOT/fx-module/webroot/index.html" || fail "WebUI parser lacks local-source decoder"
 grep -Fq "FXSRC_B64:'+pgB64(e.v)" "$ROOT/fx-module/webroot/index.html" || fail "WebUI serializer does not preserve local JS source"

@@ -1792,7 +1792,7 @@ public final class MainActivity extends ComponentActivity {
         value.setSingleLine(false);
         value.setMinLines(4);
         value.setGravity(Gravity.TOP | Gravity.START);
-        value.setHint("HTTPS 订阅 URL 或本地 JavaScript 源码（最多 64 KiB）");
+        value.setHint("HTTPS 订阅 URL 或本地 JavaScript 源码");
         EditText note = new EditText(this);
         note.setText(oldNote);
         note.setSingleLine(true);
@@ -1809,8 +1809,8 @@ public final class MainActivity extends ComponentActivity {
                     String trimmedValue = updatedValue.trim();
                     if (trimmedValue.regionMatches(true, 0, "https://", 0, 8)) updatedValue = trimmedValue;
                     String updatedNote = note.getText().toString().trim();
-                    if (!isSupportedNativeScriptValue(updatedValue) || nativeScriptUtf8Bytes(updatedValue) > 64 * 1024) {
-                        Toast.makeText(this, "仅接受 HTTPS 订阅 URL 或本地 JS 源码，且长度不得超过 64 KiB；不接受明文 HTTP", Toast.LENGTH_LONG).show();
+                    if (!isSupportedNativeScriptValue(updatedValue)) {
+                        Toast.makeText(this, "仅接受 HTTPS 订阅 URL 或本地 JS 源码；不接受明文 HTTP", Toast.LENGTH_LONG).show();
                         return;
                     }
                     if (updatedNote.isEmpty()) updatedNote = updatedValue.length() > 80
@@ -1876,8 +1876,8 @@ public final class MainActivity extends ComponentActivity {
         String value = raw == null ? "" : raw;
         String trimmedValue = value.trim();
         if (trimmedValue.regionMatches(true, 0, "https://", 0, 8)) value = trimmedValue;
-        if (!isSupportedNativeScriptValue(value) || nativeScriptUtf8Bytes(value) > 64 * 1024) {
-            Toast.makeText(this, "仅接受 HTTPS 订阅 URL 或本地 JS 源码，且长度不得超过 64 KiB；不接受明文 HTTP", Toast.LENGTH_LONG).show();
+        if (!isSupportedNativeScriptValue(value)) {
+            Toast.makeText(this, "仅接受 HTTPS 订阅 URL 或本地 JS 源码；不接受明文 HTTP", Toast.LENGTH_LONG).show();
             return;
         }
         String note = sourceName == null || sourceName.trim().isEmpty()
@@ -1906,8 +1906,8 @@ public final class MainActivity extends ComponentActivity {
                 throw new IllegalArgumentException("不支持的脚本配置格式或版本");
             }
             JSONArray entries = document.optJSONArray("scripts");
-            if (entries == null || entries.length() == 0 || entries.length() > 128) {
-                throw new IllegalArgumentException("脚本条目数量必须为 1–128");
+            if (entries == null || entries.length() == 0) {
+                throw new IllegalArgumentException("脚本列表不能为空。");
             }
             for (int i = 0; i < entries.length(); i++) {
                 JSONObject entry = entries.optJSONObject(i);
@@ -1921,8 +1921,8 @@ public final class MainActivity extends ComponentActivity {
                 }
                 String value = (String) rawValue;
                 String name = (String) rawName;
-                if (!isSupportedNativeScriptValue(value) || value.length() > 64 * 1024) {
-                    throw new IllegalArgumentException("第 " + (i + 1) + " 项脚本内容无效或超过 64 KiB");
+                if (!isSupportedNativeScriptValue(value)) {
+                    throw new IllegalArgumentException("第 " + (i + 1) + " 项脚本内容无效。");
                 }
                 if (name.length() > 512) throw new IllegalArgumentException("第 " + (i + 1) + " 项名称超过 512 字符");
             }

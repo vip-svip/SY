@@ -53,4 +53,10 @@ url_sha=$(printf '%s' 'https://example.test/script.js' | sha256sum | awk '{print
 if sh "$RUN" 2 "$url_sha" >/dev/null 2>&1; then fail "HTTPS subscription was passed to local JS runner"; fi
 if sh "$RUN" 999 "$source_sha" >/dev/null 2>&1; then fail "out-of-range script index unexpectedly succeeded"; fi
 assert_lock_clean "test completion"
-echo "PASS: native local JS execution requires enabled FXSRC_B64 source, preserves source bytes, rejects subscriptions, and logs metadata only"
+large_source=$(awk 'BEGIN { for (i=0; i<70000; i++) printf "z" }')
+large64=$(printf '%s' "$large_source" | base64 | tr -d '\n')
+large_sha=$(printf '%s' "$large_source" | sha256sum | awk '{print $1}')
+[ "$(sh "$SCRIPT" add "$large64" "$note64" 1)" = "OK" ] || fail "large local script could not be stored"
+result=$(sh "$RUN" 2 "$large_sha") || fail "large local script did not execute: $result"
+[ "$(cat "$PG/executed.js")" = "$large_source" ] || fail "large local script was truncated before execution"
+echo "PASS: native local JS execution preserves sources above 64 KiB and unbounded indexes"

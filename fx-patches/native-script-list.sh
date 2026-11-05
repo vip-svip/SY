@@ -87,8 +87,6 @@ case "$ACTION" in
         case "$enabled" in 0|1) ;; *) echo "ERROR enabled must be 0 or 1"; exit 64 ;; esac
         [ -n "$value" ] || { echo "ERROR script value is empty"; exit 64; }
         [ "${#note}" -le 512 ] || { echo "ERROR script name exceeds 512 characters"; exit 65; }
-        [ "${#value}" -le 65536 ] || { echo "ERROR script entry exceeds 64 KiB"; exit 65; }
-        [ "$count" -lt 128 ] || { echo "ERROR script list limit is 128 entries"; exit 65; }
         value=$(encode_script_value "$value") || { echo "ERROR only HTTPS URLs or local JS source are supported"; exit 65; }; note=$(sanitize_field "$note")
         [ -n "$note" ] || note=$(printf '%s' "$value" | cut -c1-80)
         printf '%s|%s|%s\n' "$value" "$note" "$enabled" >> "$ROWS"
@@ -98,7 +96,7 @@ case "$ACTION" in
         index=$1; case "$index" in ''|*[!0-9]*|0) echo "ERROR invalid index"; exit 64 ;; esac
         value=$(decode_b64 "$2") || { echo "ERROR invalid value encoding"; exit 64; }
         note=$(decode_b64 "$3") || { echo "ERROR invalid note encoding"; exit 64; }
-        [ -n "$value" ] && [ "${#value}" -le 65536 ] && [ "${#note}" -le 512 ] || { echo "ERROR invalid script value or name"; exit 65; }
+        [ -n "$value" ] && [ "${#note}" -le 512 ] || { echo "ERROR invalid script value or name"; exit 65; }
         value=$(encode_script_value "$value") || { echo "ERROR only HTTPS URLs or local JS source are supported"; exit 65; }; note=$(sanitize_field "$note")
         [ -n "$note" ] || note=$(printf '%s' "$value" | cut -c1-80)
         printf '%s' "$value" > "$VALUE_FILE"; printf '%s' "$note" > "$NOTE_FILE"
@@ -120,7 +118,6 @@ case "$ACTION" in
         mv "$TMP.rows" "$ROWS"
         ;;
     esac
-    [ "$(wc -c < "$ROWS" | tr -d ' ')" -le 700000 ] || { echo "ERROR script list exceeds 700 KiB"; exit 65; }
     awk -v rows="$ROWS" '
       function emit_rows(line) { while ((getline line < rows) > 0) print line; close(rows) }
       $0 == "[list:script]" { if (!seen) { print; emit_rows(); seen=1 } in_script=1; next }
