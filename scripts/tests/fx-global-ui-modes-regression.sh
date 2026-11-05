@@ -99,6 +99,8 @@ assert "roundedSurface(p.surface," in helper and "roundedSurface(p.surfaceVarian
 assert "p.cornerRadiusDp - 4) * density" in helper
 assert "p.cornerRadiusDp - 8) * density" in helper
 assert "surface.setCornerRadius(radiusPx)" in helper
+assert "surface.setStroke(1, strokeColor)" in helper
+assert helper.index("default:") > helper.index("case 0xffe3e8ee:"), "unknown custom backgrounds must fall through untouched"
 assert "return null;" in helper, "unknown/custom background tokens must remain untouched"
 print("PASS: known neutral cards receive density-scaled five-skin radii while custom drawables remain intact.")
 PY
