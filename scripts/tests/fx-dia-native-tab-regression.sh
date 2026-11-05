@@ -36,7 +36,7 @@ assert "ViewTreeSavedStateRegistryOwner.set(shell, this)" in base
 assert "index < 0 || index > 5" in base
 assert 'putExtra("fx_open_native_tab", index)' in base
 assert "if (tab >= 0 && tab <= 5) handleNativeTabSelection(tab);" in main
-assert "handleImportedNativeTabIntent(intent);" in main, "MainActivity must consume native tab intents onNewIntent"
+assert "handleNativeTabIntent(intent);" in main, "MainActivity must consume native tab intents onNewIntent"
 
 # Dia Activity Browser preserves the page viewport across Activity recreation.
 activity_browser = next(p for p in pages if "class FxDiaActivityBrowserActivity" in p)
