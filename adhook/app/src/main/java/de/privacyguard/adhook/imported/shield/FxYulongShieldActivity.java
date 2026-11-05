@@ -249,8 +249,8 @@ public final class FxYulongShieldActivity extends de.privacyguard.adhook.FxNativ
         LinearLayout header = new LinearLayout(this);
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(12), dp(8), dp(12), dp(8));
-        header.addView(action("‹ 返回 FX 设置", this::finish));
-        header.addView(text("游龙安全护盾 9.9.60", 19, 0xff17212b, true),
+        header.addView(action("‹ 返回隐私", this::finish));
+        header.addView(text("隐私 · 安全防护中心", 19, 0xff17212b, true),
                 new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
         shieldScroll = new ScrollView(this);
@@ -260,7 +260,7 @@ public final class FxYulongShieldActivity extends de.privacyguard.adhook.FxNativ
         body.setPadding(0, dp(4), 0, dp(18));
         shieldScroll.addView(body);
         root.addView(shieldScroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        setContentViewWithNativeTabs(root, 5);
+        setContentViewWithNativeTabs(root, 2);
         if (state != null) {
             final int restoreY = Math.max(0, state.getInt(STATE_SCROLL_Y, 0));
             shieldScroll.post(() -> shieldScroll.scrollTo(0, restoreY));
