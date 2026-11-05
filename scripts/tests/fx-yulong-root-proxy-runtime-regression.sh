@@ -333,7 +333,7 @@ for scenario in route route2 package-manager unbound adguard probe route-recheck
     route2) if run_proxy "$CASE_DIR" MOCK_ROUTE_FAIL_SECOND=1 >/dev/null 2>&1; then fail "second root route mismatch accepted"; fi ;;
     package-manager) if run_proxy "$CASE_DIR" MOCK_PM_FAIL=1 >/dev/null 2>&1; then fail "failed UID snapshot accepted"; fi ;;
     unbound)
-      if run_proxy "$CASE_DIR" MOCK_UNBOUND_FAIL=1 MOCK_UNBOUND_INDEPENDENT=0 >/dev/null 2>&1; then fail "Unbound failure accepted"; fi
+      if run_proxy "$CASE_DIR" MOCK_UNBOUND_FAIL=1 >/dev/null 2>&1; then fail "Unbound failure accepted"; fi
       # This startup-failure case has no independently owned resolver to preserve.
       MOCK_UNBOUND_INDEPENDENT=0; export MOCK_UNBOUND_INDEPENDENT
       ;;
