@@ -678,9 +678,10 @@ assert 'state.getString(STATE_SUITE_PAGE, launchPage)' in firewall, "selected fi
 assert 'appFilterMode = "用户应用".equals(suitePage) ? 1 : "系统应用".equals(suitePage) ? 2 : 0;' in firewall
 assert 'FxYulongFirewallAppFilterPolicy.includes(filterMode, info.flags)' in firewall, "user/system package classification policy must be applied before rendering"
 assert "case ALL_APPS:" in policy and "case USER_APPS:" in policy and "case SYSTEM_APPS:" in policy
-assert "(applicationFlags & 1)" in policy and "(applicationFlags & 128)" in policy, (
-    "the shared package policy must account for both FLAG_SYSTEM and FLAG_UPDATED_SYSTEM_APP"
-)
+assert "private static final int FLAG_SYSTEM = 1;" in policy
+assert "private static final int FLAG_UPDATED_SYSTEM_APP = 128;" in policy
+assert "(applicationFlags & FLAG_SYSTEM)" in policy
+assert "(applicationFlags & FLAG_UPDATED_SYSTEM_APP)" in policy
 assert "unknownMode" in Path(sys.argv[3]).parent.parent.parent.parent.joinpath(
     "test/java/de/privacyguard/adhook/imported/ad/FxYulongFirewallAppFilterPolicyTest.java"
 ).read_text(encoding="utf-8"), "package policy unit tests must fail closed for unknown modes"

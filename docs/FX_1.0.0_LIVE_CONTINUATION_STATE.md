@@ -5549,3 +5549,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 当前 Host run `42094107263` 已运行到应用防火墙回归，失败原因是测试仍要求 Firewall Activity 本体出现 `FLAG_SYSTEM` / `FLAG_UPDATED_SYSTEM_APP` 字段名；实际实现把分类规则集中在纯策略类 `FxYulongFirewallAppFilterPolicy`，Activity 仅把 Android ApplicationInfo flags 传入策略。
 - 将回归改为验证策略类中 ALL/USER/SYSTEM 三种模式和两种系统标志位，并检查对应单元测试仍覆盖 unknown mode fail-closed；不为迎合旧断言在 Activity 保留无用变量。
 - 分类页面实现与异步 generation 逻辑不变，当前提交后会重新触发定向 Host/UI 检查。
+
+
+### 防火墙系统应用标志常量回归同步（2026-11-06）
+
+- `FxYulongFirewallAppFilterPolicy` 将 Android `FLAG_SYSTEM` 与 `FLAG_UPDATED_SYSTEM_APP` 的位值提取为具名常量，保持 policy 类不依赖 Android SDK、可由 Host JDK 单测执行。
+- 同步静态回归：不再要求位掩码以数字字面量出现，改为分别检查两个具名常量的值及实际参与位判断；分类行为本身不变。
+- `d71d4021` 的具名常量重构后，旧的数字字面量断言会失配；本修订修复测试与实现的表达方式差异。
