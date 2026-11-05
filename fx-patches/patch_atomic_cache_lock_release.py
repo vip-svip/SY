@@ -463,12 +463,16 @@ exit 0
 SH
   chmod 0755 "$MOD/scripts/$script"
 done"""
-replace_once(
-    root_proxy_test,
-    old_root_proxy_engine_stub,
-    new_root_proxy_engine_stub,
-    "Root Proxy engine stub holds lock during stop",
-)
+root_proxy_test_source_text = root_proxy_test.read_text(encoding="utf-8")
+if old_root_proxy_engine_stub in root_proxy_test_source_text:
+    replace_once(
+        root_proxy_test,
+        old_root_proxy_engine_stub,
+        new_root_proxy_engine_stub,
+        "Root Proxy engine stub holds lock during stop",
+    )
+elif not ("engine-actions" in root_proxy_test_source_text and "engine-overlap" in root_proxy_test_source_text):
+    raise SystemExit(f"{root_proxy_test}: unsupported Root Proxy engine stub fixture")
 
 old_root_proxy_sleep_stub = """cat > "$BIN/sleep" <<'SH'
 #!/system/bin/sh
@@ -483,18 +487,24 @@ case "$1" in
 esac
 SH
 """
-replace_once(
-    root_proxy_test,
-    'export MP="$MOD" PG="$PG" PATH="$BIN:$PATH"\n',
-    'export MP="$MOD" PG="$PG" PATH="$BIN:$PATH" TMP="$TMP"\n',
-    "Root Proxy test exports private temp path",
-)
-replace_once(
-    root_proxy_test,
-    old_root_proxy_sleep_stub,
-    new_root_proxy_sleep_stub,
-    "Root Proxy waiter sleep must be bounded but observable",
-)
+if 'export MP="$MOD" PG="$PG" PATH="$BIN:$PATH"\\n' in root_proxy_test_source_text:
+    replace_once(
+        root_proxy_test,
+        'export MP="$MOD" PG="$PG" PATH="$BIN:$PATH"\\n',
+        'export MP="$MOD" PG="$PG" PATH="$BIN:$PATH" TMP="$TMP"\\n',
+        "Root Proxy test exports private temp path",
+    )
+elif 'export MP="$MOD" PG="$PG" PATH="$BIN:$PATH" TMP="$TMP"\\n' not in root_proxy_test_source_text:
+    raise SystemExit(f"{root_proxy_test}: TMP path is not exported to engine stub")
+if old_root_proxy_sleep_stub in root_proxy_test_source_text:
+    replace_once(
+        root_proxy_test,
+        old_root_proxy_sleep_stub,
+        new_root_proxy_sleep_stub,
+        "Root Proxy waiter sleep must be bounded but observable",
+    )
+elif 'case "$1" in\\n  1) /bin/sleep 0.01 ;;' not in root_proxy_test_source_text:
+    raise SystemExit(f"{root_proxy_test}: unsupported Root Proxy sleep stub")
 
 root_proxy_test_done_marker = 'echo "PASS: Yulong Root Proxy lock recovers dead owners, preserves live owners and cleans up only after exit"\n'
 root_proxy_test_done = '''grep -Fq '( umask 077; set -C; printf ' "$SOURCE" || {
@@ -546,6 +556,12 @@ elif (
     and 'grep -Fq \'mv "$LOCK" "$_release"\' "$SOURCE"' in root_proxy_test_text
     and '[ ! -s "$TMP/engine-overlap" ]' in root_proxy_test_text
     and 'PASS: Root Proxy atomic file lock, stale/live owners, legacy directory migration and concurrent serialization' in root_proxy_test_text
+) or (
+    'PASS: Root Proxy atomic file lock, legacy migration, concurrent serialization and independent local-DNS engine ownership' in root_proxy_test_text
+    and 'grep -Fq \'mv "$LOCK" "$_release"\' "$SOURCE"' in root_proxy_test_text
+    and '[ ! -s "$TMP/engine-overlap" ]' in root_proxy_test_text
+    and 'dns_engine_adguardhome=1' in root_proxy_test_text
+    and 'trap cleanup_lock EXIT' in root_proxy_test_text
 ):
     # Newer Release archives already contain the full lock/concurrent-stop
     # regression with a different success marker. Preserve that stronger
