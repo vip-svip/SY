@@ -505,6 +505,20 @@ rc=${r%%|*}; out=${r#*|}
 [ "$(field "$out" "['vpn_service_slot_used']")" = "True" ] || fail "VpnService\$Builder signature was not detected"
 pass "VpnService\$Builder signature is detected"
 
+echo "== case 8g: symlinked scripts directory cannot hide nested helpers =="
+cp -a "$TMP/mod_clean/." "$TMP/mod_hidden/"
+mkdir -p "$TMP/hidden-provider"
+cat > "$TMP/hidden-provider/worker.sh" <<'EOF'
+#!/system/bin/sh
+VpnService.prepare(context)
+EOF
+ln -s "$TMP/hidden-provider" "$TMP/mod_hidden/scripts/providers"
+r=$(run_arb "$LINKS_NO_TUN" "" "$TMP/net_free" "$TMP/mod_hidden")
+rc=${r%%|*}; out=${r#*|}
+[ "$rc" -eq 2 ] || fail "symlinked scripts directory must fail closed as unknown, got $rc: $out"
+[ "$(field "$out" "['vpn_service_slot_used']")" = "None" ] || fail "hidden nested helper must not claim slot is free"
+pass "symlinked scripts directory cannot hide unscanned shell helpers"
+
 echo "== case 9: unreadable port state -> never claimed as free =="
 mkdir -p "$TMP/net_missing"
 r=$(run_arb "$LINKS_NO_TUN" "" "$TMP/net_missing" "$TMP/mod_clean")
