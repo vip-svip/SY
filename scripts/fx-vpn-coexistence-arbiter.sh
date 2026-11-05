@@ -172,6 +172,12 @@ fx_arb_slot_used() {
   _scan_files=$(find "$_root" \\( -type f -o -type l \\) -name '*.sh' -print 2>/dev/null) || _find_failed=1
   for _f in $_scan_files; do
     [ "$_f" = "$_root/scripts/fx-vpn-coexistence-arbiter.sh" ] && continue
+    # The arbiter contains the literal VpnService API signature in its own
+    # detector pattern and documentation. It is an observer, not a dataplane
+    # helper, so scanning itself would self-report a false VPN-slot violation.
+    if [ "$_f" = "$0" ]; then
+      continue
+    fi
     _scan_count=$((_scan_count + 1))
     if [ -L "$_f" ] || [ ! -f "$_f" ] || [ ! -r "$_f" ]; then
       _missing=1
