@@ -273,7 +273,7 @@ def main() -> None:
         gate = tmp / "c11/go"
         wrapper = tmp / "c11/wrapper.sh"
         wrapper.write_text(
-            'printf "%s\\n" "$" > "$PIDFILE"\n'
+            'printf "%s\\n" "$$" > "$PIDFILE"\n'
             'while [ ! -e "$GATE" ]; do sleep 0.01; done\n'
             'exec sh "$HARNESS"\n',
             encoding="utf-8",
