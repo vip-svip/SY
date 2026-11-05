@@ -163,7 +163,7 @@ source = Path(sys.argv[1]).read_text(encoding="utf-8")
 adapter_start = source.index("private ArrayAdapter<String> createSkinAwareSpinnerAdapter(")
 adapter_end = source.index("private void addNativeActionCard(", adapter_start)
 adapter = source[adapter_start:adapter_end]
-for token in ("getView(int position", "getDropDownView(int position", "uiPrimaryTextColor()", "text.setTextSize", "Typeface.MEDIUM", "setPadding(dp(12), dp(8), dp(12), dp(8))"):
+for token in ("getView(int position", "getDropDownView(int position", "uiPrimaryTextColor()", "text.setTextSize", 'Typeface.create("sans-serif-medium", Typeface.NORMAL)', "setPadding(dp(12), dp(8), dp(12), dp(8))"):
     assert token in adapter, f"Skin-aware Spinner renderer missing: {token}"
 for spinner in ("finishAdapter", "dialogAdapter", "syntaxAdapter", "actionAdapter"):
     assert f"{spinner} = createSkinAwareSpinnerAdapter" in source, f"{spinner} does not use the shared Skin-aware adapter"
