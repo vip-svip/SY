@@ -3731,3 +3731,33 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - MainActivity.mountNativeShell() 与 FxNativeTabActivity.setContentViewWithNativeTabs() 都使用 watch，覆盖 FX 主页面及迁入来源 Activity 的动态页面。
 - 回归更新：fx-global-ui-modes-regression.sh 断言两个宿主都启用 watch，且 Skin adapter 使用全局布局观察器；fx-wallpaper-regression.sh 断言主页面/迁入页都使用同一实时 Skin 适配器。
 - 本次实现仍属于 Android View 旧色值适配层；Harmony/iOS 的每个页面专属交互布局、复杂表格/图表/编辑器视觉尚需逐页设计与验收。此回归不能替代 Gradle 构建和真机截图。
+
+
+## 2026-11-05 — 来源功能入口归并、子页 Tab 归属修正与旧品牌清理
+
+### 已提交的源码改动
+- MainActivity.buildNativePrivacyPage() 新增“安全防护中心”卡片，直接打开已迁入 FX APK 的安全防护总页。
+- MainActivity.showHookHub() 新增 Hook 工具与调试入口：Frida 环境、DEX 类/方法选择、Activity 入口、文件/so、JSON、内存/数据库检查、运行事件监控、签名信息、崩溃诊断、系统扩展和 Hook 工具设置。应用列表页入口文案改为“Hook 授权中心与高级工具”。
+- MainActivity.buildNativeScriptPage() 新增 Frida JavaScript 脚本库入口；脚本库继续使用 Script Tab（索引 3）。
+- MainActivity.showSettings() 新增统一备份恢复入口；FxDiaBackupActivity 作为全局备份页归 Settings（索引 5），不再重复出现在 Hook 工具页。
+- FxDiaWifiProxyActivity 归 VPN（索引 0）；Dia 的 Frida/DEX/Activity/文件/JSON/Inspector/监控/签名/系统扩展/工具设置归 Hook（索引 4）。
+- 安全护盾主页面及 12 个 Shield 子页统一归隐私（索引 2），并由隐私页面直达安全防护中心。
+- Ad 子页面标题和用户可见文案统一改为 FX Ad/Ad；DNS、Firewall、App Whitelist 不再显示“游龙广告插件”品牌名。安全防护中心与 Dia 相关用户页面也清理了旧来源版本标题/提示。
+- 修订独立导航回归，覆盖 Settings 删除迁移应用、六 Tab 固定、Ad/Privacy/Hook/Script/VPN/Settings 页面入口和子页 selectedIndex、旧品牌文案清理。
+
+### 相关提交
+- MainActivity 增加 Privacy/Hook 入口：8ee77b4d3a36c7dbe2381c43da8b91e6be050061
+- Settings 备份与 Script 页面脚本库归属：fde87fc57a9943a4b6e1180c6b08e1d8d1b8ec80
+- Ad/Shield/Dia 主页面来源标题调整：77a53ce2df19abda42b45077c9eea23f339fe8b4、73c4d8999af1e691365ab2dcd191952792d2ba86、71863e52ba72d9bb67809cb786312a554df2ff08、8a3bbb9bd1411b81f16cc69411057248ede4509f、760678501cb0fa5b3095293b70cd12b68ce890ee
+- Shield 子页 Tab 索引修正为 2，Dia 工具归 Hook 索引 4，脚本库索引 3，备份索引 5，系统代理索引 0（相关 Activity 变更已逐文件提交）。
+- 导航归属回归：42c8849832ad84672c417d23e085a6010037493f、977b5df9226dea7450a9c569cc31767d6ac31a11、f319b82643143a0fce40191e830b0d73c5bef292、f519879cd77e7bd1785f75b2c097ad79acccff57。
+- Ad 页面旧品牌清理：4fcbfd32f846b79533631e4134bbe807be562256、8cacde0fdf5aa4bd9eadba122d27b529cd191152、0ce877e321279681933a29533226f4b23e535d37、3996e5115c1a37531abd26f776d9dc73551d9b15、f5f1eda4806cfa133ca2ed0d684e8894b8ec50b8。
+- DEX/框架提示文字清理：029efb1cfca70d4372562c06a0edcfe17f6256b1、e0638d6331fdddeebf7a6089b31f0f36d57de30f、a9df38ae83a273a257535e5e08fb6328bbac37fa。
+
+### 验证状态与未完成项
+- 源码和回归断言已回读；本轮新的 fx-unified-navigation-regression.sh 正在重新执行，未获得成功结论前不标记通过。
+- 之前一次导航回归曾因旧版 GPS 选点测试文案断言失败；该页面现在已改为 Hook 标题/Hook Tab，新的测试版本已追加。
+- Wallpaper 定向回归此前在 run 41978013330 的 host-regressions 中通过，日志明确输出：10.0.2-compatible wallpaper storage、bounded import decode、Classic WebUI transparency、shared native wallpaper renderer across migrated Ad/Shield/Dia Activities。
+- 已通过的 Wallpaper 是静态源码/宿主回归，不是 Android Gradle 构建，也不是设备实际选图、恢复默认、跨进程重启和所有 Skin 壁纸截图验收。
+- 尚未执行 Gradle testDebugUnitTest/assembleDebug、Android 安装、真机六 Tab × 五 Skin 截图、壁纸实机选图和导航服务无中断验证。
+- 下一步：等定向回归完成，修复具体失败；继续五 Skin 内部控件 tokens/逐页覆盖，清理剩余来源品牌文案，并完成功能清单级映射/测试；不提前构建最终 APK 或 KernelSU ZIP。
