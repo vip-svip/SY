@@ -2054,6 +2054,10 @@ public final class MainActivity extends ComponentActivity {
                 buildNativeVpnSubscriptionPanel();
                 section("应用分流");
                 content.addView(nativeAction("管理分应用 VPN 路由", this::showImportedVpnAppManager));
+                section("系统代理与网络辅助");
+                content.addView(nativeAction("系统 HTTP 代理配置", () ->
+                        startActivity(new Intent(this,
+                                de.privacyguard.adhook.imported.dia.FxDiaWifiProxyActivity.class))));
                 addNativeSettingEntry("连接诊断", "VPN 服务、核心进程、DNS 转发与规则状态", "状态以模块 status.sh 的实时结果为准；配置已保存不等于 VPN 已运行。");
                 syncNativeVpnControls();
                 startNativeVpnPolling();
