@@ -1,0 +1,42 @@
+FX Hook third-party UI engine notices
+
+Miuix 0.7.2
+- Project: https://github.com/compose-miuix-ui/miuix
+- Maven: top.yukonga.miuix.kmp:miuix-android:0.7.2
+- License: Apache License 2.0
+- Full license: Miuix-LICENSE.txt
+
+Backdrop 1.0.0 (Kyant Android Liquid Glass)
+- Project: https://github.com/Kyant0/AndroidLiquidGlass
+- Maven: io.github.kyant0:backdrop:1.0.0
+- License: Apache License 2.0
+- Full license: Kyant-AndroidLiquidGlass-LICENSE.txt
+
+Backdrop and Miuix are consumed as published dependencies. FX vendors the upstream Kyant LiquidBottomTabs catalog component and its gesture/highlight helpers, relocated to the FX package and modified to support FX's six destinations. Each relocated source file carries an upstream attribution and modification notice.
+
+Miuix transitive runtime dependencies
+- com.mocharealm.gaze:capsule-android:2.1.1-patch2
+  License: Apache-2.0 (covered by Miuix-LICENSE.txt / Apache-2.0 terms)
+- com.materialkolor:material-kolor-android:4.0.5
+  License: MIT
+  Full license: MaterialKolor-MIT-LICENSE.txt
+  Upstream: https://github.com/jordond/MaterialKolor
+
+Kyant Capsule 2.1.1
+- Project: https://github.com/Kyant0/Capsule
+- Maven: io.github.kyant0:capsule:2.1.1
+- License: Apache License 2.0
+- Full license: Capsule-LICENSE.txt
+- Used for ContinuousCapsule geometry in the upstream LiquidBottomTabs component.
+
+
+GKD-XA v1.4.8 selector engine
+- Upstream project: https://github.com/84593320z/GKD-XA
+- Exact source revision: 8a6ce935da11671dac7e1a7595416ec99ee07436
+- Imported source module: vendor/GKD-XA/gkd-selector (commonMain + jvmMain)
+- FX build adapter: adhook/fx-gkd-selector
+- FX AccessibilityNodeInfo adapter: adhook/app/src/main/java/de/privacyguard/adhook/FxGkdSelectorRuntime.kt
+- License: GNU General Public License v3.0 (GPL-3.0)
+- Full, unmodified license text: GKD-XA-GPL-3.0.txt
+- The upstream gkd-app, Application, Launcher, database, AccessibilityService, Shizuku runtime and related services are not included by this selector-only migration. GKD-XA subscription/runtime/UI functionality remains a separate, unfinished integration task.
+- The pinned upstream source is included as a recursive Git submodule. Keep its GPL-3.0 source, copyright notices and corresponding source revision available with every distributed build. This integration must not be relicensed as proprietary.
