@@ -50,6 +50,8 @@ internal class FxGkdAccessibilitySnapshot private constructor(
                     return null
                 }
 
+                // Register ownership before touching platform-backed properties:
+                // any getter below may throw if the accessibility node was invalidated.
                 handles.add(info)
                 val sensitive = info.isPassword || info.isEditable
                 val text = if (sensitive) null else info.text?.toString()?.take(MAX_TEXT_LENGTH)
