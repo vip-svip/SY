@@ -42,7 +42,7 @@ case "$ACTION" in
       printf '%s|%s|%s\n' "$value64" "$note64" "$enabled"
     done
     ;;
-  add|update|toggle|delete)
+  add|add-file|update|toggle|delete)
     [ -f "$CONF" ] || { echo "ERROR settings.conf missing"; exit 1; }
     LOCK="$PG/jsruntime/native-script-list.lock"
     tries=0
@@ -98,18 +98,18 @@ case "$ACTION" in
           /data/user/0/*/cache/fx-native-script-*|/data/data/*/cache/fx-native-script-*) ;;
           *) echo "ERROR source file is outside the app cache staging area"; exit 65 ;;
         esac
+        case "${source_path##*/}" in fx-native-script-*) ;; *) echo "ERROR invalid staged filename"; exit 65 ;; esac
         [ -f "$source_path" ] && [ ! -L "$source_path" ] || { echo "ERROR staged script file is missing or unsafe"; exit 65; }
         note=$(decode_b64 "$2") || { echo "ERROR invalid note encoding"; exit 64; }
         enabled=$3
         case "$enabled" in 0|1) ;; *) echo "ERROR enabled must be 0 or 1"; exit 64 ;; esac
         [ "${#note}" -le 512 ] || { echo "ERROR script name exceeds 512 characters"; exit 65; }
-        cp "$source_path" "$VALUE_FILE" || { echo "ERROR unable to snapshot staged script"; exit 1; }
-        [ -s "$VALUE_FILE" ] || { echo "ERROR script value is empty"; exit 64; }
-        first_line=$(sed -n '1p' "$VALUE_FILE")
+        [ -s "$source_path" ] || { echo "ERROR script value is empty"; exit 64; }
+        first_line=$(sed -n '1p' "$source_path")
         case "$first_line" in
           https://*)
-            grep -Eq '^https://[^[:space:]]+      update)
-        [ "$#" -eq 3 ] || { echo "ERROR update expects index value64 note64"; exit 64; }
+            [ "$(wc -l < "$source_path" | tr -d ' ')" -le 1 ] || { echo "ERROR subscription must be a single URL"; exit 65; }
+            grep -Eq '^https://[^[:space:]]+
         index=$1; case "$index" in ''|*[!0-9]*|0) echo "ERROR invalid index"; exit 64 ;; esac
         value=$(decode_b64 "$2") || { echo "ERROR invalid value encoding"; exit 64; }
         note=$(decode_b64 "$3") || { echo "ERROR invalid note encoding"; exit 64; }
@@ -158,10 +158,10 @@ case "$ACTION" in
     ;;
   *) echo "ERROR usage: native-list.sh list|add|update|toggle|delete"; exit 64 ;;
 esac
- "$VALUE_FILE" || { echo "ERROR invalid HTTPS subscription URL"; exit 65; }
-            value=$(cat "$VALUE_FILE")
+ "$source_path" || { echo "ERROR invalid HTTPS subscription URL"; exit 65; }
+            value=$(cat "$source_path")
             value=$(encode_script_value "$value") || { echo "ERROR invalid HTTPS subscription URL"; exit 65; }
-            printf '%s|%s|%s\n' "$value" "$(sanitize_field "$note")" "$enabled" >> "$ROWS"
+            printf '%s|%s|%s\\n' "$value" "$(sanitize_field "$note")" "$enabled" >> "$ROWS"
             ;;
           *)
             if printf '%s' "$first_line" | grep -Eq '^[A-Za-z][A-Za-z0-9+.-]*://'; then
@@ -170,8 +170,8 @@ esac
             note=$(sanitize_field "$note")
             [ -n "$note" ] || note="Local JavaScript"
             printf 'FXSRC_B64:' >> "$ROWS"
-            base64 "$VALUE_FILE" | tr -d '\n' >> "$ROWS"
-            printf '|%s|%s\n' "$note" "$enabled" >> "$ROWS"
+            base64 "$source_path" | tr -d '\\n' >> "$ROWS"
+            printf '|%s|%s\\n' "$note" "$enabled" >> "$ROWS"
             ;;
         esac
         ;;
