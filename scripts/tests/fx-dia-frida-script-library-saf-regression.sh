@@ -68,6 +68,7 @@ assert_single_java_class_body(library)
 
 store = Path(sys.argv[3]).read_text(encoding="utf-8")
 policy = Path(sys.argv[4]).read_text(encoding="utf-8")
+assert "decoded.charAt(0) == 0xFEFF" in policy, "UTF-8 BOM is not stripped from SAF JSON imports"
 required = {
     "export request code": "REQUEST_EXPORT_LIBRARY = 7105",
     "import request code": "REQUEST_IMPORT_LIBRARY = 7106",
@@ -192,3 +193,11 @@ if "openingInitialEditor = state.getBoolean(STATE_OPENING_INITIAL_EDITOR" not in
     raise SystemExit("FAIL: rotation can replay the initial new-script request")
 print("PASS: Dia Frida script-library search, scroll, pending editor return and initial-create intent survive recreation")
 PY
+
+# Execute the pure-Java policy test, not just source-text assertions.
+HOST_TEST="$ROOT/scripts/tests/FxDiaScriptLibraryPolicyHostTest.java"
+[ -s "$HOST_TEST" ] || { echo "FAIL: Dia script-library policy Host test missing" >&2; exit 1; }
+HOST_CLASSES="$(mktemp -d)"
+trap 'rm -rf "$HOST_CLASSES"' EXIT HUP INT TERM
+javac -d "$HOST_CLASSES" "$POLICY" "$HOST_TEST"
+java -cp "$HOST_CLASSES" FxDiaScriptLibraryPolicyHostTest
