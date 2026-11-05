@@ -43,6 +43,7 @@ _path_components_are_safe() {
 }
 _safe_file_or_absent() {
   _safe_file=$1
+  _path_components_are_safe "$_safe_file" || return 1
   [ ! -L "$_safe_file" ] || return 1
   [ ! -e "$_safe_file" ] || [ -f "$_safe_file" ]
 }
@@ -80,7 +81,12 @@ _is_uint() { case "${1:-}" in ''|*[!0-9]*) return 1;; *) return 0;; esac; }
 _hash() {
   _file=$1
   _sidecar="$2"
-  [ -s "$_file" ] && [ -s "$_sidecar" ] || { _log "file or hash sidecar missing: $_file"; return 1; }
+  _safe_file_or_absent "$_file" && [ -f "$_file" ] && [ -s "$_file" ] || {
+    _log "runtime input is missing, linked or not a regular file: $_file"; return 1;
+  }
+  _safe_file_or_absent "$_sidecar" && [ -f "$_sidecar" ] && [ -s "$_sidecar" ] || {
+    _log "runtime checksum sidecar is missing, linked or not a regular file: $_sidecar"; return 1;
+  }
   _expected=$(awk 'NF && length($1)==64 && $1 ~ /^[a-fA-F0-9]+$/ {print tolower($1); exit}' "$_sidecar" 2>/dev/null)
   [ "${#_expected}" -eq 64 ] || { _log "invalid SHA-256 sidecar: $_sidecar"; return 1; }
   if command -v sha256sum >/dev/null 2>&1; then
