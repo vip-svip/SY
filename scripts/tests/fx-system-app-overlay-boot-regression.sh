@@ -138,7 +138,8 @@ wait "$child5"
 [ "$(cat "$T/marker-sentinel")" = "keep-marker" ] || { echo "FAIL: deployment marker temp symlink target was overwritten" >&2; exit 1; }
 [ -s "$STATE5/system-app-apk.sha256" ] || { echo "FAIL: random deployment marker temp did not commit the verified digest" >&2; exit 1; }
 [ "$(cat "$STATE5/system-app-apk.sha256")" = "$(sha256sum "$APP5/FX.apk" | awk '{print $1}')" ] || { echo "FAIL: deployment marker digest mismatch after symlink bypass" >&2; exit 1; }
-[ ! -e "$STATE5/system-app-retry" ] || { echo "FAIL: safe random marker temp left a retry marker" >&2; exit 1; }
+[ -s "$STATE5/system-app-retry" ] || { echo "FAIL: failed SELinux relabel did not preserve a retry marker" >&2; exit 1; }
+[ "$(stat -c %a "$STATE5/system-app-retry")" = 600 ] || { echo "FAIL: SELinux retry marker mode is not 0600" >&2; exit 1; }
 [ "$(stat -c %a "$STATE5/system-app-apk.sha256")" = 600 ] || { echo "FAIL: deployment marker mode is not 0600" >&2; exit 1; }
 [ -L "$STATE5/system-app-apk.sha256.tmp.$child5_pid" ] || { echo "FAIL: pre-planted deployment marker symlink was replaced" >&2; exit 1; }
 
