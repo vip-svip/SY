@@ -14,6 +14,28 @@ IPV4_VALIDATOR="$T/ipv4-validator.sh"
 sed -n '/^_valid_ipv4() {/,/^}/p' "$SOURCE" > "$IPV4_VALIDATOR"
 [ -s "$IPV4_VALIDATOR" ] || fail "production IPv4 validator could not be extracted"
 . "$IPV4_VALIDATOR"
+# Legacy directory locks may be retired only when their complete contents are
+# the expected regular PID file; unknown files and symlinks must be preserved.
+LOCK_REMOVER="$T/lock-remover.sh"
+sed -n '/^  _remove_lock_path() {/,/^  }/p' "$SOURCE" > "$LOCK_REMOVER"
+[ -s "$LOCK_REMOVER" ] || fail "production lock remover could not be extracted"
+. "$LOCK_REMOVER"
+mkdir "$T/legacy-lock-valid"
+printf '%s\\n' 12345 > "$T/legacy-lock-valid/pid"
+_remove_lock_path "$T/legacy-lock-valid" || fail "valid legacy PID lock directory was not removed"
+[ ! -e "$T/legacy-lock-valid" ] || fail "valid legacy PID lock directory remains"
+mkdir -p "$T/legacy-lock-unknown/nested"
+printf '%s\\n' 12345 > "$T/legacy-lock-unknown/pid"
+printf '%s\\n' keep > "$T/legacy-lock-unknown/nested/sentinel"
+if _remove_lock_path "$T/legacy-lock-unknown"; then fail "legacy lock with unknown contents was recursively removed"; fi
+grep -Fqx keep "$T/legacy-lock-unknown/nested/sentinel" || fail "unknown legacy lock content was deleted"
+[ -s "$T/legacy-lock-unknown/pid" ] || fail "legacy lock PID was removed despite unknown content"
+mkdir "$T/legacy-lock-empty"
+_remove_lock_path "$T/legacy-lock-empty" || fail "empty legacy lock directory was not removed"
+[ ! -e "$T/legacy-lock-empty" ] || fail "empty legacy lock directory remains"
+printf '%s\\n' 12345 > "$T/lock-owner"
+_remove_lock_path "$T/lock-owner" || fail "canonical regular-file lock was not removed"
+[ ! -e "$T/lock-owner" ] || fail "canonical regular-file lock remains"
 for address in 10.23.4.5 172.16.0.1 192.168.1.2 100.64.0.1 223.255.255.254; do
   _valid_ipv4 "$address" || fail "valid unicast IPv4 address rejected: $address"
 done
