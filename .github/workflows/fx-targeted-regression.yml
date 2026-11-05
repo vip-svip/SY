@@ -211,6 +211,7 @@ jobs:
             run_sh scripts/tests/fx-yulong-root-proxy-runtime-regression.sh
             run_sh scripts/tests/fx-root-proxy-uninstall-order-regression.sh
             run_sh scripts/tests/fx-vpn-tun-external-fallback-regression.sh
+            run_py scripts/tests/fx-vpn-watchdog-patcher-regression.py
           fi
 
           # If only an individual regression file changed, execute that file directly.
