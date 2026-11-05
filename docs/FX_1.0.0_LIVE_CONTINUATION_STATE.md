@@ -6122,3 +6122,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - GitHub Actions：`FX VPN shell regression` run `42102931374` 在本提交上通过，包含 POSIX shell 语法、Root Proxy runtime regression 与卸载顺序回归。
 - 同提交触发的 Targeted Host 与 Module Runtime runs 被后续协作者提交取消；其后代 HEAD `361a0e19fcb5010dd93aeca0c504b641a2e84a5a` 的 Targeted Host run `42102963704` 失败，具体失败项尚未从 Actions 输出中确认，不能标记为通过；该 HEAD 的 Module Runtime run `42102963655` 当时仍在运行。
 - 未运行 Android Gradle 构建、模拟器或真机第三方 VPN 路由测试。
+
+
+## 2026-11-06 — 六模式设置选择页按当前皮肤 tokens 渲染
+
+- 主要功能提交：`361a0e19fcb5010dd93aeca0c504b641a2e84a5a`；兼容性修复提交：`153cf09a13987116dcf54d5f54b9278df5aed557`。
+- `FxDesignModePanel` 不再让 Default、Classic、Glass、Miuix、Harmony、Cupertino 六张模式卡共用固定 Miuix 视觉参数；现在分别通过 `fxComposeShellTokens(mode, ...)` 解析各自的 surface、border、accent、selected/inactive text 和圆角，并保留 Miuix runtime 颜色作为 Miuix 模式的真实 palette 输入。
+- Glass 卡继续使用 Kyant Backdrop blur/lens；其他模式使用各自 tokens 的 surface。所有卡保留 `Role.RadioButton` 与真实 selected 状态。
+- 首次 Host 回归发现 `fx-hook-native-ui-regression.sh` 明确要求设置页保留 Miuix Card 组件；已在 `153cf09` 恢复官方 Miuix Card，并保留 per-mode token 颜色/描边与无障碍选择语义，没有删除或放宽既有断言。
+- GitHub 回读确认最终分支版本同时包含 Miuix Card、六模式 token 解析、模式文字色与 RadioButton 语义。
+- CI：`FX Six UI Modes` 在功能提交 `361a0e1` 成功；该提交的 Targeted Host 失败于既有 Miuix Card 组件契约（run `42102963704`），已修复。修复提交 `153cf09` 的 Targeted Host run 被后续并行提交取消；后续 `2eb061cf` 的 Six UI Modes 成功（run `42103301447`），其 Targeted Host run `42103301422` 同样因新提交而取消。故最终 Miuix Card 兼容修复尚无完成的 Targeted Host 结果。
+- 未运行 Gradle/Android 编译、APK 构建、模拟器、安装或真机验证；不得将源码静态回归描述为设备验收。
+- 下一批：在并行提交暂歇时补跑 Targeted Host；继续检查六种模式在六个主 Tab 与二级页的 renderer 覆盖和皮肤切换不触碰后台服务的回归。
