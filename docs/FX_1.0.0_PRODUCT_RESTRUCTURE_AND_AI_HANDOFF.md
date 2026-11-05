@@ -816,3 +816,35 @@ Hook 为第五 Tab，采用“已安装应用列表 → 应用详情 → 工具/
 3. 再逐项补齐 Shadowrocket 配置语义、协议参数、策略组、规则、脚本 API、Rewrite、MITM 与诊断。
 4. 每完成一个功能域，提交源码和对应自动化测试；同步更新实时状态，但不得只更新文档。
 
+
+
+## 新增来源：qufz / AntiFraudBlock（归入隐私 Tab）
+
+来源仓库：`https://github.com/vip-svip/qufz`，默认分支 `main`。核验时仓库 README、源码、Manifest、Xposed 元数据、逆向记录与 MIT License 已读取。其当前实现不是通用反诈扫描器，而是一个 LSPosed/libxposed modern 模块，目标包严格限定为 `com.coloros.phonemanager`（OPPO/ColorOS 手机管家）。
+
+### 真实能力与适用边界
+- 目标：阻断 ColorOS 手机管家 AI 反诈相关遥测和云端上报，同时保留本地风险检测服务、风险通知、弹窗和本地记录页。
+- 源码入口：`module/src/com/eta/afb/MainHook.java`。
+- Hook 链路：`AiDetectStatistics` 的 static void 上报入口；`AiVoiceDetectDCSUtils.m/n`；以及 `TrackApi.E` 对 `appId=20092` 且事件名命中反诈前缀/清单时的兜底拦截。
+- 逃生阀：`/data/local/tmp/afb.disable` 存在时 Hook 透传。
+- 目标作用域：`com.coloros.phonemanager`，包括该包子进程；不能默认扩展到小米、华为、三星或其他厂商。
+- 仓库记录的实测环境仅为 RMX5200 / ColorOS 16 / Android 16 / PhoneManager 17.1.6。其他版本必须先核对目标类、方法签名和本地风险功能，不得宣称兼容。
+- 当前 modern 模块使用 libxposed API 102（minApiVersion 101 / targetApiVersion 102），Manifest minSdk 33 / targetSdk 34；legacy API 82 版本已废弃，不迁入。
+- 许可为 MIT。迁入代码时保留版权与许可声明。
+
+### FX 页面归属与整合要求
+- 用户入口放在第三 Tab「隐私」内，作为独立功能卡片：**反诈遥测保护 / AntiFraudBlock**。展示支持状态、目标包检测、LSPosed 框架/模块启用状态、Hook 注入状态、命中统计、最近错误与紧急停用状态。
+- 不新增独立来源 APK 启动入口，不在设置页增加“迁移应用”；不得把 qufz 独立 APK 当作 FX 已整合完成。
+- 将其 Hook 逻辑整合进 FX 统一 LSPosed/libxposed 模块交付链；若当前工程尚无可承载 modern Xposed metadata 的统一模块产物，先补统一模块封装与构建，不得通过伪造 FX 主 APK 的普通按钮冒充注入。
+- 功能必须按设备能力自动判定：目标包不存在/不是 ColorOS/版本不匹配/LSPosed 未安装或未启用/作用域未授权/Hook 失败时，显示明确原因并保持关闭；不得尝试对其他厂商包名盲目 Hook。
+- 保留本地诈骗提醒、风险弹窗、检测服务和记录数据库；只阻断已核验的遥测链路。禁止用粗暴全局拦截影响普通统计、电话、通知或系统安全服务。
+- 设置独立总开关、立即停用/恢复透传、版本兼容检查和回滚；默认先关闭，用户确认启用后才生效。禁用状态必须真实透传，不得只改变 UI。
+- 隐私说明必须明确：这是减少特定手机管家遥测上报的设备端 Hook，不等于阻止运营商、第三方应用或系统其他组件收集/上传数据，也不保证反诈检测本身关闭。
+
+### 验收清单
+1. 对支持设备检查 LSPosed modern 模块元数据、作用域和实际注入日志；确认只 attach `com.coloros.phonemanager` 及其子进程。
+2. 分别验证 `AiDetectStatistics`、`AiVoiceDetectDCSUtils.m/n` 和 `TrackApi.E` 的目标事件拦截；非反诈 appId/事件必须透传。
+3. 验证本地诈骗检测服务、通知、弹窗和记录页正常工作。
+4. 验证 kill switch/FX 总开关关闭后所有 Hook 透传，重启和升级后状态正确恢复。
+5. 在非 OPPO/ColorOS 设备、目标版本不匹配、LSPosed 不可用场景下安全降级，不崩溃、不显示虚假的“已保护”。
+6. Host 静态测试、Android 构建测试、支持设备真机验证分开记录；不能以日志字符串或模块安装成功代替真实事件拦截测试。
