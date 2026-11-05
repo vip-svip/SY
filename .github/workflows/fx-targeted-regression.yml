@@ -13,6 +13,8 @@ on:
       - 'fx-module/scripts/**'
       - 'fx-patches/**'
       - 'scripts/tests/**'
+      - 'scripts/install_adhook_app.sh'
+      - 'scripts/remove_adhook_app.sh'
       - 'scripts/fx-vpn-coexistence-arbiter.sh'
       - 'scripts/yulong-ad-dns-summary.sh'
       - 'scripts/yulong-vpn-control.sh'
@@ -26,6 +28,8 @@ on:
       - 'fx-module/scripts/**'
       - 'fx-patches/**'
       - 'scripts/tests/**'
+      - 'scripts/install_adhook_app.sh'
+      - 'scripts/remove_adhook_app.sh'
       - 'scripts/yulong-vpn-control.sh'
   workflow_dispatch:
 
