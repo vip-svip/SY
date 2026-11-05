@@ -41,4 +41,10 @@ grep -Fq 'addOnGlobalLayoutListener' "$skin" || { echo "FAIL: dynamic native pag
 grep -Fq 'addOnAttachStateChangeListener' "$skin" || { echo "FAIL: Skin observer is not attached to the live page root"; exit 1; }
 grep -Fq 'removeOnGlobalLayoutListener(layoutListener)' "$skin" || { echo "FAIL: Skin observer is not removed when page detaches"; exit 1; }
 grep -Fq 'activity.isDestroyed()' "$skin" || { echo "FAIL: Skin observer does not stop for destroyed Activities"; exit 1; }
+grep -Fq 'applyButtonSkin(activity, (Button) view, mode, palette)' "$skin" || { echo "FAIL: native buttons do not receive Skin tokens"; exit 1; }
+grep -Fq 'new RippleDrawable(' "$skin" || { echo "FAIL: native buttons lack mode-aware ripple surfaces"; exit 1; }
+grep -Fq 'applySwitchSkin(activity, (Switch) view, mode, palette)' "$skin" || { echo "FAIL: native switches do not receive Skin tokens"; exit 1; }
+grep -Fq 'setThumbTintList(' "$skin" && grep -Fq 'setTrackTintList(' "$skin" || { echo "FAIL: native switches lack selected/off Skin colors"; exit 1; }
+grep -Fq 'applyChoiceControlSkin(' "$skin" || { echo "FAIL: radio/choice controls do not receive Skin tokens"; exit 1; }
+! grep -Fq 'control.setBackgroundColor(android.graphics.Color.TRANSPARENT)' "$skin" || { echo "FAIL: switch Skin pass must not erase card/row surfaces"; exit 1; }
 echo "PASS: five global UI modes share persistence, shell rendering, and live tokens on MainActivity and imported pages."
