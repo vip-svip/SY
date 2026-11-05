@@ -3,6 +3,7 @@ package de.privacyguard.adhook;
 import android.app.AlertDialog;
 import android.content.ComponentName;
 import android.content.Intent;
+import android.net.Uri;
 import android.content.pm.ApplicationInfo;
 import android.os.Bundle;
 import android.provider.Settings;
@@ -21,6 +22,9 @@ import java.util.List;
 
 /** FX Hook tab surface for explicitly scoped, local GKD selector rules. */
 public final class FxGkdAutomationActivity extends FxNativeTabActivity {
+    private static final int REQUEST_EXPORT_GKD_RULES = 7421;
+    private static final int REQUEST_IMPORT_GKD_RULES = 7422;
+    private static final int MAX_GKD_IMPORT_BYTES = FxGkdRuleStore.MAX_IMPORT_BYTES;
     private LinearLayout body;
     private TextView serviceState;
     private Switch masterSwitch;
@@ -89,6 +93,13 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
         body.addView(masterSwitch, new LinearLayout.LayoutParams(-1, -2));
 
         body.addView(action("＋ 添加本地选择器规则", this::showAddRuleDialog));
+        LinearLayout transferActions = new LinearLayout(this);
+        transferActions.setOrientation(LinearLayout.HORIZONTAL);
+        transferActions.addView(action("导入本地规则", this::openImportRulesPicker),
+                new LinearLayout.LayoutParams(0, -2, 1));
+        transferActions.addView(action("导出本地规则", this::openExportRulesPicker),
+                new LinearLayout.LayoutParams(0, -2, 1));
+        body.addView(transferActions, new LinearLayout.LayoutParams(-1, -2));
         renderRules();
         updateServiceState();
         setContentViewWithNativeTabs(root, 4);
@@ -97,6 +108,91 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
     @Override protected void onResume() {
         super.onResume();
         updateServiceState();
+    }
+
+    private void openImportRulesPicker() {
+        Intent picker = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        picker.addCategory(Intent.CATEGORY_OPENABLE);
+        picker.setType("application/json");
+        picker.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        try {
+            startActivityForResult(picker, REQUEST_IMPORT_GKD_RULES);
+        } catch (Exception error) {
+            Toast.makeText(this, "无法打开规则导入选择器：" + error.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void openExportRulesPicker() {
+        Intent picker = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        picker.addCategory(Intent.CATEGORY_OPENABLE);
+        picker.setType("application/json");
+        picker.putExtra(Intent.EXTRA_TITLE, "FX-GKD-Local-Rules.json");
+        picker.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+        try {
+            startActivityForResult(picker, REQUEST_EXPORT_GKD_RULES);
+        } catch (Exception error) {
+            Toast.makeText(this, "无法打开规则导出选择器：" + error.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
+        Uri uri = data.getData();
+        if (requestCode == REQUEST_EXPORT_GKD_RULES) {
+            exportRulesToUri(uri);
+        } else if (requestCode == REQUEST_IMPORT_GKD_RULES) {
+            importRulesFromUri(uri);
+        }
+    }
+
+    private void exportRulesToUri(Uri uri) {
+        final String json = FxGkdRuleStore.exportJson(this);
+        try (java.io.OutputStream output = getContentResolver().openOutputStream(uri, "wt")) {
+            if (output == null) throw new java.io.IOException("无法打开目标文件");
+            output.write(json.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            output.flush();
+            Toast.makeText(this, "本地规则已导出；导入到其他设备时所有规则均默认为关闭。",
+                    Toast.LENGTH_LONG).show();
+        } catch (Exception error) {
+            Toast.makeText(this, "规则导出失败：" + error.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void importRulesFromUri(Uri uri) {
+        try (java.io.InputStream input = getContentResolver().openInputStream(uri);
+             java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream()) {
+            if (input == null) throw new java.io.IOException("无法读取所选文件");
+            byte[] buffer = new byte[8192];
+            int total = 0;
+            int count;
+            while ((count = input.read(buffer)) != -1) {
+                total += count;
+                if (total > MAX_GKD_IMPORT_BYTES) {
+                    throw new java.io.IOException("导入文件超过 256 KiB 限制");
+                }
+                output.write(buffer, 0, count);
+            }
+            String json = new String(output.toByteArray(), java.nio.charset.StandardCharsets.UTF_8);
+            FxGkdImportResult result = FxGkdRuleStore.importJson(this, json);
+            if (result.getError() != null) {
+                Toast.makeText(this, "规则导入未完成：" + result.getError(), Toast.LENGTH_LONG).show();
+                return;
+            }
+            FxGkdAutomationRuntime.invalidateRules();
+            FxAccessibilityService.requestReconfigure(this);
+            renderRules();
+            syncMasterSwitch();
+            updateServiceState();
+            new AlertDialog.Builder(this)
+                    .setTitle("规则导入完成")
+                    .setMessage("新增 " + result.getImported() + " 条，跳过 " + result.getSkipped()
+                            + " 条。所有新导入规则均已关闭；请逐条检查后手动启用。")
+                    .setPositiveButton("知道了", null)
+                    .show();
+        } catch (Exception error) {
+            Toast.makeText(this, "规则导入失败：" + error.getMessage(), Toast.LENGTH_LONG).show();
+        }
     }
 
     private TextView text(String value, int color, int size) {
@@ -307,8 +403,8 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
     private void renderRules() {
         if (body == null) return;
         // Keep the two notice cards, service status, permission button,
-        // master switch and add-rule button. Only replace the rule-list tail.
-        while (body.getChildCount() > 6) body.removeViewAt(6);
+        // master switch, add-rule and import/export controls stay in place.
+        while (body.getChildCount() > 7) body.removeViewAt(7);
         TextView section = text("本地规则（仅保存在本机）", 0xff17212b, 16);
         section.setTypeface(null, android.graphics.Typeface.BOLD);
         body.addView(section);
