@@ -6,6 +6,7 @@ TMP=$(mktemp -d "/tmp/fx-yulong-vpn-control.XXXXXX")
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 [ -s "$SOURCE" ] || fail "canonical Yulong VPN lifecycle helper missing"
+sh -n "$SOURCE" || fail "canonical Yulong VPN controller has invalid shell syntax"
 
 MOD="$TMP/module"
 PG="$TMP/state"
