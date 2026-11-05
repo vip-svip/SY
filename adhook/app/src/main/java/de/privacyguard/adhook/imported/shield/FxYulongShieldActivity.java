@@ -252,8 +252,9 @@ public final class FxYulongShieldActivity extends de.privacyguard.adhook.FxNativ
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(12), dp(8), dp(12), dp(8));
         header.addView(action("‹ 返回隐私", this::finish));
-        header.addView(text("隐私 · 安全防护中心", 19, 0xff17212b, true),
-                new LinearLayout.LayoutParams(0, -2, 1));
+        TextView pageTitle = text("隐私 · 安全防护中心", 19, 0xff17212b, true);
+        pageTitle.setTag("fx-title:18");
+        header.addView(pageTitle, new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
         shieldScroll = new ScrollView(this);
         shieldScroll.setFillViewport(true);
