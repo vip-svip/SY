@@ -297,6 +297,19 @@ Dia、游龙广告插件、游龙安全护盾、GKD-XA 等只作为开发阶段�
 
 上述是兼容目标，不代表每个平台每个 API 已实现。必须建立逐平台、逐版本、逐 API 兼容矩阵，标记完全兼容/部分兼容/仅解析/不支持；私有 API 必须报告差异，不得静默吞掉指令。
 
+**进一步补齐：不止脚本语法，还要覆盖配置、订阅、自动化与跨内核迁移**
+
+- **其他代理客户端配置来源**：评估 v2rayNG、NekoBox/NekoRay、Hiddify、FlClash、Clash Verge Rev、SagerNet 系客户端及其他公开客户端的可导入配置；它们是配置/订阅来源，不应被误称为脚本平台。按真实格式分别支持 URI 分享链接、批量节点链接、Base64 订阅、Clash YAML、sing-box JSON、V2Ray JSON 和各客户端自有导出格式。
+- **节点与订阅协议**：覆盖常见的 ss://、ssr://（仅在选定内核实际支持时）、vmess://、vless://、trojan://、hysteria2://、tuic://、socks://、http(s)://、wireguard:// 等链接/配置；解析器必须校验字段、加密方式、传输层、TLS、Reality、SNI、ALPN、指纹、插件参数和 UDP 能力，未知字段保留并在转换报告中列出。
+- **规则生态补齐**：除通用域名/IP/CIDR 外，纳入 GeoIP/GeoSite、进程名/UID、端口、网络类型、入站/出站、规则集远程引用、规则提供器、DNS 路由、Fake-IP/真实 IP 模式、嗅探规则、策略组/代理组、负载均衡、故障转移和健康检查等配置语义。每个语义按内核 capability 决定支持情况，不得把解析成功当作执行成功。
+- **DNS 与过滤列表来源**：兼容 AdGuard DNS filter、ABP/uBO 列表、Hosts、域名/IP/CIDR 列表、RPZ（若适用）、DNSCrypt/DoH/DoT/DoQ 配置和本地/远程规则集；对订阅更新、ETag/Last-Modified、签名/哈希、去重、冲突优先级、过期缓存、失败回退和白名单建立统一管理。
+- **脚本语言与执行宿主**：JavaScript 是首要通用脚本运行时；对 Lua、Python、WASM 等只建立可插拔 Runtime Provider，只有依赖、许可证、沙箱、权限模型和实际 API 桥接通过验证后才开放。不得因为能运行某种语言就宣称兼容 Surge/Loon 等宿主 API；语言兼容与宿主 API 兼容必须分开评级。
+- **自动化生态**：除各代理客户端的定时任务外，评估 Android Tasker、MacroDroid、Automate、系统快捷方式/Quick Settings Tile、App Shortcuts、Widget、Intent/deep link、通知动作和 FX 自身计划任务。所有外部触发必须经过用户授权、参数校验、去重、权限检查和审计；不允许静默执行高风险 Root/证书/网络配置操作。
+- **脚本/规则分发与更新**：支持 Git 仓库、HTTPS URL、本地文件、压缩包和受支持的订阅源；记录来源、版本、提交/ETag、SHA-256、签名状态、许可证、更新策略和变更差异。导入未知来源时先预览权限和动作，不自动执行。
+- **跨格式迁移**：提供“导入 → 解析 → 能力检测 → 转换预览 → 用户确认 → 备份 → 应用 → 回归检查”的事务流程；保留原文件、注释、未知字段和来源元数据。转换失败必须回滚；不能表达的语义列入差异报告，不得静默丢弃或用近似行为冒充等价。
+- **兼容矩阵必须覆盖真实版本**：平台/客户端、版本、配置格式版本、脚本 API、规则语法、内核能力、Android API/ABI、执行通道、权限、测试用例和已知限制均需独立记录。每项标注“原生支持 / 适配器支持 / 仅导入解析 / 部分支持 / 不支持 / 待验证”，并附测试证据。新增平台通过格式探测和 Provider 插件接入，不以本轮列举名单作为封闭白名单。
+- **禁止虚假兼容**：只识别文件扩展名、读取到配置段、成功导入节点或脚本语法通过，均不代表任务可运行。必须验证任务触发、API 返回值、网络请求、响应修改、持久化、定时触发、取消、错误隔离及升级后的行为。
+
 1. **统一脚本任务模型**：统一请求/响应、URL 匹配、Header/Body、通知、持久化存储、定时触发、网络事件、完成回调、错误和取消语义；各平台由 adapter 映射。
 2. **多运行时**：JavaScript 使用 QuickJS/QuickJS-NG 等受控 runtime；UserScript 使用隔离的浏览器脚本宿主；其他语言运行时按插件式 runtime provider 接入。网络代理内核不能冒充脚本引擎。
 3. **规则与配置解析**：分别实现 parser、validator、normalizer 和 serializer；保留注释、未知字段和用户原始配置，导入导出不能无故丢失配置。规则执行结果可解释。
@@ -470,7 +483,7 @@ FX 必须内置可用的默认网络内核，同时提供可切换的内核管�
 ### P4 — VPN、证书和脚本运行时
 - 节点/订阅/路由/DNS/应用策略。
 - MITM CA 生命周期和显式授权 UI。
-- QuickJS + Loon/Shadowrocket API adapter；MITM 脚本接入。
+- QuickJS/QuickJS-NG 首要运行时及多平台 API adapter；按 Surge、Quantumult X、Loon、Shadowrocket、Stash、Egern、Surfboard、Clash/Mihomo、sing-box、UserScript 等生态逐项验收；补齐规则/订阅格式解析、自动化集成、跨内核配置迁移和 MITM 脚本接入。
 - 浏览器脚本按支持浏览器/扩展 API 明确能力范围。
 
 ### P5 — 隐私与 Hook 深化
