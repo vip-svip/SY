@@ -47,6 +47,13 @@ _safe_file_or_absent() {
   [ ! -L "$_safe_file" ] || return 1
   [ ! -e "$_safe_file" ] || [ -f "$_safe_file" ]
 }
+_new_private_temp() {
+  _temp_template=$1
+  _temp_path=$(umask 077; mktemp "$_temp_template") || return 1
+  [ -f "$_temp_path" ] && [ ! -L "$_temp_path" ] || return 1
+  chmod 600 "$_temp_path" 2>/dev/null || { rm -f "$_temp_path"; return 1; }
+  printf '%s\\n' "$_temp_path"
+}
 _prepare_state_dirs() {
   _path_components_are_safe "$PG" || { echo "unsafe Unbound parent state path" >&2; return 1; }
   [ -d "$PG" ] && [ ! -L "$PG" ] || { echo "Unbound parent state directory is missing or unsafe" >&2; return 1; }
@@ -185,9 +192,8 @@ _maybe_refresh_anchor() {
   _old_anchor=$(find "$STATE/root.key" -mtime +14 -print -quit 2>/dev/null)
   [ -n "$_old_anchor" ] || return 0
   if command -v timeout >/dev/null 2>&1; then
-    _tmp_anchor="$STATE/root.key.before-refresh.$$"
-    cp "$STATE/root.key" "$_tmp_anchor" 2>/dev/null || return 0
-    chmod 600 "$_tmp_anchor" 2>/dev/null || :
+    _tmp_anchor=$(_new_private_temp "$STATE/root.key.before-refresh.XXXXXX") || return 0
+    cp "$STATE/root.key" "$_tmp_anchor" 2>/dev/null || { rm -f "$_tmp_anchor"; return 0; }
     if timeout 5 "$ANCHOR" -a "$STATE/root.key" >> "$LOG" 2>&1; then
       _log 'stale root trust anchor refresh helper completed'
     else
@@ -247,14 +253,12 @@ _ensure() {
   _prepare_state_dirs || { _log 'refusing startup because private state paths are unsafe'; return 1; }
   _check_files || { _stop || :; return 1; }
   if [ ! -s "$STATE/root.key" ] || ! grep -Eq '^\.[[:space:]]+IN[[:space:]]+DNSKEY[[:space:]]+257[[:space:]]+3[[:space:]]+8[[:space:]]' "$STATE/root.key" 2>/dev/null; then
-    _tmp_key="$STATE/root.key.tmp.$$"
-    cp "$ROOT_KEY_SEED" "$_tmp_key" || return 1
-    chmod 600 "$_tmp_key" 2>/dev/null || :
+    _tmp_key=$(_new_private_temp "$STATE/root.key.tmp.XXXXXX") || return 1
+    cp "$ROOT_KEY_SEED" "$_tmp_key" || { rm -f "$_tmp_key"; return 1; }
     mv -f "$_tmp_key" "$STATE/root.key" || { rm -f "$_tmp_key"; return 1; }
   fi
-  _tmp="$CFG.tmp.$$"
+  _tmp=$(_new_private_temp "$STATE/unbound.conf.tmp.XXXXXX") || return 1
   _render_config > "$_tmp" || { rm -f "$_tmp"; return 1; }
-  chmod 600 "$_tmp" 2>/dev/null || :
   if ! "$CHECKBIN" "$_tmp" >> "$LOG" 2>&1; then
     _log 'generated recursive resolver config rejected by pinned unbound-checkconf'; rm -f "$_tmp"; return 1
   fi
@@ -272,9 +276,9 @@ _ensure() {
   chmod 600 "$CFG" 2>/dev/null || :
   nohup "$BIN" -d -c "$CFG" >/dev/null 2>&1 &
   _new=$!
-  printf '%s\n' "$_new" > "$PIDFILE.tmp.$$" || { rm -f "$PIDFILE.tmp.$$" 2>/dev/null || :; kill "$_new" 2>/dev/null || :; return 1; }
-  chmod 600 "$PIDFILE.tmp.$$" 2>/dev/null || :
-  mv -f "$PIDFILE.tmp.$$" "$PIDFILE" || { rm -f "$PIDFILE.tmp.$$" 2>/dev/null || :; kill "$_new" 2>/dev/null || :; return 1; }
+  _pid_tmp=$(_new_private_temp "$STATE/managed.pid.tmp.XXXXXX") || { kill "$_new" 2>/dev/null || :; return 1; }
+  printf '%s\\n' "$_new" > "$_pid_tmp" || { rm -f "$_pid_tmp"; kill "$_new" 2>/dev/null || :; return 1; }
+  mv -f "$_pid_tmp" "$PIDFILE" || { rm -f "$_pid_tmp"; kill "$_new" 2>/dev/null || :; return 1; }
   _i=0; _same=''
   while [ "$_i" -lt 20 ]; do
     _same=$(_owned_pid 2>/dev/null) || _same=''
