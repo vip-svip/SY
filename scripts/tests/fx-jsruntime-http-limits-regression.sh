@@ -86,7 +86,7 @@ python3 "$PATCHER" "$T/module" >/dev/null || fail "second HTTP hardening patch w
 # Negative case: ambiguous insertion anchors must fail before writing host.js.
 mkdir -p "$T/ambiguous"
 cp -a "$T/baseline/." "$T/ambiguous/"
-printf '\n  function _fxRequest(options,cb) {}\n' >> "$T/ambiguous/scripts/jsruntime/host.js"
+printf '\n  function _fxRequest(options,cb) {\n  }\n' >> "$T/ambiguous/scripts/jsruntime/host.js"
 ambiguous_before=$(sha256sum "$T/ambiguous/scripts/jsruntime/host.js" | awk '{print $1}')
 if python3 "$PATCHER" "$T/ambiguous" >/dev/null 2>&1; then
   fail "ambiguous _fxRequest anchor was accepted"
