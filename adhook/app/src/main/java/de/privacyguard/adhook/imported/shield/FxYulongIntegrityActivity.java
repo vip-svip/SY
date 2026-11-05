@@ -62,6 +62,8 @@ public final class FxYulongIntegrityActivity extends de.privacyguard.adhook.FxNa
 
     @Override protected void onCreate(Bundle saved) {
         super.onCreate(saved);
+        // Retire the worker after its idle keep-alive instead of pinning a thread.
+        worker.allowCoreThreadTimeOut(true);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(0xfff7f8fa);
