@@ -20,13 +20,13 @@ dia_session="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/
 dia_signature="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaSignatureActivity.java"
 dia_system="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaSystemExpandActivity.java"
 test -s "$activity" && test -s "$shell" && test -s "$host" && test -s "$dia_browser" && test -s "$dia_backup" && test -s "$dia_editor" && test -s "$dia_crash" && test -s "$dia_dex" && test -s "$dia_frida" && test -s "$dia_scripts" && test -s "$dia_gps" && test -s "$dia_inspector" && test -s "$dia_wifi" && test -s "$dia_file" && test -s "$dia_monitor" && test -s "$dia_session" && test -s "$dia_signature" && test -s "$dia_system"
-python3 - "$activity" "$shell" "$host" "$dia_browser" "$dia_backup" "$dia_editor" "$dia_crash" "$dia_dex" "$dia_frida" "$dia_scripts" "$dia_gps" "$dia_inspector" "$dia_wifi" "$dia_file" "$dia_monitor" "$dia_session" "$dia_signature" "$dia_system" <<'PY'
+python3 - "$activity" "$shell" "$host" "$dia_browser" "$dia_backup" "$dia_editor" "$dia_crash" "$dia_dex" "$dia_frida" "$dia_scripts" "$dia_gps" "$dia_inspector" "$dia_wifi" "$dia_file" "$dia_monitor" "$dia_session" "$dia_signature" "$dia_system" "$root" <<'PY'
 from pathlib import Path
 import sys
 activity = Path(sys.argv[1]).read_text(encoding="utf-8")
 shell = Path(sys.argv[2]).read_text(encoding="utf-8")
 host = Path(sys.argv[3]).read_text(encoding="utf-8")
-root = Path(sys.argv[4])
+root = Path(sys.argv[19])
 def source(relative):
     return (root / relative).read_text(encoding="utf-8")
 dia_browser = Path(sys.argv[4]).read_text(encoding="utf-8")
