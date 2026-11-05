@@ -74,8 +74,8 @@ assert "不会启动来源 APK 或第二套过滤服务" in ad_page, "Ad home mu
 vpn_start = activity.index("    private void renderNativePage(int index)")
 vpn_end = activity.index("            case 1:", vpn_start)
 vpn_home = activity[vpn_start:vpn_end]
-assert 'nativeAction("管理分应用 VPN 路由", this::showImportedVpnAppManager)' in vpn_home
-vpn_manager_start = activity.index("    private void showImportedVpnAppManager()")
+assert 'nativeAction("管理分应用 VPN 路由", this::showNativeVpnAppManager)' in vpn_home
+vpn_manager_start = activity.index("    private void showNativeVpnAppManager()")
 vpn_manager_end = activity.index("    private void addNativeSettingsCategory(", vpn_manager_start)
 vpn_manager = activity[vpn_manager_start:vpn_manager_end]
 for token in ('nativeVpnAppManagerVisible = true', 'selectedBottomTab = 0',
@@ -113,7 +113,7 @@ assert "setContentViewWithNativeTabs(root, 4)" in dia_json
 assert "HUAWEI HarmonyStyle" in settings and "iOS CupertinoStyle" in settings
 assert "逐页组件适配仍在继续" in settings
 restore_start = activity.index("        if (restoreHookScreen)")
-restore_end = activity.index("        handleImportedNativeTabIntent(getIntent());", restore_start)
+restore_end = activity.index("        handleNativeTabIntent(getIntent());", restore_start)
 restore = activity[restore_start:restore_end]
 assert "showSettings();" in restore
 assert "restoreMigrationNavigation();" not in restore
@@ -144,7 +144,7 @@ for feature in ("FxDiaFridaActivity.class", "FxDiaDexBrowserActivity.class",
                 "FxDiaGlobalSettingsActivity.class"):
     assert feature in hook_hub, f"Hook tab cannot reach {feature}"
 settings_start = activity.index("private void showSettings()")
-settings_end = activity.index("private String importedSuiteTitle(", settings_start)
+settings_end = activity.index("private void showNativeWallpaperDialog()", settings_start)
 assert 'section("备份与恢复")' in activity[settings_start:settings_end]
 assert 'FxDiaBackupActivity.class' in activity[settings_start:settings_end]
 script_start = activity.index("private void buildNativeScriptPage()")
