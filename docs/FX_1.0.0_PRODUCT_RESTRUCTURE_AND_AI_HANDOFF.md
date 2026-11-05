@@ -662,3 +662,14 @@ FX 1.0.0 的三个模式使用统一持久化 ID，禁止页面各自保存不�
 GKD-XA 包含独立 Application/MainActivity/AppRoot、Room 数据库、AIDL 特权接口、隐藏 API、Kotlin Multiplatform selector、Accessibility runtime、订阅规则、快照与 AI 生成流程。它不能作为第二 APK 或第二主界面接入。先处理 FX (AGP 9.1.1 / Kotlin 2.4.21 / Java17) 与 GKD-XA (AGP9.4.1 / Kotlin2.4.20 / JVM21) 构建差异，完成 Manifest/服务/数据库/权限兼容性 spike，再迁移 selector、订阅仓库、无障碍 runtime 与页面路由。
 
 完整技术与验收要求见 `docs/FX_GKD_XA_1.4.8_INTEGRATION_PLAN.md`。当前只有源代码锁定和审计文档，**GKD-XA 的运行时、服务、UI、数据库与 selector 均未合入 FX APK**。不得把来源锁定说成完整功能迁移。
+
+
+## 10.0.2 参考 APK 已取得的证据（2026-11-05 更新）
+
+- 资料库原件：`/游龙工具_10.0.2.apk`，大小 92,008,250 bytes。
+- SHA-256：`c2d7bb1b8e688232888a927d5b81affcf5c28832f9e6420e27e800e54f5fee75`。
+- APK ZIP 目录可见 `classes.dex`、`resources.arsc`、`AndroidManifest.xml`，以及 `assets/bizhi.png`、`assets/index.java`、`assets/apk.tar.xz` 等资源；其中 index.java 和 bizhi.png 经常规文件识别显示为非明文数据，不能直接当作可用 HTML/PNG 导入。
+- DEX 字符串/类符号能确认存在 `com.youlong.gj.MiuixScreenKt`、`MiuixUiRoot`、`MiuixWallpaperDialog` 和 Miuix 组件引用，说明 10.0.2 内含 Miuix 原生页面实现；`assets/apk.tar.xz` 内含 `hd.apk`、`ylads.apk`、`cj.apk` 三个嵌套 APK 名称。
+- 已从 Wallpaper 实现证据确认的用户可见行为：弹窗名“壁纸随心换”，操作为“上传本地图片”和“恢复默认壁纸”；所选图复制到应用私有目录，最长边压至 1920 px，JPEG quality 85，使用 SharedPreferences `native_wallpaper_prefs/wallpaper_path` 保存文件路径。FX 已在 `FxWallpaperStore` 与全局六 Tab Compose 壳接入该契约。
+- 证据边界：当前已核验 APK 文件哈希、ZIP 成员清单和 DEX 符号；尚未完成完整 JADX/资源解密与原版逐页截图审计，不能声称 ClassicWebCompat 已逐像素复制 10.0.2 原 WebUI，也不能直接把加密的 index.java/bizhi.png 当普通网页和图片资源复制。
+- 下一步：继续以该哈希作为不可变参考原件，对 DEX/加密资产/内嵌 APK 做受控提取；建立 10.0.2 的六 Tab/页面/壁纸与 FX 映射表，再决定哪些原始资源可合法复用，哪些应重建。
