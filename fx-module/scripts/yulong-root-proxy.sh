@@ -81,7 +81,12 @@ done
 
 _log() { printf '[%s] yulong-root-proxy: %s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$*" >> "$LOG" 2>/dev/null || :; }
 _valid_uid() { case "${1:-}" in ''|*[!0-9]*|0) return 1;; *) return 0;; esac; }
-_valid_if() { case "${1:-}" in ''|*[!A-Za-z0-9_.:-]*) return 1;; *) return 0;; esac; }
+_valid_if() {
+  # Linux IFNAMSIZ includes the trailing NUL, so an interface name is at
+  # most 15 ASCII bytes. Reject overlong names before passing them to ip.
+  case "${1:-}" in ''|*[!A-Za-z0-9_.:-]*) return 1 ;; esac
+  [ "${#1}" -le 15 ]
+}
 _valid_ipv4() {
   printf '%s\n' "$1" | awk -F. '
     NF != 4 {ok=0; exit}
