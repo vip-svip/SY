@@ -339,7 +339,7 @@ public final class FxYulongShieldActivity extends de.privacyguard.adhook.FxNativ
             }
             shieldPrefs.edit().putBoolean("auto_block_on", enabled).apply();
             if (enabled && !de.privacyguard.adhook.FxAccessibilityService.isConnected()) {
-                new android.app.AlertDialog.Builder(this)
+                fxDialogBuilder()
                         .setTitle("需要启用 FX 无障碍服务")
                         .setMessage("前台自动扫描只使用系统提供的前台应用包名事件，不读取界面文字或点击控件。请在 Android 无障碍设置中手动启用 FX。")
                         .setNegativeButton("稍后", null)
@@ -411,7 +411,7 @@ public final class FxYulongShieldActivity extends de.privacyguard.adhook.FxNativ
             if (enabled) {
                 if (!hasUsageAccess()) {
                     button.setChecked(false);
-                    new android.app.AlertDialog.Builder(this)
+                    fxDialogBuilder()
                             .setTitle("需要使用情况访问权限")
                             .setMessage("实时守护需要读取当前前台应用包名，才能识别管控名单。只读取前台包名，不读取屏幕内容或输入内容。")
                             .setNegativeButton("稍后", null)
@@ -451,7 +451,7 @@ public final class FxYulongShieldActivity extends de.privacyguard.adhook.FxNativ
             }
             if (enabled && !android.provider.Settings.canDrawOverlays(this)) {
                 button.setChecked(false);
-                new android.app.AlertDialog.Builder(this)
+                fxDialogBuilder()
                         .setTitle("需要悬浮窗权限")
                         .setMessage("FX 只显示可点击的救援入口；不会读取其他应用界面、自动点击或遮挡输入框。请手动授权。")
                         .setNegativeButton("稍后", null)
@@ -497,7 +497,7 @@ public final class FxYulongShieldActivity extends de.privacyguard.adhook.FxNativ
                         .normalizeCount(shieldPrefs.getInt("volume_trigger_count", 3));
                 String key = "up".equalsIgnoreCase(
                         shieldPrefs.getString("volume_trigger_key", "down")) ? "音量上键" : "音量下键";
-                new android.app.AlertDialog.Builder(this).setTitle("需要 FX 无障碍服务")
+                fxDialogBuilder().setTitle("需要 FX 无障碍服务")
                         .setMessage("已保存设置：连续按下" + key + " " + count
                                 + " 次触发救援提醒。FX 不读取屏幕内容、不吞掉按键事件，也不会改变系统音量。"
                                 + "请到系统无障碍设置手动启用 FX。")
@@ -515,7 +515,7 @@ public final class FxYulongShieldActivity extends de.privacyguard.adhook.FxNativ
         volumeKeyButton.setOnClickListener(v -> {
             String storedKey = shieldPrefs.getString("volume_trigger_key", "down");
             int checked = "up".equalsIgnoreCase(storedKey) ? 1 : 0;
-            new android.app.AlertDialog.Builder(this)
+            fxDialogBuilder()
                     .setTitle("选择救援触发按键")
                     .setSingleChoiceItems(new String[]{"音量下键", "音量上键"}, checked,
                             (dialog, which) -> {
@@ -542,7 +542,7 @@ public final class FxYulongShieldActivity extends de.privacyguard.adhook.FxNativ
             picker.setValue(de.privacyguard.adhook.imported.shield
                     .FxYulongVolumeTriggerSequence.normalizeCount(
                             shieldPrefs.getInt("volume_trigger_count", 3)));
-            new android.app.AlertDialog.Builder(this)
+            fxDialogBuilder()
                     .setTitle("连续按键次数（2–10 次）")
                     .setView(picker)
                     .setNegativeButton("取消", null)
