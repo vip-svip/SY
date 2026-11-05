@@ -149,9 +149,10 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
     }
     private void showTimePicker(TextView target, String prefix, String current) {
         int[] time = parseTime(current);
-        new TimePickerDialog(this, (picker, hour, minute) ->
+        TimePickerDialog picker = new TimePickerDialog(this, (dialog, hour, minute) ->
                 target.setText(prefix + " · " + formatTime(hour, minute)),
-                time[0], time[1], true).show();
+                time[0], time[1], true);
+        showFxDialog(picker);
     }
     private void showRuleDialog(String packageName, int uid) {
         if (!inventoryReady) {
