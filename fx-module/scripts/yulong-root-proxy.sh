@@ -210,6 +210,13 @@ _stop_engines() {
   if [ "$(pg_get dns_forward 0 2>/dev/null)" != "1" ]; then
     sh "$MP/scripts/unbound.sh" stop "$MP" "$PG" >> "$LOG" 2>&1 || :
   else
+    # _clear_all has removed the VPN egress marker. Re-render the shared
+    # resolver so it no longer retains the previous tunnel's outgoing address.
+    if sh "$MP/scripts/unbound.sh" ensure "$MP" "$PG" >> "$LOG" 2>&1; then
+      _log "refreshed independent Unbound without stale external-VPN egress binding"
+    else
+      _log "WARNING: independent Unbound remains running but its VPN egress binding could not be refreshed"
+    fi
     _log "keeping Unbound running: independent local-DNS forwarding is enabled"
   fi
 }

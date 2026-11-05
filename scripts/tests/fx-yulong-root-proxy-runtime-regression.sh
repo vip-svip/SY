@@ -134,7 +134,11 @@ NSLOOKUP
 cat > "$MOD/scripts/unbound.sh" <<'UNBOUND'
 #!/system/bin/sh
 case "$1" in
-  ensure) [ "${MOCK_UNBOUND_FAIL:-0}" = 0 ] || exit 1; [ -s "$PG/unbound-vpn-egress-ip" ] || exit 1; echo unbound-ensure >> "$MOCK_ENGINE_LOG" ;;
+  ensure)
+    [ "${MOCK_UNBOUND_FAIL:-0}" = 0 ] || exit 1
+    if [ -s "$PG/unbound-vpn-egress-ip" ]; then echo unbound-ensure-pinned >> "$MOCK_ENGINE_LOG"
+    else echo unbound-ensure-unpinned >> "$MOCK_ENGINE_LOG"; fi
+    ;;
   stop) echo unbound-stop >> "$MOCK_ENGINE_LOG" ;;
   *) exit 64 ;;
 esac
@@ -354,6 +358,7 @@ run_stop "$CASE_DIR" MOCK_ADGUARD_INDEPENDENT=1 MOCK_UNBOUND_INDEPENDENT=1 >/dev
 [ ! -s "$CASE_DIR/hooks4" ] && [ ! -s "$CASE_DIR/hooks6" ] || fail "Root Proxy stop left DNS redirect hooks"
 ! grep -Fq adguard-stop "$CASE_DIR/engines.log" || fail "Root Proxy stop killed independently enabled AdGuard"
 ! grep -Fq unbound-stop "$CASE_DIR/engines.log" || fail "Root Proxy stop killed independently enabled Unbound"
+grep -Fq unbound-ensure-unpinned "$CASE_DIR/engines.log" || fail "Root Proxy stop did not refresh independently enabled Unbound without VPN egress binding"
 
 # When neither local DNS engine is independently enabled, stop releases both daemons.
 prepare_case disabled-local-dns
