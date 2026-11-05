@@ -60,8 +60,9 @@ list_values() {
     $0=="[conf:vpn]" {insec=1;next}
     /^\[/ {insec=0}
     insec && NF>=2 && $1 ~ /^[a-z][a-z0-9_]*$/ {
+      key=$1
       sub(/^[^=]*=/,"")
-      printf "%s|%s\n", $1, $0
+      printf "%s|%s\n", key, $0
     }
   ' "$CONF"
 }
