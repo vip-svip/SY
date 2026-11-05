@@ -158,14 +158,14 @@ else:
 
     replace_once(
         apply_file,
-        '_hf_owner=$(cat "$_hf_lock/pid" 2>/dev/null)\\n',
-        '_hf_owner=$(cat "$_hf_lock/pid" 2>/dev/null || :)\\n',
+        '_hf_owner=$(cat "$_hf_lock/pid" 2>/dev/null)\n',
+        '_hf_owner=$(cat "$_hf_lock/pid" 2>/dev/null || :)\n',
         "Hosts lock owner read must tolerate atomic release",
     )
     replace_once(
         apply_file,
-        '_hf_owner2=$(cat "$_hf_lock/pid" 2>/dev/null)\\n',
-        '_hf_owner2=$(cat "$_hf_lock/pid" 2>/dev/null || :)\\n',
+        '_hf_owner2=$(cat "$_hf_lock/pid" 2>/dev/null)\n',
+        '_hf_owner2=$(cat "$_hf_lock/pid" 2>/dev/null || :)\n',
         "Hosts stale-owner recheck must tolerate concurrent release",
     )
 
