@@ -38,4 +38,17 @@ if grep -Eq '最多 64 条规则|最多配置 64 条自定义规则|当前应用
 fi
 grep -Fq 'parserAndSerializerRoundTripMoreThanSixtyFourDeveloperRules' "$PARSER_UNIT" || fail "more-than-64 parser/serializer unit coverage missing"
 grep -Fq 'acceptsSparseLegacyDeveloperRuleSlotsAboveSixtyFour' "$PARSER_UNIT" || fail "sparse legacy slot compatibility test missing"
+python3 - "$MAIN" <<'PY'
+from pathlib import Path
+import re
+import sys
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+assert "getCustomRuleSlots" in source, "dynamic rule slot enumeration missing"
+assert "getCustomRulePreferenceKeys" in source, "dynamic import rollback key enumeration missing"
+assert "getCustomRuleSlots(p)" in source, "publish path still omits dynamic rule slots"
+assert "getCustomRulePreferenceKeys(selectedPackage, candidates.size())" in source, "import cleanup does not cover new compacted slots"
+assert not re.search(r"for\\s*\\(\\s*int\\s+(?:i|n|slot)\\s*=\\s*1\\s*;\\s*(?:i|n|slot)\\s*<=\\s*64", source), "fixed 64-slot loop remains"
+assert "最多 64 条规则" not in source and "最多配置 64 条自定义规则" not in source
+print("PASS: editor, grouping, import/export, render and publish enumerate custom rules dynamically")
+PY
 echo "PASS: custom Hook passthrough actions are exact-type, debuggable-only, explicit-opt-in and fail-closed"
