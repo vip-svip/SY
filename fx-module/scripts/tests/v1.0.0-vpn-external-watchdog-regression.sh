@@ -17,9 +17,11 @@ START=$(grep -n 'vpn-external-watchdog.sh" start' "$S" | head -1 | cut -d: -f1)
   echo 'FAIL: service boot order must snapshot -> apply -> commit -> start watchdog' >&2; exit 1;
 }
 STOP=$(grep -n 'vpn-external-watchdog.sh" stop' "$U" | head -1 | cut -d: -f1)
-FW=$(grep -n '^# A1\.' "$U" | head -1 | cut -d: -f1)
-[ -n "$STOP" ] && [ -n "$FW" ] && [ "$STOP" -lt "$FW" ] || {
-  echo 'FAIL: uninstall must stop the external VPN watcher before firewall cleanup' >&2; exit 1;
+PROXY=$(grep -n 'yulong-root-proxy.sh" uninstall' "$U" | head -1 | cut -d: -f1)
+FW=$(grep -n 'yulong-app-firewall.sh" uninstall' "$U" | head -1 | cut -d: -f1)
+[ -n "$STOP" ] && [ -n "$PROXY" ] && [ -n "$FW" ] && \
+  [ "$STOP" -lt "$PROXY" ] && [ "$PROXY" -lt "$FW" ] || {
+  echo 'FAIL: uninstall must stop the external VPN watcher before Root Proxy and firewall cleanup' >&2; exit 1;
 }
 grep -Fq 'apply.sh" fast' "$W"
 grep -Fq 'state reconciled successfully' "$W"
