@@ -85,8 +85,9 @@ public final class FxYulongWarningActivity extends de.privacyguard.adhook.FxNati
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(12), dp(8), dp(12), dp(8));
         header.addView(button("‹ 返回隐私", this::finish));
-        header.addView(text("隐私 · 风险应用详情", 19, 0xff17212b, true),
-                new LinearLayout.LayoutParams(0, -2, 1));
+        TextView pageTitle = text("隐私 · 风险应用详情", 19, 0xff17212b, true);
+        pageTitle.setTag("fx-title:18");
+        header.addView(pageTitle, new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
 
         warningScroll = new ScrollView(this);
