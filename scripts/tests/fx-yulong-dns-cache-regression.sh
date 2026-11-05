@@ -3,15 +3,17 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 CONTROL="$ROOT/scripts/yulong-ad-control.sh"
 ACTIVITY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongDnsActivity.java"
+HELPER="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongRootModuleCommand.java"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 [ -s "$CONTROL" ] || fail "Yulong DNS control adapter missing"
 [ -s "$ACTIVITY" ] || fail "native DNS Activity missing"
 sh -n "$CONTROL" || fail "DNS control shell syntax invalid"
 
-python3 - "$ACTIVITY" <<'PY'
+python3 - "$ACTIVITY" "$HELPER" <<'PY'
 from pathlib import Path
 import sys
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
+helper = Path(sys.argv[2]).read_text(encoding="utf-8")
 assert 'button("重启本地 DNS 并清理缓存", this::confirmCacheFlush)' in source, \
     "DNS page has no native cache flush control"
 assert 'private void confirmCacheFlush()' in source, "cache flush has no explicit confirmation flow"
@@ -31,6 +33,11 @@ assert 'output.contains("dns-engine-disabled")' in source, "disabled-engine stat
 module_start = source.index("private String shell(")
 module_end = source.index("private void root(", module_start)
 module_lookup = source[module_start:module_end]
+assert 'FxYulongRootModuleCommand.command("yulong-ad-control.sh", args)' in module_lookup, \
+    "DNS Activity must use the shared fail-closed Root module command builder"
+helper_start = helper.index("public static String prefix(")
+helper_end = helper.index("public static String command(", helper_start)
+module_paths = helper[helper_start:helper_end]
 for token in (
     "[ -d '/data' ] && [ ! -L '/data' ]",
     "[ -d '/data/adb' ]",
@@ -44,10 +51,12 @@ for token in (
     "grep -qx 'id=privacyguard'",
     "grep -qx 'version=1.0.0'",
     r'&& [ -d \"$d/scripts\" ] && [ ! -L \"$d/scripts\" ]',
-    r'&& [ -f \"$d/scripts/yulong-ad-control.sh\" ]',
-    r'&& [ ! -L \"$d/scripts/yulong-ad-control.sh\" ]',
+    r'&& [ -f \"$d/scripts/util.sh\" ] && [ ! -L \"$d/scripts/util.sh\" ]',
+    r'&& [ -f \"$d/scripts/',
+    r'&& [ ! -L \"$d/scripts/',
+    'yulong-ad-control.sh',
 ):
-    assert token in module_lookup, "DNS Root module discovery must enforce: " + token
+    assert token in module_paths, "DNS Root module discovery must enforce: " + token
 assert '"dns-log-tail".equals(args)' in module_lookup, "DNS log read must be an allowlisted operation"
 assert '"cache-flush".equals(args)' in module_lookup, "DNS cache flush must be an allowlisted operation"
 assert '"dns-log-clear".equals(args)' in module_lookup, "DNS log clear must be an allowlisted operation"
