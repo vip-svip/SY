@@ -79,6 +79,9 @@ object FxGkdSelectorEngine {
                 is SelectorCompileResult.Failure ->
                     FxGkdSelectorCompilation(null, parsed.error.message ?: "选择器语法无效")
             }
+        } catch (overflow: StackOverflowError) {
+            // Malformed deeply nested user input must never crash the FX process.
+            FxGkdSelectorCompilation(null, "选择器嵌套过深，无法安全解析")
         } catch (error: Exception) {
             FxGkdSelectorCompilation(null, error.message ?: error.javaClass.simpleName)
         }
