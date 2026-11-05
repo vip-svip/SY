@@ -156,9 +156,13 @@ chmod +x "$TMP/bin/pm"; export PATH="$TMP/bin:$PATH" FX_ADHOOK_FAKE_PM_STATE="$T
 
 # If unique private-directory creation fails, the installer must fail closed
 # before PackageManager installation or ownership markers are written.
-export FX_ADHOOK_FAIL_MKTEMP=1
+# Make PackageManager report the overlay as a system app so this test
+# reaches the staging-directory operation rather than the earlier deployment gate.
+echo de.privacyguard.adhook > "$TMP/pm/installed"
+export FX_ADHOOK_FAKE_SYSTEM_OVERLAY=1 FX_ADHOOK_FAIL_MKTEMP=1
 out=$(sh "$INSTALLER" "$TMP/mod" 2>&1) && fail "failed private staging directory creation unexpectedly succeeded"
-unset FX_ADHOOK_FAIL_MKTEMP
+unset FX_ADHOOK_FAKE_SYSTEM_OVERLAY FX_ADHOOK_FAIL_MKTEMP
+: > "$TMP/pm/installed"
 case "$out" in *"cannot create a private Hook staging directory"*) ;; *) fail "mktemp failure was not reported safely: $out" ;; esac
 [ ! -s "$TMP/pm/install-calls" ] || fail "mktemp failure reached PackageManager install"
 [ ! -e "$TMP/state/adhook-apk-fxunifiedhook.fx-owned" ] || fail "mktemp failure wrote an ownership marker"
