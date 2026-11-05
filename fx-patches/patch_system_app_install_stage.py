@@ -143,6 +143,25 @@ fx_system_app_context() {
   return 1
 }
 
+# Never follow archive-controlled symlinks while validating or mutating the
+# system-app payload. Check every path component, including dangling leaves.
+fx_system_app_path_is_safe() {
+  _fx_safe_path=$1
+  case "$_fx_safe_path" in /*) ;; *) return 1 ;; esac
+  _fx_safe_rest=${_fx_safe_path#/}
+  _fx_safe_current=
+  while [ -n "$_fx_safe_rest" ]; do
+    case "$_fx_safe_rest" in
+      */*) _fx_safe_part=${_fx_safe_rest%%/*}; _fx_safe_rest=${_fx_safe_rest#*/} ;;
+      *) _fx_safe_part=$_fx_safe_rest; _fx_safe_rest= ;;
+    esac
+    case "$_fx_safe_part" in ''|.|..) return 1 ;; esac
+    _fx_safe_current="$_fx_safe_current/$_fx_safe_part"
+    [ ! -L "$_fx_safe_current" ] || return 1
+  done
+  return 0
+}
+
 fx_system_app_stage() {
   [ ! -L "$fx_system_app_state_dir" ] || {
     ui_print "  [!] FX 状态目录是符号链接，拒绝写入系统应用部署状态"
@@ -165,6 +184,15 @@ fx_system_app_stage() {
   _fx_overlay_sum="$_fx_overlay_dir/FX.apk.sha256"
   _fx_fallback="$MODPATH/optional/FXUnifiedHook.apk"
   _fx_retry_marker="$fx_system_app_retry"
+
+  # Reject symlinked ancestors and leaves before -s, digest, cp, chown or chmod.
+  for _fx_path in "$MODPATH" "$_fx_overlay_dir" "$_fx_overlay_apk" "$_fx_overlay_sum" "$_fx_fallback"; do
+    if ! fx_system_app_path_is_safe "$_fx_path"; then
+      ui_print "  [!] 系统应用载荷路径包含符号链接或非法路径，拒绝部署"
+      fx_system_app_note "ERROR: unsafe symlink/path in module payload: $_fx_path"
+      return 1
+    fi
+  done
 
   # 归档里既没有覆盖层也没有可选载荷：明确跳过，不制造空目录。
   if [ ! -s "$_fx_overlay_apk" ] && [ ! -s "$_fx_fallback" ]; then
@@ -192,22 +220,29 @@ fx_system_app_stage() {
       fx_system_app_note "ERROR: cannot create $_fx_overlay_dir"
       return 1
     }
-    _fx_tmp="$_fx_overlay_dir/.FX.apk.fxstage.$$"
+    _fx_tmp="$_fx_overlay_dir/.FX.apk.fxstage.$"
+    _fx_sum_tmp="$_fx_overlay_sum.tmp.$"
+    if ! fx_system_app_path_is_safe "$_fx_tmp" || ! fx_system_app_path_is_safe "$_fx_sum_tmp" ||
+       [ -e "$_fx_tmp" ] || [ -L "$_fx_tmp" ] || [ -e "$_fx_sum_tmp" ] || [ -L "$_fx_sum_tmp" ]; then
+      ui_print "  [!] 系统应用临时路径已存在或不安全，拒绝部署"
+      fx_system_app_note "ERROR: unsafe or pre-existing overlay staging path"
+      return 1
+    fi
     if ! cp "$_fx_fallback" "$_fx_tmp" 2>/dev/null; then
       rm -f "$_fx_tmp" 2>/dev/null
       ui_print "  [!] 复制系统应用载荷失败"
       fx_system_app_note "ERROR: cannot stage overlay payload"
       return 1
     fi
-    ( umask 022; printf '%s  FX.apk\n' "$_fx_fallback_digest" > "$_fx_overlay_sum.tmp.$$" ) 2>/dev/null || {
-      rm -f "$_fx_tmp" "$_fx_overlay_sum.tmp.$$" 2>/dev/null
+    ( umask 022; set -C; printf '%s  FX.apk\n' "$_fx_fallback_digest" > "$_fx_sum_tmp" ) 2>/dev/null || {
+      rm -f "$_fx_tmp" "$_fx_sum_tmp" 2>/dev/null
       ui_print "  [!] 写入覆盖层校验清单失败"
       fx_system_app_note "ERROR: cannot write overlay checksum sidecar"
       return 1
     }
     mv -f "$_fx_tmp" "$_fx_overlay_apk" 2>/dev/null &&
-      mv -f "$_fx_overlay_sum.tmp.$$" "$_fx_overlay_sum" 2>/dev/null || {
-        rm -f "$_fx_tmp" "$_fx_overlay_sum.tmp.$$" 2>/dev/null
+      mv -f "$_fx_sum_tmp" "$_fx_overlay_sum" 2>/dev/null || {
+        rm -f "$_fx_tmp" "$_fx_sum_tmp" 2>/dev/null
         ui_print "  [!] 覆盖层落盘失败"
         fx_system_app_note "ERROR: cannot commit staged overlay"
         return 1
