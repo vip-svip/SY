@@ -32,6 +32,8 @@ grep -Fq 'FxUiMode.write(MainActivity.this' "$activity"
 grep -Fq 'applyWebUiMode();' "$activity"
 grep -Fq 'FxNativeSkin.apply(this, pageContent);' "$host" || { echo "FAIL: imported native screens do not receive shared Skin tokens"; exit 1; }
 grep -Fq 'FxNativeSkin.apply(this, pageContent);' "$activity" || { echo "FAIL: MainActivity native pages do not receive shared Skin tokens"; exit 1; }
+grep -Fq 'pageContent.post(() -> {' "$activity" || { echo "FAIL: MainActivity Skin pass does not run after dynamic page construction"; exit 1; }
+grep -Fq 'pageContent.getParent() != null' "$activity" || { echo "FAIL: deferred Skin pass does not check that the page is still mounted"; exit 1; }
 for token in 'case HUAWEI_HARMONY_STYLE:' 'case IOS_CUPERTINO_STYLE:' '0xfff0f3f7' '0xff17212b' 'wallpaperActive ? 0x00000000'; do
   grep -Fq "$token" "$skin" || { echo "FAIL: shared native Skin adapter missing $token"; exit 1; }
 done
