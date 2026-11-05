@@ -4646,3 +4646,28 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 2. Apply shared SeekBar/Form renderer to other FX pages that expose sliders or native form widgets; do not create page-local color maps.
 3. Inspect Dia/Hook file, JSON, signature, Activity Browser and backup pages for remaining PopupWindow/custom Dialog paths, then add targeted regression assertions and run a bounded Host batch.
 
+## 2026-11-05 — 权威需求纠偏：默认模式、VPN 多实例、系统应用部署与容量边界
+
+本节是当前需求基线纠偏，不代表相应功能已实现。此前状态记录中“全局 Skin 由三种扩展为五种”“五种模式”等文字属于当时的历史进度；从本节起，产品目标统一为 **六种界面模式 = 独立默认模式 + 五种可切换皮肤**。不得再将液态玻璃称为默认模式。
+
+### 六种界面模式
+- 默认模式 `default`：FX 自有标准原生基础界面，首次安装默认选中，独立 renderer/tokens。
+- 五种皮肤：旧网页 `classic`、液态玻璃 `glass`、Miuix `miuix`、HarmonyStyle `huawei`、CupertinoStyle `ios`。
+- 首次安装默认 `default`；旧有效 ID 保留原映射；未知/损坏 ID 回退 `default`。
+- 六种模式全部覆盖六 Tab 和二级页面；换肤不得重启后台服务。当前实现状态仍须以源码、测试和本文件后续验证记录为准。
+
+### VPN 共存目标分层
+- 标准 Android 同一用户/配置文件通常只有一个活动 VpnService/VPN 接口；普通 APK 或仅有 KernelSU/Magisk 模块不能自动增加系统 VPN 槽。
+- 真正多个 Android 系统 VPN/VpnService 同时运行属于 ROM/AOSP Framework/厂商能力，需要 VPN 管理、ConnectivityService/netd、接口生命周期、per-UID 路由和系统 UI 等集成及设备验证。
+- FX KernelSU/Magisk 内核级代理应独立于 VpnService 槽，使用设备支持的 netfilter/TPROXY/policy routing/fwmark/UID 等路径，并与第三方 VPN 做真实路径兼容测试。
+- 两条路线分开报告，不能把 FX 内核代理与第三方 VPN 共存误报为 Android Framework 多 VPN 已实现。
+
+### 其它此前未完整写明的硬要求
+- 本地 DNS 是独立服务，有自己的生命周期、配置、开关、状态、缓存、日志和回退，不依赖代理节点或 FX VpnService。
+- 安装 KernelSU/Magisk 模块时自动部署 FX APK 为系统应用，优先 systemless overlay；系统应用/特权应用的签名、privapp allowlist、SELinux、升级、卸载和回滚必须分别处理。放入 system 分区不自动获得平台签名或所有特权权限。
+- 不人为设置 APK、模块、源码、功能、插件、规则、订阅、脚本或内核数量/体积上限；只处理真实设备资源和 Android/内核硬限制，采用分页、按需加载、模块化和缓存。
+- Safe Execution Boundaries 已纳入产品规格与正式接管提示词；高风险/不可逆设备操作须先确认，保护凭据和用户现有 VPN/DNS/路由。
+
+### 本次文档纠偏的安全边界
+- qufz 只保留公开源码研究、权限/数据流透明审计和官方用户控制说明；不迁入阻断反诈遥测、风险判定、告警、举报/求助或安全处置通信的 Hook 逻辑。
+- 本节是需求/文档纠偏，不代表六种模式、Framework 多 VPN、内核代理共存、系统应用部署或本地 DNS 已实现/通过设备测试。
