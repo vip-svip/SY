@@ -4798,6 +4798,7 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - `10279a4182e01d96960af03626ba45282672a386` — 修正新增 Host fixture 的 POSIX shell 参数展开。
   - `83fa0617fbe8c63e8644ffa6bc9d1abecb9aeda4` — 将 DNS 设置键放在 canonical settings 全局段，避免 fixture 误用列表段布局。
 - 已通过 GitHub API 回读验证源码和测试文件的新 blob SHA、独立 DNS 分支判断、三组引擎生命周期断言及测试 fixture。回读是静态核对，不等于测试执行。
+- 另在隔离 Host shell harness 中执行共享引擎停止策略的三种配置组合：两引擎均独立启用时不停止任何引擎、仅 AdGuard Home 启用时只停止 Unbound、仅 Unbound 启用时只停止 AdGuard Home，均 PASS。该 harness 只验证本次分支逻辑，不等于仓库完整 regression 脚本执行。
 - 自动 Host regression 由 `fx-targeted-regression.yml` 的 `fx-module/scripts/**` / `fx-module/scripts/tests/**` push 路径触发；本记录写入时尚未取得本批 run 的完成结果。Shell regression、Android Gradle 构建、设备 DNS 生命周期、第三方 VPN 共存和真机测试均未在本轮执行/验证。
 - 本批没有改动 Android VpnService 注册、第三方 VPN 路由或系统防火墙；未改变版本号，未生成 APK/KernelSU ZIP。
 - 下一批：读取本批 Host regression 结果；继续梳理独立 DNS 的开机启动/配置/停止路径与 Root Proxy 共享引擎所有权，补齐真实服务状态和回滚测试。
