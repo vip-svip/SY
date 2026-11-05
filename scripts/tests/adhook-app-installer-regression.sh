@@ -42,6 +42,8 @@ grep -Fq 'SUM_PATH="$APP_DIR/FX.apk.sha256"' "$POST_FS_DATA" || fail "post-fs-da
 grep -Fq 'sha256sum "$APK_PATH"' "$POST_FS_DATA" || fail "post-fs-data does not verify the mounted APK digest"
 grep -Fq 'DEPLOYMENT_MARKER="$STATE_DIR/system-app-apk.sha256"' "$POST_FS_DATA" || fail "post-fs-data does not reconcile the deployment marker"
 grep -Fq 'RETRY_MARKER="$STATE_DIR/system-app-retry"' "$POST_FS_DATA" || fail "post-fs-data does not preserve a retry marker on verification/label failures"
+grep -Fq 'mktemp "$RETRY_MARKER.tmp.XXXXXX"' "$POST_FS_DATA" || fail "retry marker must use an exclusive random temporary file"
+grep -Fq 'mktemp "$DEPLOYMENT_MARKER.tmp.XXXXXX"' "$POST_FS_DATA" || fail "deployment marker must use an exclusive random temporary file"
 grep -Fq 'deployment marker does not match the mounted overlay' "$POST_FS_DATA" || fail "post-fs-data does not reject stale deployment markers"
 grep -Fq 'rm -f "$RETRY_MARKER"' "$POST_FS_DATA" || fail "post-fs-data does not clear retry state after successful verification"
 grep -Fq '[ ! -L "$STATE_DIR" ] || exit 0' "$POST_FS_DATA" || fail "post-fs-data retry writer does not reject a symlinked state directory"
