@@ -22,9 +22,17 @@ fi
 new = '''elif [ -s "$PG/localdns-watchdog.pid" ]; then
   _wd_pid=$(cat "$PG/localdns-watchdog.pid" 2>/dev/null)
   case "$_wd_pid" in ''|*[!0-9]*|0|1) ;; *)
-    _wd_cmd=''
-    [ -r "/proc/$_wd_pid/cmdline" ] && _wd_cmd=$(tr '\\000' ' ' < "/proc/$_wd_pid/cmdline" 2>/dev/null)
-    case "$_wd_cmd" in
+    if [ -L "$PG/localdns-watchdog.pid" ]; then
+      PG_KEEP_DATA=1
+      _mitm_warn "local DNS watchdog PID record is a symlink; aborting uninstall before firewall cleanup and preserving $PG"
+      exit 1
+    elif ! kill -0 "$_wd_pid" 2>/dev/null; then
+      rm -f "$PG/localdns-watchdog.pid"
+      _mitm_warn "cleared stale local DNS watchdog PID record for exited PID $_wd_pid"
+    else
+      _wd_cmd=''
+      [ -r "/proc/$_wd_pid/cmdline" ] && _wd_cmd=$(tr '\\000' ' ' < "/proc/$_wd_pid/cmdline" 2>/dev/null)
+      case "$_wd_cmd" in
       *"$MODDIR/scripts/localdns-watchdog.sh"*)
         kill -TERM "$_wd_pid" 2>/dev/null || :
         _wd_wait=0
@@ -54,7 +62,8 @@ new = '''elif [ -s "$PG/localdns-watchdog.pid" ]; then
         fi
         ;;
       *) PG_KEEP_DATA=1; _mitm_warn "local DNS watchdog PID record exists but process identity cannot be confirmed; aborting uninstall before firewall cleanup and preserving $PG"; exit 1 ;;
-    esac
+      esac
+    fi
     ;;
   esac
 fi
