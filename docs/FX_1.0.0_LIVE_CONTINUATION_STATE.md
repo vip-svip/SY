@@ -6330,3 +6330,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - GitHub 回读验证：分支版本测试文件 blob SHA 为 `629bf7155e385a34eed320e24a1ab9e8ab6de2c5`；IPv6 TCP/UDP fixture 与 case 4e/4f 均存在。未能通过当前可用 GitHub Actions 读取接口获取 push-triggered run 结果；因此不宣称 CI/测试通过。当前环境也未执行本地 Shell 回归。
 - 未修改生产路由、DNS、iptables/nftables 或用户 VPN 状态；未运行 Android Gradle、APK/KernelSU 构建或真机测试。
 - 后续：读取本次 push 对应的 VPN Coexistence Arbiter Actions 结果；若失败按日志修复 fixture/实现，不放宽断言。继续补齐 IPv6/DNS 实际路由和真机第三方 VPN 数据面验证。
+
+
+## 2026-11-06 — 六种界面模式 renderer 独立性回归补强
+
+- 测试提交：`2cc548f56f955944e5d41f0747e8ddc025d11d18`。
+- 改动：`adhook/app/src/test/java/de/privacyguard/adhook/FxUiModeTest.kt` 在既有六模式稳定 ID / 顺序 / 默认 renderer 断言之外，新增六种模式必须映射到六个不同 Renderer 的断言，防止后续将某个皮肤错误复用为其他模式 renderer。
+- GitHub 回读：测试文件 blob `7dd74cec53405fbab129e45a6bdeeebbca49130f`，新增断言已确认存在。
+- 验证等级：仅完成 GitHub 写入与回读；本轮未运行 Gradle/JUnit、Android 构建、UI 自动化或真机测试。对新提交查询到的 workflow runs 为空，不报告 CI 通过。
+- VPN 共存裁决器文件在本轮读取后出现并发更新；对其写入收到 GitHub 409，未强制覆盖，已放弃对共享 VPN 文件的修改并以最新分支内容为准。
+- 下一批：补齐六模式跨页面 renderer 覆盖测试，并继续从最新 HEAD 检查 VPN/DNS 实际数据面状态与第三方 VPN 兼容性；设备级网络路径仍需真机证据。
