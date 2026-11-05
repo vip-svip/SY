@@ -66,6 +66,24 @@ for alert in ("0xff9b2c2c", "0xffa32620", "0xffa12d2d",
     assert alert not in replacement, f"alert/success color should not be remapped: {alert}"
 print("PASS: primary, secondary and accent text tokens map across all five skins while alert colors remain semantic.")
 PY
+
+python3 - "$skin" <<'PY'
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+start = source.index("private static void applyButtonSkin")
+end = source.index("private static boolean isSemanticActionBackground", start)
+button_skin = source[start:end]
+assert "isSemanticActionColor(button.getCurrentTextColor())" in button_skin
+assert "isSemanticActionBackground(button.getBackground())" in button_skin
+assert button_skin.index("isSemanticActionColor") < button_skin.index("BUTTON_SKINS")
+semantic = source[source.index("private static boolean isSemanticActionColor"):source.index("private static void applySwitchSkin")]
+for color in ("0xff9b2c2c", "0xffa32620", "0xffa12d2d",
+              "0xfffff6e8", "0xff7a4b13", "0xff79552b",
+              "0xff237347", "0xff24734a"):
+    assert color in semantic, f"semantic action color missing from preservation guard: {color}"
+print("PASS: semantic destructive/warning/success buttons bypass generic accent recoloring.")
+PY
 grep -Fq 'addOnGlobalLayoutListener' "$skin" || { echo "FAIL: dynamic native pages are not re-skinned after layout"; exit 1; }
 grep -Fq 'addOnAttachStateChangeListener' "$skin" || { echo "FAIL: Skin observer is not attached to the live page root"; exit 1; }
 grep -Fq 'removeOnGlobalLayoutListener(layoutListener)' "$skin" || { echo "FAIL: Skin observer is not removed when page detaches"; exit 1; }
