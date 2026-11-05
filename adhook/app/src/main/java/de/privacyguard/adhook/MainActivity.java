@@ -3139,52 +3139,66 @@ public final class MainActivity extends ComponentActivity {
                     + "\nRemote Files：" + publishState.getString("remote_path", "未知")
                     + "\n此记录只证明文件写入与哈希校验成功，不证明 LSPosed 作用域、热加载或目标进程注入状态。");
         }
-        content.addView(publishStatus);
+        LinearLayout publishGroup = new LinearLayout(this);
+        publishGroup.setOrientation(LinearLayout.VERTICAL);
+        publishGroup.addView(publishStatus);
+        addNativeActionGroup(publishGroup);
         section("LSPosed Remote Files 实时状态");
         TextView remoteStatus = new TextView(this);
         remoteStatus.setText("正在读取设备端 Remote Files 状态…");
         remoteStatus.setPadding(dp(18), dp(10), dp(18), dp(12));
         hookHubRemoteStatus = remoteStatus;
-        content.addView(remoteStatus);
+        LinearLayout remoteGroup = new LinearLayout(this);
+        remoteGroup.setOrientation(LinearLayout.VERTICAL);
+        remoteGroup.addView(remoteStatus);
         Button refreshRemote = new Button(this);
         refreshRemote.setText("刷新 Remote Files 状态");
         refreshRemote.setOnClickListener(v -> refreshHookRemoteStatus(remoteStatus));
-        content.addView(refreshRemote);
+        remoteGroup.addView(refreshRemote);
+        addNativeActionGroup(remoteGroup);
         refreshHookRemoteStatus(remoteStatus);
         section("KernelSU / Root");
         TextView rootState = new TextView(this);
         rootState.setText("正在检查 Root 授权与 FX 模块状态…");
         rootState.setPadding(dp(18), dp(12), dp(18), dp(12));
         hookHubRootState = rootState;
-        content.addView(rootState);
+        LinearLayout rootGroup = new LinearLayout(this);
+        rootGroup.setOrientation(LinearLayout.VERTICAL);
+        rootGroup.addView(rootState);
         Button refreshRoot = new Button(this);
         refreshRoot.setText("刷新 Root 状态");
         refreshRoot.setOnClickListener(v -> checkRoot(rootState, false));
-        content.addView(refreshRoot);
+        rootGroup.addView(refreshRoot);
         Button requestRoot = new Button(this);
         requestRoot.setText("申请 / 重新检查 Root 权限");
         requestRoot.setOnClickListener(v -> checkRoot(rootState, true));
-        content.addView(requestRoot);
+        rootGroup.addView(requestRoot);
+        addNativeActionGroup(rootGroup);
         checkRoot(rootState, false);
         section("LSPosed");
         TextView ls = new TextView(this);
         ls.setPadding(dp(18), dp(12), dp(18), dp(12));
         hookHubLsposedState = ls;
-        content.addView(ls);
+        LinearLayout lsposedGroup = new LinearLayout(this);
+        lsposedGroup.setOrientation(LinearLayout.VERTICAL);
+        lsposedGroup.addView(ls);
         refreshHookHubLsposedStatus(ls);
         Button manager = new Button(this);
         manager.setText("打开 LSPosed Manager");
         manager.setOnClickListener(v -> openLsposedManager());
-        content.addView(manager);
+        lsposedGroup.addView(manager);
         Button targets = new Button(this);
         targets.setText("应用 Hook 配置");
         targets.setOnClickListener(v -> showAppList());
-        content.addView(targets);
+        lsposedGroup.addView(targets);
+        addNativeActionGroup(lsposedGroup);
         section("Android 无障碍");
         TextView accessibility = new TextView(this);
         accessibility.setPadding(dp(18), dp(12), dp(18), dp(12));
         hookHubAccessibilityState = accessibility;
-        content.addView(accessibility);
+        LinearLayout accessibilityGroup = new LinearLayout(this);
+        accessibilityGroup.setOrientation(LinearLayout.VERTICAL);
+        accessibilityGroup.addView(accessibility);
         refreshHookHubAccessibilityStatus(accessibility);
         Button settings = new Button(this);
         settings.setText("打开无障碍设置");
@@ -3192,15 +3206,16 @@ public final class MainActivity extends ComponentActivity {
             try { startActivity(new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)); }
             catch (Exception e) { Toast.makeText(this, "无法打开系统无障碍设置", Toast.LENGTH_LONG).show(); }
         });
-        content.addView(settings);
+        accessibilityGroup.addView(settings);
         Button status = new Button(this);
         status.setText("刷新 Root / LSPosed / 无障碍状态");
         status.setOnClickListener(v -> refreshHookHubAuthorizationStates());
-        content.addView(status);
+        accessibilityGroup.addView(status);
         Button back = new Button(this);
         back.setText("返回 FX 控制中心");
         back.setOnClickListener(v -> showWebDashboard());
-        content.addView(back);
+        accessibilityGroup.addView(back);
+        addNativeActionGroup(accessibilityGroup);
     }
 
     private void refreshHookHubAuthorizationStates() {
@@ -4629,13 +4644,17 @@ public final class MainActivity extends ComponentActivity {
         Button home = new Button(this); home.setText("Hook 授权中心与高级工具"); home.setOnClickListener(v -> showHookHub()); content.addView(home);
         search = new EditText(this); search.setSingleLine(true); search.setHint("搜索应用名称或包名");
         search.setPadding(dp(16), dp(10), dp(16), dp(10));
+        search.setBackground(uiPanelDrawable());
         search.setText(hookAppListQuery);
         content.addView(search, new LinearLayout.LayoutParams(-1, -2));
         TextView hint = new TextView(this); hint.setText("点击应用进入独立 Hook 配置"); hint.setTextColor(0xff66727e);
-        hint.setPadding(dp(18), dp(8), dp(18), dp(8)); content.addView(hint);
+        hint.setPadding(dp(18), dp(8), dp(18), dp(8));
+        hint.setBackground(uiPanelDrawable());
+        content.addView(hint);
         TextView loading = new TextView(this);
         loading.setText("正在后台读取已安装应用…");
         loading.setPadding(dp(18), dp(20), dp(18), dp(20));
+        loading.setBackground(uiPanelDrawable());
         content.addView(loading);
         appsLoaded = false;
         search.addTextChangedListener(new TextWatcher() {
