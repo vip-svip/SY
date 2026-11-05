@@ -9,11 +9,30 @@ public final class ExifPrivacyPolicy {
 
     public static double altitudeFallback(double defaultValue) { return defaultValue; }
 
+    /** GPS tag family used by both string and numeric ExifInterface accessors. */
+    public static boolean isGpsTag(String tag) {
+        return tag != null && tag.startsWith("GPS");
+    }
+
     public static boolean shouldRedactTag(String tag) {
         if (tag == null || tag.isEmpty()) return false;
-        return tag.startsWith("GPS")
+        return isGpsTag(tag)
                 || "Make".equals(tag)
                 || "Model".equals(tag)
-                || tag.startsWith("DateTime");
+                || tag.startsWith("DateTime")
+                || tag.startsWith("OffsetTime")
+                || tag.startsWith("SubSecTime")
+                || "BodySerialNumber".equals(tag)
+                || "LensSerialNumber".equals(tag)
+                || "CameraOwnerName".equals(tag)
+                || "ImageUniqueID".equals(tag)
+                || "Artist".equals(tag)
+                || "Copyright".equals(tag)
+                || "Software".equals(tag)
+                || "XPAuthor".equals(tag)
+                || "XPComment".equals(tag)
+                || "XPKeywords".equals(tag)
+                || "XPSubject".equals(tag)
+                || "XPTitle".equals(tag);
     }
 }
