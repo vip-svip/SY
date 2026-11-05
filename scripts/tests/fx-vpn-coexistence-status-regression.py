@@ -137,7 +137,7 @@ def main() -> int:
             check(d["dataplane"] == "kernel", "dataplane kernel")
             check(d["vpn_service_slot_used"] is False, "VPN slot not held")
 
-        print("== case 2: external VPN with uid -> full_parallel ==")
+        print("== case 2: external VPN with uid -> partial (route unverified) ==")
         st = tmp / "s2"
         r = run_writer(pub, tmp, module, st, {"FAKE_EXT_IF": "tun0", "FAKE_EXT_UID": "10123"})
         check(r.returncode == 0, "writer exit 0")
