@@ -111,7 +111,11 @@ fi
 '''
         firewall_anchor = 'if [ -f "$MODDIR/scripts/yulong-app-firewall.sh" ]; then'
         if firewall_anchor not in source:
-            raise SystemExit("local DNS watchdog fallback anchor changed and no safe pre-firewall insertion point exists")
+            # Published uninstall variants may inline firewall teardown. The
+            # FWWAIT initialization is the first shared entry into that block.
+            firewall_anchor = 'FWWAIT=""'
+        if source.count(firewall_anchor) != 1:
+            raise SystemExit("local DNS watchdog fallback anchor changed and no unique pre-firewall insertion point exists")
         source = source.replace(firewall_anchor, guard + "\\n" + firewall_anchor, 1)
 else:
     if source.count(old) != 1:
