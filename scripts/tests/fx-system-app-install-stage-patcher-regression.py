@@ -1,0 +1,52 @@
+#!/usr/bin/env python3
+"""Regression coverage for the install-time system-app deployment patch."""
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+
+ROOT = Path(__file__).resolve().parents[2]
+PATCHER = ROOT / "fx-patches/patch_system_app_install_stage.py"
+BEGIN = "# >>> fx-system-app-install-stage"
+END = "# <<< fx-system-app-install-stage"
+
+with tempfile.TemporaryDirectory(prefix="fx-system-app-stage-") as tmp:
+    module = Path(tmp)
+    customize = module / "customize.sh"
+    customize.write_text(
+        "#!/system/bin/sh\n"
+        'set_perm_recursive "$MODPATH/webroot" 0 0 0755 0644\n'
+        'ui_print "continue install"\n'
+    )
+
+    for _ in range(2):
+        subprocess.run([sys.executable, str(PATCHER), str(module)], check=True)
+
+    patched = customize.read_text()
+    assert patched.count(BEGIN) == 1
+    assert patched.count(END) == 1
+    for required in (
+        'fx_system_app_stage() {',
+        'fx_system_app_digest "$_fx_overlay_apk"',
+        'overlay checksum sidecar missing; deployment refused',
+        'overlay digest mismatch',
+        'system/app/FX/FX.apk',
+        'optional/FXUnifiedHook.apk',
+        'fx_system_app_retry',
+        'u:object_r:system_file:s0',
+        'FX is not a privileged app',
+    ):
+        assert required in patched, f"missing system-app stage contract: {required}"
+    subprocess.run(["sh", "-n", str(customize)], check=True)
+
+    broken = module / "broken"
+    broken.mkdir()
+    (broken / "customize.sh").write_text("#!/system/bin/sh\necho no anchor\n")
+    failed = subprocess.run(
+        [sys.executable, str(PATCHER), str(broken)],
+        text=True, capture_output=True
+    )
+    assert failed.returncode != 0, "patcher must reject a missing insertion anchor"
+    assert "permission anchor changed" in failed.stderr
+
+print("PASS: system-app install patch is idempotent, checksum-gated, retry-aware, non-privileged, and shell-valid.")
