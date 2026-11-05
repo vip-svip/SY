@@ -6381,3 +6381,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 修正：在 `.github/workflows/fx-targeted-regression.yml` 增加路径匹配，修改 `scripts/fx-vpn-coexistence-arbiter.sh` 或对应 regression 脚本时自动执行该回归。
 - GitHub 回读确认 workflow blob `817295b66beacfbb5b3e127bd77992cca477ebbb`，执行命令存在。
 - CI 实际运行结果尚未通过可用工具查询；不能宣称测试通过。
+
+
+## 2026-11-06 — FX Hook 系统应用启动时序回归
+
+- 测试提交：`fe0b03f3b4bf8ff75b516a1faee755b70c8c65ac`，更新 `scripts/tests/adhook-app-installer-regression.sh`。
+- 新增时序契约：KernelSU systemless `/system/app/FX` overlay 必须在启动早期由 post-fs-data 校验/恢复 SELinux 标签；Hook 的 PackageManager 检查/安装入口必须位于 `sys.boot_completed=1` 等待之后，避免与 Android 首轮系统应用扫描竞争。
+- 回归还断言 post-fs-data 不直接执行 `pm install` / `pm path`，将 overlay 标签处理与 PackageManager 阶段隔离。
+- GitHub 回读：新 Python 顺序断言和 post-fs-data 断言已确认进入分支。尚未执行该 Shell 回归或 Python 子断言；相关 Actions 结果未确认。没有声称系统应用真机部署通过。
