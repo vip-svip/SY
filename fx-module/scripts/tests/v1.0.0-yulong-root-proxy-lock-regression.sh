@@ -169,7 +169,7 @@ wait "$p2" || { rc=$?; cat "$TMP/concurrent-a.log" "$TMP/concurrent-b.log" >&2; 
 # Stopping the external-VPN DNS fallback must not stop independently enabled
 # local-DNS engines that share the same AdGuard Home / Unbound daemons.
 : > "$TMP/engine-actions"
-printf '[list:yulong_root_proxy_whitelist]\ndns_engine_adguardhome=1\ndns_forward=1\n' > "$PG/settings.conf"
+printf 'dns_engine_adguardhome=1\ndns_forward=1\n[list:yulong_root_proxy_whitelist]\n' > "$PG/settings.conf"
 sh "$SOURCE" stop >/dev/null
 [ ! -s "$TMP/engine-actions" ] || {
   echo "FAIL: Root Proxy stop terminated independently enabled local-DNS engines" >&2
@@ -179,7 +179,7 @@ sh "$SOURCE" stop >/dev/null
 
 # Each disabled standalone engine may be stopped without affecting the other.
 : > "$TMP/engine-actions"
-printf 'dns_engine_adguardhome=1\ndns_forward=0\n' > "$PG/settings.conf"
+printf 'dns_engine_adguardhome=1\ndns_forward=0\n[list:yulong_root_proxy_whitelist]\n' > "$PG/settings.conf"
 sh "$SOURCE" stop >/dev/null
 printf 'unbound.sh:stop\n' > "$TMP/engine-actions.expected"
 cmp -s "$TMP/engine-actions.expected" "$TMP/engine-actions" || {
@@ -188,7 +188,7 @@ cmp -s "$TMP/engine-actions.expected" "$TMP/engine-actions" || {
   exit 1
 }
 : > "$TMP/engine-actions"
-printf 'dns_engine_adguardhome=0\ndns_forward=1\n' > "$PG/settings.conf"
+printf 'dns_engine_adguardhome=0\ndns_forward=1\n[list:yulong_root_proxy_whitelist]\n' > "$PG/settings.conf"
 sh "$SOURCE" stop >/dev/null
 printf 'adguardhome.sh:stop\n' > "$TMP/engine-actions.expected"
 cmp -s "$TMP/engine-actions.expected" "$TMP/engine-actions" || {
