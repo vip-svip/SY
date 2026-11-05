@@ -5239,3 +5239,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 新增回归断言覆盖分页控件连线、仅渲染当前页、搜索复位及页面状态恢复。
 - 本批验证：源码锚点与差异检查已在提交前执行；GitHub Actions 将在推送后运行定向 Host Regression。当前执行环境无法 DNS 解析 github.com，未能进行本地 Gradle/Android 构建；未进行设备测试。
 - 下一批：将脚本库的完整数据加载与 SAF 导入/导出改为面向大数据集的文件/数据库流式路径，避免分页仅减少 View 数量而仍需将整个 JSON/脚本集合常驻内存。
+
+
+## 2026-11-06 — Root Proxy activation-time tunnel address drift regression
+
+- 基线 HEAD：`3c67945f9b15fcf67f3dc1ca7bfa828ce7bec4a7`；本批为 Root Proxy 运行时回归补充，不改动生产路由规则。
+- 扩展 `scripts/tests/fx-yulong-root-proxy-runtime-regression.sh`：模拟 VPN 隧道在 DNS 引擎启动和 DNS 重定向激活期间将 IPv4 地址从 `10.23.4.5` 切换到 `10.23.4.6`，并断言 post-activation egress revalidation 拒绝提交活动状态、执行 fail-open 回滚。
+- 保留原有 route-recheck 场景，新增 address-recheck 场景，验证地址漂移和路由漂移两种独立故障。
+- 验证等级：待本批 GitHub Actions Host Regression 与 FX Module Runtime Regression 运行；尚未进行 Android 真机 VPN 切换测试。
+- 下一批：继续检查 FX Root Proxy 的接口/地址重绑定及 Unbound 生命周期竞态；不将该 Root Proxy DNS 兼容路径等同于 FX 内核 VPN 数据面。

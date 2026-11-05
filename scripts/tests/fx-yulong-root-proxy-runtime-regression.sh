@@ -45,7 +45,16 @@ cat > "$BIN/ip" <<'IP'
 #!/bin/sh
 case "$*" in
   "-o link show dev tun0") echo '7: tun0: <POINTOPOINT,UP,LOWER_UP> mtu 1500' ;;
-  "-o -4 addr show dev tun0 scope global") echo '7: tun0 inet 10.23.4.5/32 scope global tun0' ;;
+  "-o -4 addr show dev tun0 scope global")
+    addr_count=0
+    [ ! -r "$MOCK_ADDR_COUNT" ] || addr_count=$(cat "$MOCK_ADDR_COUNT")
+    addr_count=$((addr_count+1)); printf '%s\\n' "$addr_count" > "$MOCK_ADDR_COUNT"
+    if [ "${MOCK_ADDR_CHANGE_RECHECK:-0}" = 1 ] && [ "$addr_count" -gt 2 ]; then
+      echo '7: tun0 inet 10.23.4.6/32 scope global tun0'
+    else
+      echo '7: tun0 inet 10.23.4.5/32 scope global tun0'
+    fi ;;
+  "route get 198.41.0.4 from 10.23.4.6") echo '198.41.0.4 from 10.23.4.6 dev tun0 src 10.23.4.6 uid 0' ;;
   "route get 198.41.0.4 from 10.23.4.5")
     route_count=0
     [ ! -r "$MOCK_ROUTE_COUNT" ] || route_count=$(cat "$MOCK_ROUTE_COUNT")
@@ -55,6 +64,7 @@ case "$*" in
     fi
     [ "${MOCK_ROUTE_FAIL:-0}" = 1 ] && { echo '198.41.0.4 from 10.23.4.5 dev wlan0'; exit 0; }
     echo '198.41.0.4 from 10.23.4.5 dev tun0 src 10.23.4.5 uid 0' ;;
+  "route get 199.9.14.201 from 10.23.4.6") echo '199.9.14.201 from 10.23.4.6 dev tun0 src 10.23.4.6 uid 0' ;;
   "route get 199.9.14.201 from 10.23.4.5")
     route_count=0
     [ ! -r "$MOCK_ROUTE_COUNT" ] || route_count=$(cat "$MOCK_ROUTE_COUNT")
@@ -165,19 +175,19 @@ run_proxy(){
   CASE_DIR=$1; shift
   env MP="$MOD" PG="$CASE_DIR/state" CONF="$CASE_DIR/state/settings.conf" PATH="$BIN:$PATH" \
     MOCK_RULE_LOG="$CASE_DIR/rules.log" MOCK_HOOKS4="$CASE_DIR/hooks4" MOCK_HOOKS6="$CASE_DIR/hooks6" \
-    MOCK_ROUTE_COUNT="$CASE_DIR/route-count" MOCK_ENGINE_LOG="$CASE_DIR/engines.log" \
+    MOCK_ROUTE_COUNT="$CASE_DIR/route-count" MOCK_ADDR_COUNT="$CASE_DIR/addr-count" MOCK_ENGINE_LOG="$CASE_DIR/engines.log" \
     "$@" sh "$MOD/scripts/yulong-root-proxy.sh" ensure "$MOD" "$CASE_DIR/state" tun0 10042
 }
 run_status(){
   CASE_DIR=$1; shift
   env MP="$MOD" PG="$CASE_DIR/state" CONF="$CASE_DIR/state/settings.conf" PATH="$BIN:$PATH" \
     MOCK_RULE_LOG="$CASE_DIR/rules.log" MOCK_HOOKS4="$CASE_DIR/hooks4" MOCK_HOOKS6="$CASE_DIR/hooks6" \
-    MOCK_ROUTE_COUNT="$CASE_DIR/route-count" MOCK_ENGINE_LOG="$CASE_DIR/engines.log" \
+    MOCK_ROUTE_COUNT="$CASE_DIR/route-count" MOCK_ADDR_COUNT="$CASE_DIR/addr-count" MOCK_ENGINE_LOG="$CASE_DIR/engines.log" \
     "$@" sh "$MOD/scripts/yulong-root-proxy.sh" status
 }
 run_stop(){
   CASE_DIR=$1; shift
-  env MP="$MOD" PG="$CASE_DIR/state" CONF="$CASE_DIR/state/settings.conf" PATH="$BIN:$PATH" MOCK_RULE_LOG="$CASE_DIR/rules.log" MOCK_HOOKS4="$CASE_DIR/hooks4" MOCK_HOOKS6="$CASE_DIR/hooks6" MOCK_ROUTE_COUNT="$CASE_DIR/route-count" MOCK_ENGINE_LOG="$CASE_DIR/engines.log" "$@" sh "$MOD/scripts/yulong-root-proxy.sh" stop "$MOD" "$CASE_DIR/state"
+  env MP="$MOD" PG="$CASE_DIR/state" CONF="$CASE_DIR/state/settings.conf" PATH="$BIN:$PATH" MOCK_RULE_LOG="$CASE_DIR/rules.log" MOCK_HOOKS4="$CASE_DIR/hooks4" MOCK_HOOKS6="$CASE_DIR/hooks6" MOCK_ROUTE_COUNT="$CASE_DIR/route-count" MOCK_ADDR_COUNT="$CASE_DIR/addr-count" MOCK_ENGINE_LOG="$CASE_DIR/engines.log" "$@" sh "$MOD/scripts/yulong-root-proxy.sh" stop "$MOD" "$CASE_DIR/state"
 }
 assert_stopped(){
   case_dir=$1
@@ -326,7 +336,7 @@ status_out=$(run_status "$CASE_DIR")
 printf '%s\n' "$status_out" | grep -Fqx reason=not_active || fail "orphan hook state was not reported inactive"
 assert_stopped "$CASE_DIR" "status orphan hooks"
 
-for scenario in route route2 package-manager unbound adguard probe route-recheck; do
+for scenario in route route2 package-manager unbound adguard probe route-recheck address-recheck; do
   prepare_case "$scenario"
   case "$scenario" in
     route) if run_proxy "$CASE_DIR" MOCK_ROUTE_FAIL=1 >/dev/null 2>&1; then fail "wrong tunnel route accepted"; fi ;;
@@ -344,6 +354,12 @@ for scenario in route route2 package-manager unbound adguard probe route-recheck
         fail "VPN egress change during DNS engine startup was accepted"
       fi
       [ "$(cat "$CASE_DIR/route-count")" -gt 2 ] || fail "second route proof was not reached"
+      ;;
+    address-recheck)
+      if run_proxy "$CASE_DIR" MOCK_ADDR_CHANGE_RECHECK=1 >/dev/null 2>&1; then
+        fail "VPN tunnel address change during DNS startup was accepted"
+      fi
+      [ "$(cat "$CASE_DIR/addr-count")" -gt 2 ] || fail "post-activation tunnel address proof was not reached"
       ;;
   esac
   assert_stopped "$CASE_DIR" "$scenario fail-open"
