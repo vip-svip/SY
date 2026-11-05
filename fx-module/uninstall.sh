@@ -1,7 +1,7 @@
 #!/system/bin/sh
 # KernelSU uninstall hook: remove only Hook APKs explicitly owned by FX.
 MODDIR=${MODDIR:-$(CDPATH= cd -- "$(dirname "$0")" 2>/dev/null && pwd)}
-STATE_DIR=/data/adb/privacyguard
+STATE_DIR=${PG:-/data/adb/privacyguard}
 _mitm_warn() {
   _msg="PrivacyGuard uninstall warning: $*"
   echo "$_msg" >&2
@@ -20,6 +20,21 @@ elif [ -s "$_FX_SCHEDULER_STATE_DIR/jsruntime/scheduler.pid" ]; then
 fi
 unset _FX_SCHEDULER_STATE_DIR
 # FX_QUICKJS_SCHEDULER_STOP_END
+# Retire FX-owned Root Proxy redirects before any firewall teardown. The helper
+# owns only FXYRP chains and preserves independently enabled DNS engines.
+# If its cleanup cannot be confirmed, keep module state and abort uninstall.
+if [ -f "$MODDIR/scripts/yulong-root-proxy.sh" ]; then
+  if ! MP="$MODDIR" PG="$STATE_DIR" CONF="$STATE_DIR/settings.conf" \
+      sh "$MODDIR/scripts/yulong-root-proxy.sh" uninstall >> "$STATE_DIR/yulong-root-proxy.log" 2>&1; then
+    _mitm_warn "Root Proxy cleanup was not confirmed; preserving state and aborting uninstall"
+    exit 1
+  fi
+elif [ -e "$STATE_DIR/yulong-root-proxy-active" ] || \
+     [ -e "$STATE_DIR/yulong-root-proxy-active.meta" ] || \
+     [ -e "$STATE_DIR/unbound-vpn-egress-ip" ]; then
+  _mitm_warn "Root Proxy state exists but its cleanup helper is missing; preserving state and aborting uninstall"
+  exit 1
+fi
 # Stop Yulong ad schedule before uninstall; never re-apply ad rules during removal.
 if [ -x "$MODDIR/scripts/yulong-ad-schedule.sh" ]; then
   if ! sh "$MODDIR/scripts/yulong-ad-schedule.sh" stop "$MODDIR" "$STATE_DIR" uninstall >> "$STATE_DIR/yulong-ad-schedule.log" 2>&1; then
