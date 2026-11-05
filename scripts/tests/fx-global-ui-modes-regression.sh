@@ -12,7 +12,8 @@ harmony_tokens="$root/adhook/app/src/main/java/de/privacyguard/adhook/HarmonySki
 cupertino_tokens="$root/adhook/app/src/main/java/de/privacyguard/adhook/CupertinoSkinTokens.java"
 harmony_renderer="$root/adhook/app/src/main/java/de/privacyguard/adhook/HarmonySkinRenderer.java"
 cupertino_renderer="$root/adhook/app/src/main/java/de/privacyguard/adhook/CupertinoSkinRenderer.java"
-for f in "$mode" "$panel" "$shell" "$tokens" "$activity" "$host" "$skin" "$harmony_tokens" "$cupertino_tokens" "$harmony_renderer" "$cupertino_renderer"; do
+native_skin_test="$root/adhook/app/src/test/java/de/privacyguard/adhook/FxNativeSkinPaletteTest.kt"
+for f in "$mode" "$panel" "$shell" "$tokens" "$activity" "$host" "$skin" "$harmony_tokens" "$cupertino_tokens" "$harmony_renderer" "$cupertino_renderer" "$native_skin_test"; do
   test -s "$f" || { echo "FAIL: missing UI mode source $f"; exit 1; }
 done
 for token in CLASSIC_WEB_COMPAT FX_LIQUID_NATIVE MIUIX_STYLE HUAWEI_HARMONY_STYLE IOS_CUPERTINO_STYLE classic glass miuix huawei ios; do
@@ -45,6 +46,9 @@ grep -Fq 'NAV_BAR_RADIUS_DP = 18' "$harmony_tokens" || { echo "FAIL: Harmony nav
 grep -Fq 'NAV_HEIGHT_DP = 72' "$harmony_tokens" || { echo "FAIL: Harmony tab-bar height token missing"; exit 1; }
 grep -Fq 'NAV_BAR_RADIUS_DP = 24' "$cupertino_tokens" || { echo "FAIL: Cupertino navigation geometry token missing"; exit 1; }
 grep -Fq 'NAV_HEIGHT_DP = 76' "$cupertino_tokens" || { echo "FAIL: Cupertino tab-bar height token missing"; exit 1; }
+grep -Fq 'harmonyRendererUsesItsOwnCardActionAndFormTokens' "$native_skin_test" || { echo "FAIL: Harmony palette unit test missing"; exit 1; }
+grep -Fq 'cupertinoRendererUsesItsOwnCardActionAndFormTokens' "$native_skin_test" || { echo "FAIL: Cupertino palette unit test missing"; exit 1; }
+grep -Fq 'harmonyAndCupertinoGeometryAndInputsRemainDistinct' "$native_skin_test" || { echo "FAIL: cross-Skin distinction unit test missing"; exit 1; }
 grep -Fq 'HarmonyShapeTokens.CARD_RADIUS_DP' "$harmony_renderer" || { echo "FAIL: Harmony native card renderer must use its dedicated card radius"; exit 1; }
 grep -Fq 'CupertinoShapeTokens.CARD_RADIUS_DP' "$cupertino_renderer" || { echo "FAIL: Cupertino native card renderer must use its dedicated card radius"; exit 1; }
 grep -Fq 'p.cardCornerRadiusDp - 4) * density' "$skin" || { echo "FAIL: native neutral cards must use card radius rather than action radius"; exit 1; }
