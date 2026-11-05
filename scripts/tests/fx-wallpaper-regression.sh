@@ -43,6 +43,9 @@ mount_start = activity.index("private void mountNativeShell(View pageContent)")
 mount_end = activity.index("private void handleNativeTabSelection(", mount_start)
 assert "FxNativeSkin.watch(this, pageContent);" in activity[mount_start:mount_end]
 assert "addOnGlobalLayoutListener" in skin
+assert "addOnAttachStateChangeListener" in skin
+assert "removeOnGlobalLayoutListener(layoutListener)" in skin
+assert "activity.isDestroyed()" in skin
 assert "pageContent.post(() -> {" in activity[mount_start:mount_end]
 assert "pageContent.getParent() != null" in activity[mount_start:mount_end]
 assert 'wallpaperActive ? 0x00000000 : palette.background' in skin
