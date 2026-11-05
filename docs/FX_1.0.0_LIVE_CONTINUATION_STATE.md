@@ -3771,3 +3771,41 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 验证：GitHub Actions FX Targeted Host Regression Run 41980484108（commit 19197a4eaedd1dbb81737a53fcb03b7dcafc1304）已完成，job host-regressions = success；日志中 fx-unified-navigation-regression.sh 明确输出 PASS。此 Run 针对导航回归脚本变更，只能证明该导航检查通过，不代表 Android APK 已编译或真机验收。
 - 较早 Run 41980356221 的失败已定位并修复；Run 41980429861 在旧提交上另有一项不相关的 VPN API Host 检查因未恢复 Release WebUI 资源而失败，不能视作当前 19197a4 的结果。应继续修正 targeted workflow：仅当 canonical WebUI 资源已从 Release 解包就绪时才执行依赖该资源的 Host 检查，否则明确 SKIP，并由完整 build workflow 在 staging 后验证。
 - 当前继续开发重点：五种 Skin 在所有页面控件中的细节一致性、Wallpaper 在 ClassicWebCompat 下的完整背景透出、Ad/DNS/Firewall/App stats 等旧功能的逐项业务整合。尚未完成 Gradle 编译、安装运行或真机视觉验收。
+
+
+## 2026-11-05 — Ad/VPN/Privacy 页面归属继续落实
+
+### Ad 入口与来源身份清理
+- `MainActivity.buildNativeHostsPage()`（第二 Tab 的可见名称固定为 Ad）：
+  - 删除主 Ad 页说明中的来源应用品牌文案，改为 FX Ad 统一管理说明。
+  - 新增 DNS 查询日志、分应用流量统计直达入口。
+  - 已存在的广告过滤控制中心、通用设置/备份、每日摘要、防火墙、应用白名单入口继续保留。
+- Ad 原生子页面统一名称/返回：应用统计、应用白名单、DNS 查询日志、防火墙均显示 Ad 内部页面名、返回 Ad、selected index=1；DNS 日志里的返回说明也改为 Ad 路径。
+- Hook JSON 操作页示例、剪贴板和导出文件名使用 FX Hook JSON，不再显示 FX Dia JSON。
+- 回归脚本 `fx-unified-navigation-regression.sh` 现在校验 Ad 主页直达页面、无来源插件品牌、DNS/App Stats 子页的 Ad 标题与返回索引，以及 Hook JSON 的归属。
+
+### VPN 分应用路由整合
+- 原有 `showImportedVpnAppManager()` 是真实可运行的分应用 VPN 配置编辑器，但此前被旧来源 Ad“应用管理”流程隐藏，且错误使用 Settings selected index=5。
+- 已在 VPN 首页“应用分流”分组增加“管理分应用 VPN 路由”入口。
+- 子页标题改为 `VPN · 分应用路由`，selected index=0，返回按钮为“返回 VPN 控制中心”，不再回到旧 Ad/迁移应用页面。
+- 新增 Activity 状态保存/恢复键 `fx_native_vpn_app_manager_visible`；系统 Back 回到 VPN 控制中心，底部切换其他 Tab 会退出此子页。
+- 该路由名单仍与 Ad 防火墙名单、Hook 目标作用域分离；没有启动第二个 VpnService，继续使用 FX 唯一 VPN/TUN 路径。
+
+### Privacy 子页面命名
+- 每日安全总结、救援中心的页内返回按钮统一为“返回隐私首页”/“返回隐私防护中心”；安全中心悬浮救援入口说明改为“返回隐私防护中心”。
+- 对应 Shield regression 同步断言 UI 文案。旧测试曾因来源页文案更名未同步而失败，已更新检查文本。
+
+### 相关提交
+- Ad 主页直达 DNS/统计并清理来源说明：`4a93ff5603dc283d091c07d89ece919dc4c83ba2`
+- Ad 主页导航回归：`2d911d32f8431382e6b31c6c60d548dc51dd26ae`
+- Ad 子页来源标题/返回：`f8ba07c3fa03dc39c25dac99ed827d85881c4473`、`dd7608a24d57188f8f01f732981008aedb7b4557`、`8df7b605c688f9bf4e24abe3323a10d555c28047`、`05f5fbc1af2b0f103e0365f922e93f6690b61661`
+- DNS 说明文案：`7710350a4f866ea44ae1b70e0102204f3f9cbd76`
+- Hook JSON 示例：`29e4712b1738989ad7d7d09531bb08e9326ac59f`；回归覆盖：`c71201bb1f1f7d26333e1310e26af46066840061`、`3551883e15763474c9145100b990889d4cecfbf8`
+- VPN 分应用路由入口/子页状态：`0cfc5136aee3492196e15096cd4080e129cd58c8`；路由归属回归：`7793cb666281bf6d7119359eafeefd389b34de50`
+- Privacy 返回标签：`b51c1f69a5e0e30bce1b1053b62fdcb6e505e767`、`458ca94e9ef4ca8530354fd4cb9bc5cfb7c289a1`、`5a9540a3c613338018b58f64ac507039e3fb35e9`；回归：`995b185986b7a217ab58e7c2fe724d6ab6773405`、`1d4cf8cca47d09cd5071ddd315638e1b2146d6f4`
+
+### 验证状态
+- Targeted Host 成功记录：run `41980599330`，HEAD `7793cb666281bf6d7119359eafeefd389b34de50`，日志明确显示 `fx-unified-navigation-regression.sh` PASS。该 run 验证了当时已提交的六 Tab、Ad/Hook/Script/Settings 页面归属和 VPN 分应用路由断言。
+- 之后 Privacy 返回文案和对应回归断言又有提交；当前 branch HEAD 需要等待最新 Targeted Host run 完成后再更新本节的最新验证结论。
+- 曾观察到的失败已按具体原因处理：Rescue footer 标签断言未同步、FxNativeSkin 变更缺少 Targeted Host mapping；不能把这些失败隐藏或折算为通过。
+- 这仍是源码/Host 静态与主机回归，不是 Gradle `testDebugUnitTest`、APK `assembleDebug`、安装或真机测试。五种 Skin 的逐页设计、完整功能迁移、系统级 VPN 共存、防泄漏、证书无感等仍有大量待办。
