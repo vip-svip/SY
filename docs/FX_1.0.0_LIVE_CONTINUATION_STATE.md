@@ -6220,3 +6220,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 两份源文件已从目标分支回读：`fx-patches/fx_system_app_post_fs_data.sh` 与 `fx-module/post-fs-data.sh` 均包含 PID 后缀。
 - GitHub Actions：`FX System App Install Stage` 在 `899ae53` 成功（run `42104541678`，job `127515820097`）；安装期幂等、行为测试、early-boot overlay hardening 与打包阶段检查全部通过。
 - 验证仅为 GitHub Host CI；尚未在真实 KernelSU/Magisk 设备上验证重启后的 PackageManager 扫描、SELinux 实际标签或 OTA 行为。
+
+## 2026-11-06 — coexistence status publisher and boot-marker follow-up
+
+- Fixed the VPN coexistence status publisher's unset _fx_cs_slot_json under apply.sh set -u. It now serializes only true/false/null slot evidence and explicitly emits null for unknown values; the status write remains fail-open to the network path.
+- Added/retained PID-scoped names for both retry-marker and deployment-marker temporary files. The boot regression now attempts symlink redirection against both temporary paths and checks the external sentinel remains unchanged.
+- Verification: Targeted Host Regression #1297 SUCCESS on commit 8f6ddf7f96eaf634ca9dbe1fd094fa760ff703dd; System App Install Stage #21 SUCCESS on commit 899ae53d3437 (includes both temporary-marker symlink cases and the packaging-stage check).
+- Earlier System App Install Stage #18/#19 failures were not hidden: their logs exposed the PID suffix regression and the test was corrected to use the actual child-shell PID; subsequent #21 passed.
+- No device install, reboot, PackageManager, or SELinux enforcement test is claimed.
+
