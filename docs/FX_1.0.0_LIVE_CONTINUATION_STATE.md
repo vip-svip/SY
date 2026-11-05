@@ -5137,3 +5137,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动文件：`FxDiaSessionLogActivity.java`、`FxDiaFridaActivity.java`、`fx-dia-frida-page-navigation-regression.sh`。
 - 验证：本提交触发的 Host Regression 将检查 Gadget 日志入口必须打开原生可搜索查看器，且不再在 Frida 主页执行 Root 日志读取/弹窗。Android Gradle 编译、Gadget 真正加载/连接与真机行为尚未验证。
 - 当前分支基线 HEAD：`1b46f7c5ac8f4a346d38b0be8947ced730fcaafe`；本批提交 SHA 以 GitHub 提交后回读为准。
+
+## 2026-11-05 — Gadget 原生日志查看器回归收敛与 CI 验证
+
+- 本轮从分支 HEAD `8db951a3f1a6ed43190bad7d0ec126302497b287` 继续；Gadget Listen 日志入口已统一跳转至 `FxDiaSessionLogActivity`，并按端口读取独立日志文件。
+- `756feee3dba7a754ebd56b96eab75ab43df02984` 更新 `fx-dia-frida-process-identity-regression.py`：不再要求已迁移出 Frida 管理页的旧错误标记，而是验证 Gadget 入口传递端口并打开原生日志页，同时验证原生日志读取路径要求常规、非符号链接、可读且非空的文件。
+- 同批前置修正：`05be01a`、`cffa2ea`、`8db951a` 分别调整 Gadget 日志回归断言，使其与日志页迁移后的实际实现一致；`943d837` 完成 Gadget 日志入口与原生日志页接入。
+- 最新提交 `756feee` 已回读确认；FX Targeted Host Regression 运行 `42053364872` 通过，FX Module Runtime Regression 运行 `42053365005` 通过。
+- 以上为 GitHub Actions 主机回归及模块运行回归结果，不代表 Android APK 构建、Gadget 真正加载/连接、LSPosed 注入或真机行为已验证。
+- 尚未验证：Android Gradle 完整 APK 构建与安装、KernelSU/Magisk 部署、LSPosed Remote Files 加载及目标注入、ROM SELinux 行为、第三方 VPN 内层流量、设备 IPv4/IPv6 泄漏与耗电行为。APK 手动构建门仍保持关闭。
