@@ -22,12 +22,9 @@ public abstract class FxNativeTabActivity extends ComponentActivity {
         // MainActivity. Do not silently downgrade HUAWEI/iOS skins in imported
         // feature pages or when legacy aliases are encountered.
         String mode = FxUiMode.read(this).getStorageId();
-        // Imported native pages may define an opaque legacy root background.
-        // Make only that root transparent when a custom FX wallpaper is active;
-        // child cards and dialogs keep their own readable surfaces.
-        if (FxWallpaperStore.currentPath(this) != null) {
-            pageContent.setBackgroundColor(android.graphics.Color.TRANSPARENT);
-        }
+        // Translate known legacy page/card/text colors into the selected
+        // global Skin. Unknown custom and warning colors remain unchanged.
+        FxNativeSkin.apply(this, pageContent);
 
         ComposeView shell = new ComposeView(this);
         androidx.lifecycle.ViewTreeLifecycleOwner.set(shell, this);
