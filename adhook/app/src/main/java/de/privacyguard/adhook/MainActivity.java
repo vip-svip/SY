@@ -3856,9 +3856,11 @@ public final class MainActivity extends ComponentActivity {
                 org.json.JSONArray items = panelSchema.optJSONArray("items");
                 int count = items == null ? 0 : items.length();
                 LinearLayout panel = new LinearLayout(this);
+                panel.setTag("fx-card");
                 panel.setOrientation(LinearLayout.VERTICAL);
                 panel.setPadding(dp(12), dp(6), dp(12), dp(6));
                 TextView summary = new TextView(this);
+                summary.setTag("fx-card-detail");
                 summary.setText("配置来源：模块 Root 原生接口（仅返回布尔隐私开关，不向 App 暴露订阅与脚本内容）。开关保存后调用模块 apply.sh；应用失败会单独提示。");
                 summary.setTextColor(0xff718091);
                 summary.setPadding(dp(6), dp(4), dp(6), dp(10));
@@ -3878,6 +3880,7 @@ public final class MainActivity extends ComponentActivity {
                     String description = item.optString("description", "");
                     boolean checked = "1".equals(values.get(key));
                     LinearLayout row = new LinearLayout(this);
+                    row.setTag("fx-card-group");
                     row.setOrientation(LinearLayout.VERTICAL);
                     row.setPadding(dp(12), dp(8), dp(12), dp(8));
                     row.setBackground(uiPanelDrawable());
@@ -3898,6 +3901,7 @@ public final class MainActivity extends ComponentActivity {
                     row.addView(top);
                     if (!description.isEmpty()) {
                         TextView detail = new TextView(this);
+                        detail.setTag("fx-card-body");
                         detail.setText(description);
                         detail.setTextSize(11);
                         detail.setTextColor(0xff718091);
@@ -3908,6 +3912,7 @@ public final class MainActivity extends ComponentActivity {
                     lp.setMargins(dp(2), dp(3), dp(2), dp(3));
                     panel.addView(row, lp);
                 }
+                FxNativeSkin.applyComponents(this, panel);
                 ScrollView scroll = new ScrollView(this);
                 nativeScroll = scroll;
                 scroll.addView(panel);
