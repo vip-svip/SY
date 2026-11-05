@@ -4997,3 +4997,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 真机未验证：KernelSU/Magisk 安装与系统应用识别、SELinux、开机启动、Android/第三方 VPN 并行链路、内核 TUN/REDIRECT、DNS/IPv4/IPv6 泄漏、网络切换和低功耗常驻。
 - Android 平台限制：每个 Android 用户/配置文件通常只能有一个活动 VpnService VPN；系统 VPN 与第三方 App VPN 不能被 FX 强制同时占槽。FX Root/内核代理不注册 VpnService，可在外层 VPN 已通过接口/UID/路由验证时使用 REDIRECT 链接；封闭 VPN 是否允许链式转发仍依赖厂商/ROM/应用实现。
 - 下一优先级：取得并核验小火箭 10.10.62 第一手源码（本轮仓库与可检索 Library 均未找到源码包），按协议、路由、策略组、DNS、脚本、MITM、应用分流逐项补数据面矩阵；同时完善本地 DNS 与外部 VPN/内核代理的设备验收。不得把源码回读或 Host fixture 结果冒充真机/Gradle 通过。
+
+## 2026-11-05 — Host stream regression assertion normalization
+
+- Latest branch HEAD at this snapshot: `2728c6dc9b09ebc50ceecfd554f7970c57f58a2e`.
+- `RootAccess.java` 声明跨行，Gadget 回归已改为先压缩空白再核对 InputStream 重载，避免静态断言因换行格式误报；提交 `2728c6dc9b09ebc50ceecfd554f7970c57f58a2e`。
+- 当前脚本同时包含 9 MiB SHA-256 流完整性测试、异常输入 fail-closed 测试、私有 cache staging/清理断言；CI check-run 仍不可从当前 GitHub connector 查询，等待现有 push workflows 执行状态。
