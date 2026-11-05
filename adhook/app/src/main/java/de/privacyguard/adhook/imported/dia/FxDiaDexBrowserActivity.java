@@ -460,7 +460,7 @@ public final class FxDiaDexBrowserActivity extends de.privacyguard.adhook.FxNati
         selected = null;
         exportGeneration++;
         detailGeneration++;
-        summary.setText("正在读取 Dia 23.11 随附的 Android Framework DEX…");
+        summary.setText("正在读取可访问的 Android Framework DEX…");
         results.removeAllViews();
         final int request = ++dexGeneration;
         try {
