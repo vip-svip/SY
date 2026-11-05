@@ -4339,3 +4339,35 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 尚未运行 `testDebugUnitTest` / `assembleDebug`、APK 安装升级、UI 自动化、截图基线或真机触控；五 Skin × 六 Tab 的每个页面并未全部覆盖完成。
 - Harmony/Cupertino 当前已接入导航、卡片、标题/正文、列表行、开关和部分 Hook/Frida 页面；Dialog/Sheet、EditText/Spinner、键盘、空/加载/错误状态仍需逐页补齐和验收。
 - 下一批继续将语义标签扩展到未接入的业务 Activity 与表单/弹窗；同时检查 cache 在 View tag 或 mode 改变后的正确失效，并保留 ClassicWebCompat 原有 WebView 与壁纸行为。
+
+
+## 2026-11-05 — 五 Skin 原生弹窗统一接线与 Ad/设置边界回归
+
+### 本批实际实现
+- `FxNativeSkin.showDialog(Activity, AlertDialog)` 已建立统一弹窗入口：先显示原生 AlertDialog，再对 Window decor 树运行当前 Skin 的 `applyComponents`，并在 decor 首次布局后补一次渲染，覆盖系统标题/按钮和动态表单/列表内容。
+- MainActivity 已把以下原生弹窗接入共享 renderer：
+  - 本地 Hosts 分页编辑器；
+  - Ad 过滤规则/订阅新增、编辑对话框；
+  - 五 Skin 壁纸管理弹窗；
+  - 系统 CA 管理弹窗。
+- `scripts/tests/fx-global-ui-modes-regression.sh` 增加门禁：必须存在统一 dialog renderer、decor 首次应用和布局后复渲染，并检查 Hosts、Ad、壁纸、系统 CA 的调用点。
+- HUAWEI Harmony / iOS Cupertino renderer 继续使用独立 token：颜色、形状、间距、字体；其 Android View 组件分支包括页标题、分区标题、卡片标题/说明、列表行、Switch 和动作按钮。Compose 六 Tab Shell 已通过 `FxComposeSkinTokens.kt` 读取两套相同的 Harmony/Cupertino 共享 token。
+- 导航清理仍保持：MainActivity 不包含来源应用 Migration router/状态；六 Tab 固定 VPN、Ad、隐私、脚本、Hook、设置；ClassicWebCompat 第二 Tab 标题为 Ad；Settings 无迁移应用入口。
+
+### 本批相关提交
+- `0a53050c3153c0065f536f15ccf0f9aaf72ae3a0` — 新增五 Skin 原生 Dialog 通用入口。
+- `b077c50408e36d74888974279748129135c19e44` — Hosts、Ad 规则、壁纸、系统 CA 弹窗接入。
+- `f119ac70b2686e3db0eb3a210f2525d34918a2e2` — Dialog 接线静态回归门禁。
+- 前序 Skin token/renderers 与 Ad-only 导航改动见本文件更早的本轮条目；当前 HEAD 必须实时读取，以上 commit 只是本批变更证据。
+
+### 验证与边界
+- 已从 GitHub 最新分支回读源码，确认 `showDialog` 方法存在，并确认 MainActivity 有 5 处调用共享弹窗 renderer；回读检查还确认旧 Migration router 符号缺失、Ad 分栏名称没有 `Ad/Hosts`、主导航六项保持。
+- 当前 HEAD 的 commit status 尚无附加检查项；本轮没有本地 Android SDK/Gradle 环境执行 shell 回归、JUnit、Gradle assemble、安装或真机 UI 检查。不能称本批回归已运行或通过。
+- 旧 Targeted Host run `41986350889` 的 SUCCESS 只覆盖其对应旧 HEAD 的上一批 Skin 静态回归，不覆盖本批 Dialog 代码，也不代表 Gradle/真机验收。
+- 五 Skin × 六 Tab 的全量视觉适配尚未完成；本批只把四个高频 FX 原生弹窗接入通用 renderer，其余内嵌/来源页面的 AlertDialog、BottomSheet、空态/加载态还要逐页面接入和验收。
+
+### 下一批直接开工
+1. 将 `FxNativeSkin.showDialog` 扩展接入 Ad 规则详情/删除确认、VPN 节点/订阅编辑、Hook/Frida 工具和隐私 Shield 的高频自定义弹窗；优先迁移真正使用 FX 主导航的页面。
+2. 为 EditText/Spinner/搜索框/多行代码编辑器与表单行增加语义标签和控件级回归；保留自定义 Drawable、危险/警告/成功动作颜色和现有输入行为。
+3. 针对最新 HEAD 运行 Dialog/Skin/Ad-only 导航定向 Host 回归；没有 Actions 结果时只记录源码回读，继续推进真实页面覆盖，不重复触发整套 Actions。
+
