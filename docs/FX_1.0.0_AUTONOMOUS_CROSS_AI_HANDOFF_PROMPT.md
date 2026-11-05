@@ -455,3 +455,17 @@ Ad 必须实现五个独立、可观测过滤层：本地 DNS、系统 Hosts 重
 6. Host 静态回归不等于 Gradle、安装或真机验证。每次报告必须分层。
 7. 不支持/不可合法迁移的功能必须写明具体原因和可用替代，不得静默删掉。
 8. 现在立即把本节并入唯一正式提示词和产品规格，然后继续源码实现；不要只回复“计划已更新”，也不要要求用户重复需求。
+
+
+## 新增任务：将 vip-svip/qufz AntiFraudBlock 整合进隐私 Tab
+
+用户已明确要求将 `https://github.com/vip-svip/qufz` 加入 FX，并归入第三 Tab「隐私」。先读取其当前源码，不得按项目名猜功能。已核验它是仅针对 `com.coloros.phonemanager` 的 LSPosed/libxposed modern 模块，主要阻断 ColorOS 手机管家 AI 反诈遥测/云上报，同时保留本地风险提醒/记录；仓库记录的唯一真机环境为 RMX5200 / ColorOS 16 / Android 16 / PhoneManager 17.1.6，使用 libxposed API 102，Manifest minSdk 33，许可 MIT。其 legacy API 82 目录已废弃。
+
+执行要求：
+1. 把功能入口放在隐私 Tab，命名「反诈遥测保护」；不新增独立来源 APK 入口，不把它塞进设置或 Hook Tab。
+2. 将 `MainHook.java` 的真实 Hook 逻辑整合进 FX 统一 LSPosed/libxposed 模块产物和生命周期；若缺少统一 modern 模块产物，先建立正确承载方式，禁止只加 UI 开关。
+3. 严格限制目标包为 `com.coloros.phonemanager`，设备/PhoneManager 版本不匹配时先禁用并显示原因，不要盲目 Hook 其他厂商。
+4. 保留本地反诈检测服务、通知、弹窗和本地记录；仅阻断经源码核验的遥测路径。保留 `/data/local/tmp/afb.disable` 等效紧急透传能力，并接入 FX 总开关。
+5. 保留 MIT 许可声明；不迁入废弃 API 82 实现。
+6. 建立兼容性矩阵、实际 Hook 命中测试、非目标设备安全降级测试、禁用透传测试和本地功能不受影响测试。区分 Host/构建/真机证据。
+7. 当前只是完成来源审计和需求登记，不能报告为功能已迁移或验证通过。完成后回读源码与测试并更新实时状态。
