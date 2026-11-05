@@ -141,7 +141,7 @@ public final class FxDiaGlobalSettingsActivity extends de.privacyguard.adhook.Fx
     }
 
     private void showUnavailable(String title, String detail) {
-        new AlertDialog.Builder(this)
+        fxDialogBuilder()
                 .setTitle(title)
                 .setMessage(detail)
                 .setPositiveButton("知道了", null)
@@ -153,7 +153,7 @@ public final class FxDiaGlobalSettingsActivity extends de.privacyguard.adhook.Fx
             showUnavailable("框架重启正在执行", "请勿重复触发。重启命令返回后会显示执行结果；框架重启本身可能导致 FX 界面随应用进程退出。");
             return;
         }
-        new AlertDialog.Builder(this)
+        fxDialogBuilder()
                 .setTitle("确认快速重启框架服务？")
                 .setMessage("此操作通过 Root 重启 Android 框架服务（stop;start），不是重启内核或整台设备。Android 框架会短暂停止并重新启动，所有正在运行的应用及 unsaved state、VPN 连接、LSPosed/Hook 会中断。请先保存工作。需要 KernelSU Root 授权。")
                 .setNegativeButton("取消", null)
@@ -260,7 +260,7 @@ public final class FxDiaGlobalSettingsActivity extends de.privacyguard.adhook.Fx
         row("内部社区", "原版 PreferenceScreen 中此项默认 enabled=false；FX 保持禁用。", communityState, null);
         addAction("关于软件",
                 "查看 FX Hook 版本和统一运行信息。",
-                () -> new AlertDialog.Builder(this)
+                () -> fxDialogBuilder()
                         .setTitle("关于 FX Hook")
                         .setMessage("当前版本：FX 1.0.0\n功能宿主：FX Hook\n此页面由 FX 统一管理，不会启动其他 APK。")
                         .setPositiveButton("关闭", null)
