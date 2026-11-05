@@ -106,9 +106,9 @@ _valid_ipv4() {
     END {exit(ok ? 0 : 1)}
   '
 }
-_local_dns_probe() {
-  command -v nslookup >/dev/null 2>&1 && command -v timeout >/dev/null 2>&1 || return 1
-  _probe_output=$(timeout 5 nslookup example.com 127.0.0.1 2>&1) || return 1
+_local_dns_probe_endpoint() {
+  _server="$1"
+  _probe_output=$(timeout 5 nslookup example.com "$_server" 2>&1) || return 1
   # Ignore the resolver's own Server/Address header and require an answer
   # address associated with the queried name.
   _probe_answers=$(printf '%s\n' "$_probe_output" | awk '
@@ -123,6 +123,13 @@ _local_dns_probe() {
     _valid_ipv4 "$_probe_ip" && return 0
   done
   return 1
+}
+_local_dns_probe() {
+  command -v nslookup >/dev/null 2>&1 && command -v timeout >/dev/null 2>&1 || return 1
+  # Both families are redirected to loopback by Root Proxy; validate both
+  # listeners before attaching either OUTPUT chain.
+  _local_dns_probe_endpoint 127.0.0.1 || return 1
+  _local_dns_probe_endpoint ::1 || return 1
 }
 _is_enabled() {
   [ "$(pg_get vpn_external_dns_proxy 1 2>/dev/null)" = "1" ] \
