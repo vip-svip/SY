@@ -31,8 +31,12 @@ key_policy_import = "import de.privacyguard.adhook.imported.dia.FxDiaKeyGestureP
 assert parser.count(key_policy_import) == 1, "Parser must import the ActivityKey policy exactly once"
 assert ser.count(key_policy_import) == 1, "Serializer must import the ActivityKey policy exactly once"
 
-# Native per-app UI and configuration publication.
-assert 'case "对话框与通知":' in ui and 'showAppList("Dialog处理")' in ui
+# Dialog interception belongs to the FX Hook destination, not Privacy or Settings.
+hook_hub_start = ui.index("private void showHookHub()")
+hook_hub_end = ui.index("private void refreshHookHubAuthorizationStates()", hook_hub_start)
+hook_hub = ui[hook_hub_start:hook_hub_end]
+assert 'addNativeActionCard("Dialog 对话框 Hook"' in hook_hub
+assert 'showAppList("Dialog处理")' in hook_hub, "Hook hub must route Dialog handling to its per-app target list"
 assert "showDiaDialogTarget(ai, targetDebuggable)" in ui
 for field in ("dialog_match_enabled", "dialog_text_terms", "dialog_id_terms", "dialog_notify"):
     assert field in ui, f"missing per-app preference {field}"
