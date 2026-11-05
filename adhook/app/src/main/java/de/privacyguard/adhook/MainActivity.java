@@ -256,7 +256,6 @@ public final class MainActivity extends ComponentActivity {
     private String pendingNativeScriptExport;
     private static final String NATIVE_SCRIPT_EXPORT_PREFS = "fx_pending_native_script_export";
     private static final String NATIVE_SCRIPT_EXPORT_PAYLOAD = "payload";
-    private static final int MAX_NATIVE_SCRIPT_EXPORT_BYTES = 512 * 1024;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -1878,28 +1877,68 @@ public final class MainActivity extends ComponentActivity {
         }
     }
 
-    private void addNativeScriptValue(String raw, String sourceName) {
+    private interface NativeScriptStoreCallback {
+        void onComplete(boolean success, String detail);
+    }
+
+    private void storeNativeScriptFile(java.io.File staged, String note, String enabled,
+                                       NativeScriptStoreCallback callback) {
+        if (staged == null || !staged.isFile() || staged.length() <= 0) {
+            if (callback != null) callback.onComplete(false, "脚本暂存文件为空或不可读");
+            return;
+        }
+        String safeNote = note == null ? "" : note.trim();
+        if (safeNote.length() > 512) {
+            if (callback != null) callback.onComplete(false, "脚本名称超过 512 字符");
+            return;
+        }
+        String command = nativeScriptStoreCommand("add-file", shellQuote(staged.getAbsolutePath()),
+                encodeNativeScriptArgument(safeNote), enabled);
+        runNativeModuleCommand(command, 120000L, result -> {
+            if (staged.exists() && !staged.delete()) staged.deleteOnExit();
+            if (callback != null) callback.onComplete(
+                    result.exitCode == 0 && result.output.contains("OK"), result.output.trim());
+        });
+    }
+
+    private void storeNativeScriptValue(String raw, String sourceName, String enabled,
+                                        NativeScriptStoreCallback callback) {
         String value = raw == null ? "" : raw;
         String trimmedValue = value.trim();
         if (trimmedValue.regionMatches(true, 0, "https://", 0, 8)) value = trimmedValue;
         if (!isSupportedNativeScriptValue(value)) {
-            Toast.makeText(this, "仅接受 HTTPS 订阅 URL 或本地 JS 源码；不接受明文 HTTP", Toast.LENGTH_LONG).show();
+            if (callback != null) callback.onComplete(false,
+                    "仅接受 HTTPS 订阅 URL 或本地 JS 源码；不接受明文 HTTP");
             return;
         }
         String note = sourceName == null || sourceName.trim().isEmpty()
                 ? (value.length() > 80 ? value.substring(0, 80) : value) : sourceName.trim();
-        String command = nativeScriptStoreCommand("add", encodeNativeScriptArgument(value),
-                encodeNativeScriptArgument(note), "1");
-        runNativeModuleCommand(command, 30000L, result -> {
+        java.io.File staged = null;
+        try {
+            staged = java.io.File.createTempFile("fx-native-script-", ".src", getCacheDir());
+            try (java.io.FileOutputStream output = new java.io.FileOutputStream(staged)) {
+                output.write(value.getBytes(StandardCharsets.UTF_8));
+                output.flush();
+                output.getFD().sync();
+            }
+            storeNativeScriptFile(staged, note, enabled, callback);
+        } catch (Exception error) {
+            if (staged != null && staged.exists()) staged.delete();
+            if (callback != null) callback.onComplete(false, error.getMessage());
+        }
+    }
+
+    private void addNativeScriptValue(String raw, String sourceName) {
+        storeNativeScriptValue(raw, sourceName, "1", (success, detail) -> {
             if (isFinishing() || isDestroyed()) return;
-            if (result.exitCode == 0 && result.output.contains("OK")) {
+            if (success) {
                 Toast.makeText(this, "脚本条目已保存到模块配置", Toast.LENGTH_SHORT).show();
                 if (nativeScriptRows != null && nativeScriptStatus != null) {
                     refreshNativeScriptList(nativeScriptRows, nativeScriptStatus);
                 }
                 syncNativeScriptRuntime();
             } else {
-                Toast.makeText(this, "脚本未保存：" + result.output.trim(), Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "脚本未保存：" + detail, Toast.LENGTH_LONG).show();
             }
         });
     }
@@ -1956,12 +1995,9 @@ public final class MainActivity extends ComponentActivity {
         String value = entry.optString("value", "");
         String name = entry.optString("name", "");
         String enabled = entry.optBoolean("enabled", true) ? "1" : "0";
-        String command = nativeScriptStoreCommand("add", encodeNativeScriptArgument(value),
-                encodeNativeScriptArgument(name), enabled);
-        runNativeModuleCommand(command, 30000L, result -> {
-            boolean ok = result.exitCode == 0 && result.output.contains("OK");
-            importNativeScriptEntry(entries, index + 1, imported + (ok ? 1 : 0), failed + (ok ? 0 : 1));
-        });
+        storeNativeScriptValue(value, name, enabled, (ok, detail) ->
+                importNativeScriptEntry(entries, index + 1,
+                        imported + (ok ? 1 : 0), failed + (ok ? 0 : 1)));
     }
 
     private void clearPendingNativeScriptExport() {
@@ -1998,9 +2034,6 @@ public final class MainActivity extends ComponentActivity {
                 document.put("version", 1);
                 document.put("scripts", entries);
                 String payload = document.toString(2);
-                if (payload.getBytes(StandardCharsets.UTF_8).length > MAX_NATIVE_SCRIPT_EXPORT_BYTES) {
-                    throw new IllegalStateException("脚本导出文件超过 512 KiB，已拒绝暂存。");
-                }
                 boolean staged = getSharedPreferences(NATIVE_SCRIPT_EXPORT_PREFS, MODE_PRIVATE)
                         .edit().putString(NATIVE_SCRIPT_EXPORT_PAYLOAD, payload).commit();
                 if (!staged) throw new IllegalStateException("无法持久化脚本导出暂存数据。");
