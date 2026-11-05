@@ -5893,3 +5893,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 在 `.github/workflows/build-fx-kernelsu.yml` 恢复模块后，先应用文件锁 patcher，再生成兼容旧 PID 目录锁的 stale-lock 回归；随后安装并立即执行真实并发测试及两项 stale-lock ownership/reclaim 测试。完整模块 Host suite 仍会再次发现并运行这些脚本。
 - 新增 `scripts/tests/fx-subfetch-release-patch-regression.py`：以最小 Release 旧版锁块验证 patcher、幂等性、生成脚本 Shell 语法，并锁定 KernelSU workflow 的补丁/测试顺序。
 - 本批为打包恢复路径补齐，不改变 FX APK/UI 或订阅数据协议。待当前 HEAD 的 Host Regression 与 KernelSU package run 结果确认；未声称真实设备订阅抓取已验收。
+
+
+### subfetch 兼容 patcher Host 断言修正（2026-11-06）
+
+- 新增的 Host 检查需区分“生产源不得包含恢复 stale quarantine 的 mv”与“生成的测试脚本必须包含用于检测该危险操作的 grep”。此前把后者误判成生产行为，现将断言改为分别检查真实迁移后的 `subfetch.sh` 和测试脚本的拒绝断言。
+- 保持锁算法与打包 workflow 不变；本次只修复新增回归自身的误判。

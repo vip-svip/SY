@@ -34,7 +34,9 @@ with tempfile.TemporaryDirectory(prefix="fx-subfetch-patch-") as temporary:
     assert 'set -C; printf' in migrated
     assert 'trap \'subfetch_unlock\' 0' in migrated
     assert '_sl_read_lock_owner' in migrated
-    assert '_sl_stale="$LOCK.stale.$$.$_sl_try"' in migrated
+    assert '_sl_stale="$LOCK.stale.$.$_sl_try"' in migrated
+    assert 'mv "$_sl_stale" "$LOCK"' not in migrated, \
+        "production lock migration must never restore an unverified quarantine"
     first_digest = hashlib.sha256(migrated.encode()).hexdigest()
 
     run("python3", str(LOCK_PATCHER), str(module))
@@ -50,7 +52,8 @@ with tempfile.TemporaryDirectory(prefix="fx-subfetch-patch-") as temporary:
         text = script.read_text(encoding="utf-8")
         assert "FX_SUBFETCH_LEGACY_DIR_COMPAT_V1" in text
         assert 'mv "$LOCK" "$_sl_stale"' in text
-        assert 'mv "$_sl_stale" "$LOCK"' not in text
+        assert "if grep -Fq 'mv \"$_sl_stale\" \"$LOCK\"' \"$F\"; then fail" in text, \
+            "legacy test must reject restoring an unverified stale lock"
         run("sh", "-n", str(script))
         digest = hashlib.sha256(text.encode()).hexdigest()
         run("python3", str(LEGACY_PATCHER), str(module))
