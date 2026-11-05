@@ -55,6 +55,7 @@ public final class FxYulongWarningActivity extends de.privacyguard.adhook.FxNati
 
     private Button button(String label, Runnable action) {
         Button view = new Button(this);
+        view.setTag("fx-action-row");
         view.setAllCaps(false);
         view.setText(label);
         view.setOnClickListener(v -> action.run());
@@ -113,28 +114,60 @@ public final class FxYulongWarningActivity extends de.privacyguard.adhook.FxNati
             advice = "本页面没有收到有效风险等级。请返回扫描结果重新打开详情；在确认来源前，不要仅凭此提醒卸载应用。";
         }
 
-        body.addView(text(severityLabel, 18, severityColor, true));
-        body.addView(text(appLabel, 17, 0xff17212b, true));
-        body.addView(text(packageName, 12, 0xff617080, false));
+        LinearLayout riskDetails = new LinearLayout(this);
+        riskDetails.setTag("fx-card");
+        riskDetails.setOrientation(LinearLayout.VERTICAL);
+        TextView severityText = text(severityLabel, 18, severityColor, true);
+        if ("CERTAIN".equals(severity)) severityText.setTag("fx-risk-title-certain");
+        else if ("SUSPECT".equals(severity)) severityText.setTag("fx-risk-title-suspect");
+        riskDetails.addView(severityText);
+        TextView applicationText = text(appLabel, 17, 0xff17212b, true);
+        applicationText.setTag("fx-card-title");
+        riskDetails.addView(applicationText);
+        TextView packageText = text(packageName, 12, 0xff617080, false);
+        packageText.setTag("fx-card-detail");
+        riskDetails.addView(packageText);
         packageState = text("正在核实应用安装状态…", 12, 0xff617080, false);
-        body.addView(packageState);
-        body.addView(text("风险原因", 14, 0xff17212b, true));
-        body.addView(text(reason.isEmpty() ? "未提供详细命中原因。" : reason,
-                14, 0xff334155, false));
-        body.addView(text("命中来源：" + (sourceLabel.isEmpty() ? "未提供" : sourceLabel),
-                12, 0xff526273, false));
+        riskDetails.addView(packageState);
+        TextView reasonHeading = text("风险原因", 14, 0xff17212b, true);
+        reasonHeading.setTag("fx-card-title");
+        riskDetails.addView(reasonHeading);
+        TextView reasonText = text(reason.isEmpty() ? "未提供详细命中原因。" : reason,
+                14, 0xff334155, false);
+        reasonText.setTag("fx-card-body");
+        riskDetails.addView(reasonText);
+        TextView sourceText = text("命中来源：" + (sourceLabel.isEmpty() ? "未提供" : sourceLabel),
+                12, 0xff526273, false);
+        sourceText.setTag("fx-card-body");
+        riskDetails.addView(sourceText);
         if (!matchedEntry.isEmpty()) {
-            body.addView(text("匹配条目 / 特征族：" + matchedEntry, 12, 0xff526273, false));
+            TextView matchText = text("匹配条目 / 特征族：" + matchedEntry, 12, 0xff526273, false);
+            matchText.setTag("fx-card-body");
+            riskDetails.addView(matchText);
         }
-        body.addView(text("当前名单格式不提供稳定规则 ID 或数据库版本号；此处展示可核实的列表来源与实际匹配条目，不虚构规则编号。",
-                11, 0xff75808a, false));
-        body.addView(text(advice, 12, 0xff8a5b12, false));
+        TextView listFormatNote = text("当前名单格式不提供稳定规则 ID 或数据库版本号；此处展示可核实的列表来源与实际匹配条目，不虚构规则编号。",
+                11, 0xff75808a, false);
+        listFormatNote.setTag("fx-card-body");
+        riskDetails.addView(listFormatNote);
+        // Keep this amber safety guidance untagged so the global renderer does not
+        // neutralize its warning semantics.
+        riskDetails.addView(text(advice, 12, 0xff8a5b12, false));
+        LinearLayout.LayoutParams riskParams = new LinearLayout.LayoutParams(-1, -2);
+        riskParams.setMargins(dp(12), dp(6), dp(12), dp(8));
+        body.addView(riskDetails, riskParams);
 
+        LinearLayout actions = new LinearLayout(this);
+        actions.setTag("fx-card-group");
+        actions.setOrientation(LinearLayout.VERTICAL);
         addWhitelistButton = button("加入白名单并停止后续提醒", this::trust);
-        body.addView(addWhitelistButton);
+        actions.addView(addWhitelistButton);
         uninstallButton = button("打开 Android 系统卸载确认", this::uninstall);
-        body.addView(uninstallButton);
-        body.addView(button("稍后处理", this::finish));
+        uninstallButton.setTextColor(0xffa32620);
+        actions.addView(uninstallButton);
+        actions.addView(button("稍后处理", this::finish));
+        LinearLayout.LayoutParams actionParams = new LinearLayout.LayoutParams(-1, -2);
+        actionParams.setMargins(dp(12), dp(4), dp(12), dp(8));
+        body.addView(actions, actionParams);
 
         setContentViewWithNativeTabs(root, 2);
         if (state != null) {
