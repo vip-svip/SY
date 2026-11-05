@@ -44,7 +44,9 @@ with tempfile.TemporaryDirectory(prefix="fx-vpn-watchdog-patcher-") as tmp:
     assert patched_service.count('vpn-external-watchdog.sh" start') == 1
     assert patched_uninstall.count('vpn-external-watchdog.sh" stop') == 1
     assert patched_uninstall.index('vpn-external-watchdog.sh" stop') < patched_uninstall.index('yulong-root-proxy.sh" uninstall')
-    stop_block = patched_uninstall.split('if [ -f "$MODDIR/scripts/vpn-external-watchdog.sh" ]; then', 1)[1].split("fi", 1)[0]
+    watcher_start = patched_uninstall.index('if [ -f "$MODDIR/scripts/vpn-external-watchdog.sh" ]; then')
+    root_proxy_start = patched_uninstall.index('if [ -x "$MODDIR/scripts/yulong-root-proxy.sh" ]; then')
+    stop_block = patched_uninstall[watcher_start:root_proxy_start]
     assert "exit 1" in stop_block, "watcher stop failure must abort uninstall before Root Proxy teardown"
     for name in ("service.sh", "uninstall.sh"):
         subprocess.run(["sh", "-n", str(module / name)], check=True)
