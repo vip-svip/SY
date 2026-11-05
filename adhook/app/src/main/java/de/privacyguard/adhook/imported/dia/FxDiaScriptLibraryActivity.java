@@ -161,7 +161,7 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
         body.setPadding(0, dp(4), 0, dp(16));
         scroll.addView(body);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        setContentViewWithNativeTabs(root, 5);
+        setContentViewWithNativeTabs(root, 4);
 
         status = text("正在读取本机 Frida 脚本库…", 12, 0xff617080, false);
         card(body, "本地脚本库", "数据与 Dia Frida 管理页共用同一私有配置和 JSON schema；载入、编辑、删除和导入不会自动执行脚本。",
