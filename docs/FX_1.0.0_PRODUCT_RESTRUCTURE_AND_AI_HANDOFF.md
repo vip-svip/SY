@@ -364,7 +364,7 @@ FX 必须内置可用的默认网络内核，同时提供可切换的内核管�
 
 **全局切换行为：**
 1. 冷启动读取 `fx_ui/mode`，旧值兼容映射到三个稳定 ID；未知值安全回落 ClassicWebCompat。
-2. 从设置选择模式后，先同步保存偏好，再只重建当前 Activity 的展示层；保留当前 Tab、滚动位置、表单草稿、节点/规则选择和迁移子页面返回上下文。
+2. 从设置选择模式后，先同步保存偏好，再只重建当前 Activity 的展示层；保留当前 Tab、滚动位置、表单草稿、节点/规则选择和业务子页面返回上下文。
 3. ClassicWebCompat 的四个业务页由 WebView 显示 APK 内置 AssetLoader 资源；Hook 与设置使用同一 Classic 外观的原生宿主。禁止远程导航、混合内容和任意文件访问；桥接接口继续执行来源校验。
 4. FXLiquidNative 使用 Compose 原生导航与液态背景效果；MiuixStyle 使用 Miuix 主题组件。两者共享同一 Domain/Repository/状态源，不复制业务逻辑。
 5. 五种模式共享相同六个 Tab：VPN、Ad、隐私、脚本、Hook、设置；设置始终是第六个 Tab。
@@ -375,7 +375,7 @@ FX 必须内置可用的默认网络内核，同时提供可切换的内核管�
 - 五模式冷启动、进程重建、横竖屏/窗口尺寸变化后，读取到正确模式。
 - 在每个模式中逐个进入六个 Tab，页面、返回栈和功能权限一致；ClassicWebCompat WebView 无越权导航。
 - 在 VPN 正运行、代理有活动连接、DNS 正在过滤、脚本正在运行时，连续切换五种模式；服务 PID/连接状态/配置哈希不因换肤改变。
-- 每种模式分别测试底部栏点击/手势、无障碍语义、键盘弹出、滚动恢复、Hook 列表和迁移页面。
+- 每种模式分别测试底部栏点击/手势、无障碍语义、键盘弹出、滚动恢复、Hook 列表和各业务二级页面。
 - 不能只凭模式选择器显示选中就判定完成；必须有构建日志、UI 自动化/截图对照和设备实测记录。
 
 ### 4.3 核心约束
@@ -646,7 +646,7 @@ FX 1.0.0 的三个模式使用统一持久化 ID，禁止页面各自保存不�
 - **设置（5）**：五种 Skin、壁纸、主题/动效、全局权限/诊断偏好、FX 统一备份恢复、关于。备份页由设置入口直达；不要重复出现在 Hook 工具页。
 
 当前代码入口：
-- MainActivity.buildNativeHostsPage()：Ad 主页面及广告来源功能子页入口。
+- MainActivity.buildNativeAdPage()：Ad 主页面及广告来源功能子页入口。
 - MainActivity.buildNativePrivacyPage()：安全防护中心入口。
 - MainActivity.showHookHub()：Hook 工具与调试入口、授权状态。
 - MainActivity.buildNativeScriptPage()：Frida JavaScript 脚本库入口。
