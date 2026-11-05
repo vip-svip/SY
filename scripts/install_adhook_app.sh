@@ -107,7 +107,18 @@ install_one(){
   command -v pm >/dev/null 2>&1 || { log_msg "WARN: pm unavailable; defer Hook installation"; return 1; }
   _actual=$(sha256sum "$_apk" 2>/dev/null | awk 'NR==1 {print $1}')
   [ -n "$_actual" ] || { log_msg "ERROR: cannot calculate unified APK digest"; return 1; }
-  if [ -s "$_apk.sha256" ]; then _expected=$(awk 'NR==1 {print $1}' "$_apk.sha256"); [ "$_expected" = "$_actual" ] || { log_msg "ERROR: unified APK checksum mismatch; refusing install"; return 1; }; fi
+  # The system-app overlay is a release payload: require its checksum sidecar.
+  # Legacy optional APK payloads remain compatible with older module archives.
+  if [ -s "$_overlay_apk" ] && [ ! -s "$_apk.sha256" ]; then
+    log_msg "ERROR: system-app overlay checksum sidecar is missing; refusing deployment"
+    return 1
+  fi
+  if [ -s "$_apk.sha256" ]; then
+    _expected=$(awk 'NR==1 {print $1}' "$_apk.sha256")
+    case "$_expected" in *[!0-9a-fA-F]*|'') log_msg "ERROR: invalid unified APK checksum format"; return 1 ;; esac
+    [ "${#_expected}" -eq 64 ] || { log_msg "ERROR: invalid unified APK checksum length"; return 1; }
+    [ "$_expected" = "$_actual" ] || { log_msg "ERROR: unified APK checksum mismatch; refusing install"; return 1; }
+  fi
   _is_system_app=0
   if package_present "$_pkg"; then
     _paths=$(pm path "$_pkg" 2>/dev/null | sed -n 's/^package://p')

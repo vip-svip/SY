@@ -65,6 +65,21 @@ esac
 PM
 chmod +x "$TMP/bin/pm"; export PATH="$TMP/bin:$PATH" FX_ADHOOK_FAKE_PM_STATE="$TMP/pm" FX_ADHOOK_STATE_DIR="$TMP/state" FX_ADHOOK_TMP_DIR="$TMP/tmp" FX_ADHOOK_LOG="$TMP/state/install.log"
 : > "$TMP/pm/installed"
+
+# New system-app overlays must carry a well-formed checksum sidecar. Missing,
+# malformed or mismatched metadata must fail before PackageManager is touched.
+cp "$TMP/mod/system/app/FX/FX.apk.sha256" "$TMP/overlay.expected.sha256"
+rm -f "$TMP/mod/system/app/FX/FX.apk.sha256"
+if sh "$INSTALLER" "$TMP/mod" >/dev/null 2>&1; then fail "system overlay without checksum sidecar unexpectedly succeeded"; fi
+[ ! -s "$TMP/pm/install-calls" ] || fail "missing overlay checksum reached PackageManager install"
+[ ! -e "$TMP/state/adhook-apk-fxunifiedhook.sha256" ] || fail "missing overlay checksum wrote an ownership digest"
+cp "$TMP/overlay.expected.sha256" "$TMP/mod/system/app/FX/FX.apk.sha256"
+printf '%064d  FX.apk\\n' 0 > "$TMP/mod/system/app/FX/FX.apk.sha256"
+if sh "$INSTALLER" "$TMP/mod" >/dev/null 2>&1; then fail "mismatched system overlay checksum unexpectedly succeeded"; fi
+[ ! -s "$TMP/pm/install-calls" ] || fail "mismatched overlay checksum reached PackageManager install"
+[ ! -e "$TMP/state/adhook-apk-fxunifiedhook.fx-owned" ] || fail "mismatched overlay checksum wrote an ownership marker"
+cp "$TMP/overlay.expected.sha256" "$TMP/mod/system/app/FX/FX.apk.sha256"
+
 # An updated system app is stored in /data/app but remains classified as a
 # system package by PackageManager. The installer must not reinstall it.
 echo de.privacyguard.adhook > "$TMP/pm/installed"
