@@ -144,3 +144,59 @@ command -v java >/dev/null 2>&1 || fail "java is required"
 javac -d "$T/classes" "$ROOT_ACCESS" "$PUBLISHER" "$T/HookConfigPublisherHostTest.java"
 PATH="$T/fake-bin:$PATH" FX_FAIL_TRIGGER_FILE="$T/fail-managed-move" \
   java -cp "$T/classes" de.privacyguard.adhook.HookConfigPublisherHostTest "$T"
+
+mkdir -p "$T/parser-classes"
+cat > "$T/HookConfigParserHostTest.java" <<'JAVA'
+package de.privacyguard.adhook;
+
+import java.nio.charset.StandardCharsets;
+
+public final class HookConfigParserHostTest {
+    public static void main(String[] args) {
+        StringBuilder modern = new StringBuilder(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=1\n[list:targets]\n");
+        for (int i = 0; i < 2500; i++) {
+            modern.append("com.example.target").append(i).append(",privacy=1\n");
+        }
+        String modernText = modern.toString();
+        if (modernText.getBytes(StandardCharsets.UTF_8).length <= 65536
+                || modernText.split("\\R", -1).length <= 1000) {
+            throw new AssertionError("modern stress fixture did not exceed former byte/line thresholds");
+        }
+        UnifiedHookConfigParser.Result parsedModern = UnifiedHookConfigParser.parse(modernText);
+        if (parsedModern.targets.size() != 2500
+                || !parsedModern.isPrivacyEnabledFor("com.example.target2499")) {
+            throw new AssertionError("versioned parser dropped large target sets");
+        }
+
+        StringBuilder legacy = new StringBuilder("hook_ads_enabled=1\n[list:hook_targets]\n");
+        for (int i = 0; i < 2500; i++) {
+            legacy.append("com.example.legacytarget").append(i)
+                    .append(",splash=1 | retained metadata ").append(i).append("\n");
+        }
+        String legacyText = legacy.toString();
+        if (legacyText.getBytes(StandardCharsets.UTF_8).length <= 65536
+                || legacyText.split("\\R", -1).length <= 1000) {
+            throw new AssertionError("legacy stress fixture did not exceed former byte/line thresholds");
+        }
+        UnifiedHookConfigParser.Result parsedLegacy = UnifiedHookConfigParser.parse(legacyText);
+        HookTargetConfigParser.Result parsedLegacyAd = HookTargetConfigParser.parse(legacyText);
+        if (parsedLegacy.targets.size() != 2500
+                || !parsedLegacy.targets.get("com.example.legacytarget2499").splash
+                || parsedLegacyAd.targets.size() != 2500
+                || !parsedLegacyAd.targets.get("com.example.legacytarget2499").splash
+                || parsedLegacy.privacyEnabled) {
+            throw new AssertionError("legacy parser did not preserve large target sets or privacy isolation");
+        }
+        System.out.println("PASS: both current and legacy parsers accept 2,500 targets above 64 KiB and 1,000 lines");
+    }
+}
+JAVA
+javac -d "$T/parser-classes" \
+  "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/DeveloperHookRule.java" \
+  "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaKeyGesturePolicy.java" \
+  "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaDialogMatchPolicy.java" \
+  "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigParser.java" \
+  "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/HookTargetConfigParser.java" \
+  "$T/HookConfigParserHostTest.java"
+java -cp "$T/parser-classes" de.privacyguard.adhook.HookConfigParserHostTest
