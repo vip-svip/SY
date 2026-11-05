@@ -172,5 +172,5 @@ case "$ACTION" in
     [ -f "$CONF" ] || { cp -p "$BACKUP" "$CONF"; echo "ERROR committed settings.conf missing"; exit 1; }
     echo "OK"
     ;;
-  *) echo "ERROR usage: native-list.sh list|add|add-file|update|toggle|delete"; exit 64 ;;
+  *) echo "ERROR usage: native-list.sh list|add|update|toggle|delete"; exit 64 ;;
 esac
