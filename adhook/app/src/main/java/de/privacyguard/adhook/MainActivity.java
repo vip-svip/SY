@@ -191,11 +191,6 @@ public final class MainActivity extends ComponentActivity {
     private volatile Thread hookRootCheckThread;
     private int hookRootCheckGeneration;
     // Legacy migration navigation state is ignored; Settings is no longer a source-app hub.
-    private String migrationSuite;
-    private String migrationCategory;
-    private String migrationPage;
-    private int migrationLevel;
-    private boolean migrationChildActive;
     private String uiMode = "classic";
     private int selectedBottomTab = 0;
     private int lastWebTabIndex = 0;
@@ -348,8 +343,7 @@ public final class MainActivity extends ComponentActivity {
             if ("hub".equals(restoreHookKind)) showHookHub();
             else showAppList(activePrivacySection);
         } else if (restoreSettingsScreen) {
-            clearMigrationNavigation();
-            showSettings();
+                showSettings();
         } else if (restoreVpnAppManager) {
             showImportedVpnAppManager();
         } else {
@@ -580,7 +574,7 @@ public final class MainActivity extends ComponentActivity {
 
     private String webPageForBottomTab(int index) {
         switch (index) {
-            case 1: return "pageHosts";
+            case 1: return "pageAd";
             case 2: return "pagePrivacy";
             case 3: return "pageScript";
             case 5: return "pageMore";
@@ -588,54 +582,9 @@ public final class MainActivity extends ComponentActivity {
         }
     }
 
-    private void clearMigrationNavigation() {
-        migrationSuite = null;
-        migrationCategory = null;
-        migrationPage = null;
-        migrationLevel = 0;
-        migrationChildActive = false;
-    }
-
-    private void markMigrationChild(String suite, String category, String page) {
-        migrationSuite = suite;
-        migrationCategory = category;
-        migrationPage = page;
-        migrationLevel = 2;
-        migrationChildActive = true;
-    }
-
-    private void restoreMigrationNavigation() {
-        if (migrationSuite == null || migrationSuite.trim().isEmpty()) {
-            clearMigrationNavigation();
-            showSettings();
-            return;
-        }
-        if (migrationChildActive && migrationCategory != null && migrationPage != null) {
-            String suite = migrationSuite;
-            String category = migrationCategory;
-            String page = migrationPage;
-            migrationChildActive = false;
-            migrationLevel = 2;
-            showImportedSuiteCategory(suite, category);
-            openImportedSuitePage(suite, category, page);
-            return;
-        }
-        if (migrationLevel >= 3 && migrationCategory != null && migrationPage != null) {
-            showImportedSuitePendingPage(migrationSuite, migrationCategory, migrationPage,
-                    "该原功能尚未完成独立运行时迁移；当前保留功能入口与返回层级，不会显示虚假的运行状态。");
-            return;
-        }
-        if (migrationLevel >= 2 && migrationCategory != null) {
-            showImportedSuiteCategory(migrationSuite, migrationCategory);
-            return;
-        }
-        showImportedSuite(migrationSuite);
-    }
-
     private void showDashboard() { showWebDashboard(); }
 
     private void showWebDashboard() {
-        clearMigrationNavigation();
         nativeVpnAppManagerVisible = false;
         cancelHookStatusRefresh();
         cancelAppIconLoad();
@@ -3003,8 +2952,7 @@ public final class MainActivity extends ComponentActivity {
         } else if (index == 4) {
             // Selecting the top-level Hook tab leaves the migration sub-flow.
             // Imported Dia routes call showAppList() directly and keep their return context.
-            clearMigrationNavigation();
-            selectedBottomTab = 4;
+                selectedBottomTab = 4;
             showAppList();
         } else if (index >= 0 && index <= 3) {
             if (!hookUiVisible && !settingsUiVisible && nativePageContent != null) {
@@ -3047,8 +2995,8 @@ public final class MainActivity extends ComponentActivity {
         String tab;
         switch (pageId) {
             case "pageVpn": tab = "vpn"; break;
-            case "pageHosts": tab = "hosts"; break;
-            case "pageAd": tab = "ad"; break; // compatibility with older bundled WebUI builds
+            case "pageAd": tab = "ad"; break;
+            case "pageHosts": tab = "ad"; break; // legacy DOM ID alias only; user-facing destination is Ad
             case "pagePrivacy": tab = "privacy"; break;
             case "pageScript": tab = "script"; break;
             case "pageMore": tab = "more"; break;
@@ -3056,10 +3004,11 @@ public final class MainActivity extends ComponentActivity {
         }
         String script = "(function(){"
                 + "var id=" + JSONObject.quote(pageId) + ";"
+                + "if(id==='pageHosts')id='pageAd';"
                 + "var page=document.getElementById(id);"
-                + "if(id==='pageHosts'&&!page){id='pageAd';page=document.getElementById(id);}"
+                + "if(id==='pageAd'&&!page){page=document.getElementById('pageHosts');}"
                 + "if(!page||!page.children.length)return false;"
-                + "var navTab='" + (tab.equals("hosts") ? "ad" : tab) + "';"
+                + "var navTab='" + tab + "';"
                 + "try{var ae=document.activeElement;if(ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))ae.blur();}catch(e){}"
                 + "['editor','stylePanel','langPanel','confirmBar'].forEach(function(x){var el=document.getElementById(x);if(el)el.classList.remove('on');});"
                 + "var oldPage=document.querySelector('#screen .page.on');if(oldPage)oldPage.scrollTop=0;"
@@ -3285,7 +3234,6 @@ public final class MainActivity extends ComponentActivity {
 
     private void showSettings() {
         if (!hookUiVisible && !settingsUiVisible) captureNativePageScrollPosition();
-        clearMigrationNavigation();
         cancelHookStatusRefresh();
         cancelAppIconLoad();
         if (webView == null) showWebDashboard();
@@ -3519,573 +3467,6 @@ public final class MainActivity extends ComponentActivity {
         }
         showSettings();
         Toast.makeText(this, "已恢复默认壁纸", Toast.LENGTH_SHORT).show();
-    }
-
-    private String importedSuiteTitle(String suite) {
-        if ("dia".equals(suite)) return "Dia 23.11";
-        if ("yulong-shield".equals(suite)) return "游龙安全护盾 9.9.60";
-        return "游龙广告插件 7.0.1";
-    }
-
-    private String[][] importedSuiteSections(String suite) {
-        if ("dia".equals(suite)) return new String[][] {
-            {"应用与模块", "应用选择", "目标应用", "模块配置", "模块功能", "系统扩展", "Activity 入口与禁用", "隐藏应用"},
-            {"Hook 功能", "方法 Hook", "对话框处理", "通知监听与权限提示", "Toast 文本过滤", "剪贴板", "传感器", "网络与代理", "按键控制", "文件与 so 库"},
-            {"设备模拟", "设备属性", "位置与 GPS", "Wi-Fi 模拟", "网络类型模拟", "时间与时区", "应用版本", "签名信息"},
-            {"Frida 与脚本", "Frida 环境", "Frida 注入", "监听模式", "JS 脚本列表", "脚本编辑器", "运行日志"},
-            {"开发与监控", "Native 方法", "函数重写", "HTTP 监控", "HTTP 代理", "Socket 监控", "Intent 监控", "Activity 启动入口观察", "崩溃报告", "Shell/Process 监控", "方法堆栈", "View 点击监控", "按文本/ID 自动点击", "按文本/ID 移除匹配弹窗", "ViewGroup 层级监控", "Fragment 生命周期", "Thread 启动监控", "ClassLoader 监控", "SQL 监控", "JSON 操作", "数据库监控", "算法监控", "Dex 查找与解析", "内存快照"},
-            {"规则与数据", "规则组", "规则列表", "运行日志", "本地备份", "GitHub 备份", "WebDAV 备份", "全局设置"}
-        };
-        if ("yulong-shield".equals(suite)) return new String[][] {
-            {"安全中心", "安全护盾首页", "防护级别", "防护状态", "实时守护", "每日安全总结", "屏幕滤镜"},
-            {"病毒库与名单", "病毒库管理", "病毒库同步", "白名单管理", "管控应用列表"},
-            {"应用扫描", "已安装应用扫描", "安装后自动检测", "APK 内容特征扫描", "扫描结果", "批量清理"},
-            {"Stellar 金龙", "Stellar 特权管理", "应用授权", "能力作用域", "始终允许命令"},
-            {"救援与恢复", "悬浮救援入口", "音量键触发", "摇动触发", "开机恢复", "守护运行状态", "完整性校验"}
-        };
-        return new String[][] {
-            {"首页与防护", "广告拦截开关", "防护级别", "防护状态", "统计", "每日防护总结"},
-            {"过滤列表与规则", "过滤列表", "过滤器设置", "添加过滤列表", "自定义规则", "规则编辑", "白名单域名", "黑名单域名", "计划任务"},
-            {"DNS 设置", "DNS 服务器", "上游 DNS", "备用 DNS", "自定义 DNS", "DNS 协议", "分离 DNS 区域", "DNS 日志"},
-            {"应用管理", "应用白名单", "用户应用", "系统应用", "按应用设置", "应用统计", "应用网络拦截"},
-            {"VPN 与 Root Proxy", "VPN 保护", "VPN 状态", "自动重连", "信任的网络", "Root 代理模式", "iptables DNS 重定向"},
-            {"HTTPS 与证书", "HTTPS 过滤", "根 CA 证书", "保存证书", "安装证书", "验证证书", "过滤 HTTP/3 (QUIC)"},
-            {"日志与诊断", "DNS 查询日志", "导出本地日志", "分享日志", "崩溃报告", "隐私与诊断"},
-            {"通用设置", "界面", "主题色", "网络切换延迟", "电池优化", "设置导入", "设置导出", "关于"}
-        };
-    }
-
-    private void addDiaActivationBanner() {
-        if (!getSharedPreferences("digXposed", MODE_PRIVATE).getBoolean("active_tip", true)) return;
-
-        LinearLayout panel = new LinearLayout(this);
-        panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setPadding(dp(14), dp(10), dp(14), dp(10));
-        panel.setBackgroundColor(0xfffff6e8);
-        TextView title = new TextView(this);
-        title.setText("FX Hook · LSPosed 激活状态");
-        title.setTextColor(0xff7a4b13);
-        title.setTextSize(14);
-        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        panel.addView(title);
-
-        TextView state = new TextView(this);
-        state.setTextColor(0xff79552b);
-        state.setTextSize(12);
-        state.setPadding(0, dp(4), 0, dp(6));
-        panel.addView(state);
-
-        Runnable refresh = () -> {
-            if (isFinishing() || isDestroyed()) return;
-            if (FxLsposedScopeBridge.isConnected()) {
-                state.setText("已收到 LSPosed 官方服务 Binder。此状态仅证明框架服务可回应，不代表 FX Hook 已注入到当前进程或任一目标应用。请在 LSPosed Manager 单独确认模块启用和目标应用作用域，并重新启动目标进程。");
-            } else {
-                state.setText("尚未收到 LSPosed 官方服务 Binder。请在 LSPosed Manager 启用 FX Hook，确认作用域后重新打开 FX Hook 再刷新。服务连接状态不等同于目标进程注入状态。");
-            }
-        };
-        refresh.run();
-        Button refreshButton = new Button(this);
-        refreshButton.setAllCaps(false);
-        refreshButton.setText("刷新 LSPosed 服务状态");
-        refreshButton.setOnClickListener(v -> refresh.run());
-        panel.addView(refreshButton);
-
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
-        lp.setMargins(dp(12), dp(4), dp(12), dp(10));
-        content.addView(panel, lp);
-    }
-
-    private void showImportedSuite(String suite) {
-        migrationSuite = suite;
-        migrationCategory = null;
-        migrationPage = null;
-        migrationLevel = 1;
-        migrationChildActive = false;
-        cancelHookStatusRefresh();
-        cancelAppIconLoad();
-        pauseAndDetachWebView();
-        hookUiVisible = false;
-        hookTargetVisible = false;
-        hookHubVisible = false;
-        settingsUiVisible = true;
-        selectedBottomTab = 5;
-        String title = importedSuiteTitle(suite);
-        base(title);
-        TextView intro = new TextView(this);
-        intro.setText("按原软件的功能分类进入独立页面。能够复用 FX 原生功能的页面会直接打开对应控制页；尚未完成运行时移植的功能会明确标注，不显示伪造的开关或运行状态。");
-        intro.setTextColor(0xff66727e);
-        intro.setPadding(dp(16), dp(8), dp(16), dp(12));
-        content.addView(intro);
-        if ("dia".equals(suite)) addDiaActivationBanner();
-        for (String[] section : importedSuiteSections(suite)) {
-            String category = section[0];
-            addNativeActionCard(category, (section.length - 1) + " 个原始功能页面",
-                    "进入 " + category, () -> showImportedSuiteCategory(suite, category));
-        }
-        content.addView(nativeAction("返回 FX 设置", this::showSettings));
-    }
-
-    private void showImportedSuiteCategory(String suite, String category) {
-        migrationSuite = suite;
-        migrationCategory = category;
-        migrationPage = null;
-        migrationLevel = 2;
-        migrationChildActive = false;
-        String title = importedSuiteTitle(suite);
-        base(title + " · " + category);
-        for (String[] section : importedSuiteSections(suite)) {
-            if (!section[0].equals(category)) continue;
-            TextView intro = new TextView(this);
-            intro.setText("原功能页面分类：" + category);
-            intro.setTextColor(0xff66727e);
-            intro.setPadding(dp(16), dp(6), dp(16), dp(10));
-            content.addView(intro);
-            for (int i = 1; i < section.length; i++) {
-                final String page = section[i];
-                addNativeActionCard(page, "原软件四级页面入口",
-                        "打开 " + page, () -> openImportedSuitePage(suite, category, page));
-            }
-            break;
-        }
-        content.addView(nativeAction("返回 " + title, () -> showImportedSuite(suite)));
-    }
-
-    private void openImportedNativeTab(int index) {
-        lastWebTabIndex = Math.max(0, Math.min(3, index));
-        selectedBottomTab = lastWebTabIndex;
-        pendingWebPage = webPageForBottomTab(lastWebTabIndex);
-        hookUiVisible = false;
-        hookTargetVisible = false;
-        hookHubVisible = false;
-        settingsUiVisible = false;
-        showWebDashboard();
-    }
-
-    private void openImportedSuitePage(String suite, String category, String page) {
-        migrationSuite = suite;
-        migrationCategory = category;
-        migrationPage = page;
-        migrationLevel = 2;
-        migrationChildActive = false;
-        if ("yulong-ad".equals(suite)) {
-            switch (page) {
-                case "统计": case "每日防护总结":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.ad.FxYulongAdSummaryActivity.class));
-                    return;
-                case "应用统计":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.ad.FxYulongAppStatsActivity.class));
-                    return;
-                case "应用白名单":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.ad.FxYulongAppWhitelistActivity.class));
-                    return;
-                case "用户应用": case "系统应用": case "按应用设置": case "应用网络拦截":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.ad.FxYulongFirewallActivity.class)
-                            .putExtra("suite_page", page));
-                    return;
-                case "白名单域名": case "黑名单域名": case "自定义规则": case "规则编辑":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.ad.FxYulongAdActivity.class)
-                            .putExtra("suite_page", "域名名单"));
-                    return;
-                case "过滤器设置": case "添加过滤列表":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.ad.FxYulongAdActivity.class)
-                            .putExtra("suite_page", "过滤列表"));
-                    return;
-                case "广告拦截开关": case "防护级别": case "防护状态":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.ad.FxYulongAdActivity.class)
-                            .putExtra("suite_page", "首页与防护"));
-                    return;
-                case "DNS 服务器": case "上游 DNS": case "备用 DNS":
-                case "自定义 DNS": case "DNS 协议": case "分离 DNS 区域":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.ad.FxYulongAdActivity.class)
-                            .putExtra("suite_page", "DNS 设置"));
-                    return;
-                case "VPN 保护": case "VPN 状态": case "自动重连":
-                    startActivity(new Intent(this, MainActivity.class)
-                            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                            .putExtra("fx_open_native_tab", 0));
-                    return;
-                case "信任的网络":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.ad.FxYulongAdActivity.class)
-                            .putExtra("suite_page", "信任的网络"));
-                    return;
-                case "Root 代理模式": case "iptables DNS 重定向":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.ad.FxYulongAdActivity.class)
-                            .putExtra("suite_page", "VPN 与 Root Proxy")
-                            .putExtra("yulong_source_page", page));
-                    return;
-                case "过滤 HTTP/3 (QUIC)":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.ad.FxYulongAdActivity.class)
-                            .putExtra("suite_page", "DNS 设置")
-                            .putExtra("yulong_source_page", page));
-                    return;
-                case "HTTPS 过滤": case "根 CA 证书": case "保存证书":
-                case "安装证书": case "验证证书":
-                    markMigrationChild(suite, category, page);
-                    showNativeCertificateManager();
-                    return;
-                case "DNS 日志": case "DNS 查询日志":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.ad.FxYulongDnsActivity.class));
-                    return;
-                case "导出本地日志": case "分享日志": case "崩溃报告": case "隐私与诊断":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.ad.FxYulongAdActivity.class)
-                            .putExtra("suite_page", "日志与诊断"));
-                    return;
-                case "界面": case "主题色": case "网络切换延迟":
-                case "电池优化": case "设置导入": case "设置导出": case "关于":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.ad.FxYulongAdGeneralActivity.class));
-                    return;
-            }
-        }
-        if ("yulong-ad".equals(suite) && "计划任务".equals(page)) {
-            startActivity(new Intent(this,
-                    de.privacyguard.adhook.imported.ad.FxYulongAdActivity.class)
-                    .putExtra("suite_page", "计划任务"));
-            return;
-        }
-        if ("yulong-ad".equals(suite) && "DNS 日志".equals(page)) {
-            startActivity(new Intent(this,
-                    de.privacyguard.adhook.imported.ad.FxYulongDnsActivity.class));
-            return;
-        }
-        if ("yulong-shield".equals(suite)) {
-            switch (page) {
-                case "屏幕滤镜":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.shield.FxYulongScreenFilterActivity.class));
-                    return;
-                case "安全护盾首页": case "防护级别": case "防护状态":
-                case "实时守护": case "音量键触发": case "摇动触发": case "开机恢复":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.shield.FxYulongShieldActivity.class));
-                    return;
-                case "悬浮救援入口":
-                case "守护运行状态":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.shield.FxYulongShieldActivity.class));
-                    return;
-                case "每日安全总结":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.shield.FxYulongDailySummaryActivity.class));
-                    return;
-                case "完整性校验":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.shield.FxYulongIntegrityActivity.class));
-                    return;
-                case "批量清理":
-                    // The scanner owns selection state and passes the selected package queue.
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.shield.FxYulongScanActivity.class));
-                    return;
-                case "病毒库管理": case "病毒库同步":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.shield.FxYulongVirusDatabaseActivity.class));
-                    return;
-                case "白名单管理":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.shield.WhitelistActivity.class));
-                    return;
-                case "管控应用列表":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.shield.BlacklistActivity.class));
-                    return;
-                case "已安装应用扫描": case "安装后自动检测":
-                case "APK 内容特征扫描": case "扫描结果":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.shield.FxYulongScanActivity.class));
-                    return;
-                case "Stellar 特权管理": case "应用授权":
-                case "能力作用域": case "始终允许命令":
-                    startActivity(new Intent(this,
-                            roro.stellar.manager.authorization.FxStellarManagerActivity.class));
-                    return;
-                default:
-                    showImportedSuitePendingPage(suite, category, page,
-                            "该安全护盾原功能已登记；尚无对应独立四级实现。不会显示无效开关或伪造运行状态。");
-                    return;
-            }
-        }
-        if ("dia".equals(suite)) {
-            switch (page) {
-                case "系统扩展":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.dia.FxDiaSystemExpandActivity.class));
-                    return;
-                case "Activity 入口与禁用":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.dia.FxDiaActivityBrowserActivity.class)
-                            .putExtra("launcher_only", false));
-                    return;
-                case "隐藏应用":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.dia.FxDiaActivityBrowserActivity.class)
-                            .putExtra("launcher_only", true)
-                            .putExtra("dia_page", page));
-                    return;
-                case "方法 Hook": case "函数重写":
-                    markMigrationChild(suite, category, page);
-                    showAppList("自定义 Hook");
-                    return;
-                case "Native 方法":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.dia.FxDiaFridaActivity.class)
-                            .putExtra("dia_page", page));
-                    return;
-                case "规则组": case "规则列表":
-                    markMigrationChild(suite, category, page);
-                    showAppList("自定义 Hook");
-                    return;
-                case "应用版本":
-                    markMigrationChild(suite, category, page);
-                    showAppList("应用版本模拟");
-                    return;
-                case "按键控制":
-                    markMigrationChild(suite, category, page);
-                    showAppList("按键控制");
-                    return;
-                case "应用选择": case "目标应用": case "模块配置": case "模块功能":
-                    markMigrationChild(suite, category, page);
-                    showAppList();
-                    return;
-                case "对话框处理": case "对话框与通知":
-                    markMigrationChild(suite, category, page);
-                    // Keep Dialog rules independent from Notification and Toast filtering.
-                    showAppList("Dialog处理");
-                    return;
-                case "通知监听与权限提示":
-                    markMigrationChild(suite, category, page);
-                    // Reuse the existing per-app notification policies and native publisher.
-                    showAppList("通知保护");
-                    return;
-                case "Toast 文本过滤": case "Toast 过滤": case "Toast文本过滤": case "Toast 禁用":
-                    markMigrationChild(suite, category, page);
-                    showAppList("Toast过滤");
-                    return;
-                case "剪贴板":
-                    markMigrationChild(suite, category, page);
-                    // Preserve the independent per-app clipboard read/isolation rules.
-                    showAppList("剪贴板保护");
-                    return;
-                case "传感器":
-                    markMigrationChild(suite, category, page);
-                    showNativeSettingsGroup("sensorPanel", "Dia · 传感器");
-                    return;
-                case "崩溃报告":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.dia.FxDiaCrashReportActivity.class));
-                    return;
-                case "HTTP 监控": case "SQL 监控": case "算法监控":
-                case "Socket 监控": case "Intent 监控": case "Activity 启动入口观察": case "Shell/Process 监控":
-                case "方法堆栈": case "View 点击监控": case "按文本/ID 自动点击":
-                case "按文本/ID 移除匹配弹窗": case "ViewGroup 层级监控":
-                case "Fragment 生命周期": case "Thread 启动监控": case "ClassLoader 监控":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.dia.FxDiaFridaActivity.class)
-                            .putExtra("dia_page", page));
-                    return;
-                case "网络与代理":
-                    markMigrationChild(suite, category, page);
-                    showNativeSettingsGroup("netPanel", "Dia · " + page);
-                    return;
-                case "HTTP 代理":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.dia.FxDiaWifiProxyActivity.class));
-                    return;
-                case "设备属性":
-                    markMigrationChild(suite, category, page);
-                    showAppList("设备标识模拟");
-                    return;
-                case "Wi-Fi 模拟":
-                    markMigrationChild(suite, category, page);
-                    showAppList("Wi-Fi 环境模拟");
-                    return;
-                case "网络类型模拟":
-                    markMigrationChild(suite, category, page);
-                    showAppList("网络类型模拟");
-                    return;
-                case "文件与 so 库":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.dia.FxDiaFileActivity.class));
-                    return;
-                case "位置与 GPS":
-                    markMigrationChild(suite, category, page);
-                    showAppList("位置隐私");
-                    return;
-                case "时间与时区":
-                    markMigrationChild(suite, category, page);
-                    showAppList("时间与时区模拟");
-                    return;
-                case "JS 脚本列表":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.dia.FxDiaScriptLibraryActivity.class));
-                    return;
-                case "脚本编辑器":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.dia.FxDiaScriptLibraryActivity.class)
-                            .putExtra("open_new_script", true));
-                    return;
-                case "JSON 操作":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.dia.FxDiaJsonActivity.class));
-                    return;
-                case "运行日志":
-                    markMigrationChild(suite, category, page);
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.dia.FxDiaFridaActivity.class)
-                            .putExtra("dia_page", page));
-                    return;
-                case "全局设置":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.dia.FxDiaGlobalSettingsActivity.class));
-                    return;
-                case "Frida 环境": case "Frida 注入": case "监听模式":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.dia.FxDiaFridaActivity.class)
-                            .putExtra("dia_page", page));
-                    return;
-                case "本地备份":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.dia.FxDiaBackupActivity.class));
-                    return;
-                case "GitHub 备份": case "WebDAV 备份":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.dia.FxDiaBackupActivity.class));
-                    return;
-                case "Dex 查找与解析":
-                    Intent dexBrowser = new Intent(this,
-                            de.privacyguard.adhook.imported.dia.FxDiaDexBrowserActivity.class);
-                    dexBrowser.putExtra("allow_hook_method_pick", true);
-                    pendingDiaDexHookPicker = true;
-                    try {
-                        startActivityForResult(dexBrowser, REQUEST_DIA_DEX_HOOK_PICKER);
-                    } catch (RuntimeException launchFailure) {
-                        pendingDiaDexHookPicker = false;
-                        Toast.makeText(this, "无法打开 DEX 选择器：" + launchFailure.getMessage(),
-                                Toast.LENGTH_LONG).show();
-                    }
-                    return;
-                case "签名信息":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.dia.FxDiaSignatureActivity.class));
-                    return;
-                case "数据库监控": case "内存快照":
-                    startActivity(new Intent(this,
-                            de.privacyguard.adhook.imported.dia.FxDiaInspectorActivity.class)
-                            .putExtra("dia_mode", "数据库监控".equals(page) ? "database" : "memory"));
-                    return;
-                default:
-                    showImportedSuitePendingPage(suite, category, page,
-                            "该 Dia 页面已登记到迁移目录；对应运行逻辑尚未移植完成。当前不会创建无效开关，也不会修改目标应用或系统状态。");
-                    return;
-            }
-        }
-
-        if (category.equals("过滤列表与规则")) {
-            if (page.equals("计划任务")) {
-                startActivity(new Intent(this,
-                        de.privacyguard.adhook.imported.ad.FxYulongAdActivity.class)
-                        .putExtra("suite_page", "计划任务"));
-                return;
-            }
-            if (page.equals("白名单域名") || page.equals("黑名单域名")
-                    || page.equals("自定义规则") || page.equals("规则编辑")) {
-                startActivity(new Intent(this,
-                        de.privacyguard.adhook.imported.ad.FxYulongAdActivity.class)
-                        .putExtra("suite_page", "域名名单")
-                        .putExtra("yulong_source_page", page));
-                return;
-            }
-        }
-        if (category.equals("DNS 设置") && page.equals("DNS 日志")) {
-            startActivity(new Intent(this,
-                    de.privacyguard.adhook.imported.ad.FxYulongDnsActivity.class));
-            return;
-        }
-        if (category.equals("首页与防护")
-                && (page.equals("统计") || page.equals("每日防护总结"))) {
-            startActivity(new Intent(this,
-                    de.privacyguard.adhook.imported.ad.FxYulongAdSummaryActivity.class));
-            return;
-        }
-        if (category.equals("通用设置")) {
-            startActivity(new Intent(this,
-                    de.privacyguard.adhook.imported.ad.FxYulongAdGeneralActivity.class));
-            return;
-        }
-        if (category.equals("日志与诊断")) {
-            if (page.equals("DNS 查询日志")) {
-                startActivity(new Intent(this,
-                        de.privacyguard.adhook.imported.ad.FxYulongDnsActivity.class));
-            } else {
-                showNativeRuntimeLogs();
-            }
-            return;
-        }
-        if (category.equals("首页与防护") || category.equals("过滤列表与规则")
-                || category.equals("DNS 设置") || category.equals("VPN 与 Root Proxy")) {
-            String targetPage = page;
-            if (category.equals("首页与防护")) targetPage = "首页与防护";
-            else if (category.equals("过滤列表与规则")) targetPage = "过滤列表";
-            else if (category.equals("DNS 设置")) targetPage = "DNS 设置";
-            else if (category.equals("VPN 与 Root Proxy")) targetPage = "VPN 与 Root Proxy";
-            startActivity(new Intent(this,
-                    de.privacyguard.adhook.imported.ad.FxYulongAdActivity.class)
-                    .putExtra("suite_page", targetPage));
-            return;
-        }
-        if (category.equals("应用管理")) {
-            if (page.equals("应用白名单")) {
-                startActivity(new Intent(this,
-                        de.privacyguard.adhook.imported.ad.FxYulongAppWhitelistActivity.class));
-                return;
-            }
-            if (page.equals("用户应用") || page.equals("系统应用") || page.equals("按应用设置")) {
-                startActivity(new Intent(this,
-                        de.privacyguard.adhook.imported.ad.FxYulongFirewallActivity.class)
-                        .putExtra("suite_page", page));
-                return;
-            }
-            if (page.equals("应用网络拦截")) {
-                startActivity(new Intent(this,
-                        de.privacyguard.adhook.imported.ad.FxYulongFirewallActivity.class));
-                return;
-            }
-            if (page.equals("应用统计")) {
-                startActivity(new Intent(this,
-                        de.privacyguard.adhook.imported.ad.FxYulongAppStatsActivity.class));
-                return;
-            }
-            showImportedSuitePendingPage(suite, category, page,
-                    "该应用管理子页尚未单独迁移。原版移动数据/Wi-Fi 阻断和每日时间计划已接入“应用网络拦截”页；分应用 VPN 路由是独立功能，不互相冒充。");
-            return;
-        }
-        if (category.equals("HTTPS 与证书")) {
-            showNativeCertificateManager();
-            return;
-        }
-        if (category.equals("日志与诊断")) {
-            showNativeRuntimeLogs();
-            return;
-        }
-        if (category.equals("通用设置")) {
-            showSettings();
-            return;
-        }
-        showImportedSuitePendingPage(suite, category, page,
-                "该游龙广告子页仍未单独迁移。已迁入的核心功能包括广告主开关、规则订阅、域名名单、DNS 配置、唯一 FX VPN 下经验证的 Root DNS Proxy、每日计划、应用网络防火墙与分应用统计；不会用空壳代替尚未迁移的子页。");
     }
 
     /**
@@ -4350,23 +3731,6 @@ public final class MainActivity extends ComponentActivity {
 
         content.addView(nativeAction("重新读取应用路由状态", this::showImportedVpnAppManager));
         content.addView(nativeAction("返回 VPN 控制中心", this::showDashboard));
-    }
-
-    private void showImportedSuitePendingPage(String suite, String category, String page, String detail) {
-        migrationSuite = suite;
-        migrationCategory = category;
-        migrationPage = page;
-        migrationLevel = 3;
-        migrationChildActive = false;
-        String title = importedSuiteTitle(suite);
-        base(title + " · " + page);
-        content.addView(title(page, 21));
-        TextView description = new TextView(this);
-        description.setText(detail);
-        description.setTextColor(0xff66727e);
-        description.setPadding(dp(16), dp(10), dp(16), dp(16));
-        content.addView(description);
-        content.addView(nativeAction("返回 " + category, () -> showImportedSuiteCategory(suite, category)));
     }
 
     private void addNativeSettingsCategory(String label, String panelId) {
@@ -4907,9 +4271,7 @@ public final class MainActivity extends ComponentActivity {
                         Toast.LENGTH_LONG).show();
                 return;
             }
-            // Keep the source Dia category as the back destination while the
-            // selected method is reviewed in the Hook editor.
-            migrationChildActive = true;
+            // Return through the unified Hook app-list/target navigation.
             activePrivacySection = "自定义 Hook";
             showTarget(targetInfo);
             showCustomRuleDialog(descriptor);
@@ -5022,27 +4384,6 @@ public final class MainActivity extends ComponentActivity {
         if (hookCustomRulesPageVisible && hookTargetVisible) { leaveCustomHookRulesPage(); return; }
         if (hookTargetVisible) { showAppList(activePrivacySection); return; }
         if (nativeVpnAppManagerVisible) { showWebDashboard(); return; }
-        if (migrationChildActive && migrationSuite != null && migrationCategory != null) {
-            migrationChildActive = false;
-            migrationLevel = 2;
-            showImportedSuiteCategory(migrationSuite, migrationCategory);
-            return;
-        }
-        if (migrationLevel >= 3 && migrationSuite != null && migrationCategory != null) {
-            migrationLevel = 2;
-            showImportedSuiteCategory(migrationSuite, migrationCategory);
-            return;
-        }
-        if (migrationLevel == 2 && migrationSuite != null) {
-            migrationLevel = 1;
-            showImportedSuite(migrationSuite);
-            return;
-        }
-        if (migrationLevel == 1 && migrationSuite != null) {
-            clearMigrationNavigation();
-            showSettings();
-            return;
-        }
         if (settingsUiVisible) { showDashboard(); return; }
         if (hookUiVisible && !hookHubVisible) { showHookHub(); return; }
         if (hookHubVisible) { showWebDashboard(); return; }
