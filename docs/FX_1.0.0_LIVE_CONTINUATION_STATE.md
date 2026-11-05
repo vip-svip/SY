@@ -6079,3 +6079,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 更新 `scripts/tests/fx-vpn-coexistence-arbiter-regression.sh`，将探测夹具改为数据文件，并增加旧命令型环境变量不得执行的 marker 断言；保留端口、VPN 槽位、只读性与 fail-closed 覆盖。
 - GitHub 回读确认 arbiter 不再含 `eval "$FX_ARB_..."`，回归脚本不再使用旧命令变量作为执行入口；对应 Actions：VPN Coexistence Arbiter run `42102646201`，Targeted Host run `42102646295`，Six UI Modes run `42102646307`，Module Runtime run `42102646227`。记录时尚未全部完成，最终结论以各 run 结束状态为准。
 - 验证边界：已完成 GitHub 写入和回读；CI 正在执行。未声称本地 Shell/Host、Gradle、APK/ZIP、Android 设备或真机第三方 VPN/DNS 共存测试通过。
+
+
+## 2026-11-06 — VPN coexistence arbiter failed-interface-inventory regression
+
+- 回归提交：`6f5c195e97b9fa182dd0f6f603d920a60883b859`；测试夹具修正提交：`bba5e10275de0b847c49c848ce827f393c009596`。
+- 在 `scripts/tests/fx-vpn-coexistence-arbiter-regression.sh` 增加失败的 `ip -o link show` 命令仍输出部分接口数据的场景。测试通过 PATH 注入一个只输出 loopback 接口后返回 7 的隔离假 `ip` 可执行文件；断言裁决器必须丢弃部分输出、将 probe 标记为 unavailable、verdict=unknown、exit=2，不能声称没有外部 VPN。
+- 首次 CI 暴露新增 fixture 的 shell 转义错误（run `42102660148` failure）；已修正续行符和 printf 格式串，没有放宽断言。
+- 修正后 GitHub Actions：VPN Coexistence Arbiter run `42102744421` SUCCESS；Targeted Host Regression run `42102745222` SUCCESS；Six UI Modes run `42102744474` SUCCESS。Module Runtime Regression run `42102744532` 在记录时仍为 in_progress，不据此宣称通过。
+- 已从 GitHub 回读测试脚本，确认隔离假命令、非零退出、unknown/unavailable 断言已写入。此批为 Host/CI shell 回归；未运行 Android Gradle 构建、APK/KernelSU ZIP 构建、模拟器或真机 VPN/TUN/DNS 数据面测试。
+- 下一步：跟进 Module Runtime Regression run `42102744532`；随后转入本地 DNS 独立服务的启停/卸载恢复与端口回滚测试，继续保持 VPN 与 DNS 分离的生命周期。
