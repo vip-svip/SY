@@ -4920,3 +4920,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Regression commit: 8bda5a259ae64d1ded008094d893775c4679c90a — test(vpn): fix newline assertions in status fail-open regression.
 - GitHub Actions run 42014171517 completed successfully; host-regressions = success. Log reports: PASS: Root Proxy runtime route/UID proofs, dual-stack rules, state-path symlink guards, independent DNS ownership and fail-open rollback.
 - This is host-side shell integration with mocked Android commands and iptables/ip6tables. It does not establish real device VPN recovery, kernel TUN behavior, OEM firewall compatibility, SELinux policy behavior or uninterrupted network service on Android hardware.
+
+
+## 2026-11-05 — VPN regression coverage and Dia automation navigation repair
+
+- CI mapping gap closed: .github/workflows/fx-targeted-regression.yml now runs scripts/tests/fx-yulong-root-proxy-runtime-regression.sh whenever FX module scripts or Root Proxy/VPN patchers change. Previously that runtime test ran only when the test file itself changed, so source edits could bypass it.
+- Added the same Root Proxy runtime regression to .github/workflows/build-fx-adhook.yml immediately after release module restore and Root Proxy patching. This ensures the package lane exercises the restored/patch-applied module source rather than relying only on the host-only tracked copy. Commit: 680d8d598020404625cb0483eef42ea9d284c405. This build workflow change has not yet been executed via its gated workflow_dispatch/PR path.
+- Full host workflow run 42014520068 exposed a real Dia navigation regression: FxDiaFridaActivity already supported click-auto and viewgroup-remove template routes, but MainActivity's Hook hub did not expose them. Added two native action cards that route into the existing Frida Activity using its supported dia_page values; no second automation engine was created. The templates retain their default-empty matching rules and existing bounded traversal/action limits.
+- The initial full-suite run failed at scripts/tests/fx-dia-monitor-event-view-regression.sh with "auto-click page missing from Dia native navigation". This was a real missing entrypoint, not a VPN failure. After the MainActivity fix, run 42014690754 completed successfully with host-regressions = success; its logs show the GKD, six-skin UI, Hook/Dia, native VPN controller, DNS cache and related host regressions passing.
+- Dia entrypoint commit: d2c318112ae4c23684406cf71a1b8cb277c721a3 — feat(dia): expose bounded Frida automation templates in Hook hub.
+- Root Proxy CI mapping commit: 5f229a549f0fd60a74d21b6778720b5e616d34ea — ci(vpn): run Root Proxy runtime regression for module changes.
+- Android Gradle/APK build, restored Release ZIP package-lane run, KernelSU/Magisk installation, device VPN coexistence, SELinux and physical-device power/network continuity remain unverified.
