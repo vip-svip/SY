@@ -6547,3 +6547,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 已读 CI：VPN shell regression run `42108118475` SUCCESS；System App Install Stage run `42108131514` SUCCESS。GKD-XA Selector run `42108252274` 在读取时仍为 in_progress，尚不记为通过。
 - 正式 KernelSU ZIP 构建 workflow `.github/workflows/build-fx-kernelsu.yml` 保留原来的取消策略，不把旧正式打包队列与验证队列混为一谈。
 - 本次状态记录前分支 HEAD：`30e9cfa16318d7b7a7feb69f3253450dd86fcf34`。所有三个 workflow 已从目标分支回读确认；不声称 GKD 本轮已通过，也不声称真机测试。
+
+## 2026-11-06 — Hook APK migration validation blocker
+
+- GitHub Actions run `42107889234` (`Validate FX APP migration and build Hook APK`, HEAD `8a852b94d6e7436e73e66a17cf6b4159e1f5b8d1`) completed its source-restoration step with failure before static migration checks, Host suite and Gradle build could run.
+- The failing assertion was `Hosts page save temp-path invariant missing: [ -d "$path" ] && [ ! -L "$path" ]`, emitted from a Python check during the Release-source restoration/patch stage. Dia source intake and DEX staging passed; the step had restored the Release module and run several VPN/Hook/QuickJS/managed-list patches before this assertion. The exact patcher/test emitting this assertion still needs to be isolated; do not claim APK build success from this run.
+- Next action: identify the assertion's source in the staged Release/patch pipeline, compare it with the canonical Hosts page save implementation, then either restore the required path guard or update only a demonstrably stale assertion. Re-run the complete migration lane and require `:app:testDebugUnitTest`, `:app:assembleDebug`, APK signature/package/version checks and the dual system-app/optional APK digest checks to pass.
+- Separate VPN result: arbiter run `42107900674` at `27288908a794bdbc4f2622c503808f38831c5b6f` completed successfully. The arbiter is still observation-only and does not prove live TUN route/return-path/DNS behavior.
