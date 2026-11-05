@@ -1,0 +1,14 @@
+result	test	detail
+PASS	v1.0.0-ad-dns-backend-contract-regression.sh	PASS: per-rule block + DNS/Hosts/IP auto-selection contract
+PASS	v1.0.0-ad-master-early-hosts-regression.sh	PASS: early boot derives hosts mount from active rows and preserves foreign mounts
+PASS	v1.0.0-ad-master-rule-control-regression.sh	Per-rule toggles / auto apply / backend parsing regression: PASS
+PASS	v1.0.0-ad-protection-master-gates-engines-regression.sh	PASS: retired category controls removed; individual rows drive engines
+PASS	v1.0.0-ad-rule-live-sync-regression.sh	inline JS parse: PASS (32 blocks) Ad ↔ Rules live per-row overview sync regression: PASS
+PASS	v1.0.0-ad-rule-overview-regression.sh	inline JS parse + rules-page-top placement: PASS (32 blocks) Ad rule overview regression: PASS
+PASS	v1.0.0-ad-ui-master-removal-and-overview-top-regression.sh	retired controls + auto apply + overview + JS parse: PASS (32 inline blocks) Ad UI rule-toggle auto-apply / overview regression: PASS
+PASS	v1.0.0-dns-redirect-precedence-regression.sh	PASS: DNS redirect precedence + no retired DNS toggle FX DNS redirect precedence regression: PASS
+PASS	v1.0.0-vpn-external-state-regression.sh	FX 1.0.0 external VPN state / DNS guard regression: PASS
+PASS	v1.0.0-hook-waf-claims-regression.sh	PASS: page switches removed; per-row UID/IP behavior matches implementation
+PASS	v1.0.0-external-vpn-hide-transaction-regression.sh	FX external VPN hide transaction regression: PASS
+PASS	v1.0.0-rule-toggle-auto-apply-regression.sh	auto apply coalescing / full apply / busy-drain simulation: PASS per-rule auto-apply regression: PASS
+PASS	v1.0.0-ui-startup-layout-integration-regression.sh	UI document structure and 32 inline-script syntax: PASS FX UI startup/layout integration regression: PASS

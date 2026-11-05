@@ -1,0 +1,15 @@
+FX MITM engine build information
+Version: FX 1.0.0
+Target: Android arm64
+Go: go1.23.2; GOOS=android GOARCH=arm64 CGO_ENABLED=0
+Build flags: -trimpath -ldflags='-s -w'
+Build date: 2026-10-28
+Changes: response script status normalization; no-body response framing safety; request/response script framing headers normalized; body rewrites clear structured TransferEncoding and Trailer fields; regression tests cover forged framing and structured transfer metadata.
+Verification: host Go tests, race tests, vet; Android arm64 cross-build completed. Device runtime not tested in this build environment.
+Additional regression: HEAD request whose response hook changes status to 204 now clears forbidden Content-Length, Transfer-Encoding, and Trailer metadata before the general HEAD handling.
+Verification note: go test -count=1 ./... and go vet ./... passed in this run. The full race-enabled suite exceeded the execution time limit; a targeted framing regression subset passed. OnePlus 12 runtime remains unverified.
+Additional regression (2026-10-29): response hooks no longer receive/edit a 205 Reset Content entity body; status normalization removes body and framing metadata.
+Verification: go test -count=1 ./..., go test -race -count=1 ./..., go vet ./... all passed; Android arm64 cross-build succeeded. OnePlus 12 device runtime remains unverified.
+
+Additional regression (2026-10-29): request/response hook chains now share a 30-second stage deadline while each individual script retains a 12-second cap. This prevents many matching hooks from multiplying worst-case request latency without bound. Script timeout still kills the runner process group.
+Verification: go test -count=1 ./..., go test -race -count=1 ./..., go vet ./... passed; Android arm64 cross-build succeeded. OnePlus 12 runtime remains unverified.
