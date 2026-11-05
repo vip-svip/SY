@@ -63,12 +63,12 @@ public final class FxYulongVirusDatabaseActivity extends de.privacyguard.adhook.
         t.setPadding(dp(4),dp(5),dp(4),dp(5)); return t;
     }
     private Button action(String s, Runnable r) {
-        Button b = new Button(this); b.setAllCaps(false); b.setText(s); b.setOnClickListener(v -> r.run()); return b;
+        Button b = new Button(this); b.setTag("fx-action-row"); b.setAllCaps(false); b.setText(s); b.setOnClickListener(v -> r.run()); return b;
     }
     private void card(String title, View... children) {
-        LinearLayout panel = new LinearLayout(this); panel.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout panel = new LinearLayout(this); panel.setTag("fx-card"); panel.setOrientation(LinearLayout.VERTICAL);
         panel.setPadding(dp(14),dp(10),dp(14),dp(10)); panel.setBackgroundColor(0xfff0f3f7);
-        panel.addView(text(title,16,0xff17212b,true));
+        TextView heading = text(title,16,0xff17212b,true); heading.setTag("fx-card-title"); panel.addView(heading);
         for(View child:children) panel.addView(child);
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);
         lp.setMargins(dp(12),dp(5),dp(12),dp(5)); body.addView(panel,lp);
@@ -80,19 +80,21 @@ public final class FxYulongVirusDatabaseActivity extends de.privacyguard.adhook.
         LinearLayout root=new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(0xfff7f8fa);
         LinearLayout header=new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL); header.setPadding(dp(12),dp(8),dp(12),dp(8));
         header.addView(action("‹ 返回隐私",this::finish));
-        header.addView(text("隐私 · 病毒库管理",19,0xff17212b,true),new LinearLayout.LayoutParams(0,-2,1));
+        TextView pageTitle = text("隐私 · 病毒库管理",19,0xff17212b,true);
+        pageTitle.setTag("fx-title:18");
+        header.addView(pageTitle,new LinearLayout.LayoutParams(0,-2,1));
         root.addView(header);
         ScrollView scroll=new ScrollView(this); databaseScroll=scroll; scroll.setFillViewport(true);
         body=new LinearLayout(this); body.setOrientation(LinearLayout.VERTICAL); body.setPadding(0,dp(4),0,dp(20));
         scroll.addView(body); root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1)); setContentViewWithNativeTabs(root, 2);
 
         FxYulongVirusDb.get(this);
-        summary=text("",13,0xff455565,false);
+        summary=text("",13,0xff455565,false); summary.setTag("fx-card-detail");
         refresh=action("立即同步病毒库",this::refreshDatabase);
         card("同步状态",summary,refresh);
-        listRows=new LinearLayout(this); listRows.setOrientation(LinearLayout.VERTICAL);
+        listRows=new LinearLayout(this); listRows.setTag("fx-card-group"); listRows.setOrientation(LinearLayout.VERTICAL);
         card("原版远程名单状态",listRows);
-        contentSummary = text("",13,0xff455565,false);
+        contentSummary = text("",13,0xff455565,false); contentSummary.setTag("fx-card-detail");
         contentRefresh = action("同步 APK 内容特征库", this::refreshContentDatabase);
         card("高级 APK 内容特征库（原版默认不用于手动扫描）", contentSummary, contentRefresh);
         updateStatus();
@@ -143,12 +145,12 @@ public final class FxYulongVirusDatabaseActivity extends de.privacyguard.adhook.
             String detail = item.url + (item.mergeUrl == null ? "" : "\n合并源：" + item.mergeUrl);
             String state = item.statusLabel() + " · " + item.count + " 条 · 最近成功更新：" + updated
                     + (attempted.isEmpty() ? "" : " · 最近尝试：" + attempted);
-            LinearLayout row = new LinearLayout(this);
+            LinearLayout row = new LinearLayout(this); row.setTag("fx-list-row");
             row.setOrientation(LinearLayout.VERTICAL);
             row.setPadding(dp(8), dp(5), dp(8), dp(5));
-            row.addView(text(item.label, 14, 0xff263746, true));
-            row.addView(text(state, 12, 0xff607080, false));
-            row.addView(text(detail, 11, 0xff778493, false));
+            TextView label = text(item.label, 14, 0xff263746, true); label.setTag("fx-list-title"); row.addView(label);
+            TextView status = text(state, 12, 0xff607080, false); status.setTag("fx-list-subtitle"); row.addView(status);
+            TextView source = text(detail, 11, 0xff778493, false); source.setTag("fx-card-detail"); row.addView(source);
             listRows.addView(row, new LinearLayout.LayoutParams(-1, -2));
         }
     }
