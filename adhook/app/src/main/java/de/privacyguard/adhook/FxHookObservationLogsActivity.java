@@ -96,7 +96,7 @@ public final class FxHookObservationLogsActivity extends FxNativeTabActivity {
 
     private static boolean isSafePackageName(String value) {
         return value != null && value.length() <= 255
-                && value.matches("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+")
+                && value.matches("[A-Za-z][A-Za-z0-9_]*([.][A-Za-z][A-Za-z0-9_]*)+")
                 && !value.contains("..");
     }
 
