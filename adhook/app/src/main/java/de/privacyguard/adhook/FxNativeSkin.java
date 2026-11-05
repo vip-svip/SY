@@ -202,6 +202,13 @@ final class FxNativeSkin {
 
     private static void applyButtonSkin(Activity activity, Button button,
                                         FxUiMode mode, Palette palette) {
+        // Preserve semantic action buttons. Warning, destructive and success
+        // actions use explicit red/amber/green tokens in the source screens;
+        // recoloring them as a generic accent button would erase their meaning.
+        if (isSemanticActionColor(button.getCurrentTextColor())
+                || isSemanticActionBackground(button.getBackground())) {
+            return;
+        }
         synchronized (BUTTON_SKINS) {
             if (BUTTON_SKINS.get(button) == mode) return;
             BUTTON_SKINS.put(button, mode);
@@ -228,6 +235,30 @@ final class FxNativeSkin {
         button.setPadding(Math.round(16 * density), Math.round(9 * density),
                 Math.round(16 * density), Math.round(9 * density));
         button.setElevation(Math.round((mode == FxUiMode.FX_LIQUID_NATIVE ? 2 : 0) * density));
+    }
+
+    private static boolean isSemanticActionBackground(Drawable background) {
+        return background instanceof ColorDrawable
+                && isSemanticActionColor(((ColorDrawable) background).getColor());
+    }
+
+    private static boolean isSemanticActionColor(int color) {
+        switch (color) {
+            // Destructive / error
+            case 0xff9b2c2c:
+            case 0xffa32620:
+            case 0xffa12d2d:
+            // Warning / risk
+            case 0xfffff6e8:
+            case 0xff7a4b13:
+            case 0xff79552b:
+            // Success / trusted
+            case 0xff237347:
+            case 0xff24734a:
+                return true;
+            default:
+                return false;
+        }
     }
 
     private static void applySwitchSkin(Activity activity, Switch control,
