@@ -29,6 +29,10 @@ assert "FxGkdAutomationRuntime.process(this, eventPackage, root)" in service
 assert "public static void requestReconfigure(Context context)" in service
 for event in ("TYPE_WINDOW_STATE_CHANGED", "TYPE_WINDOW_CONTENT_CHANGED", "TYPE_VIEW_SCROLLED"):
     assert event in service, f"FX Accessibility service does not dispatch GKD on {event}"
+assert "AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS" in service
+assert "wantedFlags |= AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS" in service
+assert "wantedFlags &= ~AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS" in service
+assert "if (info.eventTypes != wantedEvents || info.flags != wantedFlags)" in service
 assert "FxGkdRuleStore.hasEnabledRule(this, pkg)" in service
 assert "AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS" in service
 assert "wantedFlags |= AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS" in service
