@@ -61,7 +61,8 @@ assert 'addStoredSwitch("显示 LSPosed 激活状态提示"' in global_page, "ac
 assert 'addUnavailableSwitch("显示原生模块激活提示"' in global_page, "native_active_tip must not be exposed as an active switch without an original consumer"
 assert '"active_tip", true' in global_page and '"native_active_tip", true' in global_page, "original default-on values must be preserved"
 assert "完整 Smali 检索未发现该键的读取/消费逻辑" in global_page, "native_active_tip must disclose that original APK has no consumer"
-assert 'getSharedPreferences("digXposed", MODE_PRIVATE).getBoolean("active_tip", true)' in main, "Dia activation banner must honor the migrated active_tip preference"
+compact_main = "".join(main.split())
+assert 'getSharedPreferences("digXposed",MODE_PRIVATE).getBoolean("active_tip",true)' in compact_main, "Dia activation banner must honor the migrated active_tip preference (whitespace-insensitive)"
 assert "FxLsposedScopeBridge.isConnected()" in main, "Dia activation banner must read the real libXposed service connection"
 assert "不代表 FX Hook 已注入" in main and "服务连接状态不等同于目标进程注入状态" in main, "banner must not confuse service connectivity with verified target process injection"
 assert "addUnavailableAction(\"设置语言\"" in global_page, "language must stay unavailable until unified locale resources/lifecycle are migrated"
