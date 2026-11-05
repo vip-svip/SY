@@ -3106,6 +3106,10 @@ public final class MainActivity extends ComponentActivity {
         intro.setTextColor(0xff536170);
         content.addView(intro);
         section("Hook 工具与调试");
+        addNativeActionCard("GKD 辅助自动化",
+                "使用 GKD-XA 选择器引擎管理本地逐应用规则。默认关闭；只有你在规则页开启总开关后才会匹配并执行本地规则。",
+                "管理 GKD 规则", () -> startActivity(
+                        new Intent(this, FxGkdAutomationActivity.class)));
         addNativeActionCard("Frida 环境与注入", "管理 Frida 运行环境、注入会话、Gadget 与脚本执行状态。", "打开 Frida 工具", () ->
                 startActivity(new Intent(this,
                         de.privacyguard.adhook.imported.dia.FxDiaFridaActivity.class)
