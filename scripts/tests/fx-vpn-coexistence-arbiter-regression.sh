@@ -428,6 +428,33 @@ rc=${r%%|*}; out=${r#*|}
 [ "$(field "$out" "['vpn_service_slot_used']")" = "None" ] || fail "unreadable helper source must not claim slot is free"
 pass "dangling helper symlink is counted and fails closed"
 
+echo "== case 8d: nested module shell helper cannot bypass the slot scan =="
+cp -a "$TMP/mod_clean/." "$TMP/mod_nested/"
+mkdir -p "$TMP/mod_nested/scripts/network/dns"
+cat > "$TMP/mod_nested/scripts/network/dns/compat-helper.sh" <<'EOF'
+#!/system/bin/sh
+VpnService.Builder().setSession("nested-fx").establish()
+EOF
+r=$(run_arb "$LINKS_NO_TUN" "" "$TMP/net_free" "$TMP/mod_nested")
+rc=${r%%|*}; out=${r#*|}
+[ "$rc" -eq 3 ] || fail "nested VpnService helper must return rc=3, got $rc: $out"
+[ "$(field "$out" "['verdict']")" = "incompatible" ] || fail "nested helper bypassed slot scan: $out"
+pass "nested module shell helpers are included in the VpnService invariant scan"
+
+echo "== case 8e: comment-only VpnService mention does not trigger a false positive =="
+cp -a "$TMP/mod_clean/." "$TMP/mod_comment/"
+mkdir -p "$TMP/mod_comment/scripts/network"
+cat > "$TMP/mod_comment/scripts/network/documentation.sh" <<'EOF'
+#!/system/bin/sh
+# VpnService.Builder is intentionally documented here, not invoked.
+echo "kernel dataplane remains independent"
+EOF
+r=$(run_arb "$LINKS_NO_TUN" "" "$TMP/net_free" "$TMP/mod_comment")
+rc=${r%%|*}; out=${r#*|}
+[ "$rc" -eq 0 ] || fail "comment-only API mention must not return rc=3, got $rc: $out"
+[ "$(field "$out" "['vpn_service_slot_used']")" = "False" ] || fail "comment-only API mention was treated as an invocation: $out"
+pass "comment-only VpnService mention is not treated as executable API usage"
+
 echo "== case 9: unreadable port state -> never claimed as free =="
 mkdir -p "$TMP/net_missing"
 r=$(run_arb "$LINKS_NO_TUN" "" "$TMP/net_missing" "$TMP/mod_clean")
