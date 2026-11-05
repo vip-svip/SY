@@ -1,0 +1,188 @@
+name: FX Module Source Recovery
+
+on:
+  push:
+    branches:
+      - fx-v1.0.0-unified-hook-integration
+    paths:
+      - .github/workflows/fx-module-source-recovery.yml
+      - .github/workflows/build-fx-kernelsu.yml
+      - 'fx-module/**'
+      - 'fx-patches/**'
+      - 'scripts/tests/**'
+      - 'docs/fx-module-recovery/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout integration branch
+        uses: actions/checkout@v4
+      - name: Recover canonical FX module scripts from the existing 1.0.0 release
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/FX-v1.0.0.zip"
+          unpack="$RUNNER_TEMP/fx-module-unpack"
+          curl --fail --silent --show-error --location \
+            https://github.com/vip-svip/SY/releases/download/1.0.0/FX-v1.0.0.zip \
+            -o "$archive"
+          unzip -tq "$archive"
+          mkdir -p "$unpack" recovered-fx-module
+          unzip -q "$archive" -d "$unpack"
+          module_prop="$(find "$unpack" -maxdepth 3 -type f -name module.prop -print -quit)"
+          [[ -n "$module_prop" ]] || { echo "::error::No module.prop in the published FX module archive"; exit 1; }
+          source_root="$(dirname "$module_prop")"
+          [[ -d "$source_root/scripts" ]] || { echo "::error::Published FX module has no scripts directory"; exit 1; }
+          # The checked-in fx-module tree is an overlay, not the complete runtime.
+          # Validate the exact core files consumed by service.sh, the coexistence
+          # arbiter, and the package workflow before publishing this recovery snapshot.
+          required=(
+            module.prop customize.sh post-fs-data.sh service.sh uninstall.sh
+            scripts/apply.sh scripts/default.conf scripts/util.sh scripts/certmgr.sh
+            scripts/vpn-external-watchdog.sh
+          )
+          for file in "${required[@]}"; do
+            [[ -s "$source_root/$file" ]] || {
+              echo "::error::Published FX module is incomplete: missing $file"
+              exit 1
+            }
+          done
+          sha256sum "$source_root/scripts/vpn-external-watchdog.sh"
+          # Recover the entire canonical module tree, including bin/, libs,
+          # optional payloads and legacy scripts; overlay current branch sources
+          # immediately afterwards so no newer reviewed fix is rolled back.
+          cp -a "$source_root/." recovered-fx-module/
+          # Merge current branch-owned module overlays over the historical Release baseline.
+          if [[ -d fx-module/scripts ]]; then
+            cp -a fx-module/scripts/. recovered-fx-module/scripts/
+          fi
+          for file in module.prop customize.sh post-fs-data.sh service.sh uninstall.sh; do
+            [[ ! -s "fx-module/$file" ]] || install -m 0755 "fx-module/$file" "recovered-fx-module/$file"
+          done
+          # The module ZIP deliberately retires its WebUI; recover the canonical
+          # UI from the exact standalone APK asset used by the module build.
+          apk="$RUNNER_TEMP/FXUnifiedHook.apk"
+          curl --fail --silent --show-error --location \
+            https://github.com/vip-svip/SY/releases/download/1.0.0/FXUnifiedHook.apk \
+            -o "$apk"
+          webroot="$RUNNER_TEMP/fx-recovered-webroot.html"
+          unzip -p "$apk" assets/webroot/index.html > "$webroot"
+          [[ "$(wc -c < "$webroot")" -gt 500000 ]] || {
+            echo "::error::Recovered WebUI is not the complete packaged UI"; exit 1;
+          }
+          # The Release APK contains a legacy UI snapshot. Keep it as validation
+          # evidence only; the build workflow restores this asset and applies the
+          # current native VPN/Hosts patches before packaging. Never commit stale UI.
+          rm -f recovered-fx-module/webroot/index.html
+          rmdir recovered-fx-module/webroot 2>/dev/null || :
+          if [[ -d "$source_root/bin" ]]; then
+            find "$source_root/bin" -type f -printf '%P\t%s bytes\n' | sort > recovered-fx-module/BIN-MANIFEST.txt
+          fi
+          sha256sum "$archive" > recovered-fx-module/RELEASE-ARCHIVE-SHA256.txt
+          # Provide a per-file integrity manifest so later source integration can
+          # verify provenance without dumping the recovered runtime into CI logs.
+          (
+            cd recovered-fx-module
+            find . -type f ! -name SOURCE-SHA256SUMS.txt -print0 |
+              sort -z | xargs -0 -r sha256sum > SOURCE-SHA256SUMS.txt
+          )
+          printf '%s\n' "source=GitHub Release 1.0.0" "archive=FX-v1.0.0.zip" \
+            "recovery_branch=$GITHUB_REF_NAME" "recovery_commit=$GITHUB_SHA" \
+            > recovered-fx-module/SOURCE-ORIGIN.txt
+          find recovered-fx-module -type f | sort
+      - name: Upload recovered source snapshot for code integration
+        uses: actions/upload-artifact@v4
+        with:
+          name: fx-module-source-snapshot
+          path: recovered-fx-module/
+          if-no-files-found: error
+          retention-days: 1
+      - name: Publish recovered module source for integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Create a fresh integration branch from the exact current target HEAD.
+          # Import only paths missing from the target tree; never replace branch-owned
+          # files with older Release copies.
+          recovery_branch=fx-module-source-recovery-final
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin "+refs/heads/$GITHUB_REF_NAME:refs/remotes/origin/$GITHUB_REF_NAME"
+          if git ls-remote --exit-code --heads origin "$recovery_branch" >/dev/null 2>&1; then
+            # Refresh the existing PR branch from the latest integration HEAD.
+            # The merge commit keeps the old branch as a parent, so the push is
+            # fast-forward only; no force push or lost commits are permitted.
+            git fetch origin "+refs/heads/$recovery_branch:refs/remotes/origin/$recovery_branch"
+            git checkout -B "$recovery_branch" "origin/$GITHUB_REF_NAME"
+            merge_status=0
+            git merge --allow-unrelated-histories --no-commit -X ours "origin/$recovery_branch" || merge_status=$?
+            unmerged=$(git diff --name-only --diff-filter=U | LC_ALL=C sort)
+            if [[ -n "$unmerged" ]]; then
+              # The integration branch is authoritative for files it already
+              # owns. Recovery import below is additive (cp -an), so retain ours
+              # for overlapping module runtime and regression-test paths.
+              unexpected=$(printf '%s\n' "$unmerged" | grep -Ev '^(fx-module/|scripts/tests/|docs/fx-module-recovery/)' || :)
+              if [[ -n "$unexpected" ]]; then
+                echo "::error::Unexpected source-import conflicts outside additive recovery paths:"
+                printf '%s\n' "$unexpected"
+                exit 1
+              fi
+              while IFS= read -r conflict_path; do
+                [[ -n "$conflict_path" ]] || continue
+                git checkout --ours -- "$conflict_path"
+                git add -- "$conflict_path"
+              done <<< "$unmerged"
+            elif [[ "$merge_status" -ne 0 ]]; then
+              echo "::error::Unrelated source-history merge failed without resolvable file conflicts."
+              exit "$merge_status"
+            fi
+            git commit --no-edit
+          else
+            git checkout -B "$recovery_branch" "origin/$GITHUB_REF_NAME"
+          fi
+          mkdir -p docs/fx-module-recovery
+          for file in BIN-MANIFEST.txt RELEASE-ARCHIVE-SHA256.txt SOURCE-SHA256SUMS.txt SOURCE-ORIGIN.txt; do
+            [[ ! -s "recovered-fx-module/$file" ]] || {
+              if [[ ! -s "docs/fx-module-recovery/$file" ]]; then
+                install -m 0644 "recovered-fx-module/$file" "docs/fx-module-recovery/$file"
+              fi
+              rm "recovered-fx-module/$file"
+            }
+          done
+          mkdir -p fx-module
+          # Import only files absent from the latest target tree. This keeps all
+          # newer branch-owned module fixes byte-for-byte intact.
+          cp -an recovered-fx-module/. fx-module/
+          # Remove any previously imported legacy WebUI snapshot; the package
+          # workflow will restore the APK asset and patch it before acceptance.
+          rm -f fx-module/webroot/index.html
+          rmdir fx-module/webroot 2>/dev/null || :
+          git add fx-module docs/fx-module-recovery
+          if git diff --cached --quiet; then
+            echo "Recovered module source already matches the integration PR branch."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore(module): restore canonical FX 1.0.0 runtime sources"
+          published=0
+          for attempt in 1 2 3; do
+            if git push origin "HEAD:refs/heads/$recovery_branch"; then
+              published=1
+              break
+            fi
+            # Another AI may have advanced the same PR branch after our fetch.
+            # Merge that new tip (without force) and retry; never discard its commits.
+            git fetch origin "+refs/heads/$recovery_branch:refs/remotes/origin/$recovery_branch"
+            git merge --no-edit -X ours "origin/$recovery_branch"
+          done
+          [[ "$published" -eq 1 ]] || {
+            echo "::error::Could not publish recovered module source after three non-force attempts."
+            exit 1
+          }
+          echo "::notice::Recovered source published on $recovery_branch for review."
