@@ -106,8 +106,9 @@ assert 'state.getString("fx_custom_rule_editor_preset")' in main
 assert 'outState.putBoolean("fx_custom_rule_editor_open", true)' in main
 assert "if (customRuleEditorRestorePending)" in main
 assert "showCustomRuleDialog(restorePreset, restoreSlot);" in main
-assert "new android.text.InputFilter.LengthFilter(65536)" in main, "JSON import draft must match the documented 64 KiB import limit"
-assert "getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 65536" in main, "JSON import parser must enforce its UTF-8 byte limit"
+assert "new android.text.InputFilter.LengthFilter(65536)" not in main, "JSON import editor must not reintroduce an arbitrary character ceiling"
+assert "getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 65536" not in main, "JSON import parser must not reintroduce an arbitrary UTF-8 byte ceiling"
+assert "new org.json.JSONArray(raw)" in main and "new org.json.JSONObject(raw)" in main, "JSON import must retain array/object parsing after removing the fixed ceiling"
 assert 'getPreferences(0).edit().putString(importDraftKey,' in main, "JSON import draft must survive Activity recreation"
 assert "clearCustomRuleEditorDialogState();" in main
 assert '.setNegativeButton("取消", (dialog, which) -> clearCustomRuleEditorDialogState())' in main
