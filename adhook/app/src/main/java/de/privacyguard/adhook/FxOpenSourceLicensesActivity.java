@@ -21,6 +21,7 @@ import java.util.concurrent.TimeUnit;
 public final class FxOpenSourceLicensesActivity extends Activity {
     private static final String[] FILES = {
             "THIRD_PARTY_NOTICES.txt",
+            "GKD-XA-GPL-3.0.txt",
             "Capsule-LICENSE.txt",
             "Kyant-AndroidLiquidGlass-LICENSE.txt",
             "MaterialKolor-MIT-LICENSE.txt",
@@ -76,16 +77,18 @@ public final class FxOpenSourceLicensesActivity extends Activity {
         scroll.addView(body);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
         body.addView(text(
-                "此页面展示随 FX Hook APK 一同分发的第三方组件许可证和版权声明。"
-                        + "文本来自 APK 内置 assets/licenses，不需要联网；每份文件按需读取。",
+                "此页面展示随 FX APK 分发的第三方组件许可证和版权声明。"
+                        + "GKD-XA 选择器采用 GPL-3.0；集成的是锁定版本的选择器源码，不代表 GKD 全部运行时已迁入。"
+                        + "完整许可文本来自 APK 内置 assets/licenses，离线按需读取。",
                 12, 0xff5c6877, false));
         status = text("选择一份许可证查看完整文本。", 12, 0xff617080, false);
         body.addView(status);
         addLicenseRow(body, "第三方组件总声明", FILES[0]);
-        addLicenseRow(body, "Capsule", FILES[1]);
-        addLicenseRow(body, "Kyant Android Liquid Glass", FILES[2]);
-        addLicenseRow(body, "MaterialKolor · MIT", FILES[3]);
-        addLicenseRow(body, "Miuix", FILES[4]);
+        addLicenseRow(body, "GKD-XA v1.4.8 选择器 · GPL-3.0", FILES[1]);
+        addLicenseRow(body, "Capsule", FILES[2]);
+        addLicenseRow(body, "Kyant Android Liquid Glass", FILES[3]);
+        addLicenseRow(body, "MaterialKolor · MIT", FILES[4]);
+        addLicenseRow(body, "Miuix", FILES[5]);
         setContentView(root);
     }
 
