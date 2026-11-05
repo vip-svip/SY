@@ -40,7 +40,7 @@ declared = {node.attrib.get(ns + "name", ""): node for node in manifest.findall(
 name = ".imported.dia.FxDiaCrashReportActivity"
 assert name in declared, "native Dia crash report Activity is not registered"
 assert declared[name].attrib.get(ns + "exported") == "false", "crash report Activity must be private"
-assert '"崩溃报告"' in main, "Dia crash report page is missing from navigation"
+assert '"查看崩溃报告"' in main, "Dia crash report action is missing from the native navigation"
 assert "FxDiaCrashReportActivity.class" in main, "Dia crash report menu does not route to native Activity"
 assert "FxDiaCrashStore.hasPendingReport(this)" in main, "next app launch does not surface a prior crash"
 assert "FxDiaCrashStore.install(this)" in application, "Application does not install Java crash capture"
