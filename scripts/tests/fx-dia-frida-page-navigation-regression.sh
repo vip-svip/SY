@@ -147,6 +147,20 @@ for label, ok in checks.items():
         raise SystemExit(f"FAIL: {label}")
 if "new android.text.InputFilter.LengthFilter(64)" in frida or "saveScriptNameDraft.length() > 64" in frida:
     raise SystemExit("FAIL: legacy Frida saved-script name still has an arbitrary 64-character cap")
+
+# Custom dialog-removal rules are user-authored data, not a fixed-size product tier.
+for forbidden in (
+    "regexRules.size() >= 12",
+    "resourceRules.size() >= 12",
+    "value.length() > 160",
+    "最多 12 条",
+    "每条最多 160 字符",
+):
+    if forbidden in frida:
+        raise SystemExit(f"FAIL: arbitrary Dia dialog rule limit remains: {forbidden}")
+for required in ("regexRules.add(value)", "resourceRules.add(value)"):
+    if required not in frida:
+        raise SystemExit(f"FAIL: custom dialog rule collection is not wired: {required}")
 # AppEntry observer is now a Frida-tool subpage inside FX Hook, not a
 # source-app migration-menu item in MainActivity.
 if 'addNativeActionCard("Frida 环境与注入"' not in hook_hub:
