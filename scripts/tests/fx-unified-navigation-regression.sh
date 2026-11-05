@@ -14,8 +14,13 @@ dia_scripts="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/
 dia_gps="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaGpsPickerActivity.java"
 dia_inspector="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaInspectorActivity.java"
 dia_wifi="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaWifiProxyActivity.java"
-test -s "$activity" && test -s "$shell" && test -s "$host" && test -s "$dia_browser" && test -s "$dia_backup" && test -s "$dia_editor" && test -s "$dia_crash" && test -s "$dia_dex" && test -s "$dia_frida" && test -s "$dia_scripts" && test -s "$dia_gps" && test -s "$dia_inspector" && test -s "$dia_wifi"
-python3 - "$activity" "$shell" "$host" "$dia_browser" "$dia_backup" "$dia_editor" "$dia_crash" "$dia_dex" "$dia_frida" "$dia_scripts" "$dia_gps" "$dia_inspector" "$dia_wifi" <<'PY'
+dia_file="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaFileActivity.java"
+dia_monitor="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaMonitorEventsActivity.java"
+dia_session="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaSessionLogActivity.java"
+dia_signature="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaSignatureActivity.java"
+dia_system="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaSystemExpandActivity.java"
+test -s "$activity" && test -s "$shell" && test -s "$host" && test -s "$dia_browser" && test -s "$dia_backup" && test -s "$dia_editor" && test -s "$dia_crash" && test -s "$dia_dex" && test -s "$dia_frida" && test -s "$dia_scripts" && test -s "$dia_gps" && test -s "$dia_inspector" && test -s "$dia_wifi" && test -s "$dia_file" && test -s "$dia_monitor" && test -s "$dia_session" && test -s "$dia_signature" && test -s "$dia_system"
+python3 - "$activity" "$shell" "$host" "$dia_browser" "$dia_backup" "$dia_editor" "$dia_crash" "$dia_dex" "$dia_frida" "$dia_scripts" "$dia_gps" "$dia_inspector" "$dia_wifi" "$dia_file" "$dia_monitor" "$dia_session" "$dia_signature" "$dia_system" <<'PY'
 from pathlib import Path
 import sys
 activity = Path(sys.argv[1]).read_text(encoding="utf-8")
@@ -34,6 +39,11 @@ dia_scripts = Path(sys.argv[10]).read_text(encoding="utf-8")
 dia_gps = Path(sys.argv[11]).read_text(encoding="utf-8")
 dia_inspector = Path(sys.argv[12]).read_text(encoding="utf-8")
 dia_wifi = Path(sys.argv[13]).read_text(encoding="utf-8")
+dia_file = Path(sys.argv[14]).read_text(encoding="utf-8")
+dia_monitor = Path(sys.argv[15]).read_text(encoding="utf-8")
+dia_session = Path(sys.argv[16]).read_text(encoding="utf-8")
+dia_signature = Path(sys.argv[17]).read_text(encoding="utf-8")
+dia_system = Path(sys.argv[18]).read_text(encoding="utf-8")
 settings_start = activity.index("    private void showSettings()")
 settings_end = activity.index("    private String importedSuiteTitle(", settings_start)
 settings = activity[settings_start:settings_end]
@@ -136,5 +146,14 @@ for token in ('‹ 返回 Hook', 'Hook · 内存快照', 'Hook · 数据库监�
     assert token in dia_inspector, f"inspector tools are not integrated into Hook: {token}"
 for token in ('‹ 返回 VPN', 'VPN · 系统 HTTP 代理', 'setContentViewWithNativeTabs(root, 0)'):
     assert token in dia_wifi, f"system proxy editor is not integrated into VPN: {token}"
-print("PASS: Settings has no migration-app hub; six primary tabs remain unified; wallpaper and five skins are shared; migrated Dia tools route into FX Hook/Script/VPN/Settings.")
+for source, tokens, page in (
+    (dia_file, ('‹ 返回 Hook', 'Hook · 文件与 so 库', 'setContentViewWithNativeTabs(root, 4)'), 'file and ELF page'),
+    (dia_monitor, ('‹ 返回 Hook', 'Hook · 结构化监控事件', 'setContentViewWithNativeTabs(root, 4)'), 'monitor events'),
+    (dia_session, ('‹ 返回 Hook', 'Hook · Frida 运行日志', 'setContentViewWithNativeTabs(root, 4)'), 'Frida session log'),
+    (dia_signature, ('‹ 返回 Hook', 'Hook · APK 签名信息', 'setContentViewWithNativeTabs(root, 4)'), 'APK signature info'),
+    (dia_system, ('‹ 返回 Hook', 'Hook · 系统扩展', 'setContentViewWithNativeTabs(root, 4)'), 'system extensions')
+):
+    for token in tokens:
+        assert token in source, f"{page} is not integrated into Hook: {token}"
+print("PASS: Settings has no migration-app hub; six primary tabs remain unified; wallpaper/five skins shared; Dia tools consistently route into FX Hook/Script/VPN/Settings.")
 PY
