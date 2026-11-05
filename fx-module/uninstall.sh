@@ -63,8 +63,22 @@ if [ -f "$REMOVER" ]; then
   _rc=$?
   if [ "$_rc" -ne 0 ]; then
     echo "FX uninstall: one or more FX-owned Hook packages could not be removed; see $STATE_DIR/adhook-install.log" >&2
+    exit "$_rc"
   fi
-  exit "$_rc"
+  # The module overlay is removed by the module manager after this hook. Once
+  # the ownership-safe APK remover succeeds, retire only FX deployment markers
+  # so a later reinstall cannot mistake the previous overlay for a live one.
+  # Keep logs and all unrelated PrivacyGuard state intact.
+  if [ -d "$STATE_DIR" ] && [ ! -L "$STATE_DIR" ]; then
+    for _fx_marker in \
+      "$STATE_DIR/system-app-apk.sha256" \
+      "$STATE_DIR/system-app-retry" \
+      "$STATE_DIR/system-app-apk.sha256.tmp."* \
+      "$STATE_DIR/system-app-retry.tmp."*; do
+      [ -f "$_fx_marker" ] && [ ! -L "$_fx_marker" ] && rm -f "$_fx_marker" 2>/dev/null || :
+    done
+  fi
+  exit 0
 fi
 echo "FX uninstall: Hook remover missing; leaving installed packages untouched" >&2
 exit 0
