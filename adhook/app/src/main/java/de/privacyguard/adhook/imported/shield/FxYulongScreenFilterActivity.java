@@ -38,16 +38,21 @@ public final class FxYulongScreenFilterActivity extends de.privacyguard.adhook.F
         return v;
     }
     private Button button(String label, Runnable action) {
-        Button b = new Button(this); b.setAllCaps(false); b.setText(label);
+        Button b = new Button(this); b.setTag("fx-action-row"); b.setAllCaps(false); b.setText(label);
         b.setOnClickListener(v -> action.run()); return b;
     }
     private void card(LinearLayout body, String title, String detail, android.view.View... children) {
         LinearLayout panel = new LinearLayout(this);
+        panel.setTag("fx-card");
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setPadding(dp(14), dp(10), dp(14), dp(10));
         panel.setBackgroundColor(0xfff0f3f7);
-        panel.addView(text(title, 15, 0xff17212b, true));
-        panel.addView(text(detail, 12, 0xff617080, false));
+        TextView heading = text(title, 15, 0xff17212b, true);
+        heading.setTag("fx-card-title");
+        panel.addView(heading);
+        TextView description = text(detail, 12, 0xff617080, false);
+        description.setTag("fx-card-detail");
+        panel.addView(description);
         for (android.view.View child : children) panel.addView(child);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.setMargins(dp(10), dp(4), dp(10), dp(4));
@@ -64,8 +69,9 @@ public final class FxYulongScreenFilterActivity extends de.privacyguard.adhook.F
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(10), dp(6), dp(12), dp(6));
         header.addView(button("‹ 返回隐私", this::finish));
-        header.addView(text("隐私 · 屏幕滤镜", 18, 0xff17212b, true),
-                new LinearLayout.LayoutParams(0, -2, 1));
+        TextView pageTitle = text("隐私 · 屏幕滤镜", 18, 0xff17212b, true);
+        pageTitle.setTag("fx-title:18");
+        header.addView(pageTitle, new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
@@ -77,6 +83,7 @@ public final class FxYulongScreenFilterActivity extends de.privacyguard.adhook.F
         setContentViewWithNativeTabs(root, 2);
 
         enabled = new Switch(this);
+        enabled.setTag("fx-switch-row");
         enabled.setText("启用全屏屏幕滤镜");
         enabled.setTextSize(15);
         enabled.setChecked(prefs.getBoolean("screen_filter_enabled", false));
@@ -126,6 +133,7 @@ public final class FxYulongScreenFilterActivity extends de.privacyguard.adhook.F
         });
         card(body, "滤镜预设", "预设只改变覆盖滤镜的颜色；Android 普通悬浮层不能对下层应用画面进行真实像素级对比度/饱和度变换。", preset);
         Switch volumeAdjust = new Switch(this);
+        volumeAdjust.setTag("fx-switch-row");
         volumeAdjust.setText("使用音量键微调滤镜亮度");
         volumeAdjust.setChecked(prefs.getBoolean("screen_filter_volume_adjust_enabled", false));
         volumeAdjust.setOnCheckedChangeListener((button, checked) -> {
@@ -162,7 +170,9 @@ public final class FxYulongScreenFilterActivity extends de.privacyguard.adhook.F
     private void addSlider(LinearLayout body, String label, String key,
                            int min, int max, int fallback, String suffix) {
         TextView value = text("", 12, 0xff617080, false);
+        value.setTag("fx-card-detail");
         SeekBar seek = new SeekBar(this);
+        seek.setTag("fx-seekbar");
         seek.setMax(max - min);
         int current = Math.max(min, Math.min(max, prefs.getInt(key, fallback)));
         seek.setProgress(current - min);
@@ -180,6 +190,7 @@ public final class FxYulongScreenFilterActivity extends de.privacyguard.adhook.F
             @Override public void onStopTrackingTouch(SeekBar bar) { }
         });
         LinearLayout panel = new LinearLayout(this);
+        panel.setTag("fx-card");
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setPadding(dp(14), dp(7), dp(14), dp(7));
         panel.addView(value); panel.addView(seek);
