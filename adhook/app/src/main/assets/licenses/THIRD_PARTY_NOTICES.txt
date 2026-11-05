@@ -28,3 +28,15 @@ Kyant Capsule 2.1.1
 - License: Apache License 2.0
 - Full license: Capsule-LICENSE.txt
 - Used for ContinuousCapsule geometry in the upstream LiquidBottomTabs component.
+
+
+GKD-XA v1.4.8 selector engine
+- Upstream project: https://github.com/84593320z/GKD-XA
+- Exact source revision: 8a6ce935da11671dac7e1a7595416ec99ee07436
+- Imported source module: vendor/GKD-XA/gkd-selector (commonMain + jvmMain)
+- FX build adapter: adhook/fx-gkd-selector
+- FX AccessibilityNodeInfo adapter: adhook/app/src/main/java/de/privacyguard/adhook/FxGkdSelectorRuntime.kt
+- License: GNU General Public License v3.0 (GPL-3.0)
+- Full, unmodified license text: GKD-XA-GPL-3.0.txt
+- The upstream gkd-app, Application, Launcher, database, AccessibilityService, Shizuku runtime and related services are not included by this selector-only migration. GKD-XA subscription/runtime/UI functionality remains a separate, unfinished integration task.
+- The pinned upstream source is included as a recursive Git submodule. Keep its GPL-3.0 source, copyright notices and corresponding source revision available with every distributed build. This integration must not be relicensed as proprietary.
