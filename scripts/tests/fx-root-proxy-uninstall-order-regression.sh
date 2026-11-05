@@ -60,8 +60,9 @@ if ORDER_LOG="$LOG" MOCK_PROXY_FAIL=1 PG="$PG" MODDIR="$MOD" sh "$MOD/uninstall.
   fail "uninstall continued after Root Proxy cleanup failure"
 fi
 [ "$(sed -n '1p' "$LOG")" = 'scheduler:uninstall' ] || fail "scheduler shutdown was skipped before failed Root Proxy cleanup"
-[ "$(sed -n '2p' "$LOG")" = 'root-proxy:uninstall' ] || fail "firewall teardown ran after failed Root Proxy cleanup"
-[ "$(wc -l < "$LOG" | tr -d ' ')" = 2 ] || fail "firewall or Hook teardown ran after failed Root Proxy cleanup"
+[ "$(sed -n '2p' "$LOG")" = "vpn-watchdog:stop $MOD $PG" ] || fail "external VPN watcher shutdown was skipped before failed Root Proxy cleanup"
+[ "$(sed -n '3p' "$LOG")" = 'root-proxy:uninstall' ] || fail "firewall teardown ran after failed Root Proxy cleanup"
+[ "$(wc -l < "$LOG" | tr -d ' ')" = 3 ] || fail "firewall or Hook teardown ran after failed Root Proxy cleanup"
 grep -Fq 'preserving state and aborting uninstall' "$T/failure.out" || fail "cleanup failure was not reported"
 [ -f "$PG/yulong-root-proxy-active" ] || fail "Root Proxy state marker was removed after failed cleanup"
 [ -f "$PG/system-app-apk.sha256" ] || fail "deployment digest was removed after failed Root Proxy teardown"
@@ -84,7 +85,8 @@ rm -f "$MOD/scripts/yulong-root-proxy.sh"
 if ORDER_LOG="$LOG" PG="$PG" MODDIR="$MOD" sh "$MOD/uninstall.sh" > "$T/missing.out" 2>&1; then
   fail "uninstall accepted residual Root Proxy state without its helper"
 fi
-[ "$(cat "$LOG")" = 'scheduler:uninstall' ] || fail "scheduler was not stopped before missing Root Proxy helper refusal"
+[ "$(sed -n '1p' "$LOG")" = 'scheduler:uninstall' ] || fail "scheduler was not stopped before missing Root Proxy helper refusal"
+[ "$(sed -n '2p' "$LOG")" = "vpn-watchdog:stop $MOD $PG" ] || fail "external VPN watcher was not stopped before missing Root Proxy helper refusal"
 grep -Fq 'cleanup helper is missing' "$T/missing.out" || fail "missing helper refusal was not reported"
 [ -f "$PG/yulong-root-proxy-active" ] || fail "residual Root Proxy marker was not preserved"
 
