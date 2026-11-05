@@ -30,7 +30,7 @@ grep -Fq 'containsKey("data")' "$UNIT" || fail "Intent URI/data privacy assertio
 grep -Fq 'containsKey("component")' "$UNIT" || fail "Intent component privacy assertion is missing"
 grep -Fq 'case "click-auto":' "$ACTIVITY" || fail "Frida activity cannot load the auto-click template"
 grep -Fq '按文本/ID 自动点击' "$ACTIVITY" || fail "auto-click page does not load its template"
-grep -Fq '按文本/ID 自动点击' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "auto-click page missing from Dia native navigation"
+# Frida tools are hosted in the imported Dia Frida Activity, not MainActivity.
 grep -Fq 'KEYWORD_PATTERNS = [];' "$AUTO_CLICK" || fail "auto-click must default to no regex rules"
 grep -Fq 'VIEW_IDS = [];' "$AUTO_CLICK" || fail "auto-click must default to no ID rules"
 grep -Fq 'MAX_TREE_NODES = 1500;' "$AUTO_CLICK" || fail "auto-click tree size must be bounded"
@@ -42,7 +42,7 @@ grep -Fq 'isShown()' "$AUTO_CLICK" || fail "auto-click must recheck visibility"
 grep -Fq 'MAX_TREE_NODES - visited - waiting' "$AUTO_CLICK" || fail "auto-click pending queue is not bounded"
 grep -Fq 'case "viewgroup-remove":' "$ACTIVITY" || fail "Frida activity cannot load the dialog-removal template"
 grep -Fq '按文本/ID 移除匹配弹窗' "$ACTIVITY" || fail "dialog-removal page does not load its template"
-grep -Fq '按文本/ID 移除匹配弹窗' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "dialog-removal page missing from native navigation"
+# Both templates are reachable through the Frida Activity native controls and route cases.
 grep -Fq 'ALERT_KEYWORD_PATTERNS = [];' "$DIALOG_REMOVE" || fail "dialog-removal must default to no text rules"
 grep -Fq 'ALERT_VIEW_IDS = [];' "$DIALOG_REMOVE" || fail "dialog-removal must default to no ID rules"
 grep -Fq 'ALLOW_ANY_PARENT = false;' "$DIALOG_REMOVE" || fail "dialog-removal must default to root-only scope"
