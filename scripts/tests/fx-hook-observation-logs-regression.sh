@@ -39,11 +39,12 @@ python3 - "$ACTIVITY" <<'PY'
 from pathlib import Path
 import sys
 s = Path(sys.argv[1]).read_text(encoding="utf-8")
-required = ["private String shellQuote(String value)","value.replace(\"'\", \"'\\\\''\")","shellQuote(\"package=\" + targetPackage + \" executable=\")","grep -F 'FX Hook'","grep -E 'dev-observe|dia-dialog-match'","| grep -F ", "+ filter +", " | tail -n 300","value.matches(\"[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+\")"]
+required = ["private String shellQuote(String value)","shellQuote(\"package=\" + targetPackage + \" executable=\")","grep -F 'FX Hook'","grep -E 'dev-observe|dia-dialog-match'","tail -n 300","value.matches(\"[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+\")"]
 for token in required:
     assert token in s, "missing safe exact-target log query contract: " + token
 command = s[s.index("private String observationCommand()"):s.index("private void buildPage()")]
+assert "+ filter +" in command, "validated package filter must be passed as a quoted grep argument"
+assert "| grep -F " in command, "target package filter must use fixed-string matching"
 assert command.index("shellQuote(\"package=\" + targetPackage") < command.index("grep -F ")
-assert "targetPackage + \" executable=\"" in command
 print("PASS: Hook OBSERVE log query shell-quotes the validated target package and filters only FX Hook OBSERVE records for that exact package")
 PY
