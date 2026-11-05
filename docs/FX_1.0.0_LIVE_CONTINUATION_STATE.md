@@ -4194,7 +4194,7 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 ### CI 与验证等级
 - GitHub Actions Host job `41985075861`：HEAD `ddf55b2745fcddf3c203945a008829bd7e35cb8a`，`host-regressions = success`。该成功点覆盖 Ad / 隐私 / 脚本分组及当时的统一导航回归，不包含之后新增的 VPN 订阅横向卡和 Settings 四组。
 - 随后连续 push 的旧 Actions runs 被取消，包括 `41985258983`、`41985232321` 等；这些不是 PASS。
-- 记录时最新分支 HEAD：`ad2c8539973b14f370bc7f8694d8a210cbf0d1b7`；对应 Targeted Host Regression run `41985280861` 状态为 `queued`，无结论。下一窗口应检查该 run 是否完成，并确认最新 commit 对应 job 是否包含本批回归。
+- 当前最新分支 HEAD（本批记录时）：`ad2c8539973b14f370bc7f8694d8a210cbf0d1b7`；Targeted Host Regression run `41985280861` 已完成，`host-regressions = success`。Job API 回读确认只有 Host 静态回归 job，未包含 Gradle/APK/设备验收。
 - 本地未执行 Gradle compile、Android 单测、APK assemble、安装或真机 UI 测试。不得把 Host job success 扩大解释成完整 APK / 设备验证。
 - 分组是 UI 布局收敛，不代表各业务能力功能已全部迁移或后端已完整实现。
 
