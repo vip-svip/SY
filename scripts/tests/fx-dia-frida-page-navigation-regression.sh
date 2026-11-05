@@ -4,13 +4,19 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 MAIN="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
 ACTIVITY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaFridaActivity.java"
 EDITOR="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaCodeEditorActivity.java"
-[ -s "$MAIN" ] && [ -s "$ACTIVITY" ] && [ -s "$EDITOR" ] || { echo "FAIL: Dia source files missing" >&2; exit 1; }
-python3 - "$MAIN" "$ACTIVITY" "$EDITOR" <<'PY'
+LIBRARY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaScriptLibraryActivity.java"
+SESSION="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaSessionLogActivity.java"
+MONITOR="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaMonitorEventsActivity.java"
+[ -s "$MAIN" ] && [ -s "$ACTIVITY" ] && [ -s "$EDITOR" ] && [ -s "$LIBRARY" ] && [ -s "$SESSION" ] && [ -s "$MONITOR" ] || { echo "FAIL: Dia source files missing" >&2; exit 1; }
+python3 - "$MAIN" "$ACTIVITY" "$EDITOR" "$LIBRARY" "$SESSION" "$MONITOR" <<'PY'
 from pathlib import Path
 import sys
 main = Path(sys.argv[1]).read_text(encoding="utf-8")
 frida = Path(sys.argv[2]).read_text(encoding="utf-8")
 editor = Path(sys.argv[3]).read_text(encoding="utf-8")
+library = Path(sys.argv[4]).read_text(encoding="utf-8")
+session = Path(sys.argv[5]).read_text(encoding="utf-8")
+monitor = Path(sys.argv[6]).read_text(encoding="utf-8")
 hook_hub_start = main.index("private void showHookHub()")
 hook_hub_end = main.index("private void refreshHookHubAuthorizationStates()", hook_hub_start)
 hook_hub = main[hook_hub_start:hook_hub_end]
@@ -29,15 +35,44 @@ session_log_start = frida.index("private void showSessionLog()")
 session_log_end = frida.index("private void showMonitorEvents()", session_log_start)
 session_log = frida[session_log_start:session_log_end]
 for token in (
-    "targetPackage == null || targetPackage.trim().isEmpty()",
-    "请先选择 debuggable 目标应用。",
-    "new Intent(this, FxDiaSessionLogActivity.class)",
-    'page.putExtra("fx_dia_session_log_target_package", targetPackage)',
-    'page.putExtra("fx_dia_session_log_target_name"',
-    "startActivity(page)"
+    'button.setTag("fx-action-row")',
+    'title.setTag("fx-title:18")',
+    'note.setTag("fx-card-detail")'
 ):
-    if token not in session_log:
-        raise SystemExit(f"FAIL: Frida session-log route missing {token}")
+    if token not in editor:
+        raise SystemExit(f"FAIL: full-screen Hook editor is missing Skin role {token}")
+
+# The library, session log and monitor event list must use the same role tags
+# as the main Hook page so Harmony/Cupertino do not fall back to legacy colors.
+for token in (
+    'view.setTag("fx-action-row")',
+    'pageTitle.setTag("fx-title:18")',
+    'actions.setTag("fx-card-group")',
+    'row.setTag("fx-list-row")',
+    'scriptName.setTag("fx-list-title")',
+    'metadata.setTag("fx-list-subtitle")'
+):
+    if token not in library:
+        raise SystemExit(f"FAIL: Frida script library is missing Skin role {token}")
+for token in (
+    'view.setTag("fx-action-row")',
+    'pageTitle.setTag("fx-title:18")',
+    'targetIdentity.setTag("fx-card-detail")',
+    'controls.setTag("fx-card-group")'
+):
+    if token not in session:
+        raise SystemExit(f"FAIL: Frida session log is missing Skin role {token}")
+for token in (
+    'view.setTag("fx-action-row")',
+    'title.setTag("fx-title:18")',
+    'controls.setTag("fx-card-group")',
+    'autoRefreshSwitch.setTag("fx-switch-row")',
+    'row.setTag("fx-list-row")',
+    'eventText.setTag("fx-list-subtitle")',
+    'FxNativeSkin.showDialog(this, dialog)'
+):
+    if token not in monitor:
+        raise SystemExit(f"FAIL: monitor event page is missing Skin role {token}")
 checks = {
 
     "target picker open state saved": "outState.putBoolean(STATE_TARGET_PICKER_OPEN" in frida,
