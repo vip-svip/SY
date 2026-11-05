@@ -35,7 +35,6 @@ chmod +x "$TMP/bin/pm"; export PATH="$TMP/bin:$PATH" FX_ADHOOK_FAKE_PM_STATE="$T
 # system package by PackageManager. The installer must not reinstall it.
 echo de.privacyguard.adhook > "$TMP/pm/installed"
 cp "$TMP/mod/system/app/FX/FX.apk" "$TMP/pm/de.privacyguard.adhook.apk"
-sha256sum "$TMP/mod/system/app/FX/FX.apk" > "$TMP/state/adhook-apk-fxunifiedhook.sha256"
 export FX_ADHOOK_FAKE_SYSTEM=1
 sh "$INSTALLER" "$TMP/mod" >/dev/null || fail "system-app verification failed"
 [ ! -s "$TMP/pm/install-calls" ] || fail "system app path must not run pm install"
