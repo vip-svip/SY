@@ -1178,7 +1178,7 @@ public final class MainActivity extends ComponentActivity {
                         writeHostsPage(spec, start, lines, editor.getText().toString(), dialog);
                     });
                 });
-                dialog.show();
+                FxNativeSkin.showDialog(this, dialog);
             } catch (Exception error) {
                 new AlertDialog.Builder(this).setTitle("Hosts 读取失败")
                         .setMessage(error.getMessage()).setPositiveButton("重试", (d, w) -> showHostsEditor(spec, requestedPage))
@@ -1346,7 +1346,7 @@ public final class MainActivity extends ComponentActivity {
         panel.setPadding(dp(16), dp(6), dp(16), dp(4));
         panel.addView(value);
         panel.addView(note);
-        new AlertDialog.Builder(this).setTitle(title)
+        AlertDialog managedDialog = new AlertDialog.Builder(this).setTitle(title)
                 .setView(panel).setNegativeButton("取消", null)
                 .setPositiveButton("添加", (dialog, which) -> {
                     String v = value.getText().toString().trim();
@@ -1360,7 +1360,8 @@ public final class MainActivity extends ComponentActivity {
                     }
                     String n = note.getText().toString().trim();
                     mutateNativeManagedList(listId, -1, "add", v, true, title, n.isEmpty() ? v : n);
-                }).show();
+                }).create();
+        FxNativeSkin.showDialog(this, managedDialog);
     }    private void showNativeManagedListEditDialog(String listId, String title, int index,
                                                   String oldValue, String oldNote) {
         EditText value = new EditText(this);
@@ -1375,7 +1376,7 @@ public final class MainActivity extends ComponentActivity {
         panel.setPadding(dp(16), dp(6), dp(16), dp(4));
         panel.addView(value);
         panel.addView(note);
-        new AlertDialog.Builder(this).setTitle("编辑条目")
+        AlertDialog managedDialog = new AlertDialog.Builder(this).setTitle("编辑条目")
                 .setView(panel).setNegativeButton("取消", null)
                 .setPositiveButton("保存", (d, w) -> {
                     String v = value.getText().toString().trim();
@@ -1385,7 +1386,8 @@ public final class MainActivity extends ComponentActivity {
                     }
                     mutateNativeManagedList(listId, index, "edit", v, true, title,
                             note.getText().toString().trim());
-                }).show();
+                }).create();
+        FxNativeSkin.showDialog(this, managedDialog);
     }
 
     private void mutateNativeManagedList(String listId, int index, String operation,
@@ -3495,7 +3497,7 @@ public final class MainActivity extends ComponentActivity {
             android.graphics.Bitmap bitmap = previewBitmap.getAndSet(null);
             if (bitmap != null && !bitmap.isRecycled()) bitmap.recycle();
         });
-        dialog.show();
+        FxNativeSkin.showDialog(this, dialog);
 
         if (hasWallpaper) {
             nativeWallpaperExecutor.execute(() -> {
@@ -4146,7 +4148,7 @@ public final class MainActivity extends ComponentActivity {
                 .setNeutralButton("同步信任状态", (d, w) -> runNativeCertificateAction("sync", null))
                 .setPositiveButton("刷新", (d, w) -> showNativeCertificateManager())
                 .setNegativeButton("关闭", null).create();
-        nativeCertificateDialog.show();
+        FxNativeSkin.showDialog(this, nativeCertificateDialog);
     }
 
     private void runNativeCertificateAction(String action, String id) {
