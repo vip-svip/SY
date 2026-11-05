@@ -4722,3 +4722,20 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 已通过 GitHub 回读验证 enum 声明、Default 首项、六个稳定 ID、缺省/未知值回退、独立 Default Compose tokens、Classic 显式分支、Android View palette、MainActivity 默认 ID、六项设置卡和回归脚本中的 Default 断言；本次静态断言 14/14 通过。
 - GitHub commit workflow 查询未返回可读取的 PR workflow runs；当前不能声称已执行仓库 Shell regression、Kotlin/JUnit 或 Gradle 编译。后续仍需在可用 CI/构建环境实际运行 scripts/tests/fx-global-ui-modes-regression.sh、Android 单测和 Gradle compile/assemble。
 - 本次没有修改版本号、网络服务生命周期或既有用户配置；没有生成 APK/模块，也没有真机测试。
+
+
+## 2026-11-05 — KernelSU/Magisk FX Hook 系统应用部署路径
+
+- 源码确认此前真实安装链路仍把 `FXUnifiedHook.apk` 放在 `optional/`，由开机服务调用 `pm install -r` 安装为普通 `/data/app` 应用；这不满足“模块安装自动部署系统应用”的要求。
+- 已实施：
+  - `scripts/install_adhook_app.sh` 优先使用 `system/app/FX/FX.apk`，保留旧 `optional/FXUnifiedHook.apk` 作为兼容 fallback。
+  - 安装 helper 检查 `pm path` 的 system/product/vendor 路径及 `pm list packages -s` 系统应用分类；已由系统 overlay 提供且 SHA-256 一致时不再执行普通安装。更新系统应用若 PackageManager 将更新 APK 存于 `/data/app`，则保留 system-app 分类并沿用原更新路径。
+  - overlay 不可见时才执行原有安全的普通 APK 安装路径，并明确记录降级日志；原有签名冲突回滚、FX ownership marker 和不卸载用户应用逻辑保留。
+  - `fx-module/scripts/install_adhook_app.sh` 与根目录 installer 已同步，字节一致。
+  - `scripts/tests/adhook-app-installer-regression.sh` 新增 updated-system-app 检测 fixture，并保留普通安装 fallback、签名冲突回滚、ownership-safe uninstall 与 stale marker 测试。
+  - `.github/workflows/build-fx-adhook.yml` 在受控 APK 构建步骤将同一 APK 同时放入 optional fallback 与 `fx-module/system/app/FX/FX.apk`，生成 SHA-256，并把 overlay 纳入 module-source audit artifact。
+  - `adhook/README.md` 已更新安装、升级、降级和权限边界说明。
+- 设计边界：使用 `system/app` 而不是 `system/priv-app`。这会使 APK 成为系统应用，但**不会**伪造平台签名或授予 privileged 权限；无需为普通权限创建 privapp allowlist。SELinux 依赖 KernelSU/Magisk 对 systemless overlay 的正常标签/挂载处理，不关闭 SELinux、不安装 permissive 策略。
+- 安装/升级仍需设备 PackageManager 在重启时扫描 overlay。ROM 不支持或 overlay 未挂载时会降级为普通应用并明确记录，不能宣称该设备已系统应用部署成功。
+- 验证：已从 GitHub 回读 installer 根副本与模块副本，确认字节一致；回读测试 fixture、构建 workflow 和 README，确认 overlay staging、SHA、系统应用识别和 fallback 路径存在。Host regression、Gradle 构建、APK 签名/安装、KernelSU/Magisk 真机挂载与 SELinux/开机扫描尚未运行。
+- 本批没有创建或覆盖 Release APK/KernelSU ZIP；没有执行设备安装或修改设备分区。
