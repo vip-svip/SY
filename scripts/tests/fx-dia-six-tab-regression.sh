@@ -56,9 +56,14 @@ for filename, component in pages.items():
     assert "extends de.privacyguard.adhook.FxNativeTabActivity {" in source, (
         f"{filename}: page must use shared six-tab Activity host"
     )
-    expected_tab = 4
+    expected_tab = {
+        "FxDiaWifiProxyActivity.java": 0,       # VPN / system HTTP proxy
+        "FxDiaScriptLibraryActivity.java": 3,  # Scripts
+        "FxDiaGlobalSettingsActivity.java": 4, # Hook preferences
+        "FxDiaBackupActivity.java": 5,         # Settings / backup and restore
+    }.get(filename, 4)                         # Remaining Dia tools belong to Hook
     assert f"setContentViewWithNativeTabs(root, {expected_tab});" in source, (
-        f"{filename}: page must install shared native tab shell for its Hook business destination"
+        f"{filename}: page must install shared native tab shell for FX destination {expected_tab}"
     )
     assert "setContentView(root);" not in source, (
         f"{filename}: page bypasses shared native tab shell"
