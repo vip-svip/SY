@@ -27,6 +27,7 @@ on:
       - 'adhook/app/src/main/res/xml/fx_accessibility_service.xml'
       - 'adhook/app/src/main/res/values/fx_strings.xml'
       - 'scripts/tests/fx-gkd-automation-regression.sh'
+      - 'scripts/tests/fx-gkd-selector-integration-regression.sh'
       - 'adhook/app/src/test/java/de/privacyguard/adhook/imported/shield/FxYulongVirusDbTest.java'
   pull_request:
     branches:
@@ -113,6 +114,7 @@ jobs:
         run: |
           set -euo pipefail
           sh scripts/tests/fx-gkd-automation-regression.sh
+          sh scripts/tests/fx-gkd-selector-integration-regression.sh
       - name: Compile FX app and the GKD Accessibility adapter
         shell: bash
         run: |
