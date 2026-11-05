@@ -37,7 +37,9 @@ required = {
     "proc argv0 matches the selected process exactly": r'\"$proc_name\" = \"$process\"',
     "process enumeration verifies target app UID": r'\"$uid\" = \"$target_uid\"',
     "process UID comes from proc status": r'\"$proc_root/$pid/status\"',
-    "Frida source is staged in app-private cache": "stageFridaRootInput(source)",
+    "Frida source staging helper is invoked": "stageFridaRootInput(source)",
+    "Frida source is staged in app-private cache": 'File.createTempFile("fx-dia-frida-input-", ".js", cache)',
+    "Frida source is written in bounded UTF-8 chunks": "writer.write(source, offset, count)",
     "staged source is read as a private file stream": "new java.io.FileInputStream(inputFile)",
     "large Frida source streams through RootAccess stdin": "RootAccess.executeWithInput(command, input, timeout",
     "RootAccess accepts InputStream payloads": "executeWithInput(String command, java.io.InputStream input",
@@ -521,7 +523,7 @@ echo "PASS: Frida CLI mock stays attached, records session output and stops only
 # The fake su broker runs the supplied command locally; this verifies the Java
 # InputStream writer, byte integrity, and writer-failure propagation without
 # claiming Android KernelSU execution.
-STREAM_TEST="$ROOT/scripts/tests/RootAccessStreamHostTest.java"
+STREAM_TEST="$T/RootAccessStreamHostTest.java"
 STREAM_CLASSES="$T/root-access-classes"
 mkdir -p "$STREAM_CLASSES" "$T/fake-su"
 cat > "$T/fake-su/su" <<'SU'
