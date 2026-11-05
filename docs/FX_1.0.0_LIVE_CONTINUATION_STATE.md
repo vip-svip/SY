@@ -4839,3 +4839,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - GitHub Actions run `42012660923` completed successfully; `host-regressions` = `success`. The log explicitly reports: `PASS: system-app detection, overlay-safe uninstall, ordinary-app fallback, signature safety, ownership-safe cleanup, and stale-marker handling`.
 - Re-read verified test blob SHA `22809df48f99f2a4fb2605f155768a47298eb627`.
 - This validates the shell-level PackageManager/remover contract with a mock; it does not replace a real KernelSU mount/unmount test on a device.
+
+
+## 2026-11-05 — External Android VPN TUN coexistence regression executed
+
+- Added the self-contained `scripts/tests/fx-vpn-tun-external-fallback-regression.sh` to the minimal-overlay fallback path of `fx-atomic-cache-lock-release-regression.sh`. This makes the TUN coexistence fixture run even when the Release archive is not staged in the source checkout.
+- GitHub Actions run `42012514171` for commit `c7ee4d73c567bbfb527ca6e5a5f04bb40d4e1df7` completed with `host-regressions: success`.
+- Confirmed in the job log:
+  - Root Proxy atomic lock, stale/live-owner handling, concurrent serialization and independent local-DNS engine ownership: PASS.
+  - TUN-to-REDIRECT fallback fixture: PASS. It verifies the outer VPN interface, owner UID, explicit compatibility switch and route proof; unsafe/unknown states fall back to direct mode; requested/effective mode and fallback reason are reported.
+- The fixture is a host-side deterministic test of the patcher and mode-selection functions. It does not establish live Android VPN coexistence or device-kernel behavior.
