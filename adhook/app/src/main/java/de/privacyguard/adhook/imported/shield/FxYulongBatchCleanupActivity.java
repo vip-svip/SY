@@ -110,7 +110,7 @@ public final class FxYulongBatchCleanupActivity extends de.privacyguard.adhook.F
         body.addView(next);
         body.addView(button("结束批量处理", this::finish));
 
-        setContentViewWithNativeTabs(root, 5);
+        setContentViewWithNativeTabs(root, 2);
         render();
     }
 
