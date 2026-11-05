@@ -3997,3 +3997,49 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 2. 实机验证 Android 无障碍授权、窗口树包名边界、动作冷却、前台切换取消、开关关闭立即停用和耗电/内存。
 3. 增加事件去重/每事件预算/动作结果状态，再做规则组/排除项和订阅存储。
 4. 再迁移 GKD snapshot/history/AI providers、数据备份和特权/后台生命周期。
+
+
+## 2026-11-05 — 整体重构纠偏第二批：删除来源导航残留并统一跨 AI 执行指令
+
+### 本批实际改动
+
+- adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java
+  - 将分应用 VPN 页面方法统一命名为 showNativeVpnAppManager()，它是 VPN（Tab 0）的 FX 内部页面，不再使用来源 APK 命名。
+  - 将主 Tab Intent 路由入口统一命名为 handleNativeTabIntent()。
+  - 清理 Hook 入口注释和 Settings 导航状态注释，明确 Hook 目标栈和全局设置是 FX 自身导航，不保留旧来源套件返回链。
+  - 保留真实 DEX 方法选择后进入 FX Hook 目标编辑器的路径；不再维护 Dia 来源分类返回栈。
+- scripts/tests/fx-imported-suite-back-navigation-regression.sh
+  - 将回归目标改为确认来源应用导航状态/方法不存在。
+  - 检查 DEX 选择回到 FX Hook 目标页。
+  - 新增 Hook 目标、VPN 子页、Settings 的 Android Back 返回优先级断言；修复新增 Python 检查器的换行匹配。
+- scripts/tests/fx-unified-navigation-regression.sh
+  - 已核对最新版本：VPN 子页检查以 showNativeVpnAppManager() 为入口，函数边界指向 addNativeSettingsCategory()；Settings 检查以 showNativeWallpaperDialog() 作为边界；Activity 恢复路径使用 handleNativeTabIntent()。
+  - 该脚本还检查六 Tab 标签、第二 Tab Ad、旧 pageHosts 仅作 Web DOM 兼容别名、Settings 不含来源应用菜单。
+- 执行提示词：
+  - docs/FX_1.0.0_UI优先自主推进与中断续接执行总指令.md 已将阶段 B 重写为“来源能力拆解与 FX 业务域归并”，六 Tab 第二项固定为 Ad，设置不再有来源应用独立入口。
+  - docs/FX_1.0.0_UI优先提速与自主开工提示词.md 已替换旧的三来源应用独立三级导航要求，并明确指向主产品规格中的五 Skin 与 10.0.2 壁纸契约。
+  - 跨 AI 的主执行提示词为 docs/FX_1.0.0_AUTONOMOUS_CROSS_AI_HANDOFF_PROMPT.md；它规定单 APK、六 Tab、五 Skin、完整功能大纲和禁止来源应用导航。
+  - 主产品规格 docs/FX_1.0.0_PRODUCT_RESTRUCTURE_AND_AI_HANDOFF.md 已明确 Domain 只包含 Ad/VPN/Privacy/Hook/Script/Settings；Schema/配置迁移只属于 Data 层内部能力，不形成用户可见 Migration 模块。
+
+### GitHub 提交
+
+- MainActivity 导航方法命名归一：16280c6d624849c3977803e7a3fbe29bd342d983
+- MainActivity Settings/Hook 导航注释纠正：399b91e62266a8ade1b3ff558a6c227fe38559f3
+- 导航返回栈回归扩展：579965988651c3a4c1ad60210a6a4d8b853a1785
+- 修复返回栈回归脚本的 Python 方法边界解析：262469f87ed92657518c03655cfb9de7491fc0a9
+- UI 优先自主推进总指令纠偏：169cd3dee5deb65ccc8b0ce93d454a0f9273202e
+- UI 优先提速/自主开工提示词纠偏：1ac0ca919dde4e944c93aa99ad4c72042d4f07d1
+
+### 验证等级与边界
+
+- 已完成：GitHub 分支文件回读；确认 MainActivity.java 不再含 migrationSuite/migrationCategory/showImportedSuite 等来源导航代码；确认主导航标签为 VPN、Ad、隐私、脚本、Hook、设置；确认 Settings 页面代码没有来源应用入口。
+- 已完成：回读两份 UI 执行档、跨 AI 主提示词和产品规格，确认旧 Ad/Hosts Tab 与“设置下迁移应用”执行要求被纠正。
+- 新增 fx-imported-suite-back-navigation-regression.sh 已修复源码解析器，但本轮尚未取得该脚本实际执行成功的 CI 结果。
+- 关联 MainActivity 提交的 Targeted Host runs 41983590657 与 41983370463 状态为 cancelled（并发提交触发 concurrency cancel），不计为通过；未宣称 Actions 通过。
+- 未执行 Android Gradle testDebugUnitTest / assembleDebug、APK 安装或真机视觉/返回手势测试。源码和文档回读不是设备验收。
+
+### 下一步直接开工
+
+1. 在一次有 MainActivity 变更的定向 Host 节点上运行 fx-unified-navigation-regression.sh 和 fx-imported-suite-back-navigation-regression.sh，读取失败日志修复真实问题。
+2. 继续五 Skin 的页面级原生控件/renderer 适配；特别检查 Huawei 与 Cupertino 页面的列表、表单、开关、弹窗、Sheet、键盘和无障碍，而不是只检查底栏。
+3. 按业务域推进 Ad/VPN/隐私/Hook/脚本真实功能闭环；来源 APK 页面树只作功能差异审计，不得重新变成用户导航。
