@@ -50,13 +50,8 @@ public final class FxYulongVpnTileService extends TileService {
     }
 
     private String vpnCommand(String action) {
-        return "MP=''; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard "
-                + "/data/adb/modules/privacy_guard /data/adb/modules/pg; do "
-                + "if [ -s \"$d/module.prop\" ] && grep -q '^id=privacyguard$' \"$d/module.prop\"; "
-                + "then MP=\"$d\"; break; fi; done; "
-                + "[ -n \"$MP\" ] || exit 20; "
-                + "PG=/data/adb/privacyguard; "
-                + "sh \"$MP/scripts/yulong-vpn-control.sh\" \"$MP\" \"$PG\" " + action;
+        return FxYulongRootModuleCommand.command("yulong-vpn-control.sh",
+                "\"$MP\" /data/adb/privacyguard " + action);
     }
 
     private VpnState readState() {

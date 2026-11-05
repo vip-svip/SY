@@ -44,26 +44,7 @@ public final class FxYulongAdTaskerReceiver extends BroadcastReceiver {
     public static final String LEGACY_ACTION_STOP = "app.pwhs.blockads.TASKER_STOP";
 
     private static String modulePrefix(String requiredScript) {
-        if (requiredScript == null
-                || !("yulong-ad-control.sh".equals(requiredScript)
-                    || "yulong-vpn-control.sh".equals(requiredScript))) {
-            throw new IllegalArgumentException("不支持的游龙控制脚本。");
-        }
-        return "[ ! -L '/data' ] && [ ! -L '/data/adb' ] && [ -d '/data/adb' ] "
-                + "&& [ ! -L '/data/adb/modules' ] && [ ! -L '/data/adb/modules_update' ] "
-                + "|| exit 71; "
-                + "MP=''; for d in /data/adb/modules/privacyguard "
-                + "/data/adb/modules_update/privacyguard /data/adb/modules/privacy_guard "
-                + "/data/adb/modules/pg; do "
-                + "if [ -d \"$d\" ] && [ ! -L \"$d\" ] "
-                + "&& [ -f \"$d/module.prop\" ] && [ ! -L \"$d/module.prop\" ] "
-                + "&& grep -qx 'id=privacyguard' \"$d/module.prop\" "
-                + "&& grep -qx 'version=1.0.0' \"$d/module.prop\" "
-                + "&& [ -d \"$d/scripts\" ] && [ ! -L \"$d/scripts\" ] "
-                + "&& [ -f \"$d/scripts/" + requiredScript + "\" ] "
-                + "&& [ ! -L \"$d/scripts/" + requiredScript + "\" ]; then "
-                + "MP=\"$d\"; break; fi; done; "
-                + "[ -n \"$MP\" ] || exit 20; ";
+        return FxYulongRootModuleCommand.prefix(requiredScript);
     }
 
     @Override public void onReceive(Context context, Intent intent) {

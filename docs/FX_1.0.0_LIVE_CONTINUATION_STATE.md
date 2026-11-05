@@ -6175,3 +6175,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Not verified: Android device PackageManager recognition, device-specific SELinux policy behavior, reboot persistence, or actual KernelSU/Magisk installation. No APK/ZIP build or real-device test is claimed.
 - Concurrent work continues on the same branch. The branch's live HEAD must be re-read before the next edit; this note records only the completed system-app batch and its exact CI evidence.
 
+
+
+### 游龙 Ad Root 入口统一接入共享模块解析器（2026-11-06）
+
+- 将 Ad 小组件、Ad 快捷磁贴、VPN 快捷磁贴、Tasker Receiver、本机防护总结页迁入 `FxYulongRootModuleCommand`，统一父目录、模块版本、脚本目录和目标文件的 fail-closed 检查。
+- 共享 allowlist 新增 `yulong-vpn-control.sh`；保留 VPN 命令既有模块目录和状态目录参数，Tasker 的发送方 UID/签名校验、控制平面锁、回执均不变。
+- 扩展共享解析器回归和 JDK Host allowlist 测试，覆盖这些入口不再自行构造 `MP='';` 路径。
+- 设备端小组件、快捷磁贴和 Tasker 实际 Root 操作尚未验收。

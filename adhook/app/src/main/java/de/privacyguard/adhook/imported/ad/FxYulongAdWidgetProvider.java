@@ -33,12 +33,8 @@ public final class FxYulongAdWidgetProvider extends AppWidgetProvider {
     private static final AtomicBoolean TOGGLE_PENDING = new AtomicBoolean(false);
 
     private static String shell(String operation) {
-        return "MP=''; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard "
-                + "/data/adb/modules/privacy_guard /data/adb/modules/pg; do "
-                + "if [ -s \"$d/module.prop\" ] && grep -q '^id=privacyguard$' \"$d/module.prop\"; "
-                + "then MP=\"$d\"; break; fi; done; "
-                + "[ -n \"$MP\" ] || exit 20; "
-                + "sh \"$MP/scripts/yulong-vpn-control.sh\" \"$MP\" /data/adb/privacyguard " + operation;
+        return FxYulongRootModuleCommand.command("yulong-vpn-control.sh",
+                "\"$MP\" /data/adb/privacyguard " + operation);
     }
 
     private static final class VpnState {

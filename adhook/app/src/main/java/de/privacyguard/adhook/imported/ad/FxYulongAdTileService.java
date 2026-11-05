@@ -21,10 +21,9 @@ public final class FxYulongAdTileService extends TileService {
     private final Handler main = new Handler(Looper.getMainLooper());
     private volatile boolean destroyed;
     private String command(String args) {
-        return "MP=''; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard /data/adb/modules/privacy_guard /data/adb/modules/pg; do "
-                + "if [ -s \"$d/module.prop\" ] && grep -q '^id=privacyguard$' \"$d/module.prop\"; then MP=\"$d\"; break; fi; done; "
-                + "[ -n \"$MP\" ] || exit 20; sh \"$MP/scripts/yulong-ad-control.sh\" " + args;
+        return FxYulongRootModuleCommand.command("yulong-ad-control.sh", args);
     }
+
     private int readState() {
         RootAccess.Result r=RootAccess.execute(command("list"),30000L,128*1024);
         if(r.exitCode!=0||r.output==null)return Tile.STATE_UNAVAILABLE;

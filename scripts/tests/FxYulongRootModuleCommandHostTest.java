@@ -25,7 +25,8 @@ public final class FxYulongRootModuleCommandHostTest {
         String[] scripts = {
                 "yulong-ad-control.sh",
                 "yulong-profiles.sh",
-                "yulong-app-whitelist.sh"
+                "yulong-app-whitelist.sh",
+                "yulong-vpn-control.sh"
         };
         for (String script : scripts) {
             String prefix = FxYulongRootModuleCommand.prefix(script);

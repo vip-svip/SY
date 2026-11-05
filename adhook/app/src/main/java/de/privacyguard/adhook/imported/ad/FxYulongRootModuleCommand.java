@@ -10,7 +10,8 @@ public final class FxYulongRootModuleCommand {
     private static boolean isAllowedScript(String name) {
         return "yulong-ad-control.sh".equals(name)
                 || "yulong-profiles.sh".equals(name)
-                || "yulong-app-whitelist.sh".equals(name);
+                || "yulong-app-whitelist.sh".equals(name)
+                || "yulong-vpn-control.sh".equals(name);
     }
 
     public static String prefix(String requiredScript) {

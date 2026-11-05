@@ -44,30 +44,7 @@ public final class FxYulongAdSummaryActivity extends de.privacyguard.adhook.FxNa
         lp.setMargins(dp(12), dp(4), dp(12), dp(4)); body.addView(panel, lp);
     }
     private String moduleShell(String scriptArgs) {
-        return "[ -d '/data' ] && [ ! -L '/data' ] && [ -d '/data/adb' ] "
-                + "&& [ ! -L '/data/adb' ] && [ -d '/data/adb/modules' ] && [ ! -L '/data/adb/modules' ] "
-                + "&& [ ! -L '/data/adb/modules_update' ] && { [ ! -e '/data/adb/modules_update' ] || [ -d '/data/adb/modules_update' ]; } || exit 71; "
-                + "MP=''; for d in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard "
-                + "/data/adb/modules/privacy_guard /data/adb/modules/pg; do "
-                + "if [ -d \"$d\" ] && [ ! -L \"$d\" ] "
-                + "&& [ -f \"$d/module.prop\" ] && [ ! -L \"$d/module.prop\" ] "
-                + "&& grep -qx 'id=privacyguard' \"$d/module.prop\" "
-                + "&& grep -qx 'version=1.0.0' \"$d/module.prop\" "
-                + "&& [ -d \"$d/scripts\" ] && [ ! -L \"$d/scripts\" ] "
-                + "&& [ -f \"$d/scripts/yulong-ad-control.sh\" ] "
-                + "&& [ ! -L \"$d/scripts/yulong-ad-control.sh\" ]; then "
-                + "MP=\"$d\"; break; fi; done; "
-                + "[ -n \"$MP\" ] || exit 20; sh \"$MP/scripts/yulong-ad-control.sh\" " + scriptArgs;
-    }
-    // Keep one Root read active and only the newest follow-up request queued.
-    private void enqueueLatest(Runnable task) {
-        try {
-            worker.execute(task);
-        } catch (RejectedExecutionException full) {
-            if (worker.isShutdown()) throw full;
-            worker.getQueue().poll();
-            worker.execute(task);
-        }
+        return FxYulongRootModuleCommand.command("yulong-ad-control.sh", scriptArgs);
     }
 
     private void root(String args, int generation,
