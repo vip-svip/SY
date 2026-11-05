@@ -17,7 +17,7 @@ chmod 600 "$PG/settings.conf"
 cat > "$MOD/scripts/util.sh" <<'UTIL'
 pg_get() {
   key=$1
-  default=\${2:-}
+  default=${2:-}
   value=$(awk -F= -v key="$key" '$1==key {value=substr($0,index($0,"=")+1)} END {print value}' "$PG/settings.conf")
   [ -n "$value" ] || value=$default
   printf '%s\n' "$value"
@@ -28,7 +28,7 @@ for script in adguardhome.sh unbound.sh; do
 #!/system/bin/sh
 case "$1" in
   stop)
-    printf '%s\n' "\${0##*/}:stop" >> "$TMP/engine-actions"
+    printf '%s\n' "${0##*/}:stop" >> "$TMP/engine-actions"
     if ! (umask 077; set -C; printf 'locked\n' > "$TMP/engine.lock") 2>/dev/null; then
       printf 'overlap\n' >> "$TMP/engine-overlap"
     fi
