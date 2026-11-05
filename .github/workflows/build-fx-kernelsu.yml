@@ -1,0 +1,753 @@
+name: FX 1.0.0 KernelSU package
+on:
+  workflow_dispatch:
+    inputs:
+      migration_complete:
+        description: "Only allow final APK/KernelSU packaging after every original app migration and acceptance gate is complete."
+        required: true
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: fx-v1.0.0-final-package
+  cancel-in-progress: true
+jobs:
+  package:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.migration_complete == true && github.ref == 'refs/heads/fx-v1.0.0-unified-hook-integration' }}
+    permissions:
+      actions: read
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stage original Dia Android Framework DEX asset
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          source_dir="$RUNNER_TEMP/fx-dia-source-intake"
+          mkdir -p "$source_dir"
+          gh run download 41538478144 --repo vip-svip/SY --name fx-apk-source-intake --dir "$source_dir"
+          dia_root="$(find "$source_dir" -type d -name Dia_23.11_src -print -quit)"
+          [[ -n "$dia_root" ]] || { echo "::error::Dia 23.11 source intake directory is missing."; exit 1; }
+          stage_dia_asset() {
+            local source_rel="$1" target_rel="$2" source_file
+            source_file="$dia_root/assets/$source_rel"
+            [[ -s "$source_file" ]] || { echo "::error::Missing original Dia asset: $source_rel"; exit 1; }
+            install -D -m 0644 "$source_file" "adhook/app/src/main/assets/dia/$target_rel"
+          }
+          stage_dia_asset android_framework.dex android_framework.dex
+          stage_dia_asset fridaJsExample.zip fridaJsExample.zip
+          stage_dia_asset frida_listen_help.md frida_listen_help.md
+          stage_dia_asset rewrite_rule_help.md rewrite_rule_help.md
+          # Dia's Java UI opens dia/my-script.js; the original file lives under assets/js/.
+          stage_dia_asset js/my-script.js my-script.js
+          echo "Staged Dia Framework DEX, Frida examples, both original help files, and the script template into the single FX APK."
+      - name: Restore complete module source from Release when checkout is incomplete
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # The Release archive can carry an older post-fs-data SELinux handler.
+          # Preserve the reviewed checkout copy before restoring the archive, then
+          # put that exact source back into the package module.
+          canonical_post_fs_data="$RUNNER_TEMP/fx-canonical-post-fs-data.sh"
+          [[ -s fx-module/post-fs-data.sh ]] || { echo "::error::Canonical post-fs-data.sh is missing from checkout."; exit 1; }
+          install -m 0755 fx-module/post-fs-data.sh "$canonical_post_fs_data"
+          required=(
+            module.prop customize.sh post-fs-data.sh service.sh uninstall.sh
+            scripts/apply.sh scripts/default.conf scripts/util.sh
+            scripts/certmgr.sh webroot/index.html
+          )
+          complete=1
+          for f in "${required[@]}"; do
+            [[ -s "fx-module/$f" ]] || complete=0
+          done
+          if (( complete == 0 )); then
+            echo "::notice::fx-module checkout is incomplete; restoring the published FX 1.0.0 source archive."
+            mkdir -p "$RUNNER_TEMP/fx-release" "$RUNNER_TEMP/fx-unpack"
+            gh release download 1.0.0 --repo vip-svip/SY --pattern 'FX-v1.0.0.zip' --dir "$RUNNER_TEMP/fx-release"
+            archive="$RUNNER_TEMP/fx-release/FX-v1.0.0.zip"
+            test -s "$archive"
+            unzip -tq "$archive"
+            unzip -q "$archive" -d "$RUNNER_TEMP/fx-unpack"
+            if [[ -s "$RUNNER_TEMP/fx-unpack/module.prop" ]]; then
+              source_root="$RUNNER_TEMP/fx-unpack"
+            else
+              # Ignore nested certificate submodule manifests; select the FX module root.
+              module_prop="$(find "$RUNNER_TEMP/fx-unpack" -maxdepth 3 -type f -name module.prop -print -quit)"
+              [[ -n "$module_prop" ]] || { echo "::error::Release archive contains no FX module.prop"; exit 1; }
+              source_root="$(dirname "$module_prop")"
+            fi
+            cp -a "$source_root/." fx-module/
+          fi
+          install -m 0755 "$canonical_post_fs_data" fx-module/post-fs-data.sh
+          cmp -s "$canonical_post_fs_data" fx-module/post-fs-data.sh
+          test -s fx-module/scripts/apply.sh
+          test -s fx-module/scripts/util.sh
+          # The stable KernelSU ZIP retires the old WebUI URL with a tiny notice page.
+          # Recover the canonical full UI from the already packaged Hook APK before
+          # running compatibility patches or rebuilding; otherwise release-to-release
+          # builds accidentally feed the 532-byte retirement page back as source.
+          if [[ ! -s fx-module/webroot/index.html || "$(wc -c < fx-module/webroot/index.html)" -le 500000 ]]; then
+            hook_apk="fx-module/optional/FXUnifiedHook.apk"
+            # The published KernelSU ZIP intentionally omits the standalone APK
+            # from its optional payload. The APK is a separate Release asset, so
+            # restore that asset explicitly instead of assuming it was bundled.
+            if [[ ! -s "$hook_apk" ]]; then
+              mkdir -p "$RUNNER_TEMP/fx-release" "$(dirname "$hook_apk")"
+              downloaded=0
+              for attempt in $(seq 1 12); do
+                if gh release download 1.0.0 --repo vip-svip/SY --pattern 'FXUnifiedHook.apk' --dir "$RUNNER_TEMP/fx-release" >/dev/null 2>&1 &&
+                   test -s "$RUNNER_TEMP/fx-release/FXUnifiedHook.apk"; then
+                  downloaded=1
+                  break
+                fi
+                echo "::notice::FXUnifiedHook.apk release asset is temporarily unavailable (attempt $attempt/12); retrying in 5 seconds."
+                sleep 5
+              done
+              [[ "$downloaded" = 1 ]] || { echo "::error::Unable to restore FXUnifiedHook.apk from Release after 12 attempts."; exit 1; }
+              unzip -tq "$RUNNER_TEMP/fx-release/FXUnifiedHook.apk"
+              install -m 0644 "$RUNNER_TEMP/fx-release/FXUnifiedHook.apk" "$hook_apk"
+            fi
+            unzip -p "$hook_apk" assets/webroot/index.html > "$RUNNER_TEMP/fx-restored-webroot.html"
+            [[ "$(wc -c < "$RUNNER_TEMP/fx-restored-webroot.html")" -gt 500000 ]] || { echo "::error::Published FX Hook APK does not contain the complete WebUI."; exit 1; }
+            install -D -m 0644 "$RUNNER_TEMP/fx-restored-webroot.html" fx-module/webroot/index.html
+            echo "::notice::Restored the complete WebUI source from the published FX Hook APK Release asset."
+          fi
+      - name: Stage checksum-verified Unbound Android ARM64 runtime
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          workflow="build-unbound-android-arm64.yml"
+          run_id="$(gh run list --workflow "$workflow" --repo vip-svip/SY --branch "$GITHUB_REF_NAME" --status success --limit 1 --json databaseId --jq '.[0].databaseId')"
+          [[ "$run_id" =~ ^[0-9]+$ ]] || { echo "::error::No successful Unbound Android ARM64 build is available."; exit 1; }
+          artifact_sha="$(gh run view "$run_id" --repo vip-svip/SY --json headSha --jq '.headSha')"
+          source_sha="$(git log -1 --format=%H -- .github/workflows/build-unbound-android-arm64.yml .github/dns/Unbound-root.hints scripts/localdns-probe.c scripts/tests/localdns-probe-regression.py)"
+          [[ -n "$source_sha" && "$artifact_sha" = "$source_sha" ]] || {
+            echo "::error::Unbound artifact is stale: artifact=$artifact_sha latest_dns_source=$source_sha"
+            exit 1
+          }
+          source_dir="$RUNNER_TEMP/fx-unbound-artifact"
+          destination="fx-module/engines/unbound"
+          mkdir -p "$source_dir" "$destination"
+          gh run download "$run_id" --repo vip-svip/SY --name fx-unbound-android-arm64-v1.26.2 --dir "$source_dir"
+          for executable in unbound unbound-checkconf unbound-anchor fx-dns-probe; do
+            [[ -s "$source_dir/$executable" && -s "$source_dir/$executable.sha256" ]] || {
+              echo "::error::Unbound artifact is missing $executable or its SHA-256 sidecar."
+              exit 1
+            }
+            expected="$(awk 'NR == 1 { print $1; exit }' "$source_dir/$executable.sha256")"
+            actual="$(sha256sum "$source_dir/$executable" | awk '{print $1}')"
+            [[ "$expected" = "$actual" ]] || { echo "::error::$executable artifact checksum mismatch."; exit 1; }
+            install -m 0755 "$source_dir/$executable" "$destination/$executable"
+            printf '%s  %s\n' "$actual" "$executable" > "$destination/$executable.sha256"
+          done
+          for data_file in root.hints root.key.seed; do
+            [[ -s "$source_dir/$data_file" && -s "$source_dir/$data_file.sha256" ]] || {
+              echo "::error::Unbound artifact is missing $data_file or its SHA-256 sidecar."
+              exit 1
+            }
+            expected="$(awk 'NR == 1 { print $1; exit }' "$source_dir/$data_file.sha256")"
+            actual="$(sha256sum "$source_dir/$data_file" | awk '{print $1}')"
+            [[ "$expected" = "$actual" ]] || { echo "::error::$data_file artifact checksum mismatch."; exit 1; }
+            install -m 0644 "$source_dir/$data_file" "$destination/$data_file"
+            printf '%s  %s\n' "$actual" "$data_file" > "$destination/$data_file.sha256"
+          done
+          install -m 0644 "$source_dir/BUILD-INFO.txt" "$destination/BUILD-INFO.txt"
+          install -m 0644 "$source_dir/FILE.txt" "$destination/FILE.txt"
+          (cd "$destination" && sha256sum unbound unbound-checkconf unbound-anchor fx-dns-probe > BINARY-SHA256SUMS)
+          (cd "$destination" && sha256sum root.hints root.key.seed > DATA-SHA256SUMS)
+          script="fx-module/scripts/unbound.sh"
+          [[ -s "$script" ]] || { echo "::error::FX Unbound lifecycle script is missing."; exit 1; }
+          grep -Fq 'ROOT="$MODDIR/engines/unbound"' "$script"
+          grep -Fq 'BIN="$ROOT/unbound"' "$script"
+          grep -Fq 'CHECKBIN="$ROOT/unbound-checkconf"' "$script"
+          grep -Fq 'ANCHOR="$ROOT/unbound-anchor"' "$script"
+          grep -Fq 'PROBE="$ROOT/fx-dns-probe"' "$script"
+          grep -Fq 'ROOT_HINTS="$ROOT/root.hints"' "$script"
+          grep -Fq 'ROOT_KEY_SEED="$ROOT/root.key.seed"' "$script"
+          grep -Fq 'sh "$MP/scripts/unbound.sh" ensure "$MP" "$PG"' fx-module/scripts/yulong-root-proxy.sh
+          sh -n "$script"
+          grep -q 'Unbound 1.26.2' "$destination/BUILD-INFO.txt"
+          grep -q 'Android ARM64' "$destination/BUILD-INFO.txt"
+          echo "PASS: checksum-verified Unbound 1.26.2 ARM64 daemon, checker, anchor, probe and root data staged at the exact runtime paths used by FX Root Proxy."
+          sh scripts/tests/fx-unbound-package-staging-regression.sh
+      - name: Decode and integrate Yulong 7.0.1 built-in DNS/Hosts rules
+        shell: bash
+        env:
+          APK_ACCESS_TOKEN: ${{ secrets.APK_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 scripts/tests/fx-yulong-bloom-header-regression.py
+          test -n "$APK_ACCESS_TOKEN" || { echo "::error::APK_ACCESS_TOKEN secret is missing"; exit 1; }
+          archive="$RUNNER_TEMP/yulong-7.0.1-source.zip"
+          curl --fail --silent --show-error --location \
+            -H "Accept: application/octet-stream" \
+            -H "Authorization: Bearer ${APK_ACCESS_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/vip-svip/APK/releases/assets/703362245" \
+            -o "$archive"
+          echo "836288c4278aaceda8fc40237539c65a8f8fef0e746fa336c3c263940ce89f02  $archive" | sha256sum --check -
+          unpack="$RUNNER_TEMP/yulong-7.0.1-unpacked"
+          mkdir -p "$unpack"
+          python3 - "$archive" "$unpack" <<'PY'
+          import pathlib, sys, zipfile
+          archive, destination = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2]).resolve()
+          with zipfile.ZipFile(archive) as source:
+              for item in source.infolist():
+                  target = (destination / item.filename).resolve()
+                  if not target.is_relative_to(destination):
+                      raise SystemExit(f"Unsafe ZIP path rejected: {item.filename}")
+              source.extractall(destination)
+          assets = next((p.parent for p in destination.rglob("builtin_adguard_dns.trie")), None)
+          if assets is None:
+              raise SystemExit("Yulong 7.0.1 asset folder is missing builtin_adguard_dns.trie")
+          pathlib.Path(sys.argv[2] + ".assets-path").write_text(str(assets), encoding="utf-8")
+          print(f"Validated Yulong 7.0.1 rule assets: {assets}")
+          PY
+          assets_dir="$(cat "$unpack.assets-path")"
+          python3 scripts/decode_yulong_ad_tries.py "$assets_dir" \
+            fx-module/rulefiles/Yulong_AdBlock.txt \
+            --cosmetic-output fx-module/rulefiles/Yulong_AdBlock_Cosmetic.txt \
+            --review-output fx-module/rulefiles/Yulong_AdBlock_Review.jsonl \
+            --report fx-module/rulefiles/Yulong_AdBlock-report.json
+          python3 scripts/integrate_yulong_ad_rules.py fx-module
+          sh scripts/tests/fx-yulong-ad-rule-import-regression.sh fx-module
+      - name: Apply reviewed FX source compatibility patches
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Wire the checksum-gated system-app deployment into the restored Release customize.sh.
+          python3 -m py_compile fx-patches/patch_system_app_install_stage.py
+          python3 fx-patches/patch_system_app_install_stage.py fx-module
+          python3 scripts/tests/fx-system-app-install-stage-patcher-regression.py
+          # The system-app patcher synchronizes canonical installer/remover
+          # sources into the restored module; verify byte parity before use.
+          cmp -s scripts/install_adhook_app.sh fx-module/scripts/install_adhook_app.sh
+          cmp -s scripts/remove_adhook_app.sh fx-module/scripts/remove_adhook_app.sh
+          sh scripts/tests/adhook-app-installer-regression.sh
+          python3 fx-patches/patch_native_script_scheduler.py fx-module
+          sh scripts/tests/fx-native-script-scheduler-regression.sh fx-module
+          install -D -m 0755 fx-patches/native-privacy-settings.sh fx-module/scripts/native-privacy-settings.sh
+          install -D -m 0755 scripts/yulong-ad-control.sh fx-module/scripts/yulong-ad-control.sh
+          sh scripts/tests/fx-yulong-ad-control-tempfile-regression.sh
+          sh scripts/tests/fx-yulong-dns-cache-regression.sh
+          install -D -m 0755 scripts/yulong-ad-schedule.sh fx-module/scripts/yulong-ad-schedule.sh
+          install -D -m 0755 scripts/yulong-stellar-control.sh fx-module/scripts/yulong-stellar-control.sh
+          install -D -m 0755 scripts/yulong-app-whitelist.sh fx-module/scripts/yulong-app-whitelist.sh
+          install -D -m 0755 scripts/native-managed-lists.sh fx-module/scripts/native-managed-lists.sh
+          install -D -m 0755 scripts/native-vpn-config.sh fx-module/scripts/native-vpn-config.sh
+          # Bring the Yulong compatibility controllers into the single FX module package.
+          install -D -m 0755 scripts/yulong-trusted-network.sh fx-module/scripts/yulong-trusted-network.sh
+          install -D -m 0755 scripts/yulong-vpn-control.sh fx-module/scripts/yulong-vpn-control.sh
+          install -D -m 0755 scripts/vpn-apps.sh fx-module/scripts/vpn-apps.sh
+          install -D -m 0755 scripts/fx-vpn-coexistence-arbiter.sh fx-module/scripts/fx-vpn-coexistence-arbiter.sh
+          sh scripts/tests/fx-vpn-coexistence-arbiter-regression.sh fx-module/scripts/fx-vpn-coexistence-arbiter.sh
+          # Release archives may still contain the legacy mkdir-based subfetch lock.
+          # Apply the reviewed lock migration and regenerate stale-lock tests before
+          # executing concurrency checks against the restored module itself.
+          python3 -m py_compile fx-patches/patch_subfetch_file_lock.py fx-patches/patch_subfetch_legacy_lock_tests.py
+          python3 fx-patches/patch_subfetch_file_lock.py fx-module
+          python3 scripts/tests/fx-subfetch-patcher-regression.py
+          python3 fx-patches/patch_subfetch_legacy_lock_tests.py fx-module
+          install -D -m 0755 scripts/tests/v1.0.0-subfetch-concurrency-regression.sh fx-module/scripts/tests/v1.0.0-subfetch-concurrency-regression.sh
+          sh fx-module/scripts/tests/v1.0.0-subfetch-concurrency-regression.sh
+          sh fx-module/scripts/tests/v1.0.0-subfetch-stale-lock-ownership-regression.sh
+          sh fx-module/scripts/tests/v1.0.0-subfetch-stale-lock-reclaim-regression.sh
+          # Route standalone VPN core lifecycle entry points through the shared apply lock.
+          python3 fx-patches/patch_vpncore_standalone_lock.py fx-module
+          python3 fx-patches/patch_vpn_apps.py fx-module
+          sh fx-module/scripts/tests/v1.0.0-yulong-per-app-vpn-regression.sh
+          python3 fx-patches/patch_yulong_ad_master.py fx-module && python3 fx-patches/patch_vpn_coexistence_status.py fx-module && python3 scripts/tests/fx-vpn-coexistence-status-regression.py
+          python3 fx-patches/patch_yulong_dns_upstreams.py fx-module
+          # Migrate Yulong ProtectionProfile controls and weekly scheduling into the FX module runtime.
+          python3 fx-patches/patch_yulong_profiles.py fx-module
+          python3 fx-patches/patch_yulong_app_firewall.py fx-module .
+          sh scripts/tests/fx-yulong-app-firewall-regression.sh fx-module
+          sh scripts/tests/fx-yulong-ad-operation-gate-regression.sh
+          # Root Proxy staging copies the canonical source; run it before the
+          # shared atomic lock patch so it cannot overwrite the lock migration.
+          python3 -m py_compile fx-patches/patch_yulong_root_proxy.py fx-patches/patch_atomic_cache_lock_release.py fx-patches/patch_vpn_external_watchdog.py
+          python3 fx-patches/patch_yulong_root_proxy.py fx-module .
+          python3 fx-patches/patch_vpn_external_watchdog.py fx-module
+          sh scripts/tests/fx-yulong-root-proxy-unbound-regression.sh
+          sh scripts/tests/fx-yulong-root-proxy-runtime-regression.sh
+          python3 fx-patches/patch_atomic_cache_lock_release.py fx-module
+          sh scripts/tests/fx-atomic-cache-lock-release-regression.sh fx-module
+          sh scripts/tests/fx-yulong-schedule-default-regression.sh
+          python3 fx-patches/patch_yulong_app_whitelist.py fx-module
+          sh scripts/tests/fx-yulong-app-whitelist-runtime-regression.sh fx-module
+          python3 fx-patches/patch_yulong_ad_dns_logs.py fx-module
+          sh scripts/tests/fx-yulong-ad-dns-summary-regression.sh fx-module
+          python3 fx-patches/patch_native_script_store.py fx-module
+          python3 fx-patches/patch_quickjs_http_limits.py fx-module
+          sh scripts/tests/fx-jsruntime-http-limits-regression.sh fx-module
+          sh scripts/tests/fx-native-script-store-regression.sh
+          sh scripts/tests/fx-native-script-local-run-regression.sh
+          python3 fx-patches/patch_remote_config_parser.py fx-module
+          python3 fx-patches/patch_hook_apk_regression.py fx-module
+          python3 fx-patches/patch_hook_privacy_controls.py fx-module
+          python3 fx-patches/patch_native_hook_status.py fx-module
+          python3 fx-patches/patch_native_hook_config_overlay.py fx-module
+          python3 fx-patches/patch_native_hook_uninstall.py fx-module
+          python3 fx-patches/patch_localdns_uninstall_shutdown.py fx-module
+          python3 fx-patches/patch_local_hosts_ipv4_validation.py fx-module
+          # Serialize complete local Hosts/file editor write transactions.
+          python3 fx-patches/patch_fileedit_transaction_lock.py fx-module
+          python3 fx-patches/patch_hosts_file_lock.py fx-module
+          sh scripts/tests/fx-hosts-cache-lock-regression.sh fx-module
+          python3 fx-patches/patch_vpn_direct_core_stop_result.py fx-module
+          python3 fx-patches/patch_vpn_core_stop_guard.py fx-module
+          python3 fx-patches/patch_vpn_toggle_external_state.py fx-module
+          python3 fx-patches/patch_vpn_toggle_mobile_layout.py fx-module
+          sh fx-module/scripts/tests/v1.0.0-vpn-toggle-mobile-layout-regression.sh
+          python3 fx-patches/patch_vpn_toggle_transparent.py fx-module
+          sh scripts/tests/fx-vpn-transparent-toggle-regression.sh fx-module/webroot/index.html
+          python3 fx-patches/patch_vpn_toggle_live_state.py fx-module
+          python3 fx-patches/patch_native_vpn_api.py fx-module
+          sh scripts/tests/fx-native-vpn-api-regression.sh fx-module/webroot/index.html
+          sh fx-module/scripts/tests/v1.0.0-vpn-toggle-live-state-regression.sh
+          sh fx-module/scripts/tests/v1.0.0-vpn-core-stop-guard-regression.sh
+          sh fx-module/scripts/tests/v1.0.0-vpn-toggle-external-state-regression.sh
+          python3 fx-patches/patch_private_runtime_logs.py fx-module
+          python3 fx-patches/patch_mitm_default_ca_trust.py fx-module
+          python3 fx-patches/patch_vpncore_default_node.py fx-module
+          python3 -m py_compile fx-patches/patch_vpn_tun_external_fallback.py
+          python3 fx-patches/patch_vpn_tun_external_fallback.py fx-module
+          sh scripts/tests/fx-vpn-tun-external-fallback-regression.sh fx-module
+          python3 fx-patches/patch_vpn_yaml_inline_comments.py fx-module
+          python3 fx-patches/patch_vpnsub_clash_reality.py fx-module
+          python3 fx-patches/patch_vpnsub_clash_transports.py fx-module
+          python3 fx-patches/patch_vpnsub_clash_socks_auth.py fx-module
+          python3 fx-patches/merge_hook_single_apk.py fx-module .
+          sh scripts/tests/fx-dia-hook-tab-navigation-regression.sh
+          sh scripts/tests/fx-dia-frida-gadget-deploy-regression.sh
+          sh scripts/tests/fx-native-single-navigation-regression.sh
+      - name: Build and embed QuickJS-NG v0.17.0 for Android ARM64
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Compile QuickJS-NG with Android NDK r26b
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          if [[ -x "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]]; then
+            SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          else
+            SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -path '*/bin/sdkmanager' -type f 2>/dev/null | sort | tail -n1)"
+          fi
+          test -n "$SDKMANAGER" && test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses >/dev/null || true
+          "$SDKMANAGER" --sdk_root="$SDK_ROOT" "ndk;26.1.10909125"
+          export ANDROID_SDK_ROOT="$SDK_ROOT"
+          git clone --depth 1 --branch v0.17.0 https://github.com/quickjs-ng/quickjs.git "$RUNNER_TEMP/quickjs-ng"
+          test -f "$RUNNER_TEMP/quickjs-ng/CMakeLists.txt"
+          # The bundled runtime must enforce FX's privileged/native import boundary.
+          # The published module archive carries a hand-maintained unified diff.
+          # Recalculate hunk lengths before applying it: stale counts make GNU patch
+          # reject an otherwise valid diff as "malformed patch".
+          python3 - <<'PY'
+          import pathlib, re
+          path = pathlib.Path("fx-module/scripts/jsruntime/quickjs-import-sandbox-v0.17.0.patch")
+          lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+          out = []
+          i = 0
+          hunk = re.compile(r"^(@@ -)(\d+)(?:,(\d+))?( \+)(\d+)(?:,(\d+))?( @@.*)$")
+          while i < len(lines):
+              line = lines[i]
+              m = hunk.match(line.rstrip("\n"))
+              if not m:
+                  out.append(line)
+                  i += 1
+                  continue
+              j = i + 1
+              old_count = new_count = 0
+              while j < len(lines) and not lines[j].startswith(("@@ ", "diff ", "--- ")):
+                  body = lines[j]
+                  if body.startswith(" "):
+                      old_count += 1
+                      new_count += 1
+                  elif body.startswith("-"):
+                      old_count += 1
+                  elif body.startswith("+"):
+                      new_count += 1
+                  elif body.startswith("\ No newline"):
+                      pass
+                  else:
+                      raise SystemExit(f"Unexpected unified-diff line {j+1}: {body!r}")
+                  j += 1
+              out.append(f"@@ -{m.group(2)},{old_count} +{m.group(5)},{new_count}{m.group(7)}\n")
+              out.extend(lines[i+1:j])
+              i = j
+          path.write_text("".join(out), encoding="utf-8")
+          PY
+          patch --directory="$RUNNER_TEMP/quickjs-ng" -p1 --forward < fx-module/scripts/jsruntime/quickjs-import-sandbox-v0.17.0.patch
+          grep -Fq 'JS_SetModuleImportSandbox(rt, true)' "$RUNNER_TEMP/quickjs-ng/qjs.c"
+          grep -Fq 'disable_privileged_module_imports' "$RUNNER_TEMP/quickjs-ng/quickjs.c"
+          cmake -S "$RUNNER_TEMP/quickjs-ng" -B "$RUNNER_TEMP/quickjs-build-arm64" -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$SDK_ROOT/ndk/26.1.10909125/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-24 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$RUNNER_TEMP/quickjs-install"
+          cmake --build "$RUNNER_TEMP/quickjs-build-arm64" --parallel
+          cmake --install "$RUNNER_TEMP/quickjs-build-arm64"
+          qjs_bin="$(find "$RUNNER_TEMP/quickjs-build-arm64" "$RUNNER_TEMP/quickjs-install" -type f -name qjs -perm -111 -print -quit)"
+          test -n "$qjs_bin"
+          mkdir -p fx-module/bin/arm64
+          install -m 0755 "$qjs_bin" fx-module/bin/arm64/qjs
+          (cd fx-module/bin/arm64 && sha256sum qjs > qjs.sha256)
+          cat > fx-module/bin/arm64/qjs.BUILD-INFO.txt <<'INFO'
+          Engine: QuickJS-NG v0.17.0
+          Target: Android arm64-v8a, API 24+, NDK r26b
+          FX hardening: privileged and native module import sandbox
+          Blocked imports: qjs:std, qjs:os, qjs:bjson, std, os, bjson, *.so
+          Enforcement: before module-cache lookup; enabled after trusted host prelude
+          INFO
+          grep -Fq 'before module-cache lookup' fx-module/bin/arm64/qjs.BUILD-INFO.txt
+          grep -Fq 'qjs:os' fx-module/bin/arm64/qjs.BUILD-INFO.txt
+          file fx-module/bin/arm64/qjs
+          readelf -h fx-module/bin/arm64/qjs | grep -E 'Machine:.*AArch64'
+          test -x fx-module/bin/arm64/qjs
+      - name: Stage complete FX WebUI inside the APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s fx-module/webroot/index.html
+          mkdir -p adhook/app/src/main/assets/webroot
+          cp fx-module/webroot/index.html adhook/app/src/main/assets/webroot/index.html
+          python3 fx-patches/patch_native_privacy_settings.py fx-module adhook/app/src/main/assets
+          sh scripts/tests/fx-native-privacy-settings-regression.sh fx-module
+          python3 fx-patches/merge_ad_hosts_ui.py adhook/app/src/main/assets/webroot/index.html
+          python3 fx-patches/retire_webui_legacy_hook.py adhook/app/src/main/assets/webroot/index.html fx-module
+          test "$(wc -c < adhook/app/src/main/assets/webroot/index.html)" -gt 500000
+          for page in pageVpn pageAd pageHosts pagePrivacy pageScript pageMore; do
+            grep -q "id=\"$page\"" adhook/app/src/main/assets/webroot/index.html
+          done
+          sha256sum adhook/app/src/main/assets/webroot/index.html
+      - name: Validate required module files and version
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            fx-module/module.prop fx-module/customize.sh
+            fx-module/post-fs-data.sh fx-module/service.sh
+            fx-module/uninstall.sh fx-module/scripts/apply.sh
+            fx-module/scripts/default.conf fx-module/scripts/util.sh
+            fx-module/scripts/certmgr.sh fx-module/webroot/index.html
+          )
+          for f in "${required[@]}"; do
+            [[ -s "$f" ]] || { echo "::error file=$f::Required FX module file is missing or empty"; exit 1; }
+          done
+          grep -qx 'version=1.0.0' fx-module/module.prop
+          grep -qx 'versionCode=10000' fx-module/module.prop
+      - name: Shell syntax, executable bits and embedded checksum validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "::group::Inspect installer entrypoint around any syntax failure"
+          nl -ba fx-module/customize.sh | sed -n '45,85p'
+          echo "::endgroup::"
+          find fx-module -type f -name '*.sh' -print0 | while IFS= read -r -d '' f; do
+            bash -n "$f"
+            chmod 0755 "$f"
+          done
+          for f in customize.sh post-fs-data.sh service.sh uninstall.sh; do
+            test -x "fx-module/$f" || { echo "::error file=fx-module/$f::Entrypoint is not executable"; exit 1; }
+          done
+          if [[ -d fx-module/bin ]]; then
+            while IFS= read -r -d '' f; do
+              if file -b "$f" | grep -q '^ELF '; then chmod 0755 "$f"; fi
+            done < <(find fx-module/bin -type f -print0)
+          fi
+          if [[ -s fx-module/bin/arm64/pg-mitm && -s fx-module/bin/arm64/pg-mitm.sha256 ]]; then
+            if ! (cd fx-module/bin/arm64 && sha256sum -c pg-mitm.sha256); then
+              echo "::warning file=fx-module/bin/arm64/pg-mitm.sha256::Stale pg-mitm checksum sidecar; regenerating from the packaged binary."
+              (cd fx-module/bin/arm64 && sha256sum pg-mitm > pg-mitm.sha256)
+            fi
+          fi
+          while IFS= read -r -d '' manifest; do
+            dir="$(dirname "$manifest")"
+            base="$(basename "$manifest")"
+            target="${base%.sha256}"
+            if [[ "$target" == "PrivacyGuardHook.apk" && ! -e "$dir/$target" ]]; then
+              echo "::notice file=$manifest::Removing obsolete checksum sidecar for the renamed legacy APK."
+              rm -f "$manifest"
+              continue
+            fi
+            if awk 'NF >= 2 && $2 == "optional/PrivacyGuardHook.apk" { found=1 } END { exit !found }' "$manifest" && [[ ! -e "$dir/optional/PrivacyGuardHook.apk" ]]; then
+              echo "::notice file=$manifest::Removing obsolete checksum manifest that references the absent legacy APK path."
+              rm -f "$manifest"
+              continue
+            fi
+            if ! awk 'NF >= 2 && $1 ~ /^[[:xdigit:]]{64}$/ { ok=1 } END { exit !ok }' "$manifest"; then
+              [[ -s "$dir/$target" ]] || { echo "::error file=$manifest::Malformed checksum manifest and target file is absent"; exit 1; }
+              echo "::warning file=$manifest::Non-standard checksum manifest; normalizing against its adjacent packaged file."
+              (cd "$dir" && sha256sum "$target" > "$base")
+            fi
+            (cd "$dir" && sha256sum -c "$base")
+          done < <(find fx-module -type f -name '*.sha256' -print0)
+      - name: Set up Java 17 for Hook parser regression
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Gradle to rebuild modern FX Hook APK
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+      - name: Install Android SDK packages for FX Hook APK
+        shell: bash
+        run: |
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          if [[ ! -x "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]]; then
+            SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -path '*/bin/sdkmanager' -type f 2>/dev/null | sort | tail -n1)"
+          else
+            SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          fi
+          test -n "$SDKMANAGER" && test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses >/dev/null || true
+          "$SDKMANAGER" --sdk_root="$SDK_ROOT" "platforms;android-37" "build-tools;36.0.0"
+      - name: Run focused LSPosed Remote Files regressions
+        shell: bash
+        env:
+          SY_BUILD_TOKEN: ${{ secrets.SY_BUILD_TOKEN }}
+          GH_API_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          sh scripts/tests/fx-app-webui-migration-regression.sh
+          sh scripts/tests/fx-dia-frida-gadget-session-regression.sh
+          sh scripts/tests/vpncore-default-node-fallback-regression.sh
+          sh fx-module/scripts/tests/v1.0.0-vpn-off-requires-core-stop-success-regression.sh
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          APKSIGNER="$SDK_ROOT/build-tools/36.0.0/apksigner"
+
+          # SY_BUILD_TOKEN is the single existing GitHub fine-grained PAT.
+          # Use it to protect a one-time generated PKCS12 signing identity in
+          # the public repository. Only AES-256 encrypted bytes are committed.
+          : "${SY_BUILD_TOKEN:?SY_BUILD_TOKEN is required to restore the persistent FX signing identity}"
+          export FX_ANDROID_KEYSTORE_PASSWORD="$SY_BUILD_TOKEN"
+          export FX_ANDROID_KEY_PASSWORD="$SY_BUILD_TOKEN"
+          export FX_ANDROID_KEY_ALIAS="fx-release"
+          export FX_ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/fx-release-signing.p12"
+          VAULT_FILE=".github/signing/fx-release.p12.enc"
+          if [[ -s "$VAULT_FILE" ]]; then
+            # Restore the exact encrypted signing identity from this checked-out commit.
+            cp "$VAULT_FILE" "$RUNNER_TEMP/fx-release-signing.p12.enc"
+            openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -in "$RUNNER_TEMP/fx-release-signing.p12.enc" \
+              -out "$FX_ANDROID_KEYSTORE_PATH" -pass env:FX_ANDROID_KEYSTORE_PASSWORD
+          elif [[ -e "$VAULT_FILE" ]]; then
+            echo "::error::FX signing vault exists but is empty; refusing to generate a replacement signing identity."
+            exit 1
+          else
+            echo "::notice::No FX signing vault exists in the checked-out commit; creating the persistent release identity once."
+            keytool -genkeypair -noprompt -alias "$FX_ANDROID_KEY_ALIAS" -keyalg RSA -keysize 3072 \
+              -sigalg SHA256withRSA -validity 10000 -dname "CN=FX Android Release, OU=FX, O=FX, C=US" \
+              -storetype PKCS12 -keystore "$FX_ANDROID_KEYSTORE_PATH" \
+              -storepass:env FX_ANDROID_KEYSTORE_PASSWORD -keypass:env FX_ANDROID_KEY_PASSWORD
+            openssl enc -aes-256-cbc -salt -pbkdf2 -iter 600000 -in "$FX_ANDROID_KEYSTORE_PATH" \
+              -out "$RUNNER_TEMP/fx-release-signing.p12.enc" -pass env:FX_ANDROID_KEYSTORE_PASSWORD
+            python3 - "$RUNNER_TEMP/fx-release-signing.p12.enc" "$RUNNER_TEMP/fx-vault-payload.json" "$GITHUB_REF_NAME" <<'PY'
+          import base64, json, pathlib, sys
+          encrypted = pathlib.Path(sys.argv[1]).read_bytes()
+          payload = {
+              "message": "chore(fx): bootstrap encrypted APK signing vault [skip ci]",
+              "branch": sys.argv[3],
+              "content": base64.b64encode(encrypted).decode("ascii"),
+          }
+          pathlib.Path(sys.argv[2]).write_text(json.dumps(payload), encoding="utf-8")
+          PY
+            VAULT_WRITE_HTTP="$(curl --silent --show-error --output "$RUNNER_TEMP/fx-vault-write-response.json" --write-out '%{http_code}' \
+              --request PUT \
+              --header "Authorization: Bearer $GH_API_TOKEN" \
+              --header "Accept: application/vnd.github+json" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              --header "Content-Type: application/json" \
+              --data-binary "@$RUNNER_TEMP/fx-vault-payload.json" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/contents/$VAULT_FILE")"
+            [[ "$VAULT_WRITE_HTTP" == "201" || "$VAULT_WRITE_HTTP" == "200" ]] || {
+              echo "::error::Could not persist the encrypted FX signing vault (HTTP $VAULT_WRITE_HTTP). Check the workflow GITHUB_TOKEN contents: write permission."
+              cat "$RUNNER_TEMP/fx-vault-write-response.json" | jq -r '.message // "GitHub API write failed"' || true
+              exit 1
+            }
+          fi
+
+          test -s "$FX_ANDROID_KEYSTORE_PATH"
+          keytool -list -keystore "$FX_ANDROID_KEYSTORE_PATH" -storetype PKCS12 \
+            -storepass:env FX_ANDROID_KEYSTORE_PASSWORD -alias "$FX_ANDROID_KEY_ALIAS" >/dev/null
+          gradle --no-daemon -p adhook :app:testDebugUnitTest :app:assembleRelease
+          BUILT_APK=adhook/app/build/outputs/apk/release/app-release.apk
+          test -s "$BUILT_APK"
+          "$APKSIGNER" verify --verbose "$BUILT_APK"
+          "$APKSIGNER" verify --print-certs "$BUILT_APK" | grep 'Signer #1 certificate SHA-256 digest' >> "$GITHUB_STEP_SUMMARY"
+          SIGNING_MODE="release-signed"
+          BUILD_VARIANT="release"
+          echo "Hook APK signing mode: $SIGNING_MODE (persistent PKCS12 vault)" >> "$GITHUB_STEP_SUMMARY"
+
+          mkdir -p fx-module/optional fx-module/system/app/FX
+          cp "$BUILT_APK" fx-module/optional/FXUnifiedHook.apk
+          # The KernelSU/Magisk ZIP must carry the APK as a systemless system app.
+          # /system/app is intentional: this APK is not platform-signed and is not privileged.
+          install -m 0644 "$BUILT_APK" fx-module/system/app/FX/FX.apk
+          chmod 0755 fx-module/system fx-module/system/app fx-module/system/app/FX
+          BUILT_APK_SHA="$(sha256sum "$BUILT_APK" | awk '{print $1}')"
+          EMBEDDED_APK_SHA="$(sha256sum fx-module/optional/FXUnifiedHook.apk | awk '{print $1}')"
+          SYSTEM_APK_SHA="$(sha256sum fx-module/system/app/FX/FX.apk | awk '{print $1}')"
+          test "$BUILT_APK_SHA" = "$EMBEDDED_APK_SHA"
+          test "$BUILT_APK_SHA" = "$SYSTEM_APK_SHA"
+          (cd fx-module/optional && sha256sum FXUnifiedHook.apk > FXUnifiedHook.apk.sha256)
+          (cd fx-module/system/app/FX && sha256sum FX.apk > FX.apk.sha256)
+          {
+            echo "Build variant: $BUILD_VARIANT"
+            echo "Signing mode: $SIGNING_MODE"
+            echo "Build/signing mode: $SIGNING_MODE"
+            echo "Dual entrypoints: legacy Xposed API 93+ and modern libxposed API 101"
+            echo "versionCode: 10000"
+            echo "Deployment: systemless /system/app/FX/FX.apk overlay; PackageManager fallback only when overlay is unavailable"
+            echo "Privilege boundary: system app, not a privileged app; no platform signature or privileged permission grant is implied"
+          } > fx-module/optional/FXUnifiedHook-BUILD-INFO.txt
+          sh fx-module/scripts/tests/v1.0.0-lsposed-remote-file-config-regression.sh
+          sh fx-module/scripts/tests/v1.0.0-lsposed-audiorecord-mic-silence-regression.sh
+          sh fx-module/scripts/tests/v1.0.0-dev-hook-config-translation-regression.sh
+          sh scripts/tests/adhook-app-installer-regression.sh
+          sh scripts/tests/v1.0.0-fxhook-single-apk-merge-audit-regression.sh
+          sh scripts/tests/fx-hook-native-ui-regression.sh "$BUILT_APK"
+          sh fx-module/scripts/tests/v1.0.0-lsposed-ad-hook-apk-regression.sh
+          # Release-restored target-scope test predates the native six-tab shell.
+          # The canonical source+APK regression above now owns that UI contract.
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("fx-module/scripts/tests/v1.0.0-lsposed-ad-hook-target-scope-regression.sh")
+          lines = p.read_text().splitlines()
+          lines = [line for line in lines if "native six-tab Hook navigation missing" not in line]
+          p.write_text("\\n".join(lines) + "\\n")
+          PY
+          for test_script in \
+            fx-module/scripts/tests/v1.0.0-lsposed-ad-hook-target-scope-regression.sh \
+            fx-module/scripts/tests/v1.0.0-quickjs-runtime-regression.sh \
+            fx-module/scripts/tests/v1.0.0-runtime-entrypoint-permissions-regression.sh \
+            fx-module/scripts/tests/v1.0.0-engine-install-permissions-regression.sh; do
+            [[ -s "$test_script" ]] || { echo "::error file=$test_script::Required artifact-dependent regression is missing"; exit 1; }
+            echo "::group::Artifact regression: $(basename "$test_script")"
+            sh "$test_script"
+            echo "::endgroup::"
+          done
+      - name: Run complete FX host regression suite
+        shell: bash
+        run: |
+          set -uo pipefail
+          mapfile -t tests < <(find fx-module/scripts/tests -maxdepth 1 -type f -name '*.sh' | sort)
+          test "${#tests[@]}" -ge 250 || { echo "::error::Expected the complete FX regression suite; found only ${#tests[@]} scripts."; exit 1; }
+          pass=0
+          fail=0
+          timed_out=0
+          mkdir -p "$RUNNER_TEMP/fx-regression-logs"
+          for test_script in "${tests[@]}"; do
+            log="$RUNNER_TEMP/fx-regression-logs/$(basename "$test_script").log"
+            # Respect each test's declared interpreter. Some concurrency regressions
+            # use Bash arrays/wait semantics and must not be forced through dash.
+            if IFS= read -r shebang < "$test_script" && [[ "$shebang" == *bash* ]]; then
+              test_shell="bash"
+            else
+              test_shell="sh"
+            fi
+            cp "$test_script" "$RUNNER_TEMP/fx-regression-logs/$(basename "$test_script").source.sh"
+            echo "RUN: $(basename "$test_script") (shell=$test_shell)"
+            if timeout 35s "$test_shell" "$test_script" >"$log" 2>&1; then
+              pass=$((pass + 1))
+              echo "PASS: $(basename "$test_script")"
+            else
+              rc=$?
+              if [[ "$rc" -eq 124 ]]; then
+                timed_out=$((timed_out + 1))
+                echo "::error file=$test_script::Regression timed out after 35 seconds"
+              else
+                fail=$((fail + 1))
+                echo "FAIL: $(basename "$test_script") (exit code $rc)"
+                echo "::error file=$test_script::Regression failed with exit code $rc"
+              fi
+              tail -n 30 "$log" || true
+            fi
+          done
+          echo "FX regression summary: total=${#tests[@]} pass=$pass fail=$fail timeout=$timed_out"
+          echo "total=${#tests[@]}" >> "$GITHUB_STEP_SUMMARY"
+          echo "pass=$pass fail=$fail timeout=$timed_out" >> "$GITHUB_STEP_SUMMARY"
+          [[ "$fail" -eq 0 && "$timed_out" -eq 0 ]] || exit 1
+      - name: Upload host regression diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: FX-host-regression-diagnostics-${{ github.run_id }}
+          path: ${{ runner.temp }}/fx-regression-logs
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Remove KernelSU WebUI and manual action entrypoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 fx-patches/remove_kernelsu_ui_entrypoints.py fx-module
+          test ! -e fx-module/webroot
+          test ! -e fx-module/action.sh
+      - name: Package and verify KernelSU ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          (cd fx-module && zip -qr ../dist/FX-v1.0.0.zip .)
+          unzip -tq dist/FX-v1.0.0.zip
+          FINAL_PACKAGE_TEST_ROOT="$RUNNER_TEMP/fx-final-package-test"
+          mkdir -p "$FINAL_PACKAGE_TEST_ROOT"
+          unzip -q dist/FX-v1.0.0.zip -d "$FINAL_PACKAGE_TEST_ROOT"
+          # The module ZIP intentionally excludes WebUI files; restore the test fixture
+          # from the exact APK entry that will be installed by the module.
+          unzip -p dist/FX-v1.0.0.zip optional/FXUnifiedHook.apk > "$RUNNER_TEMP/FXUnifiedHook.zip-entry.apk"
+          unzip -tq "$RUNNER_TEMP/FXUnifiedHook.zip-entry.apk"
+          unzip -p dist/FX-v1.0.0.zip system/app/FX/FX.apk > "$RUNNER_TEMP/FX-system-app-overlay.apk"
+          unzip -p dist/FX-v1.0.0.zip system/app/FX/FX.apk.sha256 > "$RUNNER_TEMP/FX-system-app-overlay.apk.sha256"
+          (cd "$RUNNER_TEMP" && sha256sum -c FX-system-app-overlay.apk.sha256)
+          cmp -s "$RUNNER_TEMP/FX-system-app-overlay.apk" "$RUNNER_TEMP/FXUnifiedHook.zip-entry.apk"
+          unzip -p "$RUNNER_TEMP/FXUnifiedHook.zip-entry.apk" assets/webroot/index.html > "$RUNNER_TEMP/fx-vpn-final-ui.html"
+          test -s "$RUNNER_TEMP/fx-vpn-final-ui.html"
+          grep -q 'id="pageVpn"' "$RUNNER_TEMP/fx-vpn-final-ui.html"
+          mkdir -p "$FINAL_PACKAGE_TEST_ROOT/webroot"
+          cp "$RUNNER_TEMP/fx-vpn-final-ui.html" "$FINAL_PACKAGE_TEST_ROOT/webroot/index.html"
+          sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-mitm-default-ca-trust-regression.sh"
+          sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-cert-collision-no-openssl-regression.sh"
+          echo "PASS: post-package MITM CA lifecycle, APK-embedded UI, and no-OpenSSL certificate-manager smoke tests" >> "$GITHUB_STEP_SUMMARY"
+          unzip -Z1 dist/FX-v1.0.0.zip | grep -qx 'module.prop'
+          unzip -p dist/FX-v1.0.0.zip module.prop | grep -qx 'version=1.0.0'
+          ! unzip -Z1 dist/FX-v1.0.0.zip | grep -Eq '^webroot/'
+          ! unzip -Z1 dist/FX-v1.0.0.zip | grep -q "action.sh"
+          FX_UI_SOURCE="$RUNNER_TEMP/fx-vpn-final-ui.html" sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-js-mitm-runtime-controls-regression.sh"
+          FX_UI_SOURCE="$RUNNER_TEMP/fx-vpn-final-ui.html" sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-cert-apex-namespace-ui-truth-regression.sh"
+          sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-ca-state-marker-atomic-regression.sh"
+          sh "$FINAL_PACKAGE_TEST_ROOT/scripts/tests/v1.0.0-vpn-mode-switch-no-node-regression.sh" "$RUNNER_TEMP/fx-vpn-final-ui.html"
+          sh fx-module/scripts/tests/v1.0.0-vpn-toggle-ui-regression.sh "$RUNNER_TEMP/fx-vpn-final-ui.html"
+          sh fx-module/scripts/tests/v1.0.0-vpn-direct-no-node-regression.sh "$RUNNER_TEMP/fx-vpn-final-ui.html"
+          ZIP_APK_SHA="$(unzip -p dist/FX-v1.0.0.zip optional/FXUnifiedHook.apk | sha256sum | awk '{print $1}')"
+          BUILT_APK_SHA="$(sha256sum fx-module/optional/FXUnifiedHook.apk | awk '{print $1}')"
+          test "$ZIP_APK_SHA" = "$BUILT_APK_SHA"
+          cp fx-module/optional/FXUnifiedHook.apk dist/FXUnifiedHook.apk
+          (cd dist && sha256sum FX-v1.0.0.zip FXUnifiedHook.apk > SHA256SUMS)
+          (cd dist && sha256sum -c SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FX-Hook-apk
+          path: fx-module/optional/FXUnifiedHook.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FX-v1.0.0-KernelSU
+          path: |
+            dist/FX-v1.0.0.zip
+            dist/FXUnifiedHook.apk
+            dist/SHA256SUMS
+          if-no-files-found: error
