@@ -136,9 +136,11 @@ checks = {
     "full-screen editor validates source fingerprint on return": "requestedFingerprint.equals(currentFingerprint)" in frida,
     "full-screen editor validates target on return": "Objects.equals(requestedTarget, targetPackage)" in frida,
     "stale full-screen editor return is rejected": "全屏编辑器的旧返回结果已丢弃" in frida,
-    "editor page restores working source and baseline": "state.getString(STATE_SOURCE, intentSource)" in editor and "state.getString(STATE_BASELINE" in editor,
+    "editor page restores file-backed source and baseline": "FxDiaCodeEditorTransfer.read(this, sourceFile, \".source\")" in editor and "state.getString(STATE_BASELINE" in editor,
+    "editor saves large draft outside Activity Bundle": "FxDiaCodeEditorTransfer.write(this, draftFile, source)" in editor and "STATE_DRAFT_SAVED" in editor,
+    "editor has no fixed 48 KiB input cap": "MAX_SOURCE_BYTES" not in editor,
+    "editor result is returned through private file": "FxDiaCodeEditorTransfer.write(this, resultFile, source)" in editor and "EXTRA_SOURCE_FILE" in editor,
     "editor returns code only on successful save": "setResult(RESULT_CODE_EDITOR, result);" in editor and "private void saveAndReturn()" in editor,
-    "editor enforces source byte limit": "utf8Length(source) > MAX_SOURCE_BYTES" in editor,
 }
 for label, ok in checks.items():
     if not ok:
