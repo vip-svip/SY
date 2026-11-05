@@ -52,7 +52,7 @@ data class FxGkdSelectorCompilation(
 
 /**
  * Adapter around the exact GKD-XA v1.4.8 selector/parser source compiled in
- * :gkd-selector-adapter. This does not substitute a simplified regex matcher.
+ * :fx-gkd-selector. This does not substitute a simplified regex matcher.
  */
 object FxGkdSelectorEngine {
     private val typeModel by lazy(LazyThreadSafetyMode.PUBLICATION) {
@@ -85,7 +85,7 @@ object FxGkdSelectorEngine {
     }
 
     @JvmStatic
-    fun findMatches(
+    internal fun findMatches(
         root: FxGkdNode,
         selector: Selector,
         maximum: Int = 12
