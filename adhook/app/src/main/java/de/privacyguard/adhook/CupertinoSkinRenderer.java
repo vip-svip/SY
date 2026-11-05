@@ -110,6 +110,37 @@ final class CupertinoSkinRenderer {
             detail.setPadding(0, dp(4, density), 0, dp(6, density));
             return;
         }
+        if ("fx-list-row".equals(role) && view instanceof ViewGroup) {
+            ViewGroup row = (ViewGroup) view;
+            GradientDrawable surface = rounded(CupertinoColorTokens.LIST_ROW_SURFACE,
+                    CupertinoColorTokens.LIST_ROW_BORDER, CupertinoShapeTokens.LIST_ROW_RADIUS_DP, density);
+            GradientDrawable mask = rounded(0xffffffff, 0, CupertinoShapeTokens.LIST_ROW_RADIUS_DP, density);
+            row.setBackground(new RippleDrawable(
+                    ColorStateList.valueOf(CupertinoColorTokens.LIST_ROW_RIPPLE), surface, mask));
+            row.setPadding(dp(CupertinoSpacingTokens.LIST_ROW_HORIZONTAL_PADDING_DP, density),
+                    dp(CupertinoSpacingTokens.LIST_ROW_VERTICAL_PADDING_DP, density),
+                    dp(CupertinoSpacingTokens.LIST_ROW_HORIZONTAL_PADDING_DP, density),
+                    dp(CupertinoSpacingTokens.LIST_ROW_VERTICAL_PADDING_DP, density));
+            row.setMinimumHeight(dp(CupertinoSpacingTokens.LIST_ROW_MIN_HEIGHT_DP, density));
+            return;
+        }
+        if ("fx-list-title".equals(role) && view instanceof TextView) {
+            TextView title = (TextView) view;
+            title.setTextColor(CupertinoColorTokens.PRIMARY_TEXT);
+            title.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+            title.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,
+                    CupertinoTypographyTokens.LIST_ROW_TITLE_SP);
+            return;
+        }
+        if ("fx-list-subtitle".equals(role) && view instanceof TextView) {
+            TextView subtitle = (TextView) view;
+            subtitle.setTextColor(CupertinoColorTokens.SECONDARY_TEXT);
+            subtitle.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+            subtitle.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,
+                    CupertinoTypographyTokens.LIST_ROW_SUBTITLE_SP);
+            subtitle.setLetterSpacing(-0.005f);
+            return;
+        }
         if (("fx-card".equals(role) || "fx-card-group".equals(role) || "fx-setting-card".equals(role)) && view instanceof ViewGroup) {
             ViewGroup card = (ViewGroup) view;
             card.setBackground(rounded(CupertinoColorTokens.CARD_SURFACE,
