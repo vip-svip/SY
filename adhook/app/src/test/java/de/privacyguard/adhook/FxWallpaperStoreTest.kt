@@ -6,6 +6,15 @@ import org.junit.Test
 
 class FxWallpaperStoreTest {
     @Test
+    fun managedWallpaperNamesNeverTreatTemporaryFilesAsPublishedImages() {
+        assertTrue(FxWallpaperStore.isManagedWallpaperName("native_wallpaper_123.jpg"))
+        assertTrue(FxWallpaperStore.isManagedWallpaperName("native_wallpaper_123.jpeg"))
+        assertTrue(!FxWallpaperStore.isManagedWallpaperName("native_wallpaper_123.jpg.tmp"))
+        assertTrue(!FxWallpaperStore.isManagedWallpaperName("native_wallpaper_123.jpeg.tmp"))
+        assertTrue(!FxWallpaperStore.isManagedWallpaperName("other_wallpaper_123.jpg"))
+    }
+
+    @Test
     fun scalesLandscapeImagesToThe1920PixelLongEdge() {
         assertEquals(1920 to 960, FxWallpaperStore.scaledDimensions(4000, 2000, 1920))
         assertEquals(1920 to 1080, FxWallpaperStore.scaledDimensions(1920, 1080, 1920))
