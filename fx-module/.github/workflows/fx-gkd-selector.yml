@@ -1,0 +1,140 @@
+name: FX GKD-XA Selector Compatibility
+
+on:
+  push:
+    branches:
+      - fx-v1.0.0-unified-hook-integration
+    paths:
+      - '.github/workflows/fx-gkd-selector.yml'
+      - '.gitmodules'
+      - 'vendor/GKD-XA'
+      - 'adhook/build.gradle'
+      - 'adhook/settings.gradle'
+      - 'adhook/fx-gkd-selector/**'
+      - 'adhook/app/build.gradle'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdSelectorEngine.kt'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAccessibilitySnapshot.kt'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAutomationRuntime.kt'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdPendingPackageScan.kt'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdPackageScanThrottle.kt'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdRuleStore.kt'
+      - 'adhook/app/src/test/java/de/privacyguard/adhook/FxGkdSelectorEngineTest.kt'
+      - 'adhook/app/src/test/java/de/privacyguard/adhook/FxGkdPendingPackageScanTest.kt'
+      - 'adhook/app/src/test/java/de/privacyguard/adhook/FxGkdPackageScanThrottleTest.kt'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAutomationActivity.java'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaScriptLibraryActivity.java'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaActivityBrowserActivity.java'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/FxAccessibilityService.java'
+      - 'adhook/app/src/main/AndroidManifest.xml'
+      - 'adhook/app/src/main/res/xml/fx_accessibility_service.xml'
+      - 'adhook/app/src/main/res/values/fx_strings.xml'
+      - 'scripts/tests/fx-gkd-automation-regression.sh'
+      - 'scripts/tests/fx-gkd-selector-integration-regression.sh'
+      - 'adhook/app/src/test/java/de/privacyguard/adhook/imported/shield/FxYulongVirusDbTest.java'
+  pull_request:
+    branches:
+      - fx-v1.0.0-unified-hook-integration
+    paths:
+      - '.github/workflows/fx-gkd-selector.yml'
+      - '.gitmodules'
+      - 'vendor/GKD-XA'
+      - 'adhook/build.gradle'
+      - 'adhook/settings.gradle'
+      - 'adhook/fx-gkd-selector/**'
+      - 'adhook/app/build.gradle'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdSelectorEngine.kt'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAccessibilitySnapshot.kt'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAutomationRuntime.kt'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdPendingPackageScan.kt'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdRuleStore.kt'
+      - 'adhook/app/src/test/java/de/privacyguard/adhook/FxGkdSelectorEngineTest.kt'
+      - 'adhook/app/src/test/java/de/privacyguard/adhook/FxGkdPendingPackageScanTest.kt'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAutomationActivity.java'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaScriptLibraryActivity.java'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaActivityBrowserActivity.java'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java'
+      - 'adhook/app/src/main/java/de/privacyguard/adhook/FxAccessibilityService.java'
+      - 'adhook/app/src/main/AndroidManifest.xml'
+      - 'adhook/app/src/main/res/xml/fx_accessibility_service.xml'
+      - 'adhook/app/src/main/res/values/fx_strings.xml'
+      - 'scripts/tests/fx-gkd-automation-regression.sh'
+      - 'adhook/app/src/test/java/de/privacyguard/adhook/imported/shield/FxYulongVirusDbTest.java'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fx-gkd-selector-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  selector-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout FX and pinned GKD-XA source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+      - name: Verify pinned selector source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s vendor/GKD-XA/gkd-selector/src/commonMain/kotlin/li/gkd/selector/Selector.kt
+          test -s vendor/GKD-XA/gkd-selector/src/jvmMain/kotlin/li/gkd/selector/property/RegexCompiler.jvm.kt
+          git -C vendor/GKD-XA rev-parse HEAD | grep -Fx '8a6ce935da11671dac7e1a7595416ec99ee07436'
+          grep -Fq 'GNU GENERAL PUBLIC LICENSE' vendor/GKD-XA/LICENSE
+      - name: Compile and run upstream selector contract tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon -p adhook :fx-gkd-selector:jvmTest
+      - name: Set up Android SDK for the FX app integration seam
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-37.0 build-tools;36.0.0
+      - name: Normalize Android 17 platform path for AGP
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          if [[ -d "$sdk_root/platforms/android-37.0" && ! -e "$sdk_root/platforms/android-37" ]]; then
+            ln -s android-37.0 "$sdk_root/platforms/android-37"
+          fi
+          test -s "$sdk_root/platforms/android-37/android.jar"
+      - name: Verify GKD local automation privacy and routing contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          sh scripts/tests/fx-gkd-automation-regression.sh
+          bash scripts/tests/fx-gkd-selector-integration-regression.sh
+      - name: Compile FX app and the GKD Accessibility adapter
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon -Pandroid.useAndroidX=true -p adhook \
+            :app:compileDebugKotlin \
+            :app:compileDebugJavaWithJavac \
+            :app:compileDebugUnitTestKotlin
+      - name: Run the FX GKD selector adapter unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon -Pandroid.useAndroidX=true -p adhook \
+            :app:testDebugUnitTest \
+              --tests 'de.privacyguard.adhook.FxGkdSelectorEngineTest' \
+              --tests 'de.privacyguard.adhook.FxGkdPackageScanThrottleTest' \
+              --tests 'de.privacyguard.adhook.FxGkdPendingPackageScanTest'
