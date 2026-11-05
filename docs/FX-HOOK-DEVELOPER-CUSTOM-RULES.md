@@ -27,6 +27,20 @@ Supported method descriptor forms:
 JVM descriptors and Java source signatures resolve the exact declared executable, including overload parameters, primitive/object/array types and return type. Java source signatures must specify erased types; generic type arguments are rejected rather than guessed. `OBSERVE` / `OBSERVE_ONLY` supports methods and constructors. The observer calls the original executable and records only argument type names, result type, instance type, exception class, duration and a bounded hit count; it never serializes argument values, tokens, credentials or returned objects. Constructor observations report the constructed instance type after successful construction.
 
 Value-replacement actions (`true` / `RETURN_TRUE`, `false` / `RETURN_FALSE`) remain restricted to exact zero-argument primitive-boolean methods in the existing Debug fixture path. They are not a general-purpose result mutator and cannot be used to alter network authorization, billing responses, purchase tokens or server entitlements. Non-boolean methods, parameterized methods and constructors are observation-only.
+## Kotlin source signatures
+
+Java-source and Frida-overload forms also accept explicit Kotlin source aliases and map them to exact erased JVM descriptors:
+
+```text
+com.example.vpn.Auth#isReady(kotlin.String): kotlin.Boolean
+com.example.vpn.Auth#copy(kotlin.IntArray): kotlin.ByteArray
+com.example.vpn.Auth#load(kotlin.collections.List): kotlin.collections.Map
+com.example.vpn.Auth#finish(): kotlin.Unit
+com.example.vpn.Auth.isReady.overload('kotlin.String') -> kotlin.Boolean
+```
+
+Primitive arrays map to JVM primitive-array descriptors; Kotlin collection interfaces map to Java erased interfaces. Generic arguments remain rejected unless the erased type is supplied explicitly. `kotlin.Unit` is valid only as a return type, where it maps to JVM `void`.
+
 ## Preset use cases
 
 - `vip`: make a local VIP presentation predicate return true in a Debug build.
