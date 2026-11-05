@@ -6070,3 +6070,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - GitHub 源码回读确认功能文件、回归脚本与工作流路径映射已写入目标分支。尚未运行 Android Gradle 构建、模拟器、安装或真机测试。
 - 本批仅涉及 UI 模式选择器展示与无障碍语义，不改变 VPN、DNS、Hook、脚本服务生命周期或 FX 1.0.0 版本号。
 - 下一批：检查六种模式在各主 Tab/二级页的 renderer 覆盖；同时跟进 `3a50858` 对应 Targeted Host CI，修复任何真实回归失败。
+
+
+## 2026-11-06 — VPN coexistence arbiter probe injection hardening
+
+- 功能提交：`44de34b87ae68923fe77f319acfef691b5d8f65e`；回归提交：`a0e7f13a8e3b6bfa616d652ab049a5e0de5fa55c`；后续文档/测试补强提交：`ae3b983409e9c8f0515a41d6a4a131a6eb1a95a8`、`424cdc463a768c802af203f5210a59cb30bc7aa6`。
+- 移除 `scripts/fx-vpn-coexistence-arbiter.sh` 对 `FX_ARB_LINK_CMD` / `FX_ARB_VPNINFO_CMD` 的 `eval` 执行。生产路径现在直接调用 `ip -o link show` 与 `vpncore_android_active_vpn_info`；回归注入只接受经普通文件/非符号链接/可读性检查的只读 fixture 路径。
+- 更新 `scripts/tests/fx-vpn-coexistence-arbiter-regression.sh`，将探测夹具改为数据文件，并增加旧命令型环境变量不得执行的 marker 断言；保留端口、VPN 槽位、只读性与 fail-closed 覆盖。
+- GitHub 回读确认 arbiter 不再含 `eval "$FX_ARB_..."`，回归脚本不再使用旧命令变量作为执行入口；对应 Actions：VPN Coexistence Arbiter run `42102646201`，Targeted Host run `42102646295`，Six UI Modes run `42102646307`，Module Runtime run `42102646227`。记录时尚未全部完成，最终结论以各 run 结束状态为准。
+- 验证边界：已完成 GitHub 写入和回读；CI 正在执行。未声称本地 Shell/Host、Gradle、APK/ZIP、Android 设备或真机第三方 VPN/DNS 共存测试通过。
