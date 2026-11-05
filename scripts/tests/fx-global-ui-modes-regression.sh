@@ -173,6 +173,23 @@ grep -Fq 'FxUiMode.write(MainActivity.this' "$activity"
 grep -Fq 'applyWebUiMode();' "$activity"
 grep -Fq 'FxNativeSkin.watch(this, pageContent);' "$host" || { echo "FAIL: imported native screens do not receive shared Skin tokens"; exit 1; }
 grep -Fq 'FxNativeSkin.watch(this, pageContent);' "$activity" || { echo "FAIL: MainActivity native pages do not receive shared Skin tokens"; exit 1; }
+grep -Fq 'static void applyComponents(Activity activity, View content)' "$skin" || { echo "FAIL: detached dialog component Skin entry is missing"; exit 1; }
+grep -Fq 'FxNativeSkin.applyComponents(this, panel);' "$activity" || { echo "FAIL: dynamic privacy dialog must use the detached component-only renderer"; exit 1; }
+python3 - "$activity" <<'PY'
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+start = source.index("private void renderNativePrivacySettingsGroup(JSONObject panelSchema, String title)")
+end = source.index("private void setNativePrivacySetting(", start)
+method = source[start:end]
+for token in ('panel.setTag("fx-card")', 'row.setTag("fx-card-group")',
+              'summary.setTag("fx-card-detail")', 'detail.setTag("fx-card-body")',
+              'toggle.setTag(key)', 'toggle.setOnCheckedChangeListener'):
+    assert token in method, f"privacy dialog component integration missing: {token}"
+assert method.index("FxNativeSkin.applyComponents(this, panel)") < method.index("new AlertDialog.Builder(this).setTitle(title)")
+assert method.index("toggle.setTag(key)") < method.index("toggle.setOnCheckedChangeListener")
+print("PASS: dynamic Privacy dialog is skinned without changing its persisted key or toggle listener.")
+PY
 grep -Fq 'pageContent.post(() -> {' "$activity" || { echo "FAIL: MainActivity Skin pass does not run after dynamic page construction"; exit 1; }
 grep -Fq 'pageContent.getParent() != null' "$activity" || { echo "FAIL: deferred Skin pass does not check that the page is still mounted"; exit 1; }
 for token in \
