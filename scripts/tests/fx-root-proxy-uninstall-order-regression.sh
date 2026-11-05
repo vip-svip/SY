@@ -95,7 +95,7 @@ ln -s "$T/outside-network.log" "$PG/vpn-external-watchdog.log"
 if ORDER_LOG="$LOG" PG="$PG" MODDIR="$MOD" sh "$MOD/uninstall.sh" > "$T/log-link.out" 2>&1; then
   fail "uninstall accepted a symlinked network teardown log"
 fi
-[ "$(cat "$LOG")" = 'scheduler:uninstall' ] || fail "network helper ran before symlinked teardown log was rejected"
+[ ! -s "$LOG" ] || fail "a helper ran before symlinked teardown log was rejected"
 [ "$(cat "$T/outside-network.log")" = outside ] || fail "external log target was modified"
 [ -L "$PG/vpn-external-watchdog.log" ] || fail "symlinked network log was removed"
 grep -Fq 'network teardown log is a symlink or non-regular file' "$T/log-link.out" || fail "symlinked teardown log refusal was not reported"
