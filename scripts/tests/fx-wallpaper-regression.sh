@@ -38,6 +38,10 @@ assert shell.index('wallpaperImage?.let') < shell.index('AndroidView(')
 assert 'webView.setBackgroundColor(wallpaperActive' in activity
 assert 'html,body{background:transparent!important;background-color:transparent!important}' in activity
 assert 'FxNativeSkin.apply(this, pageContent);' in host
+# MainActivity also builds native pages dynamically after base() and must apply the same palette.
+mount_start = activity.index("private void mountNativeShell(View pageContent)")
+mount_end = activity.index("private void handleNativeTabSelection(", mount_start)
+assert "FxNativeSkin.apply(this, pageContent);" in activity[mount_start:mount_end]
 assert 'wallpaperActive ? 0x00000000 : palette.background' in skin
 for background in ('case 0xfff7f8fa:', 'case 0xfff4f6f8:', 'case 0xfff0f3f7:'):
     assert background in skin
