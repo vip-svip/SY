@@ -95,8 +95,8 @@ case "$ACTION" in
         [ "$#" -eq 3 ] || { echo "ERROR add-file expects source_path note64 enabled"; exit 64; }
         source_path=$1
         case "$source_path" in
-          /data/user/0/*/cache/fx-native-script-*|/data/data/*/cache/fx-native-script-*) ;;
-          *) echo "ERROR source file is outside the app cache staging area"; exit 65 ;;
+          /data/user/0/*/cache/fx-native-script-*|/data/data/*/cache/fx-native-script-*|"$PG"/jsruntime/staging/fx-native-script-*) ;;
+          *) echo "ERROR source file is outside an approved staging area"; exit 65 ;;
         esac
         [ -f "$source_path" ] && [ ! -L "$source_path" ] || { echo "ERROR staged script file is missing or unsafe"; exit 65; }
         note=$(decode_b64 "$2") || { echo "ERROR invalid note encoding"; exit 64; }
