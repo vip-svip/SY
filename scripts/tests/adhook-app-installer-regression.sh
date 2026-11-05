@@ -87,8 +87,11 @@ from pathlib import Path
 import sys
 service, post_fs_data = (Path(p).read_text(encoding="utf-8") for p in sys.argv[1:])
 boot_wait = service.index('while [ "$(getprop sys.boot_completed)" != "1" ]')
+boot_complete_gate = service.index('if [ "$(getprop sys.boot_completed)" = "1" ]; then', boot_wait)
 apk_deploy = service.index('sh "$MODDIR/scripts/install_adhook_app.sh" "$MODDIR"')
-assert boot_wait < apk_deploy, "Hook PackageManager verification must wait until Android boot completes"
+defer_branch = service.index('Hook APK PackageManager work deferred: sys.boot_completed is not 1', boot_complete_gate)
+assert boot_wait < boot_complete_gate < apk_deploy < defer_branch, \
+    "Hook PackageManager work must be gated on boot completion and explicitly deferred after timeout"
 assert "restorecon -RF \"$APP_DIR\"" in post_fs_data, "post-fs-data must label the mounted system-app overlay before zygote"
 assert "pm install" not in post_fs_data and "pm path" not in post_fs_data, \
     "post-fs-data must not race PackageManager before its system-app scan"
