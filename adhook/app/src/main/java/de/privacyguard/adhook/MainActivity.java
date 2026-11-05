@@ -3541,7 +3541,7 @@ public final class MainActivity extends ComponentActivity {
                 .setMessage("处理中...")
                 .setCancelable(false)
                 .create();
-        progress.show();
+        FxNativeSkin.showDialog(this, progress);
         nativeWallpaperExecutor.execute(() -> {
             String savedPath = null;
             Exception failure = null;
