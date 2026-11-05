@@ -218,4 +218,36 @@ assert 'printf \'%s\\n\' "$raw"' in normalize, "validated URL must be returned t
 assert "lines=$(printf '%s' \"$1\" | wc -l" in source, "literal LF must be rejected by a portable line-count check"
 print("PASS: managed list normalizer returns URLs and rejects LF/control separators")
 PY
+python3 - "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" <<'PY'
+from pathlib import Path
+import sys
+
+activity = Path(sys.argv[1]).read_text(encoding="utf-8")
+start = activity.index("private void writeHostsPage(")
+end = activity.index("private void applyNativeHosts()", start)
+writer = activity[start:end]
+for token in (
+    "for path in /data /data/local /data/local/tmp; do",
+    '[ -d \"$path\" ] && [ ! -L \"$path\" ]',
+    "umask 077;",
+    "mktemp /data/local/tmp/fx-hosts.XXXXXXXX",
+    "trap 'rm -f \"$tmp\"' EXIT;",
+    'if [ ! -f \"$tmp\" ] || [ -L \"$tmp\" ]; then',
+    "base64 -d > \"$tmp\"",
+    "fileedit.sh",
+    "replacepage",
+):
+    assert token in writer, f"Hosts page save temp-path invariant missing: {token}"
+ordered = (
+    writer.index("for path in /data /data/local /data/local/tmp; do"),
+    writer.index("umask 077;"),
+    writer.index("mktemp /data/local/tmp/fx-hosts.XXXXXXXX"),
+    writer.index("trap 'rm -f \"$tmp\"' EXIT;"),
+    writer.index("base64 -d > \"$tmp\""),
+    writer.index("replacepage"),
+)
+assert ordered == tuple(sorted(ordered)), \
+    "Hosts page save must validate parent paths before creating and using its private temp file"
+print("PASS: Hosts page save rejects symlinked temp parents and uses a private, checked temporary file")
+PY
 echo "PASS: native managed lists CRUD, validation, locking, apply modes, rollback and file permissions"

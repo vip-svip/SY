@@ -1200,8 +1200,15 @@ public final class MainActivity extends ComponentActivity {
     private void writeHostsPage(String spec, int start, int originalLines, String text, AlertDialog dialog) {
         String encoded = android.util.Base64.encodeToString(text.getBytes(StandardCharsets.UTF_8),
                 android.util.Base64.NO_WRAP);
-        String command = "tmp=$(mktemp /data/local/tmp/fx-hosts.XXXXXXXX) || exit 41; "
+        String command = "for path in /data /data/local /data/local/tmp; do "
+                + "[ -d \"$path\" ] && [ ! -L \"$path\" ] || { "
+                + "printf '%s\\n' '{\"ok\":false,\"err\":\"unsafe_hosts_temp_directory\"}'; exit 41; }; "
+                + "done; umask 077; "
+                + "tmp=$(mktemp /data/local/tmp/fx-hosts.XXXXXXXX) || { "
+                + "printf '%s\\n' '{\"ok\":false,\"err\":\"cannot_create_hosts_temp_file\"}'; exit 41; }; "
                 + "trap 'rm -f \"$tmp\"' EXIT; "
+                + "if [ ! -f \"$tmp\" ] || [ -L \"$tmp\" ]; then "
+                + "printf '%s\\n' '{\"ok\":false,\"err\":\"unsafe_hosts_temp_file\"}'; exit 41; fi; "
                 + "printf '%s' " + shellQuote(encoded) + " | base64 -d > \"$tmp\" || exit 42; "
                 + "sh \"$MP/scripts/fileedit.sh\" replacepage " + shellQuote(spec) + " "
                 + start + " " + originalLines + " \"$tmp\"";

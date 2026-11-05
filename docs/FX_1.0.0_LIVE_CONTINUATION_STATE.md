@@ -5907,3 +5907,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 最新协作 HEAD 已将两个 patcher、并发回归和两种陈旧锁回归接入 KernelSU 流程。本批将同样的顺序接入 APK 打包流程：恢复 Release 模块后应用 POSIX noclobber 文件锁、重建 stale-lock 测试、安装 canonical concurrency 回归；在 TMPDIR fixture 标准化后运行并发/ownership/reclaim 三项测试。
 - 新增 `scripts/tests/fx-subfetch-package-integration-regression.py`，检查 APK 与 KernelSU 两条打包路径均按“patch → stale-lock test generation → concurrency → owner/reclaim tests”顺序执行，防止打包链路漂移。
 - 本批尚待新 APK/KSU package CI 对真实 Release-restored module 运行结果确认；未声称设备端网络订阅验证。
+
+
+## 2026-11-06 — Hosts 分页保存临时路径防符号链接
+
+- `MainActivity.writeHostsPage()` 原先直接对固定 `/data/local/tmp/fx-hosts.XXXXXXXX` 调用 `mktemp`，未验证 `/data`、`/data/local`、`/data/local/tmp` 父目录类型；若路径被替换为符号链接，Root 保存暂存内容可能被导向意外位置。
+- 保存前现在逐级要求三个父目录均存在且不是符号链接；之后设置 `umask 077` 创建私有临时文件，启用退出清理 trap，并再次要求临时文件是非符号链接普通文件，才写入 Base64 解码内容并交给 `fileedit.sh replacepage`。
+- 更新 `fx-native-managed-lists-regression.sh`，静态验证父目录 guard、私有 umask、mktemp、临时文件类型检查与执行顺序。Hosts 后端事务锁/并发回归保持不变。
+- 本批源码与回归已提交；Android Gradle 编译、模拟器、设备文件系统权限/SELinux 路径验证未运行。
