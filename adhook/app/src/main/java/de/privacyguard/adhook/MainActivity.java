@@ -3441,13 +3441,13 @@ public final class MainActivity extends ComponentActivity {
         boolean serviceConnected = FxLsposedScopeBridge.isConnected();
         String managerHint = showActivationTip
                 ? (managerInstalled ? "已检测到 LSPosed Manager。"
-                        : "未检测到 LSPosed Manager。") + "\\n"
+                        : "未检测到 LSPosed Manager。") + "\n"
                 : "";
         state.setText(managerHint
                 + (serviceConnected
                     ? "libXposed 服务 Binder：已连接；可在各目标应用配置页查看、申请或移除该应用作用域。"
                     : "libXposed 服务 Binder：尚未连接。请在 Manager 启用 FX Hook 后重新打开 FX Hook；若仍未连接，可在 Manager 手动设置作用域。")
-                + "\\n服务连接状态不等同于目标进程注入状态；不代表 FX Hook 已注入。");
+                + "\n服务连接状态不等同于目标进程注入状态；不代表 FX Hook 已注入。");
     }
 
     private void refreshHookHubAccessibilityStatus(TextView state) {
