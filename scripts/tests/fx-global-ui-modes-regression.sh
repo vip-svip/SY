@@ -38,12 +38,31 @@ dia_scripts="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/
 for f in "$mode" "$panel" "$shell" "$tokens" "$activity" "$host" "$skin" "$harmony_tokens" "$cupertino_tokens" "$harmony_renderer" "$cupertino_renderer" "$native_skin_test" "$ad_main" "$ad_general" "$ad_summary" "$ad_firewall" "$shield_main" "$shield_scan" "$shield_rescue" "$shield_blacklist" "$shield_batch_cleanup" "$shield_screen_filter" "$shield_warning" "$dia_backup" "$dia_activity_browser" "$dia_code_editor" "$dia_crash_report" "$dia_file" "$dia_inspector" "$dia_frida" "$dia_scripts"; do
   test -s "$f" || { echo "FAIL: missing UI mode source $f"; exit 1; }
 done
-for token in CLASSIC_WEB_COMPAT FX_LIQUID_NATIVE MIUIX_STYLE HUAWEI_HARMONY_STYLE IOS_CUPERTINO_STYLE classic glass miuix huawei ios; do
+for token in DEFAULT_STANDARD CLASSIC_WEB_COMPAT FX_LIQUID_NATIVE MIUIX_STYLE HUAWEI_HARMONY_STYLE IOS_CUPERTINO_STYLE default classic glass miuix huawei ios; do
   grep -Fq "$token" "$mode" || { echo "FAIL: mode model missing $token"; exit 1; }
 done
-for token in FxUiMode.CLASSIC_WEB_COMPAT FxUiMode.FX_LIQUID_NATIVE FxUiMode.MIUIX_STYLE FxUiMode.HUAWEI_HARMONY_STYLE FxUiMode.IOS_CUPERTINO_STYLE; do
+for token in FxUiMode.DEFAULT_STANDARD FxUiMode.CLASSIC_WEB_COMPAT FxUiMode.FX_LIQUID_NATIVE FxUiMode.MIUIX_STYLE FxUiMode.HUAWEI_HARMONY_STYLE FxUiMode.IOS_CUPERTINO_STYLE; do
   grep -Fq "$token" "$panel" || { echo "FAIL: settings panel missing $token"; exit 1; }
 done
+python3 - "$mode" "$panel" <<'PY'
+from pathlib import Path
+import re, sys
+mode, panel = [Path(path).read_text(encoding="utf-8") for path in sys.argv[1:]]
+ids = re.findall(r'^\s*([A-Z_]+)\(\s*"([^"]+)"', mode, re.M)
+expected = [
+    ("DEFAULT_STANDARD", "default"),
+    ("CLASSIC_WEB_COMPAT", "classic"),
+    ("FX_LIQUID_NATIVE", "glass"),
+    ("MIUIX_STYLE", "miuix"),
+    ("HUAWEI_HARMONY_STYLE", "huawei"),
+    ("IOS_CUPERTINO_STYLE", "ios"),
+]
+assert ids == expected, f"canonical six-mode order changed: {ids}"
+cards = re.findall(r"ModeCard\(FxUiMode\.([A-Z_]+)\.storageId", panel)
+assert cards == [name for name, _ in expected], f"settings cards do not match six canonical modes: {cards}"
+assert "六种模式覆盖整个应用" in panel
+print("PASS: exactly six modes, Default first, five legacy skins retained, settings list in matching order.")
+PY
 grep -Fq 'LiquidBottomTabs(' "$shell" || { echo "FAIL: liquid renderer missing"; exit 1; }
 grep -Fq 'MiuixTheme(' "$shell" || { echo "FAIL: Miuix renderer missing"; exit 1; }
 grep -Fq 'tokens.useLiquidTabsRenderer' "$shell" || { echo "FAIL: liquid renderer is not selected by the skin token set"; exit 1; }
@@ -51,7 +70,7 @@ grep -Fq 'fxComposeShellTokens(' "$shell" || { echo "FAIL: shared shell does not
 grep -Fq 'tokens.barBorder' "$shell" || { echo "FAIL: per-skin shell border token is not applied"; exit 1; }
 grep -Fq '"huawei".equals(uiMode)' "$activity" || { echo "FAIL: HUAWEI native page palette missing"; exit 1; }
 grep -Fq '"ios".equals(uiMode)' "$activity" || { echo "FAIL: iOS native page palette missing"; exit 1; }
-for token in FxClassicComposeTokens FxLiquidComposeTokens FxMiuixComposeTokens FxHarmonyComposeTokens FxCupertinoComposeTokens; do
+for token in FxDefaultComposeTokens FxClassicComposeTokens FxLiquidComposeTokens FxMiuixComposeTokens FxHarmonyComposeTokens FxCupertinoComposeTokens; do
   grep -Fq "internal object $token" "$tokens" || { echo "FAIL: missing independent skin token set $token"; exit 1; }
 done
 grep -Fq 'pageBackground = Color(HarmonySkinTokens.HarmonyColorTokens.BACKGROUND)' "$tokens" || { echo "FAIL: HUAWEI Compose renderer is not using the shared Harmony color tokens"; exit 1; }
@@ -62,6 +81,7 @@ grep -Fq 'labelSizeSp = HarmonySkinTokens.HarmonyTypographyTokens.TAB_LABEL_SP.t
 grep -Fq 'barCornerRadiusDp = CupertinoSkinTokens.CupertinoShapeTokens.NAV_BAR_RADIUS_DP' "$tokens" || { echo "FAIL: iOS Compose renderer is not using Cupertino shape tokens"; exit 1; }
 grep -Fq 'tabBarHeightDp = CupertinoSkinTokens.CupertinoSpacingTokens.NAV_HEIGHT_DP' "$tokens" || { echo "FAIL: iOS Compose renderer is not using Cupertino spacing tokens"; exit 1; }
 grep -Fq 'labelSizeSp = CupertinoSkinTokens.CupertinoTypographyTokens.TAB_LABEL_SP.toInt()' "$tokens" || { echo "FAIL: iOS Compose renderer is not using Cupertino typography tokens"; exit 1; }
+grep -Fq 'tabBarHeightDp = 66' "$tokens" || { echo "FAIL: Default tab geometry missing"; exit 1; }
 grep -Fq 'tabBarHeightDp = 60' "$tokens" || { echo "FAIL: Classic tab geometry missing"; exit 1; }
 grep -Fq 'tabBarHeightDp = 68' "$tokens" || { echo "FAIL: Miuix tab geometry missing"; exit 1; }
 grep -Fq 'NAV_BAR_RADIUS_DP = 18' "$harmony_tokens" || { echo "FAIL: Harmony navigation geometry token missing"; exit 1; }
@@ -314,7 +334,7 @@ for token in \
   'CupertinoSkinTokens.CupertinoColorTokens.SURFACE_VARIANT'; do
   grep -Fq "$token" "$activity" || { echo "FAIL: MainActivity card/section renderer does not use shared Skin token $token"; exit 1; }
 done
-for token in 'case HUAWEI_HARMONY_STYLE:' 'case IOS_CUPERTINO_STYLE:' '0xfff0f3f7' '0xff17212b' 'wallpaperActive ? 0x00000000'; do
+for token in 'case DEFAULT_STANDARD:' 'case HUAWEI_HARMONY_STYLE:' 'case IOS_CUPERTINO_STYLE:' '0xfff0f3f7' '0xff17212b' 'wallpaperActive ? 0x00000000'; do
   grep -Fq "$token" "$skin" || { echo "FAIL: shared native Skin adapter missing $token"; exit 1; }
 done
 python3 - "$skin" <<'PY'
@@ -352,14 +372,14 @@ for token in (
     "case 0xff697681:", "case 0xff536170:", "case 0xff263443:",
     "case 0xff155a9c:", "return p.accent;"
 ):
-    assert token in source, f"five-skin text palette token missing: {token}"
+    assert token in source, f"six-mode text palette token missing: {token}"
 # Semantic alert colors must remain untouched by the neutral text remapper.
 replacement = source[source.index("private static Integer replacementText"):source.index("\n    }\n}", source.index("private static Integer replacementText"))]
 for alert in ("0xff9b2c2c", "0xffa32620", "0xffa12d2d",
               "0xfffff6e8", "0xff7a4b13", "0xff79552b",
               "0xff237347", "0xff24734a", "0xff2e7d32"):
     assert alert not in replacement, f"alert/success color should not be remapped: {alert}"
-print("PASS: primary, secondary and accent text tokens map across all five skins while alert colors remain semantic.")
+print("PASS: primary, secondary and accent text tokens map across all six modes while alert colors remain semantic.")
 PY
 
 python3 - "$skin" <<'PY'
@@ -445,4 +465,4 @@ assert "this.cardCornerRadiusDp = cardCornerRadiusDp;" in skin
 assert "static boolean shouldPreserveSemanticAction(Button button)" in skin
 print("PASS: Harmony/Cupertino token declarations are unique and native Skin palette constructor fields are wired.")
 PY
-echo "PASS: five global UI modes share persistence, shell rendering, and live tokens on MainActivity and imported pages."
+echo "PASS: six global UI modes (independent Default plus five skins) share persistence, shell rendering, and live tokens."
