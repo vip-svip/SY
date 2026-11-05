@@ -230,11 +230,11 @@ writer = activity[start:end]
 writer = writer.replace(r'\"', '"')
 for token in (
     "for path in /data /data/local /data/local/tmp; do",
-    '[ -d \"$path\" ] && [ ! -L \"$path\" ]',
+    '[ -d "$path" ] && [ ! -L "$path" ]',
     "umask 077;",
     "mktemp /data/local/tmp/fx-hosts.XXXXXXXX",
     "trap 'rm -f \"$tmp\"' EXIT;",
-    'if [ ! -f \"$tmp\" ] || [ -L \"$tmp\" ]; then',
+    'if [ ! -f "$tmp" ] || [ -L "$tmp" ]; then',
     "shellQuote(encoded)",
     "base64 -d > \"$tmp\" || exit 42;",
     "fileedit.sh",
