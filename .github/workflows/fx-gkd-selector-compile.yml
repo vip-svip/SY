@@ -9,7 +9,7 @@ on:
       - 'vendor/GKD-XA'
       - 'adhook/build.gradle'
       - 'adhook/settings.gradle'
-      - 'adhook/gkd-selector-adapter/**'
+      - 'adhook/fx-gkd-selector/**'
       - 'adhook/app/build.gradle'
       - 'adhook/app/src/test/**'
       - '.github/workflows/fx-gkd-selector-compile.yml'
@@ -21,7 +21,7 @@ on:
       - 'vendor/GKD-XA'
       - 'adhook/build.gradle'
       - 'adhook/settings.gradle'
-      - 'adhook/gkd-selector-adapter/**'
+      - 'adhook/fx-gkd-selector/**'
       - 'adhook/app/build.gradle'
       - 'adhook/app/src/test/**'
 
@@ -65,5 +65,5 @@ jobs:
         run: |
           set -euo pipefail
           gradle --no-daemon -p adhook \
-            :gkd-selector-adapter:compileKotlinJvm \
-            :gkd-selector-adapter:jvmTest
+            :fx-gkd-selector:compileKotlinJvm \
+            :fx-gkd-selector:jvmTest
