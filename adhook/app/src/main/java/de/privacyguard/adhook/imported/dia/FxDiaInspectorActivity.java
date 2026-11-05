@@ -164,7 +164,7 @@ public final class FxDiaInspectorActivity extends de.privacyguard.adhook.FxNativ
             TargetApp choice = choices.get(i);
             labels[i] = choice.label + "\n" + choice.info.packageName;
         }
-        new AlertDialog.Builder(this).setTitle("选择 debuggable 目标")
+        fxDialogBuilder().setTitle("选择 debuggable 目标")
                 .setItems(labels, (dialog, which) -> {
                     TargetApp selected = choices.get(which);
                     targetPackage = selected.info.packageName;
