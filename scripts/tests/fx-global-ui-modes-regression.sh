@@ -48,6 +48,16 @@ python3 - "$mode" "$panel" <<'PY'
 from pathlib import Path
 import re, sys
 mode, panel = [Path(path).read_text(encoding="utf-8") for path in sys.argv[1:]]
+enum_start = mode.index("enum class FxUiMode(")
+enum_body_start = mode.index(") {", enum_start)
+enum_header = mode[enum_start:enum_body_start]
+enum_body = mode[enum_body_start + 3:].lstrip()
+assert "val storageId: String" in enum_header and "val renderer: Renderer" in enum_header, (
+    "FxUiMode constructor parameters must be declared in the enum header"
+)
+assert enum_body.startswith("DEFAULT_STANDARD("), (
+    "DEFAULT_STANDARD must be the first enum entry, not a constructor argument"
+)
 ids = re.findall(r'^\s*([A-Z_]+)\(\s*"([^"]+)"', mode, re.M)
 expected = [
     ("DEFAULT_STANDARD", "default"),
