@@ -21,7 +21,7 @@ for directory in /data /data/adb /data/adb/privacyguard /data/adb/privacyguard/d
   grep -Fq "$directory" "$EVENTS" || fail "monitor-event reader does not validate parent directory: $directory"
 done
 grep -Fq 'FX_DIA_LOG_PATH_UNTRUSTED' "$EVENTS" || fail "monitor-event reader does not reject symlinked log paths"
-grep -Fq 'if [ -L \\"$d\\" ]' "$EVENTS" || fail "monitor-event reader does not reject symlinked parent directories"
+grep -Fq 'if [ -L "$d" ]' "$EVENTS" || fail "monitor-event reader does not reject symlinked parent directories"
 grep -Fq 'MAX_EVENTS = 300' "$PARSER" || fail "monitor-event parser has no event-count bound"
 grep -Fq 'MAX_LOG_CHARS = 256 * 1024' "$PARSER" || fail "monitor-event parser has no input-size bound"
 grep -Fq 'case "SQL":' "$PARSER" || fail "SQL monitor family is not supported"
