@@ -6372,3 +6372,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - GitHub 回读：生产脚本 blob `e72cacc0e242e4866a929685b76c39100c16e3b7`；回归脚本 blob `0f6b7c9e72e70533899b0e353b3b3fe1d6e0e3b5`。两者均从目标分支回读，确认修复与测试用例存在。
 - 验证等级：在独立 shell/grep 夹具中验证三种签名匹配、整行缩进注释过滤；未执行完整 arbiter regression。新提交 combined status 为空，当前 GitHub Actions 读取接口不能列出 push-triggered runs，故 CI 状态未确认；未运行 Android 构建或真机测试。
 - 影响：修复前的静态扫描结果不能作为 FX 不占 Android VPN 槽的证据。修复后仍仅覆盖模块 shell 源码静态特征，不替代 APK/二进制扫描、运行时观测和设备级流量验证。
+
+
+## 2026-11-06 — VPN arbiter 回归接入 CI
+
+- CI 提交：`607b2365919912740f4b47f95e8f81d477d3de8b`。
+- 发现：已有 `scripts/tests/fx-vpn-coexistence-arbiter-regression.sh`，但目标 Host Regression workflow 未按 arbiter 源码/测试文件变化触发它。
+- 修正：在 `.github/workflows/fx-targeted-regression.yml` 增加路径匹配，修改 `scripts/fx-vpn-coexistence-arbiter.sh` 或对应 regression 脚本时自动执行该回归。
+- GitHub 回读确认 workflow blob `817295b66beacfbb5b3e127bd77992cca477ebbb`，执行命令存在。
+- CI 实际运行结果尚未通过可用工具查询；不能宣称测试通过。
