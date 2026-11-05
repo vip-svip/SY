@@ -5869,3 +5869,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - KSU workflow 原先在 patcher 后又执行两次 `install -D` 覆盖同一文件，形成重复写入。现删除手动复制，仅保留 installer/remover 的 `cmp` 回读与 `adhook-app-installer-regression.sh`。
 - 更新 Host regression：要求两条复制命令为零、patcher 内存在同步函数/调用、behavior fixture 断言模块副本等于 canonical 源，并强制顺序为 patcher → 两个 cmp → installer regression。
 - 先前 `42099086771` System App Install Stage run SUCCESS，`42099086725`? 相关 run 状态以 Actions 当前查询为准；不将旧 package failure 当作本批修复已通过。尚未运行最终 APK/KernelSU ZIP，也未做设备安装验证。
+
+
+### KernelSU installer 回归对齐 patcher 单一责任（2026-11-06）
+
+- HEAD `7f6b2fccae4496cef330be0a95b63363bdd3c2fe7` 的 Host Regression `42099785668` 失败在 `adhook-app-installer-regression.sh`：测试仍要求 workflow 使用两条 `install -D` 手动复制 canonical installer/remover。
+- 最近的构建重构已将同步职责收敛到 `patch_system_app_install_stage.py::sync_packaged_installer()`；workflow 刻意不再重复复制，而是在 patcher 后执行 `cmp -s` 字节回读再跑 installer 回归。原测试同一文件中已经有这套新契约，前后又保留旧的直接复制断言，互相矛盾。
+- 删除四条过时的直接复制断言，保留 APK system-app overlay staging、patcher 负责同步、installer/remover cmp 顺序、uninstall/boot 行为等其余覆盖。只修测试契约，不改变产品脚本或构建行为。
+- 本批提交后需要重新检查 Host/六 UI/Module Runtime；此前失败的 `42099785668` 不计为通过。
