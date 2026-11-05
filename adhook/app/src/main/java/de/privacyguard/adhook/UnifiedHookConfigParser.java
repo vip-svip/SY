@@ -18,7 +18,6 @@ import java.nio.charset.StandardCharsets;
  * and backward-compatible legacy ad-only payloads. Legacy payloads never enable privacy.
  */
 public final class UnifiedHookConfigParser {
-    public static final int MAX_DEVELOPER_RULES_PER_TARGET = 64;
     private static final Set<String> NEVER = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
             "android", "system", "de.privacyguard.hook", "de.privacyguard.adhook",
             "org.lsposed.manager")));
@@ -441,16 +440,13 @@ public final class UnifiedHookConfigParser {
                     continue;
                 }
                 java.util.regex.Matcher rawRuleKey =
-                        java.util.regex.Pattern.compile("^dev_rule_([0-9]{1,2})$").matcher(key);
+                        java.util.regex.Pattern.compile("^dev_rule_([0-9]+)$").matcher(key);
                 java.util.regex.Matcher encodedRuleKey =
-                        java.util.regex.Pattern.compile("^dev_rule_b64_([0-9]{1,2})$").matcher(key);
+                        java.util.regex.Pattern.compile("^dev_rule_b64_([0-9]+)$").matcher(key);
                 if (rawRuleKey.matches() || encodedRuleKey.matches()) {
-                    if (developerRulesCount(developerRules) >= MAX_DEVELOPER_RULES_PER_TARGET)
-                        throw new IllegalArgumentException("too many developer rules");
                     int slot = Integer.parseInt(rawRuleKey.matches()
                             ? rawRuleKey.group(1) : encodedRuleKey.group(1));
-                    if (slot < 1 || slot > MAX_DEVELOPER_RULES_PER_TARGET
-                            || !developerRuleSlots.add(slot))
+                    if (slot < 1 || !developerRuleSlots.add(slot))
                         throw new IllegalArgumentException("duplicate or invalid developer rule slot");
                     // Legacy dev_rule_N values remain readable. New writes use URL-safe
                     // Base64 so commas inside typed Java/JVM parameter signatures cannot
@@ -669,7 +665,6 @@ public final class UnifiedHookConfigParser {
         return new Result(ads, false, false, false, false, false, targets);
     }
 
-    private static int developerRulesCount(List<DeveloperHookRule> rules) { return rules.size(); }
 
     private static String decodeDeveloperRuleValue(String value) {
         if (value == null || value.isEmpty() || value.length() > 1400
