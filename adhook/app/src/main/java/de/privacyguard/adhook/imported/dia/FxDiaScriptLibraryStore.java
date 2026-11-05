@@ -58,6 +58,7 @@ public final class FxDiaScriptLibraryStore {
     }
 
     public static void save(Context context, String rawName, String source) throws Exception {
+        if (context == null) throw new IllegalArgumentException("Context 为空。");
         String name = FxDiaScriptLibraryPolicy.normalizeName(rawName);
         String nameError = FxDiaScriptLibraryPolicy.validateName(name);
         if (nameError != null) throw new IllegalArgumentException(nameError);
@@ -88,6 +89,7 @@ public final class FxDiaScriptLibraryStore {
     }
 
     public static String exportJson(Context context) throws Exception {
+        if (context == null) throw new IllegalArgumentException("Context 为空。");
         synchronized (LOCK) {
             JSONObject root = new JSONObject();
             root.put("schema", SCHEMA);
@@ -97,6 +99,7 @@ public final class FxDiaScriptLibraryStore {
     }
 
     public static ImportPreview previewImport(Context context, String json) throws Exception {
+        if (context == null) throw new IllegalArgumentException("Context 为空。");
         JSONObject incoming = parseImport(json);
         JSONObject existing;
         synchronized (LOCK) {
