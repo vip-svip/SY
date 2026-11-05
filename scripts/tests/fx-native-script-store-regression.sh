@@ -134,7 +134,8 @@ end = source.index("\n      update)", start)
 branch = source[start:end]
 assert 'first_line=$(sed -n \'1{p;q;}\' "$VALUE_FILE")' in branch, "file import must classify using a bounded first-line read"
 assert 'base64 < "$VALUE_FILE" | tr -d \'\\n\' >> "$ROWS"' in branch, "local source must stream from the staged file into the config row"
-assert 'value=$(cat "$VALUE_FILE")' not in branch, "local JS payload is still copied wholesale into a shell variable"
+branch_code = "\n".join(line for line in branch.splitlines() if not line.lstrip().startswith("#"))
+assert 'value=$(cat "$VALUE_FILE")' not in branch_code, "local JS payload is still copied wholesale into a shell variable"
 assert '/data/user/[0-9]*/de.privacyguard.adhook/cache/fx-native-script-*' in branch, "app-cache source path must match the exact FX package across Android users"
 print("PASS: file-backed local source import stays streaming and accepts only FX app-cache staging paths")
 PY
