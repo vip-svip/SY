@@ -322,6 +322,17 @@ grep -Fqx FXYRP4_A "$CASE_DIR/hooks4" || fail "failed detach did not retain the 
 ! grep -Fq unbound-stop "$CASE_DIR/engines.log" || fail "failed detach stopped Unbound while redirect may remain"
 run_stop "$CASE_DIR" >/dev/null || fail "cleanup retry did not recover after iptables detach"
 assert_stopped "$CASE_DIR" "cleanup detach retry"
+# Status must surface failed cleanup instead of presenting a clean inactive state.
+prepare_case status-cleanup-detach-failure
+run_proxy "$CASE_DIR" >/dev/null || fail "status cleanup failure setup failed"
+if status_out=$(run_status "$CASE_DIR" MOCK_FAIL_IPV4_DETACH=1 2>/dev/null); then
+  fail "status reported success while its FX-owned IPv4 hook remained attached"
+fi
+printf "%s\n" "$status_out" | grep -Fqx cleanup=failed || fail "status did not expose incomplete firewall cleanup"
+grep -Fqx FXYRP4_A "$CASE_DIR/hooks4" || fail "status cleanup failure removed no IPv4 recovery hook"
+[ -s "$CASE_DIR/state/yulong-root-proxy-active.meta" ] || fail "status cleanup failure discarded active metadata"
+run_stop "$CASE_DIR" >/dev/null || fail "status cleanup retry failed"
+assert_stopped "$CASE_DIR" "status cleanup retry"
 # Reconcile must remove redirects if the metadata commit was lost after activation.
 prepare_case reconcile-missing-metadata
 run_proxy "$CASE_DIR" >/dev/null || fail "reconcile metadata case setup failed"

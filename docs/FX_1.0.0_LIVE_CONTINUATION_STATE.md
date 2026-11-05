@@ -5328,3 +5328,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Cleanup now verifies each FX-owned OUTPUT jump is absent. If any remains, it returns failure, retains state markers, and does not stop shared DNS engines. A subsequent stop/status/reconcile can retry after the firewall recovers. Orphaned private chains remain harmless once their OUTPUT jump is detached.
 - Added a runtime regression that injects an IPv4 detach failure, checks marker/resolver preservation, then retries cleanup successfully.
 - CI is pending for this change; no Android device validation is implied.
+
+## 2026-11-06 — Surface incomplete Root Proxy cleanup to status/reconcile callers
+
+- Follow-up to the firewall-detach recovery fix at cd276977211be84b8dd4f45a17765a28954cd23a.
+- Status and missing-metadata reconcile now propagate a failed cleanup instead of returning a normal inactive result. Status emits cleanup=failed while preserving the retry markers and resolver.
+- Added a status-path regression that forces iptables detach failure and verifies the error is surfaced, then confirms a subsequent stop clears the state.

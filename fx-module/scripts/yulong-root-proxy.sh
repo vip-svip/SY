@@ -610,7 +610,12 @@ _status_fail_open() {
   # Status runs under the Root Proxy lock. Reconcile every failed proof to a
   # clean fail-open state, removing only FX-owned NAT chains and markers.
   # _stop_engines preserves Unbound/AdGuard when independently enabled.
-  _stop_locked
+  if ! _stop_locked; then
+    echo "active=0"
+    echo "reason=$_reason"
+    echo "cleanup=failed"
+    return 1
+  fi
   echo "active=0"
   echo "reason=$_reason"
 }
@@ -694,7 +699,11 @@ _reconcile_locked() {
         || ip6tables -t nat -C OUTPUT -j FXYRP6_A >/dev/null 2>&1 \
         || ip6tables -t nat -C OUTPUT -j FXYRP6_B >/dev/null 2>&1; then
       _log "active metadata missing while FX-owned DNS redirect state remains; fail-open cleanup"
-      _stop_locked
+      if ! _stop_locked; then
+        echo "active=0"
+        echo "cleanup=failed"
+        return 1
+      fi
     fi
     echo "active=0"
     return 0
