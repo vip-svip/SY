@@ -42,6 +42,16 @@ for f in tcp tcp6 udp6; do printf '%s\n' "$HDR" > "$TMP/net_udp_busy/$f"; done
 printf '%s\n   0: 0100007F:14E9 00000000:0000 07 00000000:00000000 00:00000000 00000000  1000        0 2 1\n' \
   "$HDR" > "$TMP/net_udp_busy/udp"
 
+# net_tcp6_busy: upstream DNS port 5353 is bound on IPv6 TCP.
+mkdir -p "$TMP/net_tcp6_busy"
+for f in tcp tcp6 udp udp6; do printf '%s\\n' "$HDR" > "$TMP/net_tcp6_busy/$f"; done
+printf '%s\\n   0: 00000000000000000000000001000000:14E9 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 5 1\\n' "$HDR" > "$TMP/net_tcp6_busy/tcp6"
+
+# net_udp6_busy: upstream DNS port 5353 is bound on IPv6 UDP.
+mkdir -p "$TMP/net_udp6_busy"
+for f in tcp tcp6 udp udp6; do printf '%s\\n' "$HDR" > "$TMP/net_udp6_busy/$f"; done
+printf '%s\\n   0: 00000000000000000000000001000000:14E9 00000000000000000000000000000000:0000 07 00000000:00000000 00:00000000 00000000  1000        0 6 1\\n' "$HDR" > "$TMP/net_udp6_busy/udp6"
+
 # net_filter_dns_busy: AdGuard Home's client-facing DNS port 53 is occupied by TCP.
 mkdir -p "$TMP/net_filter_dns_busy"
 for f in tcp6 udp udp6; do printf '%s\n' "$HDR" > "$TMP/net_filter_dns_busy/$f"; done
@@ -251,6 +261,20 @@ rc=${r%%|*}; out=${r#*|}
 [ "$(field "$out" "['verdict']")" = "partial" ] || fail "UDP DNS bind was incorrectly reported free: $out"
 [ "$(field "$out" "['dns']['owner']")" = "other" ] || fail "UDP DNS owner must be other"
 pass "partial on UDP upstream port conflict"
+
+echo "== case 4e: IPv6 TCP upstream DNS listener is a port conflict =="
+r=$(run_arb "$LINKS_TUN" "tun0|10123" "$TMP/net_tcp6_busy" "$TMP/mod_clean")
+rc=${r%%|*}; out=${r#*|}
+[ "$rc" -eq 0 ] || fail "expected rc=0, got $rc: $out"
+[ "$(field "$out" "['dns']['owner']")" = "other" ] || fail "IPv6 TCP/5353 conflict was missed: $out"
+pass "IPv6 TCP listener prevents false-free upstream DNS status"
+
+echo "== case 4f: IPv6 UDP upstream DNS bind is a port conflict =="
+r=$(run_arb "$LINKS_TUN" "tun0|10123" "$TMP/net_udp6_busy" "$TMP/mod_clean")
+rc=${r%%|*}; out=${r#*|}
+[ "$rc" -eq 0 ] || fail "expected rc=0, got $rc: $out"
+[ "$(field "$out" "['dns']['owner']")" = "other" ] || fail "IPv6 UDP/5353 conflict was missed: $out"
+pass "IPv6 UDP bind prevents false-free upstream DNS status"
 
 echo "== case 4c: external VPN + AdGuard TCP/53 occupied -> partial =="
 r=$(run_arb "$LINKS_TUN" "tun0|10123" "$TMP/net_filter_dns_busy" "$TMP/mod_clean")
