@@ -14,6 +14,7 @@ internal data class FxComposeShellTokens(
     val barBackground: Color,
     val barBorder: Color,
     val accent: Color,
+    val selectedText: Color,
     val inactiveText: Color,
     val selectedTabBackground: Color,
     val barCornerRadiusDp: Int,
@@ -24,8 +25,7 @@ internal data class FxComposeShellTokens(
     val verticalInsetDp: Int,
     val itemSpacingDp: Int,
     val labelSizeSp: Int,
-    val useLiquidTabsRenderer: Boolean,
-    val useMiuixSelectedColors: Boolean
+    val useLiquidTabsRenderer: Boolean
 )
 
 internal object FxClassicComposeTokens {
@@ -35,6 +35,7 @@ internal object FxClassicComposeTokens {
         barBackground = Color(0xFFF7F8FA),
         barBorder = Color.Transparent,
         accent = Color(0xFF1769AA),
+        selectedText = Color(0xFF1769AA),
         inactiveText = Color(0xFF526170),
         selectedTabBackground = Color(0x223478F6),
         barCornerRadiusDp = 8,
@@ -45,8 +46,7 @@ internal object FxClassicComposeTokens {
         verticalInsetDp = 3,
         itemSpacingDp = 0,
         labelSizeSp = 13,
-        useLiquidTabsRenderer = false,
-        useMiuixSelectedColors = false
+        useLiquidTabsRenderer = false
     )
 }
 
@@ -57,6 +57,7 @@ internal object FxLiquidComposeTokens {
         barBackground = Color.White.copy(alpha = 0.30f),
         barBorder = Color.White.copy(alpha = 0.42f),
         accent = Color(0xFF0088FF),
+        selectedText = Color(0xFF0088FF),
         inactiveText = Color(0xFF526170),
         selectedTabBackground = Color(0x223478F6),
         barCornerRadiusDp = 26,
@@ -67,8 +68,7 @@ internal object FxLiquidComposeTokens {
         verticalInsetDp = 4,
         itemSpacingDp = 2,
         labelSizeSp = 12,
-        useLiquidTabsRenderer = true,
-        useMiuixSelectedColors = false
+        useLiquidTabsRenderer = true
     )
 }
 
@@ -86,6 +86,7 @@ internal object FxMiuixComposeTokens {
         barBackground = surface,
         barBorder = Color.Transparent,
         accent = primary,
+        selectedText = selectedText,
         inactiveText = inactiveText,
         selectedTabBackground = selectedSurface,
         barCornerRadiusDp = 20,
@@ -96,8 +97,7 @@ internal object FxMiuixComposeTokens {
         verticalInsetDp = 4,
         itemSpacingDp = 2,
         labelSizeSp = 14,
-        useLiquidTabsRenderer = false,
-        useMiuixSelectedColors = true
+        useLiquidTabsRenderer = false
     )
 }
 
@@ -108,6 +108,7 @@ internal object FxHarmonyComposeTokens {
         barBackground = Color(0xFFF9FBFE),
         barBorder = Color(0x332878D0),
         accent = Color(0xFF2878D0),
+        selectedText = Color(0xFF2878D0),
         inactiveText = Color(0xFF64788F),
         selectedTabBackground = Color(0x332878D0),
         barCornerRadiusDp = 18,
@@ -118,8 +119,7 @@ internal object FxHarmonyComposeTokens {
         verticalInsetDp = 4,
         itemSpacingDp = 4,
         labelSizeSp = 14,
-        useLiquidTabsRenderer = false,
-        useMiuixSelectedColors = false
+        useLiquidTabsRenderer = false
     )
 }
 
@@ -130,6 +130,7 @@ internal object FxCupertinoComposeTokens {
         barBackground = Color(0xF9FFFFFF),
         barBorder = Color(0x1F8E8E93),
         accent = Color(0xFF007AFF),
+        selectedText = Color(0xFF007AFF),
         inactiveText = Color(0xFF6C6C70),
         selectedTabBackground = Color(0x1A007AFF),
         barCornerRadiusDp = 24,
@@ -140,8 +141,7 @@ internal object FxCupertinoComposeTokens {
         verticalInsetDp = 4,
         itemSpacingDp = 4,
         labelSizeSp = 13,
-        useLiquidTabsRenderer = false,
-        useMiuixSelectedColors = false
+        useLiquidTabsRenderer = false
     )
 }
 
