@@ -21,6 +21,9 @@ if begin in source or end in source:
     if "request body exceeds 1 MiB" not in source or "request headers exceed 16 KiB" not in source:
         raise SystemExit("FX QuickJS HTTP request-limit patch is incomplete")
 else:
+    function_signature = "function _fxRequest(" 
+    if source.count(function_signature) != 1:
+        raise SystemExit("QuickJS _fxRequest declaration is ambiguous")
     helper_anchor = "  function _fxRequest(options,cb) {\n"
     helper = r"""  /* FX_HTTP_REQUEST_LIMITS_V1_BEGIN */
   const _FX_HTTP_MAX_URL_CHARS = 4096;
