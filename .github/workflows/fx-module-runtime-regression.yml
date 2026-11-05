@@ -50,7 +50,7 @@ jobs:
           echo "FX_MODULE_RUNTIME=$module" >> "$GITHUB_ENV"
           echo "Restored module runtime: $(find "$module/scripts" -maxdepth 1 -type f | wc -l) top-level scripts"
           echo "Published TUN regression contract:"
-          grep -n -C 4 "TUN external-VPN conflict guard missing" "$module/scripts/tests/v1.0.0-vpncore-bind-interface-config-generation-regression.sh" || true
+          sed -n '1,12p;190,212p' "$module/scripts/tests/v1.0.0-vpncore-bind-interface-config-generation-regression.sh"
       - name: Apply the VPN, DNS, and Root proxy source patches
         shell: bash
         run: |
