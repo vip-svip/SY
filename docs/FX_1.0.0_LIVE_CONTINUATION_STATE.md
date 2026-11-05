@@ -4711,3 +4711,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 版本保持 `versionName=1.0.0/versionCode=10000`；未生成 APK/模块。
 - 验证状态：已通过 GitHub API 回读逐文件检查提交内容（回读验证）；尚未执行 Shell regression、Kotlin/JUnit、Android Gradle compile/assemble、UI 自动化、模拟器或真机测试。不得把源码回读称为测试通过。
 - 下一步：读取最新分支 HEAD 与 workflow 权限/状态，执行可用的定向 Host regression；随后继续检查六种模式在所有迁入 Activity 的覆盖，尤其 Default/Classic 的 renderer 分离与服务不重启行为。
+
+
+## 2026-11-05 — 六模式源码回读后的编译缺陷修复
+
+- 回读目标分支时发现 FxUiMode.kt 的 DEFAULT_STANDARD 常量曾被写入 enum 构造参数列表，导致 Kotlin enum 声明结构不合法；不能仅凭设置页/脚本中的字符串断言认定实现完成。
+- 已直接修复并提交：
+  - 2e6ad2f7017f2dcfb38e1a242700e1f1397ddfef — 将 enum 构造参数恢复为 storageId/title/description/renderer，把 DEFAULT_STANDARD 放回 enum entry 列表首位。
+  - 2a6fe84b79184367289adc89a5b8a988bec07324 — Compose tokens 测试覆盖 Default 66dp 独立几何、Classic 60dp 旧网页几何、Default/Classic 不相等以及未知模式回退 Default。
+- 已通过 GitHub 回读验证 enum 声明、Default 首项、六个稳定 ID、缺省/未知值回退、独立 Default Compose tokens、Classic 显式分支、Android View palette、MainActivity 默认 ID、六项设置卡和回归脚本中的 Default 断言；本次静态断言 14/14 通过。
+- GitHub commit workflow 查询未返回可读取的 PR workflow runs；当前不能声称已执行仓库 Shell regression、Kotlin/JUnit 或 Gradle 编译。后续仍需在可用 CI/构建环境实际运行 scripts/tests/fx-global-ui-modes-regression.sh、Android 单测和 Gradle compile/assemble。
+- 本次没有修改版本号、网络服务生命周期或既有用户配置；没有生成 APK/模块，也没有真机测试。
