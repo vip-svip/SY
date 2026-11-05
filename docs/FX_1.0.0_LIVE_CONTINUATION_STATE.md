@@ -5095,3 +5095,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - FX Module Runtime Regression run `42047046721` completed SUCCESS on HEAD `058e5683`; logs confirm VPN/DNS runtime regressions 18/18 passed, plus TUN-to-REDIRECT fallback, Unbound VPN-bound IPv4 egress, Root Proxy dual-stack/UID proof, native VPN transaction and Hosts/subscription lock regressions. Later HEAD `70f549e1` only adds test coverage and workflow mapping; no runtime product code changed after the successful module run.
 - The APK build gate remains closed: `.github/workflows/build-fx-adhook.yml` only runs Gradle/package steps on manual dispatch with `migration_complete=true`. That boolean is a human attestation, not automated proof of full source parity. Do not set it yet: Dia Frida listener/message lifecycle and remaining editor behavior, Yulong AdBlock original Trie/Bloom runtime plus true per-app DNS query counters, and original Shield Stellar Binder transport / remaining ProtectService semantics remain open.
 - Still unverified: Android Gradle full APK build, APK install, KernelSU/Magisk deployment, LSPosed Remote Files loading and target injection, ROM SELinux behavior, third-party VPN inner traffic, device IPv4/IPv6 leakage and power behavior.
+
+
+## 2026-11-05 — Custom Hook JSON import payload ceiling removed
+
+- Branch HEAD before this continuation entry: `8c26431c418190c79be06ba7b8aa9794edd47703`.
+- Removed the 65,536-character EditText filter and 64 KiB UTF-8 payload rejection from `showCustomRuleImportDialog()`. Existing legacy-array and portable-object parsing, package-prefix remapping, per-rule signature/action validation, duplicate-ID checks, and transactional SharedPreferences commit/rollback remain intact.
+- Extended `scripts/tests/fx-custom-hook-passthrough-regression.sh` to assert the editor/parser path has no fixed character or byte ceiling. The test uses the method boundary in source to avoid false positives from unrelated size policies elsewhere in MainActivity.
+- This removes an arbitrary product-level import cap; Android memory/storage and parser resource constraints still apply. The edit-time draft remains in app preferences.
+- Source and regression are committed on this branch. Await the push-triggered FX Targeted Host Regression result before marking this regression passed. No Android Gradle build, APK install, KernelSU deployment, or device test is implied.
