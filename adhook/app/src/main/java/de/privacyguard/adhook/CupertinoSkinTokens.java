@@ -24,7 +24,7 @@ final class CupertinoSkinTokens {
     }
 
     static final class CupertinoShapeTokens {
-        static final int NAV_BAR_RADIUS_DP = 22;
+        static final int NAV_BAR_RADIUS_DP = 24;
         static final int TAB_RADIUS_DP = 18;
         static final int CARD_RADIUS_DP = 16;
         static final int ACTION_RADIUS_DP = 18;
@@ -39,12 +39,12 @@ final class CupertinoSkinTokens {
     }
 
     static final class CupertinoSpacingTokens {
-        static final int NAV_HEIGHT_DP = 68;
+        static final int NAV_HEIGHT_DP = 76;
         static final int NAV_OUTER_HORIZONTAL_DP = 0;
         static final int NAV_OUTER_VERTICAL_DP = 0;
         static final int NAV_INNER_HORIZONTAL_DP = 12;
         static final int NAV_INNER_VERTICAL_DP = 5;
-        static final int TAB_HEIGHT_DP = 60;
+        static final int TAB_HEIGHT_DP = 68;
         private CupertinoSpacingTokens() { }
     }
 }
