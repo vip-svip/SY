@@ -4802,3 +4802,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 自动 Host regression 由 `fx-targeted-regression.yml` 的 `fx-module/scripts/**` / `fx-module/scripts/tests/**` push 路径触发；本记录写入时尚未取得本批 run 的完成结果。Shell regression、Android Gradle 构建、设备 DNS 生命周期、第三方 VPN 共存和真机测试均未在本轮执行/验证。
 - 本批没有改动 Android VpnService 注册、第三方 VPN 路由或系统防火墙；未改变版本号，未生成 APK/KernelSU ZIP。
 - 下一批：读取本批 Host regression 结果；继续梳理独立 DNS 的开机启动/配置/停止路径与 Root Proxy 共享引擎所有权，补齐真实服务状态和回滚测试。
+
+
+## 2026-11-05 — Root Proxy fail-open regression assertion correction
+
+- 读取 FX Targeted Host Regression run `42011667361` 的失败日志，定位到 `scripts/tests/fx-yulong-root-proxy-runtime-regression.sh` 的 `assert_stopped()`：它已按独立 Unbound 状态分别断言“保留”或“停止”，函数末尾却仍无条件要求 `unbound-stop`，导致正确保留独立 resolver 的 fail-open 路径被误判失败。
+- 仅删除该相互矛盾的无条件断言；保留按 `MOCK_UNBOUND_INDEPENDENT` 分支验证 stop/keep 的检查，未更改 Root Proxy 数据面实现或放宽安全断言。
+- 提交：`0e809b7d58bbf668d689acbcd97e3e5735ae5d93` — `fix(test): respect independent Unbound ownership in fail-open regression`。
+- 提交后 GitHub Actions run `42011770715`（HEAD 同上）已完成，`host-regressions` job 结论 `success`：https://github.com/vip-svip/SY/actions/runs/42011770715
+- 已回读验证测试文件新 blob SHA `0df968ba3c34647a6695f783cc71caf856918365`，确认冲突断言已移除；源码 blob SHA 仍为 `350d261ae1023007869f881c77c1e877c0b3f9ff`。
+- 此次通过的是 GitHub Actions Host regression，不代表 Android Gradle 构建、设备内核路由、第三方 VpnService 共存或真机 DNS 验证通过。
