@@ -502,7 +502,18 @@ with_lock() {
     _path=$1
     [ ! -L "$_path" ] || return 1
     if [ -d "$_path" ]; then
-      rm -rf "$_path" 2>/dev/null
+      # Legacy lock directories contain at most one regular PID file. Never
+      # recursively delete unknown contents from the private state directory.
+      [ ! -L "$_path/pid" ] || return 1
+      for _entry in "$_path"/* "$_path"/.[!.]* "$_path"/..?*; do
+        [ -e "$_entry" ] || [ -L "$_entry" ] || continue
+        [ "$_entry" = "$_path/pid" ] || return 1
+      done
+      if [ -e "$_path/pid" ]; then
+        [ -f "$_path/pid" ] && [ ! -L "$_path/pid" ] || return 1
+        rm -f "$_path/pid" 2>/dev/null || return 1
+      fi
+      rmdir "$_path" 2>/dev/null
     elif [ -f "$_path" ]; then
       rm -f "$_path" 2>/dev/null
     else
