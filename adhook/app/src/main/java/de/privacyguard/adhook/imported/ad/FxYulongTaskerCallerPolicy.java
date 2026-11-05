@@ -41,7 +41,10 @@ public final class FxYulongTaskerCallerPolicy {
 
     /** Stable SHA-256 pin for every current APK signer, sorted before joining. */
     public static String signerDigest(byte[][] signerCertificates) {
-        if (signerCertificates == null || signerCertificates.length == 0) return "";
+        // Keep this limit aligned with FxYulongTaskerSigner, which reads the
+        // Android APK content-signer set and rejects oversized/ambiguous sets.
+        if (signerCertificates == null || signerCertificates.length == 0
+                || signerCertificates.length > 8) return "";
         try {
             List<String> digests = new ArrayList<>();
             MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
@@ -55,6 +58,9 @@ public final class FxYulongTaskerCallerPolicy {
                 digests.add(hex.toString());
             }
             Collections.sort(digests);
+            for (int index = 1; index < digests.size(); index++) {
+                if (digests.get(index - 1).equals(digests.get(index))) return "";
+            }
             StringBuilder joined = new StringBuilder();
             for (String digest : digests) {
                 if (joined.length() > 0) joined.append(',');
@@ -69,8 +75,13 @@ public final class FxYulongTaskerCallerPolicy {
     private static boolean isValidSignerDigest(String value) {
         if (value == null || value.isEmpty() || value.length() > 1024) return false;
         String[] parts = value.split(",", -1);
-        if (parts.length == 0 || parts.length > 16) return false;
-        for (String part : parts) if (!part.matches("[0-9a-f]{64}")) return false;
+        if (parts.length == 0 || parts.length > 8) return false;
+        String previous = null;
+        for (String part : parts) {
+            if (!part.matches("[0-9a-f]{64}") ||
+                    (previous != null && previous.compareTo(part) >= 0)) return false;
+            previous = part;
+        }
         return true;
     }
 }
