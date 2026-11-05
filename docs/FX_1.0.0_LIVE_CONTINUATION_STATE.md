@@ -5402,3 +5402,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 - 最新提交增加 `/data` 根目录的 fail-closed 检查后，原 Gadget 会话回归仍匹配旧的 `if [ -L '/data/adb' ]` 前缀，导致 Host Regression 在静态断言处失败。
 - 将断言同步到当前 guard 顺序：先检查 `/data`，再检查 `/data/adb`；产品逻辑无需回退。后续以当前 HEAD 的 Host 与模块 CI 实际结果为准。
+
+
+## 2026-11-06 — Dia 结构化监控事件刷新队列有界化
+
+- 将事件页原先无界的单线程 Executor 改为单执行线程、一个待执行槽位的 ThreadPoolExecutor。
+- 新刷新到来而待执行槽位已满时，淘汰旧的待执行请求并仅保留最新请求；正在执行的 Root 读取仍受 15 秒超时和输出上限约束，过期 generation 的回调仍会被丢弃。
+- Activity 销毁后继续使用 shutdownNow；队列饱和不再导致无限堆积的特权 Root 读取任务。
+- 增加源码回归断言覆盖队列容量、最新请求淘汰与 shutdown 拒绝策略。尚未做 Android Gradle 构建或设备端刷新压力测试。

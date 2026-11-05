@@ -27,9 +27,10 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Native Dia monitor-event page. It reads only the FX-owned session log and
@@ -46,11 +47,29 @@ public final class FxDiaMonitorEventsActivity extends de.privacyguard.adhook.FxN
     private static final String STATE_AUTO_REFRESH = "fx_dia_monitor_state_auto_refresh";
     private static final String STATE_SCROLL_Y = "fx_dia_monitor_state_scroll_y";
 
-    private final ExecutorService worker = Executors.newSingleThreadExecutor(r -> {
-        Thread thread = new Thread(r, "fx-dia-monitor-events");
-        thread.setDaemon(true);
-        return thread;
-    });
+    // One active Root read and one pending latest request. A burst of manual
+    // refreshes must not grow an unbounded queue of stale privileged reads.
+    private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
+            1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(1),
+            r -> {
+                Thread thread = new Thread(r, "fx-dia-monitor-events");
+                thread.setDaemon(true);
+                return thread;
+            },
+            new ThreadPoolExecutor.AbortPolicy());
+
+    private void enqueueLatest(Runnable task) {
+        try {
+            worker.execute(task);
+        } catch (RejectedExecutionException full) {
+            if (worker.isShutdown()) throw full;
+            // The one queued request is older than this generation. Keep the
+            // running operation bounded, discard the stale waiter, and queue
+            // only the most recent user-visible refresh.
+            worker.getQueue().poll();
+            worker.execute(task);
+        }
+    }
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Runnable autoRefresh = new Runnable() {
         @Override public void run() {
@@ -249,7 +268,7 @@ public final class FxDiaMonitorEventsActivity extends de.privacyguard.adhook.FxN
                 + " ] && [ -s " + shellQuote(logPath) + " ]; then tail -n 800 "
                 + shellQuote(logPath) + "; else echo FX_DIA_NO_EVENTS; fi";
         try {
-            worker.execute(() -> {
+            enqueueLatest(() -> {
                 RootAccess.Result result = RootAccess.execute(command, 15000L, MAX_ROOT_OUTPUT);
                 runOnUiThread(() -> {
                     if (destroyed || isFinishing() || isDestroyed()
