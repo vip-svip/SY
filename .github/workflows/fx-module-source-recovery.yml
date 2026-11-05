@@ -101,23 +101,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Refresh the target-based PR branch from the latest integration HEAD.
-          # Resolve same-path conflicts in favor of the current integration tree;
-          # the recovery branch contributes missing legacy runtime files only.
-          recovery_branch=fx-module-source-recovery-target
+          # Create a fresh integration branch from the exact current target HEAD.
+          # Import only paths missing from the target tree; never replace branch-owned
+          # files with older Release copies.
+          recovery_branch=fx-module-source-recovery-current
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin \
-            "+refs/heads/$GITHUB_REF_NAME:refs/remotes/origin/$GITHUB_REF_NAME"
+          git fetch origin "+refs/heads/$GITHUB_REF_NAME:refs/remotes/origin/$GITHUB_REF_NAME"
           if git ls-remote --exit-code --heads origin "$recovery_branch" >/dev/null 2>&1; then
-            git fetch origin "+refs/heads/$recovery_branch:refs/remotes/origin/$recovery_branch"
-            source_sha="$(git rev-parse "origin/$recovery_branch")"
-            git checkout -B "$recovery_branch" "origin/$GITHUB_REF_NAME"
-            git merge --allow-unrelated-histories --no-edit -X ours "origin/$recovery_branch"
-          else
-            source_sha=""
-            git checkout -B "$recovery_branch" "origin/$GITHUB_REF_NAME"
+            echo "::error::The current source-import branch already exists; refusing to overwrite it."
+            exit 1
           fi
+          git checkout -B "$recovery_branch" "origin/$GITHUB_REF_NAME"
           mkdir -p docs/fx-module-recovery
           for file in BIN-MANIFEST.txt RELEASE-ARCHIVE-SHA256.txt SOURCE-SHA256SUMS.txt SOURCE-ORIGIN.txt; do
             [[ ! -s "recovered-fx-module/$file" ]] || {
@@ -128,8 +123,8 @@ jobs:
             }
           done
           mkdir -p fx-module
-          # Add only missing paths on refresh; never overwrite a file already
-          # present in the target-based PR branch after merging newer base work.
+          # Import only files absent from the latest target tree. This keeps all
+          # newer branch-owned module fixes byte-for-byte intact.
           cp -an recovered-fx-module/. fx-module/
           # Remove any previously imported legacy WebUI snapshot; the package
           # workflow will restore the APK asset and patch it before acceptance.
@@ -143,10 +138,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "chore(module): restore canonical FX 1.0.0 runtime sources"
-          if [[ -n "$source_sha" ]]; then
-            git push --force-with-lease="refs/heads/$recovery_branch:$source_sha" \
-              origin "HEAD:refs/heads/$recovery_branch"
-          else
-            git push origin "HEAD:refs/heads/$recovery_branch"
-          fi
-          echo "::notice::Recovered source published/refreshed on $recovery_branch for review."
+          git push origin "HEAD:refs/heads/$recovery_branch"
+          echo "::notice::Recovered source published on $recovery_branch for review."
