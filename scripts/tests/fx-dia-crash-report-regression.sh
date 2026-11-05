@@ -103,6 +103,7 @@ for token in ("authorization|proxy-authorization", "(?im)", "KEY_VALUE", "QUERY_
 # The header pattern is case-insensitive and covers both Authorization variants.
 assert r'(?im)(\\b(?:authorization|proxy-authorization)\\s*[:=]\\s*)' in redactor, "Authorization header matcher must be case-insensitive"
 assert '"Authorization: Bearer stack-header-secret\\n"' in host_export_test and "stack-header-secret" in host_export_test, "host test must exercise a real mixed-case Authorization header sample"
+# The host test rejects both the raw secret and its reversible HEX encoding.
 assert '"encrypt_stack"' in activity, "Dia original encrypt_stack preference must be preserved"
 for token in ("ClipboardManager", "ClipData.newPlainText", "Intent.ACTION_SEND", "Intent.createChooser",
               "FxDiaCrashStore.clearPendingFlag(this)", "FxDiaCrashStore.setCaptureEnabled",
