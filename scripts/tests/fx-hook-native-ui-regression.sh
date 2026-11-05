@@ -580,3 +580,25 @@ grep -Fq 'if (isHookAppListVisible()) captureHookAppListState();' "$main_activit
 grep -Fq 'cancelHookTargetScopeOperation();' "$main_activity"
 [ "$(grep -Fc 'if (!isCurrentHookScopeOperation(state, packageName, operationGeneration)) return;' "$main_activity")" -ge 3 ] || fail "LSPosed async request/remove callbacks must reject stale target generations"
 grep -Fq 'worker.setDaemon(true);' "$main_activity"
+
+# The legacy activation-tip preference may hide only the Manager hint, never the live Binder state.
+python3 - "$main_activity" <<'PY'
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+start = source.index("private void refreshHookHubLsposedStatus(TextView state)")
+end = source.index("private void refreshHookHubAccessibilityStatus(TextView state)", start)
+method = source[start:end]
+assert 'getBoolean("active_tip", true)' in method, "legacy Manager hint preference was removed"
+assert "state.setVisibility(View.VISIBLE);" in method, "live LSPosed status view must remain visible"
+assert "if (!showActivationTip) return;" not in method, "legacy preference still suppresses live Binder status"
+assert "String managerHint = showActivationTip" in method, "Manager discovery hint must be preference-controlled"
+assert "boolean serviceConnected = FxLsposedScopeBridge.isConnected();" in method
+assert "state.setText(managerHint" in method, "Binder status must be rendered independently of hint preference"
+assert "libXposed 服务 Binder：" in method
+assert "服务连接状态不等同于目标进程注入状态" in method
+settings = source[source.index('note.setText("六种全局模式'):source.index('note.setText("六种全局模式') + 500]
+for token in ("Default（独立默认原生模式）", "ClassicWebCompat", "FXLiquidNative", "MiuixStyle", "HarmonyStyle", "CupertinoStyle"):
+    assert token in settings, f"settings mode explanation missing {token}"
+print("PASS: LSPosed live Binder state stays visible when legacy activation hint is disabled; six modes are named accurately.")
+PY

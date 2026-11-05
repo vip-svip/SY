@@ -5286,3 +5286,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动：`adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`。
 - 验证：回读源码确认状态视图始终 VISIBLE、提示偏好只控制 managerHint、Binder 状态无条件生成；回读设置页说明确认六种模式和独立 Default。未运行 Gradle/Android 编译、UI 自动化或真机 LSPosed 状态验证。
 - 下一批：继续核对六 Tab 与二级页返回/高亮状态；Hook Root、LSPosed Binder、Accessibility 状态刷新需在页面恢复时及时回读。
+
+
+## 2026-11-06 — LSPosed live-state regression coverage
+
+- Follow-up commit after the LSPosed status visibility correction.
+- Extended `scripts/tests/fx-hook-native-ui-regression.sh` with executable Python source-contract checks proving that the legacy `active_tip` preference controls only the Manager hint, never hides the live Binder status, and that the displayed status retains the injection-state disclaimer.
+- The same regression checks that the settings explanation names independent Default plus all five skins.
+- This is a source-contract regression, not an Android UI/device test. CI must execute it before claiming regression coverage.
