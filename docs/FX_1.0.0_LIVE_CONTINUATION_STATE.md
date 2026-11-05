@@ -5217,3 +5217,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 - 回归日志显示 feeder 子进程被 FIFO 输出重定向的 open 阶段阻塞，尚未进入状态监控循环；新增并行 FIFO reader，确保行为测试确实执行 feeder 的 Z 状态判断。
 - 测试完成后等待 reader 退出并清理僵尸父进程，避免后台进程残留。
+
+
+## 2026-11-05 — Gadget feeder zombie-aware 回归通过
+
+- 最终提交 `0be02c0293cb70a7eaed348abdf23e87f8be4e8b` 的 FX Targeted Host Regression（`42057994175`）与 FX Module Runtime Regression（`42057994169`）均通过。
+- Host 回归覆盖真实 Linux 僵尸子进程：测试用未 wait 的 fork 子进程维持 Z 状态，并打开配对 FIFO reader，确认 feeder 进入循环后在一个轮询周期内退出。
+- 早期 Host 失败分别来自 shell 嵌套引号、测试父进程提前回收子进程、以及 FIFO 无 reader 导致 feeder 阻塞；均已按日志修正。Android Root Shell、真实 Frida Gadget 连接与真机生命周期仍未验证。
