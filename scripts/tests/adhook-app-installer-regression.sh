@@ -130,7 +130,7 @@ cat > "$TMP/bin/pm" <<'PM'
 #!/bin/sh
 set -eu
 case "$1" in
- path) grep -Fxq "$2" "$FX_ADHOOK_FAKE_PM_STATE/installed" 2>/dev/null || exit 1; if [ "${FX_ADHOOK_FAKE_SYSTEM_OVERLAY:-0}" = 1 ]; then echo "package:/system/app/FX/FX.apk"; else [ -s "$FX_ADHOOK_FAKE_PM_STATE/$2.apk" ] && echo "package:$FX_ADHOOK_FAKE_PM_STATE/$2.apk" || exit 1; fi;;
+ path) grep -Fxq "$2" "$FX_ADHOOK_FAKE_PM_STATE/installed" 2>/dev/null || exit 1; if [ "${FX_ADHOOK_FAKE_SYSTEM_DATA_PATH:-0}" = 1 ]; then [ -s "$FX_ADHOOK_FAKE_PM_STATE/$2.apk" ] && echo "package:$FX_ADHOOK_FAKE_PM_STATE/$2.apk" || exit 1; elif [ "${FX_ADHOOK_FAKE_SYSTEM_OVERLAY:-0}" = 1 ]; then echo "package:/system/app/FX/FX.apk"; else [ -s "$FX_ADHOOK_FAKE_PM_STATE/$2.apk" ] && echo "package:$FX_ADHOOK_FAKE_PM_STATE/$2.apk" || exit 1; fi;;
  list) [ "$2" = packages ] && [ "$3" = -s ] || exit 2; if [ "${FX_ADHOOK_FAKE_SYSTEM:-0}" = 1 ] && grep -Fxq "$4" "$FX_ADHOOK_FAKE_PM_STATE/installed" 2>/dev/null; then echo "package:$4"; fi;;
  install) [ "$2" = -r ] || exit 2; case "$3" in */.fx-unified-hook-*.apk) if [ "${FX_ADHOOK_FAKE_SIGNATURE_MISMATCH:-0}" = 1 ]; then echo 'Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE: signatures do not match]' >&2; exit 1; fi;; esac; if ! grep -Fxq de.privacyguard.adhook "$FX_ADHOOK_FAKE_PM_STATE/installed" 2>/dev/null; then [ ! -e "$FX_ADHOOK_STATE_DIR/adhook-apk-fxunifiedhook.fx-owned" ] || { echo "ownership marker was committed before pm install" >&2; exit 4; }; echo de.privacyguard.adhook >> "$FX_ADHOOK_FAKE_PM_STATE/installed"; fi; cp "$3" "$FX_ADHOOK_FAKE_PM_STATE/de.privacyguard.adhook.apk"; echo "$3" >> "$FX_ADHOOK_FAKE_PM_STATE/install-calls";;
  uninstall) if [ "$2" = -k ]; then _pkg=$3; echo "-k $_pkg" >> "$FX_ADHOOK_FAKE_PM_STATE/uninstall-calls"; else _pkg=$2; echo "$_pkg" >> "$FX_ADHOOK_FAKE_PM_STATE/uninstall-calls"; fi; sed "/^$_pkg$/d" "$FX_ADHOOK_FAKE_PM_STATE/installed" > "$FX_ADHOOK_FAKE_PM_STATE/installed.tmp"; mv "$FX_ADHOOK_FAKE_PM_STATE/installed.tmp" "$FX_ADHOOK_FAKE_PM_STATE/installed"; rm -f "$FX_ADHOOK_FAKE_PM_STATE/$_pkg.apk";;
@@ -193,6 +193,17 @@ if sh "$INSTALLER" "$TMP/mod" >/dev/null 2>&1; then fail "system-app signer mism
 grep -Fxq de.privacyguard.adhook "$TMP/pm/installed" || fail "system-app signer mismatch removed the installed package"
 if grep -Fq -- '-k de.privacyguard.adhook' "$TMP/pm/uninstall-calls" 2>/dev/null; then fail "system-app signer mismatch attempted destructive uninstall -k"; fi
 unset FX_ADHOOK_FAKE_SIGNATURE_MISMATCH FX_ADHOOK_FAKE_SYSTEM
+# A system app updated by PackageManager may have its active code path in
+# /data/app. A changed module APK must update that package without relabeling
+# it as an ordinary user app or writing FX ownership markers.
+printf 'older system-app update under data/app\\n' > "$TMP/pm/de.privacyguard.adhook.apk"
+export FX_ADHOOK_FAKE_SYSTEM_DATA_PATH=1 FX_ADHOOK_FAKE_SYSTEM=1
+: > "$TMP/pm/install-calls"
+sh "$INSTALLER" "$TMP/mod" >/dev/null || fail "updated system app under /data/app was not refreshed"
+[ "$(wc -l < "$TMP/pm/install-calls" | tr -d ' ')" = 1 ] || fail "updated system app must be refreshed exactly once"
+grep -Fq "updated existing FX system app through PackageManager; system classification retained" "$TMP/state/install.log" || fail "updated system app was logged as an ordinary app"
+[ ! -e "$TMP/state/adhook-apk-fxunifiedhook.fx-owned" ] || fail "updated pre-existing system app was incorrectly claimed as FX-owned"
+unset FX_ADHOOK_FAKE_SYSTEM_DATA_PATH FX_ADHOOK_FAKE_SYSTEM
 rm -f "$TMP/state/adhook-apk-fxunifiedhook.sha256" "$TMP/state/adhook-apk-fxunifiedhook.fx-owned" "$TMP/pm/installed" "$TMP/pm/de.privacyguard.adhook.apk"
 : > "$TMP/pm/install-calls"
 
