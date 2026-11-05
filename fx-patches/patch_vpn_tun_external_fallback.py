@@ -231,7 +231,7 @@ grep -Fq 'TUN fallback refused because external VPN state or ownership is not fu
             # Some release revisions express the assertion in Python rather
             # than grep; replace only its single diagnostic assertion line.
             lines[error_line] = "# Legacy inline TUN conflict assertion superseded by effective-mode regression."
-        test_source = "\\n".join(lines) + "\\n"
+        test_source = "\n".join(lines) + "\n"
     legacy_tun_test.write_text(test_source, encoding="utf-8")
 
 print("Applied guarded TUN-to-REDIRECT coexistence fallback and effective-mode status.")
