@@ -24,12 +24,13 @@ public final class FxYulongDailySummaryActivity extends de.privacyguard.adhook.F
         t.setPadding(dp(4),dp(5),dp(4),dp(5)); return t;
     }
     private Button button(String s,Runnable r) {
-        Button b=new Button(this); b.setAllCaps(false); b.setText(s); b.setOnClickListener(v->r.run()); return b;
+        Button b=new Button(this); b.setTag("fx-action-row"); b.setAllCaps(false); b.setText(s); b.setOnClickListener(v->r.run()); return b;
     }
     private void card(LinearLayout body,String title,String detail) {
-        LinearLayout c=new LinearLayout(this); c.setOrientation(1);
+        LinearLayout c=new LinearLayout(this); c.setTag("fx-card"); c.setOrientation(1);
         c.setPadding(dp(14),dp(10),dp(14),dp(10)); c.setBackgroundColor(0xfff0f3f7);
-        c.addView(text(title,15,0xff17212b,true)); c.addView(text(detail,13,0xff526170,false));
+        TextView heading=text(title,15,0xff17212b,true); heading.setTag("fx-card-title"); c.addView(heading);
+        TextView description=text(detail,13,0xff526170,false); description.setTag("fx-card-detail"); c.addView(description);
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);
         lp.setMargins(dp(12),dp(5),dp(12),dp(5)); body.addView(c,lp);
     }
