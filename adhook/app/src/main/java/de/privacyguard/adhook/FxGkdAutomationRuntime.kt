@@ -24,7 +24,7 @@ object FxGkdAutomationRuntime {
     @Volatile
     private var cachedCompiled: List<CompiledRule> = emptyList()
     private val lastActionByRule = HashMap<String, Long>()
-    private var lastScanAt = 0L
+    private val scanThrottle = FxGkdPackageScanThrottle(250L)
 
     @JvmStatic
     @Synchronized
@@ -32,7 +32,7 @@ object FxGkdAutomationRuntime {
         cachedSource = null
         cachedCompiled = emptyList()
         lastActionByRule.clear()
-        lastScanAt = 0L
+        scanThrottle.clear()
     }
 
     @JvmStatic
@@ -57,17 +57,16 @@ object FxGkdAutomationRuntime {
             return false
         }
 
-        val now = SystemClock.elapsedRealtime()
-        if (now - lastScanAt < 250L) {
-            try { rootHandle.recycle() } catch (_: RuntimeException) {}
-            return false
-        }
-        lastScanAt = now
-
         val rules = getCompiledRules(service).filter {
             it.source.enabled && it.source.packageName == eventPackage
         }
         if (rules.isEmpty()) {
+            try { rootHandle.recycle() } catch (_: RuntimeException) {}
+            return false
+        }
+
+        val now = SystemClock.elapsedRealtime()
+        if (!scanThrottle.shouldScan(eventPackage, now)) {
             try { rootHandle.recycle() } catch (_: RuntimeException) {}
             return false
         }
@@ -163,6 +162,7 @@ object FxGkdAutomationRuntime {
                 CompiledRule(rule, selector)
             }
             lastActionByRule.keys.retainAll(source.map { it.id }.toSet())
+            scanThrottle.retainPackages(cachedCompiled.map { it.source.packageName }.toSet())
         }
         return cachedCompiled
     }

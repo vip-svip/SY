@@ -5839,3 +5839,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `42099140694`（HEAD `856b1156`）的 Host Regression 失败在 Ad Activity 状态脚本后半段：新测试已分别定义 `summary`（Privacy `FxYulongDailySummaryActivity`）和 `ad_summary`（Ad `FxYulongAdSummaryActivity`），但后续 Root/代次检查仍误引用 `summary`，把 Ad 的 Root 读取要求套到 Privacy 页面。
 - 现将 generation、两阶段配置/DNS Root 请求、销毁时失效检查及 Root/ThreadPoolExecutor 必需性断言全部绑定到 `ad_summary`；Privacy 本地总结继续单独验证 SharedPreferences、两个本机服务状态及无 Root/线程池。
 - 不改两页实现，仅修正 Host 测试变量引用。此前 `b6c2c4da` 的 Host、六套 UI 和 System App Install Stage 回归均通过；本修订等待最新 Host 结果。
+
+
+## 2026-11-06 — GKD 多应用扫描节流隔离
+
+- 将 GKD 250ms 扫描节流从单一全局时间戳改为按目标包分别记录，避免应用 A 的无障碍事件短暂抑制应用 B 的已授权规则扫描。
+- 规则缓存重建时只保留仍有已编译启用规则的包记录；规则配置失效时清空节流状态，不设置人工包数量上限。
+- 新增 Android-free `FxGkdPackageScanThrottle` 与 3 个 JVM 单测，覆盖同包 cooldown、跨包互不干扰、规则移除清理和总失效清空；更新 GKD workflow 路径触发与单测筛选。
+- `fx-gkd-automation-regression.sh` 同步检查该节流器确实接入运行时。等待最新 GKD/Host Actions；本批尚未进行 Android 设备无障碍点击真实验收。

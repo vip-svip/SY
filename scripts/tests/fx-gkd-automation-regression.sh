@@ -3,6 +3,8 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 service="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxAccessibilityService.java"
 runtime="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAutomationRuntime.kt"
+scan_throttle="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxGkdPackageScanThrottle.kt"
+scan_throttle_test="$root/adhook/app/src/test/java/de/privacyguard/adhook/FxGkdPackageScanThrottleTest.kt"
 snapshot="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAccessibilitySnapshot.kt"
 store="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxGkdRuleStore.kt"
 engine="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxGkdSelectorEngine.kt"
@@ -13,14 +15,14 @@ service_xml="$root/adhook/app/src/main/res/xml/fx_accessibility_service.xml"
 strings="$root/adhook/app/src/main/res/values/fx_strings.xml"
 unit="$root/adhook/app/src/test/java/de/privacyguard/adhook/FxGkdSelectorEngineTest.kt"
 test "$#" -eq 0
-for file in "$service" "$runtime" "$snapshot" "$store" "$engine" "$activity" "$main" "$manifest" "$service_xml" "$strings" "$unit"; do
+for file in "$service" "$runtime" "$scan_throttle" "$scan_throttle_test" "$snapshot" "$store" "$engine" "$activity" "$main" "$manifest" "$service_xml" "$strings" "$unit"; do
   test -s "$file" || { echo "FAIL: missing GKD single-service integration file: $file"; exit 1; }
 done
 
-python3 - "$service" "$runtime" "$snapshot" "$store" "$engine" "$activity" "$main" "$manifest" "$service_xml" "$strings" "$unit" <<'PY'
+python3 - "$service" "$runtime" "$scan_throttle" "$scan_throttle_test" "$snapshot" "$store" "$engine" "$activity" "$main" "$manifest" "$service_xml" "$strings" "$unit" <<'PY'
 from pathlib import Path
 import sys
-service, runtime, snapshot, store, engine, activity, main, manifest, service_xml, strings, unit = [
+service, runtime, scan_throttle, scan_throttle_test, snapshot, store, engine, activity, main, manifest, service_xml, strings, unit = [
     Path(value).read_text(encoding="utf-8") for value in sys.argv[1:]
 ]
 
@@ -79,13 +81,21 @@ for token in ("MAX_NODES = 700", "MAX_DEPTH = 32", "MAX_CHILDREN_PER_NODE = 80",
 
 # Runtime is local only, rate-limited, package-scoped and only runs ACTION_CLICK.
 for token in ("FxGkdRuleStore.isEnabled(service)", "it.source.packageName == eventPackage",
-              "now - lastScanAt < 250L", "now - lastAction < rule.source.cooldownMillis",
+              "scanThrottle.shouldScan(eventPackage, now)", "now - lastAction < rule.source.cooldownMillis",
               "maximum = 12", "liveNode.isPassword", "liveNode.isEditable",
               "liveNode.isVisibleToUser", "liveNode.isClickable",
               "FxGkdRuleStore.isRuleEnabled(service, rule.source.id, eventPackage)",
               "FxAccessibilityService.isConnected()", "isTargetStillForeground(service, eventPackage)",
               "performAction(AccessibilityNodeInfo.ACTION_CLICK)"):
     assert token in runtime, f"GKD automation guard missing: {token}"
+assert "FxGkdPackageScanThrottle(250L)" in runtime, "GKD scan cooldown must be package-scoped"
+assert "scanThrottle.retainPackages(cachedCompiled.map { it.source.packageName }.toSet())" in runtime, "removed GKD package cooldown state is not pruned"
+assert "scanThrottle.clear()" in runtime, "GKD rule invalidation must clear package scan cooldowns"
+assert "lastScanAt" not in runtime, "global scan throttle must not starve other enabled packages"
+assert "class FxGkdPackageScanThrottle" in scan_throttle
+for test_name in ("cooldownIsIsolatedByTargetPackage", "removedRulePackagesReleaseTheirCooldownState",
+                  "invalidationClearsAllPackageCooldowns"):
+    assert test_name in scan_throttle_test, f"GKD package throttle unit test missing: {test_name}"
 for forbidden in ("dispatchGesture(", "takeScreenshot(", "HttpURLConnection", "OkHttpClient", "ACTION_LONG_CLICK"):
     assert forbidden not in runtime, f"unexpected unscoped GKD capability: {forbidden}"
 
