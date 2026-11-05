@@ -119,6 +119,25 @@ PM
 chmod +x "$TMP/bin/pm"; export PATH="$TMP/bin:$PATH" FX_ADHOOK_FAKE_PM_STATE="$TMP/pm" FX_ADHOOK_STATE_DIR="$TMP/state" FX_ADHOOK_TMP_DIR="$TMP/tmp" FX_ADHOOK_LOG="$TMP/state/install.log"
 : > "$TMP/pm/installed"
 
+# Reject symlinked APK payloads and checksum sidecars before PackageManager.
+mv "$TMP/mod/system/app/FX/FX.apk" "$TMP/overlay-real.apk"
+ln -s "$TMP/overlay-real.apk" "$TMP/mod/system/app/FX/FX.apk"
+: > "$TMP/pm/install-calls"
+out=$(sh "$INSTALLER" "$TMP/mod" 2>&1) && fail "symlinked system-app APK payload unexpectedly succeeded"
+case "$out" in *"module APK payload path is missing or traverses a symlink"*) ;; *) fail "symlinked APK payload was not rejected by the path guard: $out" ;; esac
+[ ! -s "$TMP/pm/install-calls" ] || fail "symlinked APK payload reached PackageManager"
+rm "$TMP/mod/system/app/FX/FX.apk"
+mv "$TMP/overlay-real.apk" "$TMP/mod/system/app/FX/FX.apk"
+
+mv "$TMP/mod/system/app/FX/FX.apk.sha256" "$TMP/overlay-real.sha256"
+ln -s "$TMP/overlay-real.sha256" "$TMP/mod/system/app/FX/FX.apk.sha256"
+: > "$TMP/pm/install-calls"
+out=$(sh "$INSTALLER" "$TMP/mod" 2>&1) && fail "symlinked system-app checksum unexpectedly succeeded"
+case "$out" in *"module APK checksum path is unsafe"*) ;; *) fail "symlinked APK checksum was not rejected: $out" ;; esac
+[ ! -s "$TMP/pm/install-calls" ] || fail "symlinked APK checksum reached PackageManager"
+rm "$TMP/mod/system/app/FX/FX.apk.sha256"
+mv "$TMP/overlay-real.sha256" "$TMP/mod/system/app/FX/FX.apk.sha256"
+
 # New system-app overlays must carry a well-formed checksum sidecar. Missing,
 # malformed or mismatched metadata must fail before PackageManager is touched.
 cp "$TMP/mod/system/app/FX/FX.apk.sha256" "$TMP/overlay.expected.sha256"
