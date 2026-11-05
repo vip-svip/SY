@@ -1,0 +1,25 @@
+plugins {
+    id 'org.jetbrains.kotlin.multiplatform'
+}
+
+kotlin {
+    jvm()
+    jvmToolchain(17)
+
+    sourceSets {
+        commonMain {
+            // Compile the exact, pinned upstream selector source. The source itself
+            // remains under vendor/GKD-XA so GPL-3.0 notices and provenance stay intact.
+            kotlin.srcDir("${rootProject.projectDir}/../vendor/GKD-XA/gkd-selector/src/commonMain/kotlin")
+            languageSettings.optIn('kotlin.js.ExperimentalJsExport')
+        }
+        jvmMain {
+            kotlin.srcDir("${rootProject.projectDir}/../vendor/GKD-XA/gkd-selector/src/jvmMain/kotlin")
+        }
+        jvmTest {
+            dependencies {
+                implementation 'junit:junit:4.13.2'
+            }
+        }
+    }
+}
