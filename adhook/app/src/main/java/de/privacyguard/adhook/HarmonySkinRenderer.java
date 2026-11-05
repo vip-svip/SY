@@ -19,7 +19,8 @@ final class HarmonySkinRenderer {
                 HarmonyColorTokens.ACTION_BORDER,
                 HarmonyColorTokens.ACCENT,
                 HarmonyColorTokens.SWITCH_OFF_TRACK,
-                HarmonyShapeTokens.ACTION_RADIUS_DP
+                HarmonyShapeTokens.ACTION_RADIUS_DP,
+                HarmonyColorTokens.INPUT_BORDER
         );
     }
 }
