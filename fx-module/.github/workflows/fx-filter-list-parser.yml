@@ -1,0 +1,118 @@
+name: FX Filter List Parser
+
+# Guards requirement G of the FX 1.0.0 handoff: the AdGuard / uBlock Origin /
+# Adblock Plus list import must parse, validate and conflict-check third-party
+# filter lists without ever widening a rule the DNS layer cannot express.
+#
+# The existing ad-rule regressions only run when a change touches the curated
+# ad-rule paths, so a rewrite of the importer could land unnoticed. This workflow
+# runs on every change to the integration branch. It is source-level only: no
+# Android SDK, no Release archive, no network fetch.
+
+on:
+  push:
+    branches:
+      - fx-v1.0.0-unified-hook-integration
+      - main
+  pull_request:
+    branches:
+      - fx-v1.0.0-unified-hook-integration
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fx-filter-list-parser-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  filter-list-parser:
+    name: filter-list-parser
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Byte-compile the parser and its regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/fx-filter-list-parse.py
+          python3 -m py_compile scripts/tests/fx-filter-list-parse-regression.py
+
+      - name: Run the filter-list parser regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/tests/fx-filter-list-parse-regression.py
+
+      - name: Verify the parser never widens unexpressible rules
+        shell: bash
+        run: |
+          set -euo pipefail
+          parser=scripts/fx-filter-list-parse.py
+
+          # The refusal paths are the safety property; if a marker or a refusal
+          # reason disappears the importer could start blocking the wrong thing.
+          for marker in \
+            'option set ($) is not expressible at the DNS layer' \
+            'regular-expression rule is not a domain' \
+            'URL-anchored rule is not a domain' \
+            'substring rule is not a domain' \
+            'single-label host' \
+            'IP literal'
+          do
+            grep -Fq "$marker" "$parser" \
+              || { echo "::error::parser lost the refusal path: $marker"; exit 1; }
+          done
+
+          # Cosmetic rules must stay in their own stream.
+          grep -Fq 'COSMETIC_MARKERS' "$parser" \
+            || { echo "::error::parser no longer separates cosmetic rules"; exit 1; }
+
+          # Conflicts must be resolved by the allow stream, not by ordering luck.
+          grep -Fq 'blocked.discard(domain)' "$parser" \
+            || { echo "::error::parser no longer lets the allow stream win a conflict"; exit 1; }
+
+          echo "filter-list refusal paths, cosmetic separation and conflict resolution are present"
+          echo "filter-list parser contract: PASS" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Exercise the parser on a synthetic list end to end
+        shell: bash
+        run: |
+          set -euo pipefail
+          workdir=$(mktemp -d)
+          trap 'rm -rf "$workdir"' EXIT
+
+          printf '%s\n' \
+            '! synthetic' \
+            '||blocked.example.com^' \
+            '@@||allowed.example.com^' \
+            'example.com##.banner' \
+            '||options.example.com^$third-party' \
+            > "$workdir/list.txt"
+
+          python3 scripts/fx-filter-list-parse.py "$workdir/list.txt" \
+            --block-hosts "$workdir/block.hosts" \
+            --block-rules "$workdir/block.rules" \
+            --allow-rules "$workdir/allow.rules" \
+            --cosmetic-output "$workdir/cosmetic.txt" \
+            --report "$workdir/report.json"
+
+          grep -qx '0.0.0.0 blocked.example.com' "$workdir/block.hosts" \
+            || { echo "::error::a domain-anchored rule was not imported"; exit 1; }
+          if grep -q 'options.example.com' "$workdir/block.hosts"; then
+            echo "::error::an option-set rule was widened into a blocked domain"
+            exit 1
+          fi
+          grep -qx '@@||allowed.example.com^' "$workdir/allow.rules" \
+            || { echo "::error::an exception did not reach the allow stream"; exit 1; }
+          grep -qx 'example.com##.banner' "$workdir/cosmetic.txt" \
+            || { echo "::error::a cosmetic rule was not preserved"; exit 1; }
+
+          python3 scripts/tests/fx-filter-list-parse-report-check.py "$workdir/report.json"
+
+          echo "synthetic filter list round-trip is correct"
