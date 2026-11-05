@@ -312,15 +312,15 @@ prepare_case reconcile-missing-metadata
 run_proxy "$CASE_DIR" >/dev/null || fail "reconcile metadata case setup failed"
 rm -f "$CASE_DIR/state/yulong-root-proxy-active.meta"
 reconcile_out=$(run_reconcile "$CASE_DIR")
-printf '%s\\n' "$reconcile_out" | grep -Fqx active=0 || fail "missing metadata reconcile did not report inactive"
+printf '%s\n' "$reconcile_out" | grep -Fqx active=0 || fail "missing metadata reconcile did not report inactive"
 assert_stopped "$CASE_DIR" "reconcile missing metadata"
 
 # Even without marker files, attached FX-owned OUTPUT hooks are enough to require cleanup.
 prepare_case reconcile-orphan-hooks
-printf '%s\\n' FXYRP4_A > "$CASE_DIR/hooks4"
-printf '%s\\n' FXYRP6_A > "$CASE_DIR/hooks6"
+printf '%s\n' FXYRP4_A > "$CASE_DIR/hooks4"
+printf '%s\n' FXYRP6_A > "$CASE_DIR/hooks6"
 reconcile_out=$(run_reconcile "$CASE_DIR")
-printf '%s\\n' "$reconcile_out" | grep -Fqx active=0 || fail "orphan-hook reconcile did not report inactive"
+printf '%s\n' "$reconcile_out" | grep -Fqx active=0 || fail "orphan-hook reconcile did not report inactive"
 assert_stopped "$CASE_DIR" "reconcile orphan hooks"
 
 # A failed status proof must actively remove stale FX redirects and state.
