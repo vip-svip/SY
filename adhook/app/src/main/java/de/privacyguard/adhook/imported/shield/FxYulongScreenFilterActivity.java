@@ -74,7 +74,7 @@ public final class FxYulongScreenFilterActivity extends de.privacyguard.adhook.F
         body.setPadding(0, dp(4), 0, dp(20));
         scroll.addView(body);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        setContentViewWithNativeTabs(root, 5);
+        setContentViewWithNativeTabs(root, 2);
 
         enabled = new Switch(this);
         enabled.setText("启用全屏屏幕滤镜");
