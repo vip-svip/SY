@@ -220,12 +220,12 @@ install_one(){
     log_msg "FX Hook already installed and unchanged; obsolete standalone app removed"
     return 0
   fi
-  # /data/local/tmp is commonly shared and writable by other apps. Create a
-  # private, exclusive directory before copying the APK so a predictable leaf
-  # path cannot be pre-planted as a symlink and followed by cp.
-  _stage_dir="$TMP_DIR/.fx-unified-hook-$.d"
-  if ! (umask 077; mkdir "$_stage_dir" 2>/dev/null); then
-    log_msg "ERROR: cannot create an exclusive private Hook staging directory; refusing installation"
+  # /data/local/tmp is commonly shared and writable by other apps. mktemp
+  # atomically creates a private directory, so cp never follows a pre-planted
+  # predictable staging-file symlink.
+  _stage_dir=$(mktemp -d "$TMP_DIR/.fx-unified-hook.XXXXXX" 2>/dev/null) || _stage_dir=''
+  if [ -z "$_stage_dir" ]; then
+    log_msg "ERROR: cannot create a private Hook staging directory; refusing installation"
     return 1
   fi
   if [ ! -d "$_stage_dir" ] || [ -L "$_stage_dir" ] ||
@@ -264,7 +264,7 @@ install_one(){
          ! chmod 0600 "$_marker.tmp.$$" 2>/dev/null ||
          ! mv -f "$_marker.tmp.$$" "$_marker" 2>/dev/null ||
          [ "$(cat "$_marker" 2>/dev/null)" != "$_actual" ]; then
-        rm -f "$_marker.tmp.$" 2>/dev/null
+        rm -f "$_marker.tmp."* 2>/dev/null
         cleanup_stage
         log_msg "ERROR: APK installed but its digest ownership record could not be committed"
         return 1
@@ -274,7 +274,7 @@ install_one(){
            ! chmod 0600 "$_owned.tmp.$$" 2>/dev/null ||
            ! mv -f "$_owned.tmp.$$" "$_owned" 2>/dev/null ||
            [ "$(cat "$_owned" 2>/dev/null)" != "fx-managed-v1" ]; then
-          rm -f "$_owned.tmp.$" "$_marker" 2>/dev/null
+          rm -f "$_owned.tmp."* "$_marker" 2>/dev/null
           cleanup_stage
           log_msg "ERROR: APK installed but FX ownership record could not be committed; leaving package untouched"
           return 1
@@ -296,7 +296,7 @@ install_one(){
       else
         _migration_rc=$?
         [ "$_migration_rc" -eq 2 ] && log_msg "CRITICAL: rollback APK is retained; inspect $LOG before retrying"
-        rm -f "$_stage"
+        cleanup_stage
         return 1
       fi
     fi
