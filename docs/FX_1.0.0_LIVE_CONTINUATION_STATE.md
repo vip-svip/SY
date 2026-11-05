@@ -6496,3 +6496,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 并发协作后，其他提交补齐了 JSON `config_conflicts` 字段与 fake PackageManager provider 的换行夹具。当前回归提交 `d7ef57737a76965ae0e82e43576ebb45191a799b` 移除第三方/FX 自身 VPN 生产探测用例中的 UID 环境注入，使 case 5c/5c2 实际走 `am get-current-user` + `cmd/pm package list -U` 的 PackageManager UID 查询；fixture 输出由独立断言验证。
 - CI：VPN Arbiter run `42107871614` 对提交 `d7ef57737a76965ae0e82e43576ebb45191a799b` 完成 **SUCCESS**。更早的 run `42107853148` 对 `d700c68` 也为 SUCCESS。两者均为 GitHub Linux Host 回归，不是 Android 设备验证。
 - 限制：裁决器仍是只读观测器；`route_probe=unverified`，没有证明 TUN 数据面、回程路由、DNS 真实可达或第三方 VPN 链式转发。OnePlus 12 真机验证、Gradle/APK/KernelSU 最终构建仍未由本批 CI 证明。
+
+
+## 2026-11-06 — VPN arbiter CI 失败定位与回归恢复
+
+- 首次 CI：run `42107398173` 在 Android VpnInfo 用例失败；当时 fake `am`/`cmd` 脚本的 printf 格式双重转义，生成字面 `\\n`，不是有效换行，导致当前用户 UID / PackageManager 输出不可解析。
+- 第二次 CI：run `42107735734` 在 fake `cmd` provider 自检失败；测试对命令路径解析过度依赖 PATH，并且 fake provider 的参数契约与 shell 调用耦合。
+- 修复提交：`27288908a794bdbc4f2622c503808f38831c5b6f`。PackageManager fake 输出固定为标准 `package:... uid:...` 行；测试通过 fake provider 的明确路径做自检，同时保留生产 arbiter 通过 PATH 解析 `cmd`/`pm` 的集成路径。
+- 最终 CI：run `42107900674`（同提交）`FX VPN Coexistence Arbiter` 完成，结论 **success**。回归日志确认全部场景通过，包括 Android VpnInfo owner、FX 自身 UID、UID 查询失败 fail-closed、端口冲突、IPv4/IPv6 TCP/UDP、源码递归扫描、符号链接、find 失败 fail-closed 和只读不变量。
+- Live smoke：Ubuntu runner 没有 FX KernelSU 模块目录，裁决器返回 `unknown`、slot `null`、退出码 2；这是预期的 fail-closed 环境限制，不是并行共存成功，也不是真机验证。
