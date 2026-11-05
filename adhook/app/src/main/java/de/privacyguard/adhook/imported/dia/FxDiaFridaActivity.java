@@ -635,7 +635,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         } catch (java.io.FileNotFoundException missing) {
             return null;
         } catch (Exception error) {
-            // Do not let a corrupt/oversized cache be retried as a valid draft forever.
+            // Do not let a corrupt cache be retried as a valid draft forever.
             deleteTransientFridaScriptDraft();
             setStatus("恢复大型 Frida 脚本草稿失败：" + error.getClass().getSimpleName());
             return null;
