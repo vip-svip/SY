@@ -2,6 +2,7 @@ package de.privacyguard.adhook;
 
 import android.app.Activity;
 import android.app.Dialog;
+import androidx.appcompat.app.AlertDialog;
 import android.os.Handler;
 import android.os.Looper;
 import android.graphics.drawable.ColorDrawable;

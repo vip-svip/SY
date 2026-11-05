@@ -146,8 +146,8 @@ final class HarmonySkinRenderer {
             boolean certain = "fx-risk-certain".equals(role);
             ViewGroup risk = (ViewGroup) view;
             risk.setBackground(rounded(
-                    certain ? HarmonyColorTokens.RISK_CERTAIN_SURFACE : HarmonyColorTokens.RISK_SUSPECT_SURFACE,
-                    certain ? HarmonyColorTokens.RISK_CERTAIN_STROKE : HarmonyColorTokens.RISK_SUSPECT_STROKE,
+                    certain ? HarmonyShapeTokens.RISK_CERTAIN_SURFACE : HarmonyShapeTokens.RISK_SUSPECT_SURFACE,
+                    certain ? HarmonyShapeTokens.RISK_CERTAIN_STROKE : HarmonyShapeTokens.RISK_SUSPECT_STROKE,
                     HarmonyShapeTokens.CARD_RADIUS_DP, density));
             risk.setPadding(dp(HarmonySpacingTokens.CARD_HORIZONTAL_PADDING_DP, density),
                     dp(HarmonySpacingTokens.CARD_VERTICAL_PADDING_DP, density),
@@ -159,7 +159,7 @@ final class HarmonySkinRenderer {
                 && view instanceof TextView) {
             TextView title = (TextView) view;
             title.setTextColor("fx-risk-title-certain".equals(role)
-                    ? HarmonyColorTokens.RISK_CERTAIN_TEXT : HarmonyColorTokens.RISK_SUSPECT_TEXT);
+                    ? HarmonyShapeTokens.RISK_CERTAIN_TEXT : HarmonyShapeTokens.RISK_SUSPECT_TEXT);
             title.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
             title.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,
                     HarmonyTypographyTokens.CARD_TITLE_SP);
