@@ -6439,3 +6439,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Design boundary: the systemless `/system/app/FX` APK is still verified and SELinux-labeled by `post-fs-data.sh` before PackageManager's system-app scan. The service-stage installer is a later PM reconciliation step; it must not run after timeout while Android's package state may still be incomplete. This does not delay or disable the main DNS/VPN apply path.
 - GitHub readback verified service blob `b42f66ab8209b15aa480b4db1a6c08eb9d6fded9`, test blob `d1b34b2e1c0d8b1b58f2a6c928a8121fb7a94d7c`, and the new ordering assertion text. The Hook build workflow has a target-branch push trigger and invokes the installer regression script.
 - Not yet executed: complete shell regression, Python behavior fixture, Android Gradle/APK build, KernelSU ZIP build, target-ROM PackageManager/SELinux validation. CI run status is not available from the current commit-workflow connector (it only exposes PR-triggered runs); no CI or device pass is claimed.
+
+
+## 2026-11-06 — VPN arbiter listener collision and source-inventory verification
+
+- Added a production check for collisions among FX's independent DNS upstream, AdGuard Home client-facing DNS, and proxy listener ports. Ports are normalized as decimal values before comparison, so leading-zero aliases cannot evade detection.
+- The arbiter now grades a duplicate FX listener configuration as `partial`, exposes the conflicting service pairs in JSON as `config_conflicts`, and includes the same information in text output. Unknown module VPN-slot state retains higher precedence and remains fail-closed.
+- Regression coverage includes all three pairwise listener collisions, all-three collision, decimal normalization, IPv4/IPv6 TCP/UDP occupancy, incomplete/failed module source inventory, symlinked/nested module helper scanning, VpnService API signature detection, and text/JSON parity.
+- GitHub Actions validation: FX VPN Coexistence Arbiter run `42107661260`, commit `24733adb101d933ece749a17fa06e0258220ad4c`, **SUCCESS**. The passing run includes the collision checks and the corrected text-mode test fixture. This is host CI evidence, not device traffic-path validation.
+- The arbiter remains observation-only. External VPN interface/owner detection does not yet prove packet routing, return path, DNS reachability, or outer-tunnel binding; `route_probe=unverified` and external VPN operation remains conservatively graded. No OnePlus 12 / physical-device verification is claimed.
+- Next P0: build an end-to-end, non-destructive route/packet-path probe for supported external VPNs, then validate on real Android devices and vendor VPN implementations. Never mutate third-party VPN routes during observation.
