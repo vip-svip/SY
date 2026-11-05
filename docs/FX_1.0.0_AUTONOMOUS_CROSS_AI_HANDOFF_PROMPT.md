@@ -233,7 +233,7 @@ Settings 只包含：
 
 ## 4. 六种全局界面模式：默认模式 + 五种皮肤
 
-五种可切换 Skin（默认模式独立保留） 是同一 APK 中的全局 Presentation：
+默认模式 + 五种可切换皮肤，共六种全局界面模式，属于同一 APK 的 Presentation：
 
 | 模式 | 稳定 storage ID | 视觉与实现重点 |\n| 默认模式 | default | FX 自有标准原生基础界面；首次安装默认选中；独立 tokens/renderer，不等同液态玻璃 |
 |---|---|---|
@@ -282,7 +282,7 @@ Settings 只包含：
 - 交互参考公开 Apple Human Interface Guidelines；不能调用 Apple 私有 API，不能使用未经授权的 SF Symbols、字体或资源。
 - 不得声称具备 iOS 后台生命周期、系统权限或 Network Extension。
 
-### 4.6 五种可切换 Skin（默认模式独立保留） 统一实现约束
+### 4.6 五种皮肤与独立默认模式的统一实现约束
 
 - FxUiMode 是唯一模式枚举与读写入口，固定 storage ID：default、classic、glass、miuix、huawei、ios。首次安装默认 default；未知值回退 default；旧有效 ID 保持原皮肤。
 - 未知/损坏 ID 必须安全回退 default；旧有效 ID 必须保留原皮肤映射；迁移需有单测。
