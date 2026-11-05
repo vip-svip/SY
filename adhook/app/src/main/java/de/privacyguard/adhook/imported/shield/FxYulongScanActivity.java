@@ -62,12 +62,12 @@ public final class FxYulongScanActivity extends de.privacyguard.adhook.FxNativeT
         t.setPadding(dp(4),dp(5),dp(4),dp(5));return t;
     }
     private Button action(String s,Runnable r){
-        Button b=new Button(this);b.setAllCaps(false);b.setText(s);b.setOnClickListener(v->r.run());return b;
+        Button b=new Button(this);b.setTag("fx-action-row");b.setAllCaps(false);b.setText(s);b.setOnClickListener(v->r.run());return b;
     }
     private void card(String title,View... controls){
-        LinearLayout panel=new LinearLayout(this);panel.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout panel=new LinearLayout(this);panel.setTag("fx-card");panel.setOrientation(LinearLayout.VERTICAL);
         panel.setPadding(dp(14),dp(10),dp(14),dp(10));panel.setBackgroundColor(0xfff0f3f7);
-        panel.addView(text(title,16,0xff17212b,true));for(View v:controls)panel.addView(v);
+        TextView heading=text(title,16,0xff17212b,true);heading.setTag("fx-card-title");panel.addView(heading);for(View v:controls)panel.addView(v);
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);
         lp.setMargins(dp(12),dp(5),dp(12),dp(5));body.addView(panel,lp);
     }
@@ -85,6 +85,7 @@ public final class FxYulongScanActivity extends de.privacyguard.adhook.FxNativeT
         scroll.addView(body);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));setContentViewWithNativeTabs(root, 2);
         status=text("扫描只读取应用包名和名称，不会自动停用、冻结或卸载应用。",13,0xff5c6877,false);
         contentScan = new Switch(this);
+        contentScan.setTag("fx-switch-row");
         contentScan.setText("启用 APK 内容特征扫描（第二阶段）");
         contentScan.setTextSize(14);
         contentScan.setChecked(getSharedPreferences("fx_yulong_shield_prefs", MODE_PRIVATE)
@@ -97,7 +98,9 @@ public final class FxYulongScanActivity extends de.privacyguard.adhook.FxNativeT
         batchCleanup = action("批量清理已选择风险应用（0）", this::openBatchCleanup);
         batchCleanup.setEnabled(false);
         card("批量清理", text("逐项打开 Android 系统卸载确认。FX 不会自动点击确认，也不会在后台静默卸载、强停或冻结应用。",12,0xff617080,false), batchCleanup);
-        body.addView(text("风险结果",16,0xff17212b,true));
+        TextView resultHeading = text("风险结果",16,0xff17212b,true);
+        resultHeading.setTag("fx-section:风险结果");
+        body.addView(resultHeading);
         resultRows=new LinearLayout(this);
         resultRows.setOrientation(LinearLayout.VERTICAL);
         resultRows.addView(text("尚未扫描。请先在“病毒库管理”中同步名单。",13,0xff607080,false));
@@ -304,12 +307,14 @@ public final class FxYulongScanActivity extends de.privacyguard.adhook.FxNativeT
     }
 
     private void addFinding(FxYulongScanEngine.Finding finding, boolean initiallySelected) {
-        LinearLayout item=new LinearLayout(this);item.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout item=new LinearLayout(this);item.setTag(finding.severity==FxYulongScanEngine.Severity.CERTAIN?"fx-risk-certain":"fx-risk-suspect");item.setOrientation(LinearLayout.VERTICAL);
         item.setPadding(dp(12),dp(8),dp(12),dp(8));
         item.setBackgroundColor(finding.severity==FxYulongScanEngine.Severity.CERTAIN?0xffffeeee:0xfffff5e5);
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(dp(12),dp(3),dp(12),dp(4));resultRows.addView(item,lp);
-        item.addView(text((finding.severity==FxYulongScanEngine.Severity.CERTAIN?"确定风险 · ":"可能风险 · ")+finding.label,
-                14,finding.severity==FxYulongScanEngine.Severity.CERTAIN?0xffa32620:0xff8a5b12,true));
+        TextView riskTitle=text((finding.severity==FxYulongScanEngine.Severity.CERTAIN?"确定风险 · ":"可能风险 · ")+finding.label,
+                14,finding.severity==FxYulongScanEngine.Severity.CERTAIN?0xffa32620:0xff8a5b12,true);
+        riskTitle.setTag(finding.severity==FxYulongScanEngine.Severity.CERTAIN?"fx-risk-title-certain":"fx-risk-title-suspect");
+        item.addView(riskTitle);
         item.addView(text(finding.packageName+"\n"+finding.reason,12,0xff617080,false));
         String evidence = finding.sourceLabel.isEmpty() ? "来源：未提供（旧版扫描状态）"
                 : "来源：" + finding.sourceLabel;
