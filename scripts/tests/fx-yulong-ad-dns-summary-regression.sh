@@ -21,13 +21,15 @@ cat > "$TMP/data/querylog.json" <<'JSON'
 {"QH":"open.example","QT":"AAAA","IsFiltered":false,"ClientIP":"192.0.2.12"}
 {"QH":"tracker.example","QT":"A","Result":{"IsFiltered":true,"Reason":"FilteredBlackList"},"ClientIP":"192.0.2.13"}
 {"question":{"host":"pass.example","type":"A"},"status":"NOERROR","ClientIP":"192.0.2.14"}
+{"QH":"open-again.example","IsFiltered":false,"Note":"literal \\\"QH\\\":\\\"fake.example\\\" and \\\"IsFiltered\\\":true"}
+{"QH":"broken.example","IsFiltered":true
 JSON
 OUT=$(sh "$HELPER" "$TMP/data")
 printf '%s\n' "$OUT" | grep -qx 'FXYULONGDNSSTATS1' || fail "summary protocol header missing"
-printf '%s\n' "$OUT" | grep -qx 'queries=4' || fail "all DNS query rows were not counted"
+printf '%s\n' "$OUT" | grep -qx 'queries=5' || fail "all DNS query rows were not counted"
 printf '%s\n' "$OUT" | grep -qx 'blocked=2' || fail "blocked DNS rows were not counted"
-printf '%s\n' "$OUT" | grep -qx 'unblocked=2' || fail "unblocked DNS rows were not counted"
-for secret in ads.example open.example tracker.example pass.example 192.0.2.11 192.0.2.12 192.0.2.13 192.0.2.14 ClientIP; do
+printf '%s\n' "$OUT" | grep -qx 'unblocked=3' || fail "unblocked DNS rows were not counted"
+for secret in ads.example open.example tracker.example pass.example open-again.example fake.example 192.0.2.11 192.0.2.12 192.0.2.13 192.0.2.14 ClientIP; do
   ! printf '%s\n' "$OUT" | grep -Fq "$secret" || fail "summary leaked raw DNS field: $secret"
 done
 
