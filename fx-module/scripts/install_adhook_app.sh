@@ -6,8 +6,52 @@ if [ -z "$MODDIR" ]; then _d=$(dirname "$0" 2>/dev/null); MODDIR=$(cd "$_d/.." 2
 STATE_DIR=${FX_ADHOOK_STATE_DIR:-/data/adb/privacyguard}
 TMP_DIR=${FX_ADHOOK_TMP_DIR:-/data/local/tmp}
 LOG=${FX_ADHOOK_LOG:-$STATE_DIR/adhook-install.log}
-mkdir -p "$STATE_DIR" "$TMP_DIR" 2>/dev/null || :
-: >> "$LOG" 2>/dev/null || LOG=/dev/null
+# Do not let Root installer state or logs traverse attacker-controlled symlinks.
+# Check every lexical path component before mkdir/open, then re-check after creation.
+path_components_are_safe() {
+  _pc_path=$1
+  case "$_pc_path" in /*) ;; *) return 1 ;; esac
+  _pc_rest=${_pc_path#/}
+  _pc_current=''
+  while [ -n "$_pc_rest" ]; do
+    case "$_pc_rest" in
+      */*) _pc_part=${_pc_rest%%/*}; _pc_rest=${_pc_rest#*/} ;;
+      *) _pc_part=$_pc_rest; _pc_rest='' ;;
+    esac
+    case "$_pc_part" in
+      ''|.) continue ;;
+      ..) return 1 ;;
+    esac
+    _pc_current="$_pc_current/$_pc_part"
+    [ ! -L "$_pc_current" ] || return 1
+  done
+  return 0
+}
+if ! path_components_are_safe "$STATE_DIR" || ! path_components_are_safe "$TMP_DIR"; then
+  printf '%s\n' "ERROR: installer state/temp path contains a symlink, relative component, or parent traversal; refusing Root installation." >&2
+  exit 1
+fi
+umask 077
+mkdir -p "$STATE_DIR" "$TMP_DIR" 2>/dev/null || {
+  printf '%s\n' "ERROR: cannot prepare installer state/temp directories; refusing Root installation." >&2
+  exit 1
+}
+if [ ! -d "$STATE_DIR" ] || [ -L "$STATE_DIR" ] ||
+   [ ! -d "$TMP_DIR" ] || [ -L "$TMP_DIR" ] ||
+   ! path_components_are_safe "$STATE_DIR" || ! path_components_are_safe "$TMP_DIR"; then
+  printf '%s\n' "ERROR: installer state/temp directory changed or is not a real directory; refusing Root installation." >&2
+  exit 1
+fi
+LOG_DIR=$(dirname "$LOG" 2>/dev/null) || exit 1
+if ! path_components_are_safe "$LOG_DIR" || [ -L "$LOG" ] ||
+   { [ -e "$LOG" ] && [ ! -f "$LOG" ]; }; then
+  printf '%s\n' "ERROR: installer log path is unsafe; refusing Root installation." >&2
+  exit 1
+fi
+: >> "$LOG" 2>/dev/null || {
+  printf '%s\n' "ERROR: cannot safely open installer log; refusing Root installation." >&2
+  exit 1
+}
 log_msg(){ _msg="$(date '+%m-%d %H:%M:%S' 2>/dev/null) install_adhook_app: $*"; printf '%s\n' "$_msg" >> "$LOG" 2>/dev/null || :; printf '%s\n' "$*"; }
 package_present(){ pm path "$1" 2>/dev/null | grep -q '^package:'; }
 package_is_system(){

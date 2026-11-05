@@ -5746,3 +5746,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 修正草稿回归脚本对 `open()` 方法结束位置的旧假设：它曾依赖后续出现另一个固定缩进的 `private` 方法；当前 `open()` 为类中的末尾单行方法，后面直接是类结束符。
 - 现按当前单行方法边界截取并继续检查“先捕获草稿、切页、重建控件、恢复草稿、重新绑定”的顺序；不改变页面业务实现。
 - 上一轮 Host run `42097906700` 的新快照 Host 用例 12 项已通过，后续失败位于这条旧草稿测试的 substring 定位；本次修正后等待新 Host run。
+
+
+## 2026-11-06 — KernelSU 模块安装器副本与 canonical 同步
+
+- Targeted Host Regression 在 `adhook-app-installer-regression.sh` 报告 `packaged installer drift`。核对发现根目录 `scripts/install_adhook_app.sh` 已包含路径组件/符号链接 fail-closed 防护，而 `fx-module/scripts/install_adhook_app.sh` 仍为旧版（文件长度 13,158 / 11,463 字符，内容不一致）。
+- 将 canonical installer 原样同步到模块内副本；卸载脚本此前已逐字节一致，不做无关修改。保留回归中的 `cmp` 一致性要求，不通过放宽断言绕开问题。
+- 本批只修复仓库内发布/测试副本漂移；仍需当前 HEAD 的 Targeted Host、Module Runtime 与 KernelSU package lane 结果确认，未声称真机 Root 安装或 SELinux 设备验证。
