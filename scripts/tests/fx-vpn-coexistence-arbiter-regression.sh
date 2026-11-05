@@ -279,6 +279,65 @@ rc=$?
 [ "$(field "$_out" "['probe']")" = "unavailable" ] || fail "failed ip command must mark probe unavailable"
 pass "nonzero ip exit discards partial interface inventory"
 
+echo "== case 5c: production path reads Android VpnInfo from dumpsys =="
+cat > "$TMP/fakebin/dumpsys" <<'EOF'
+#!/bin/sh
+[ "$1" = "connectivity" ] || exit 2
+cat <<'DUMP'
+ConnectivityService:
+  mVpns:
+    VpnInfo{ownerUid=10123 vpnIface=tun0 primaryUnderlyingIface=wlan0}
+DUMP
+EOF
+chmod 0755 "$TMP/fakebin/dumpsys"
+printf '%s\n' "$LINKS_TUN" > "$TMP/links.txt"
+_out=$(PATH="$TMP/fakebin:$PATH" FX_ARB_LINK_FILE="$TMP/links.txt" FX_ARB_VPNINFO_FILE= \
+  FX_ARB_PROC_NET_DIR="$TMP/net_free" FX_ARB_MODULE_ROOT="$TMP/mod_clean" sh "$ARB" 2>&1)
+rc=$?
+[ "$rc" -eq 0 ] || fail "production VpnInfo probe failed: $_out"
+[ "$(field "$_out" "['external_if']")" = "tun0" ] || fail "dumpsys interface not recognized"
+[ "$(field "$_out" "['external_uid']")" = "10123" ] || fail "dumpsys owner UID not recognized"
+pass "production Android VpnInfo probe returns interface and owner UID"
+
+echo "== case 5d: successful dumpsys with no active VPN is a clean empty result =="
+cat > "$TMP/fakebin/dumpsys" <<'EOF'
+#!/bin/sh
+printf '%s\n' 'ConnectivityService:' '  mVpns:'
+EOF
+printf '%s\n' "$LINKS_NO_TUN" > "$TMP/links.txt"
+_out=$(PATH="$TMP/fakebin:$PATH" FX_ARB_LINK_FILE="$TMP/links.txt" FX_ARB_VPNINFO_FILE= \
+  FX_ARB_PROC_NET_DIR="$TMP/net_free" FX_ARB_MODULE_ROOT="$TMP/mod_clean" sh "$ARB" 2>&1)
+rc=$?
+[ "$rc" -eq 0 ] || fail "confirmed empty VpnInfo section should be valid: $_out"
+[ "$(field "$_out" "['verdict']")" = "kernel_only" ] || fail "empty VpnInfo section did not identify no external VPN"
+pass "confirmed no-VPN state is distinct from probe failure"
+
+echo "== case 5e: unavailable Android VpnInfo provider is unknown, never kernel-only =="
+cat > "$TMP/fakebin/dumpsys" <<'EOF'
+#!/bin/sh
+exit 7
+EOF
+_out=$(PATH="$TMP/fakebin:$PATH" FX_ARB_LINK_FILE="$TMP/links.txt" FX_ARB_VPNINFO_FILE= \
+  FX_ARB_PROC_NET_DIR="$TMP/net_free" FX_ARB_MODULE_ROOT="$TMP/mod_clean" sh "$ARB" 2>&1)
+rc=$?
+[ "$rc" -eq 2 ] || fail "failed dumpsys must return rc=2, got $rc: $_out"
+[ "$(field "$_out" "['verdict']")" = "unknown" ] || fail "failed dumpsys was treated as no VPN"
+[ "$(field "$_out" "['probe']")" = "unavailable" ] || fail "failed dumpsys probe status mismatch"
+pass "failed Android VPN probe fails closed"
+
+echo "== case 5f: multiple VpnInfo rows are ambiguous =="
+cat > "$TMP/fakebin/dumpsys" <<'EOF'
+#!/bin/sh
+printf '%s\n' 'mVpns:' 'VpnInfo{ownerUid=10123 vpnIface=tun0}' 'VpnInfo{ownerUid=10124 vpnIface=tun1}'
+EOF
+printf '%s\n' "$LINKS_TUN" '8: tun1: <POINTOPOINT,UP> mtu 1500' > "$TMP/links.txt"
+_out=$(PATH="$TMP/fakebin:$PATH" FX_ARB_LINK_FILE="$TMP/links.txt" FX_ARB_VPNINFO_FILE= \
+  FX_ARB_PROC_NET_DIR="$TMP/net_free" FX_ARB_MODULE_ROOT="$TMP/mod_clean" sh "$ARB" 2>&1)
+rc=$?
+[ "$rc" -eq 2 ] || fail "multiple VpnInfo rows must return rc=2, got $rc: $_out"
+[ "$(field "$_out" "['probe']")" = "unavailable" ] || fail "multiple VpnInfo rows were not rejected"
+pass "ambiguous multiple VPN ownership records fail closed"
+
 echo "== case 6: tunnel iface present but no VpnInfo -> unknown (never guess) =="
 r=$(run_arb "$LINKS_TUN" "" "$TMP/net_free" "$TMP/mod_clean")
 rc=${r%%|*}; out=${r#*|}

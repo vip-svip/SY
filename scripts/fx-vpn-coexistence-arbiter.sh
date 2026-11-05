@@ -176,6 +176,32 @@ fx_arb_slot_used() {
   fi
 }
 
+# Read Android's authoritative active-VPN owner/interface record. A successful
+# empty result is permitted only when dumpsys confirms its mVpns section.
+# Missing/denied/partial dumpsys or multiple/malformed VpnInfo rows are unknown.
+fx_arb_android_vpn_info() {
+  command -v dumpsys >/dev/null 2>&1 || return 1
+  _dump=$(dumpsys connectivity 2>/dev/null) || return 1
+  [ -n "$_dump" ] || return 1
+  printf '%s\n' "$_dump" | awk '
+    /mVpns:/ { have_vpn_section=1 }
+    /VpnInfo[[:space:]]*\{/ {
+      rows++
+      uid=""
+      iface=""
+      if (match($0, /ownerUid=[0-9]+/)) uid=substr($0, RSTART+9, RLENGTH-9)
+      if (match($0, /vpnIface=[A-Za-z0-9_.-]+/)) iface=substr($0, RSTART+9, RLENGTH-9)
+      if (uid=="" || iface=="") malformed=1
+      else record=iface "|" uid
+    }
+    END {
+      if (rows==1 && malformed==0) { print record; exit 0 }
+      if (rows==0 && have_vpn_section==1) exit 0
+      exit 1
+    }
+  '
+}
+
 # --- 外部 VPN 探测：接口与 ownerUid 必须来自同一条有效 VpnInfo ----------------
 fx_arb_probe_external() {
   FX_ARB_EXT_IF=""
@@ -199,7 +225,7 @@ fx_arb_probe_external() {
     [ -f "$FX_ARB_VPNINFO_FILE" ] && [ ! -L "$FX_ARB_VPNINFO_FILE" ] && [ -r "$FX_ARB_VPNINFO_FILE" ] || { FX_ARB_PROBE="unavailable"; return 0; }
     _info=$(cat "$FX_ARB_VPNINFO_FILE" 2>/dev/null) || _info=
   else
-    _info=$(vpncore_android_active_vpn_info 2>/dev/null) || _info=
+    _info=$(fx_arb_android_vpn_info) || { FX_ARB_PROBE="unavailable"; return 0; }
   fi
   if [ -n "$_info" ]; then
     _if=${_info%%|*}
