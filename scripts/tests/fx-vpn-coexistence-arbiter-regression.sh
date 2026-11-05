@@ -392,7 +392,7 @@ EOF
 chmod 0755 "$TMP/fakebin/dumpsys" "$TMP/fakebin/am" "$TMP/fakebin/cmd"
 printf '%s\n' "$LINKS_TUN" > "$TMP/links.txt"
 _out=$(PATH="$TMP/fakebin:$PATH" FX_ARB_LINK_FILE="$TMP/links.txt" FX_ARB_VPNINFO_FILE= \
-  FX_ARB_PROC_NET_DIR="$TMP/net_free" FX_ARB_MODULE_ROOT="$TMP/mod_clean" sh "$ARB" 2>&1)
+  FX_ARB_PROC_NET_DIR="$TMP/net_free" FX_ARB_MODULE_ROOT="$TMP/mod_clean" FX_ARB_SELF_UID=10000 sh "$ARB" 2>&1)
 rc=$?
 [ "$rc" -eq 0 ] || fail "production VpnInfo probe failed: $_out"
 [ "$(field "$_out" "['external_if']")" = "tun0" ] || fail "dumpsys interface not recognized"
@@ -407,7 +407,7 @@ printf '%s\n' 'ConnectivityService:' '  mVpns:' '    VpnInfo{ownerUid=10000 vpnI
 EOF
 printf '%s\n' "$LINKS_TUN" > "$TMP/links.txt"
 _out=$(PATH="$TMP/fakebin:$PATH" FX_ARB_LINK_FILE="$TMP/links.txt" FX_ARB_VPNINFO_FILE= \
-  FX_ARB_PROC_NET_DIR="$TMP/net_free" FX_ARB_MODULE_ROOT="$TMP/mod_clean" sh "$ARB" 2>&1)
+  FX_ARB_PROC_NET_DIR="$TMP/net_free" FX_ARB_MODULE_ROOT="$TMP/mod_clean" FX_ARB_SELF_UID=10000 sh "$ARB" 2>&1)
 rc=$?
 [ "$rc" -eq 3 ] || fail "FX-owned production VpnInfo must return rc=3, got $rc: $_out"
 [ "$(field "$_out" "['vpn_owner']")" = "fx_uid" ] || fail "PackageManager UID match did not identify FX-owned VPN"
