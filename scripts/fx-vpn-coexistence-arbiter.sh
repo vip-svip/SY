@@ -203,14 +203,15 @@ fx_arb_decide() {
     return 0
   fi
 
+  # Interface/UID discovery proves VPN presence and ownership only. It does
+  # not prove packet routing, return path, DNS reachability, or tunnel binding.
+  # Until an end-to-end data-plane probe exists, never certify parallel/chained.
+  FX_ARB_VERDICT="partial"
+  FX_ARB_GRADE_CN="部分兼容"
   if [ -n "$FX_ARB_EXT_UID" ]; then
-    FX_ARB_VERDICT="full_parallel"
-    FX_ARB_GRADE_CN="完全并行"
-    FX_ARB_REASONS="external VPN ${FX_ARB_EXT_IF} (uid ${FX_ARB_EXT_UID}) keeps the slot; FX uses kernel dataplane"
+    FX_ARB_REASONS="external VPN ${FX_ARB_EXT_IF} (uid ${FX_ARB_EXT_UID}) detected; route and return-path behavior are unverified"
   else
-    FX_ARB_VERDICT="chained"
-    FX_ARB_GRADE_CN="受支持链式"
-    FX_ARB_REASONS="external VPN ${FX_ARB_EXT_IF} detected without owner uid; FX must bind the outer tunnel"
+    FX_ARB_REASONS="external VPN ${FX_ARB_EXT_IF} detected without owner uid; route and outer-tunnel binding are unverified"
   fi
   return 0
 }
