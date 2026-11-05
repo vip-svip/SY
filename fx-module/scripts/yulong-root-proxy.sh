@@ -186,8 +186,19 @@ _clear_all() {
   rm -f "$ACTIVE" "$ACTIVE_META" "$EGRESS" "$EGRESS.tmp."* 2>/dev/null || :
 }
 _stop_engines() {
-  sh "$MP/scripts/adguardhome.sh" stop "$MP" "$PG" >> "$LOG" 2>&1 || :
-  sh "$MP/scripts/unbound.sh" stop "$MP" "$PG" >> "$LOG" 2>&1 || :
+  # These resolver daemons are shared with the independent local-DNS feature.
+  # Root Proxy owns only its DNS redirection rules; stopping it must not tear
+  # down a resolver that remains enabled outside the external-VPN fallback.
+  if [ "$(pg_get dns_engine_adguardhome 0 2>/dev/null)" != "1" ]; then
+    sh "$MP/scripts/adguardhome.sh" stop "$MP" "$PG" >> "$LOG" 2>&1 || :
+  else
+    _log "keeping AdGuard Home running: independent local-DNS engine is enabled"
+  fi
+  if [ "$(pg_get dns_forward 0 2>/dev/null)" != "1" ]; then
+    sh "$MP/scripts/unbound.sh" stop "$MP" "$PG" >> "$LOG" 2>&1 || :
+  else
+    _log "keeping Unbound running: independent local-DNS forwarding is enabled"
+  fi
 }
 _stop_locked() {
   _clear_all
