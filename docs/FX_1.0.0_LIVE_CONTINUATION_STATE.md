@@ -4799,7 +4799,7 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - `83fa0617fbe8c63e8644ffa6bc9d1abecb9aeda4` — 将 DNS 设置键放在 canonical settings 全局段，避免 fixture 误用列表段布局。
 - 已通过 GitHub API 回读验证源码和测试文件的新 blob SHA、独立 DNS 分支判断、三组引擎生命周期断言及测试 fixture。回读是静态核对，不等于测试执行。
 - 另在隔离 Host shell harness 中执行共享引擎停止策略的三种配置组合：两引擎均独立启用时不停止任何引擎、仅 AdGuard Home 启用时只停止 Unbound、仅 Unbound 启用时只停止 AdGuard Home，均 PASS。该 harness 只验证本次分支逻辑，不等于仓库完整 regression 脚本执行。
-- 自动 Host regression 由 `fx-targeted-regression.yml` 的 `fx-module/scripts/**` / `fx-module/scripts/tests/**` push 路径触发；本记录写入时尚未取得本批 run 的完成结果。Shell regression、Android Gradle 构建、设备 DNS 生命周期、第三方 VPN 共存和真机测试均未在本轮执行/验证。
+- `fx-targeted-regression.yml` 已有 Root Proxy runtime regression run `42011770715` 完成且 `host-regressions` 为 `success`；该 run 的 changed paths 仅为 `scripts/tests/fx-yulong-root-proxy-runtime-regression.sh`，验证了当前 Root Proxy runtime/fail-open 测试路径，但没有执行本批新增的 `fx-module/scripts/tests/v1.0.0-yulong-root-proxy-lock-regression.sh`。专用 lock regression 的 GitHub Actions 结果仍未取得。Shell isolated harness 已 PASS；Android Gradle 构建、设备 DNS 生命周期、第三方 VPN 共存和真机测试未验证。
 - 本批没有改动 Android VpnService 注册、第三方 VPN 路由或系统防火墙；未改变版本号，未生成 APK/KernelSU ZIP。
 - 下一批：读取本批 Host regression 结果；继续梳理独立 DNS 的开机启动/配置/停止路径与 Root Proxy 共享引擎所有权，补齐真实服务状态和回滚测试。
 
@@ -4816,7 +4816,7 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 ## 接管资料可用性补记（2026-11-05）
 
-- 已读取 Library `/FX` 当前完整目录清单。可见原始 `Dia_23.11.apk` 与 `游龙广告插件_7.0.1.apk`；未见项目交接指令中提到的五份 `*_src.zip` 源码包。当前也未在 `/FX` 清单中找到《FX_1.0.0_项目接管总档_自主开发与查漏补缺.md》及《FX_1.0.0_快速推进与主动修复执行档.md`；按其准确路径读取 GitHub `docs/` 同样返回 404。
+- 已读取 Library `/FX` 当前完整目录清单。可见原始 `Dia_23.11.apk` 与 `游龙广告插件_7.0.1.apk`；未见项目交接指令中提到的五份 `*_src.zip` 源码包。当前也未在 `/FX` 清单中找到《FX_1.0.0_项目接管总档_自主开发与查漏补缺.md》及《FX_1.0.0_快速推进与主动修复执行档.md》；按其准确路径读取 GitHub `docs/` 同样返回 404。
 - 已读可用的《FX_1.0.0_UI优先自主推进与中断续接执行总指令.md》《FX_1.0.0_UI优先提速与自主开工提示词.md》及新对话启动提示词；它们确认 UI 优先、垂直功能闭环、不得虚报测试和真机结果。
 - `.gitmodules` 确认 `vendor/GKD-XA` 指向 `https://github.com/84593320z/GKD-XA.git`。本批没有读取该子模块的完整树，也没有把缺失的源码压缩包当作已检查。
 - 因此，本轮仅对当前 VPN/DNS 源码实施了定向修复；Dia、GKD-XA、游龙广告/安全护盾原始 APK 的全量 Manifest/Smali/资源对照仍未完成，后续需使用已存在 APK 或取得缺失源码包后按页面批次继续。
