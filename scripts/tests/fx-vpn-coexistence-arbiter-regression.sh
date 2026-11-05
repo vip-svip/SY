@@ -98,6 +98,16 @@ run_arb_port() {
   printf '%s|%s' "$_rc" "$_out"
 }
 
+run_arb_config() {
+  _dns=$1; _filter=$2; _proxy=$3
+  _out=$(env "FX_ARB_DNS_PORT=$_dns" "FX_ARB_FILTER_DNS_PORT=$_filter" "FX_ARB_PROXY_PORT=$_proxy" \
+    FX_ARB_LINK_FILE="$TMP/links.txt" FX_ARB_VPNINFO_FILE="$TMP/info.txt" \
+    FX_ARB_PROC_NET_DIR="$TMP/net_free" FX_ARB_MODULE_ROOT="$TMP/mod_clean" \
+    sh "$ARB" 2>&1)
+  _rc=$?
+  printf '%s|%s' "$_rc" "$_out"
+}
+
 json_ok() {
   printf '%s' "$1" | python3 -c "
 import sys,json
@@ -213,6 +223,26 @@ for spec in "DNS:65536" "PROXY:00000"; do
   [ "$(field "$out" "['verdict']")" = "partial" ] || fail "$kind invalid port must prevent a clean compatibility grade"
 done
 pass "out-of-range and zero ports fail closed"
+
+echo "== case 1f: duplicate FX service ports are reported as an internal conflict =="
+r=$(run_arb "$LINKS_NO_TUN" "" "$TMP/net_free" "$TMP/mod_clean")
+rc=${r%%|*}; out=${r#*|}
+[ "$rc" -eq 0 ] || fail "could not seed duplicate-port fixture: $out"
+r=$(run_arb_config 5353 05353 7890)
+rc=${r%%|*}; out=${r#*|}
+[ "$rc" -eq 0 ] || fail "duplicate FX port should degrade safely, got rc=$rc: $out"
+[ "$(field "$out" "['verdict']")" = "partial" ] || fail "duplicate FX listeners were reported compatible: $out"
+[ "$(field "$out" "['config_conflicts']")" = "dns=dns_filter" ] || fail "normalized duplicate listener pair missing: $out"
+pass "duplicate internal listeners fail to partial even when host ports are free"
+
+echo "== case 1g: all pairwise duplicate listener combinations are detected =="
+for spec in "5353:7890:7890:dns=proxy" "5353:53:5353:dns=proxy" "53:53:53:dns=dns_filter,dns=proxy,dns_filter=proxy"; do
+  dns=${spec%%:*}; rest=${spec#*:}; filter=${rest%%:*}; rest=${rest#*:}; proxy=${rest%%:*}; expected=${rest#*:}
+  r=$(run_arb_config "$dns" "$filter" "$proxy"); rc=${r%%|*}; out=${r#*|}
+  [ "$rc" -eq 0 ] || fail "pairwise duplicate port check failed: $out"
+  [ "$(field "$out" "['config_conflicts']")" = "$expected" ] || fail "expected collision '$expected', got $out"
+done
+pass "all three service-port collision pairs are enumerated"
 
 echo "== case 2: external VPN owner uid alone cannot prove parallel routing =="
 r=$(run_arb "$LINKS_TUN" "tun0|10123" "$TMP/net_free" "$TMP/mod_clean")
