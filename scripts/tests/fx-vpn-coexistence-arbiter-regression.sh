@@ -175,6 +175,8 @@ rc=${r%%|*}; out=${r#*|}
 [ "$(field "$out" "['verdict']")" = "kernel_only" ] || fail "expected kernel_only, got $(field "$out" "['verdict']")"
 [ "$(field "$out" "['vpn_service_slot_used']")" = "False" ] || fail "slot must not be used"
 [ "$(field "$out" "['dataplane']")" = "kernel" ] || fail "dataplane must be kernel"
+[ "$(field "$out" "['route_probe']")" = "unverified" ] || fail "kernel_only must not claim live route verification"
+case "$(field "$out" "['reasons']")" in *"live traffic path remains unverified"*) : ;; *) fail "kernel_only reason must disclose unverified live traffic path" ;; esac
 [ "$(field "$out" "['dns_filter']['port']")" = "53" ] || fail "client-facing DNS filter port must default to 53"
 [ "$(field "$out" "['dns_filter']['owner']")" = "free" ] || fail "DNS filter port 53 should be free in the clean fixture"
 pass "kernel_only, slot free, both DNS ports observed"
