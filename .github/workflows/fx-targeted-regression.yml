@@ -159,7 +159,7 @@ jobs:
           fi
 
           if [[ "$changed" == "ALL" || "$changed" =~ (ExifPrivacyPolicy|ExifPrivacyPolicyTest|fx-exif-privacy-policy-regression) ]]; then
-            run_py scripts/tests/fx-exif-privacy-policy-regression.py
+            run_sh scripts/tests/fx-exif-privacy-policy-regression.sh
           fi
 
           if [[ "$changed" == "ALL" || "$changed" =~ (FxHookConfigPublisher|UnifiedHookConfigParser|UnifiedHookConfigSerializer|HookTargetConfigParser|UnifiedHookConfigParserTest|UnifiedHookConfigSerializerTest|HookTargetConfigParserTest|AdVisibilityHook|fx-hook-config-stream-publish) ]]; then
