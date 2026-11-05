@@ -63,4 +63,12 @@ fi
 grep -Fq 'cleanup helper is missing' "$T/missing.out" || fail "missing helper refusal was not reported"
 [ -f "$PG/yulong-root-proxy-active" ] || fail "residual Root Proxy marker was not preserved"
 
-echo "PASS: FX uninstall stops Root Proxy before firewall teardown and fails closed on cleanup errors or missing helper"
+# A symlinked state root must be rejected before any helper or log redirection.
+ln -s "$PG" "$T/state-link"
+if ORDER_LOG="$T/symlink-order.log" PG="$T/state-link" MODDIR="$MOD" sh "$MOD/uninstall.sh" > "$T/symlink.out" 2>&1; then
+  fail "uninstall accepted a symlinked FX state directory"
+fi
+[ ! -e "$T/symlink-order.log" ] || fail "uninstall invoked a helper before rejecting the symlinked state root"
+grep -Fq 'state directory is a symlink or non-directory' "$T/symlink.out" || fail "symlinked state root refusal was not reported"
+
+echo "PASS: FX uninstall safely validates state root, stops Root Proxy before firewall teardown and retires deployment markers only after successful Hook removal"
