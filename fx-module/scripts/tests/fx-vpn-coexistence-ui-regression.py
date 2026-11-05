@@ -1,0 +1,37 @@
+#!/usr/bin/env python3
+"""Guard the native VPN UI consumer for the published coexistence snapshot."""
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+MAIN = ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
+source = MAIN.read_text(encoding="utf-8")
+required = (
+    "refreshVpnCoexistenceStatus",
+    "/data/adb/privacyguard/vpn-coexistence.json",
+    "FX_COEXISTENCE_STATUS_NOT_PUBLISHED",
+    'json.optString("grade_cn", "状态未知")',
+    'json.optString("verdict", "unknown")',
+    'json.optString("route_probe", "unverified")',
+    'json.optBoolean("external_vpn", false)',
+    'json.optString("external_if", "")',
+    'json.optString("external_uid", "")',
+    'Object slotValue = json.opt("vpn_service_slot_used")',
+    'slotValue instanceof Boolean',
+    '"FX VpnService 槽位状态未知"',
+    '"FX 内核数据面不占 Android VpnService 槽位"',
+    '"FX 使用 Android VpnService 槽位"',
+    'json.optString("dataplane", "unknown")',
+    'json.optString("source", "unknown")',
+    '"verified".equals(routeProbe)',
+    'formatVpnCoexistencePort(json, "dns", "DNS 上游", 5353)',
+    'formatVpnCoexistencePort(json, "dns_filter", "DNS 过滤", 53)',
+    'formatVpnCoexistencePort(json, "proxy", "代理", 7890)',
+    'state.optString("owner", "unknown")',
+    '"free".equals(owner)',
+    '"other".equals(owner)',
+    'nativeAction("刷新 VPN 共存状态", null)',
+)
+missing = [item for item in required if item not in source]
+if missing:
+    raise SystemExit("VPN coexistence UI consumer missing: " + ", ".join(missing))
+print("PASS: native VPN controls read and render the published coexistence verdict")
