@@ -361,6 +361,16 @@ if FX_ADHOOK_STATE_DIR="$PATH_GUARD/safe-state" FX_ADHOOK_TMP_DIR="$PATH_GUARD/s
   fail "installer accepted a symlinked log file"
 fi
 grep -Fxq 'keep-log-target' "$PATH_GUARD/log-target" || fail "installer appended through a symlinked log file"
+# A log path whose parent directory is a symlink must be rejected before
+# opening/creating the log, even when state and temp directories are safe.
+mkdir -p "$PATH_GUARD/log-parent-target"
+ln -s "$PATH_GUARD/log-parent-target" "$PATH_GUARD/log-parent-link"
+if FX_ADHOOK_STATE_DIR="$PATH_GUARD/safe-state" FX_ADHOOK_TMP_DIR="$PATH_GUARD/safe-tmp" \
+   FX_ADHOOK_LOG="$PATH_GUARD/log-parent-link/install.log" sh "$INSTALLER" "$TMP/mod" >/dev/null 2>&1; then
+  fail "installer accepted a symlinked log parent directory"
+fi
+[ ! -e "$PATH_GUARD/log-parent-target/install.log" ] || fail "installer created a log through a symlinked parent directory"
+
 
 
 # The remover must not read ownership proof or write logs through a symlinked
