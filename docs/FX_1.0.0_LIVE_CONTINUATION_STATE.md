@@ -4750,3 +4750,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - 6001fb44dcf5e65f44bba317d23ee6532b70fedc — 增加 system-app overlay 构建/启动部署断言。
   - 041527b821ecf19dfb8ae003cc1b121f0ab4645e — 对齐当前安装器的 PackageManager 实际路径摘要验证逻辑。
 - GitHub 回读静态检查 10/10 通过；未执行该 Shell 测试、Android PackageManager 真机验证或 SELinux 标签检查。不得将静态回读称为设备安装验收。
+
+
+## 2026-11-05 — VPN 页面增加 Android 活动 VPN 接口只读诊断
+
+- 在 FX 原生 VPN 控制卡增加只读 Android VPN transport 状态：通过 ConnectivityManager.getAllNetworks() + NetworkCapabilities.TRANSPORT_VPN 统计当前可见的活动 VpnService 网络；无活动网络时明确说明这不代表设备未安装 VPN 应用。检测结果在页面初始化及后端状态同步时刷新，不创建额外轮询器、不修改路由。
+- 明确标注 FX Root 内核代理不占用 Android VpnService 名额，并说明与其他 VPN 的流量兼容性仍受 ROM、UID 路由、DNS、TUN 和策略规则影响。检测接口不识别具体 VPN 所属应用，也不证明多个 VpnService 可以并行。
+- 修正旧状态文案把 root_proxy_on 描述为“第三方 VPN / Root DNS 保护正在运行”的错误归因；现在只显示 FX Root 网络代理保护状态。AndroidManifest 已有 ACCESS_NETWORK_STATE，且当前 APK 未声明 android.net.VpnService/BIND_VPN_SERVICE。
+- 提交：
+  - cf4aba297fdfae1b651ab3c85b8298b9f65a14f8 — 增加活动 Android VPN transport 诊断并纠正状态标签。
+  - 1cb631109b1bfea5f3ffddeca28403c389bdfb59 — 加入 VPN 诊断静态回归断言。
+  - 756181ff9bae1742f16d520fd43fa531a45344e3 — 明确断言 FX APK 不注册 VpnService。
+- GitHub 回读静态检查 10/10 通过；未运行 Shell/Gradle 测试、未在设备上与第三方 VPN 做真实数据面共存测试。该改动是检测与产品透明度补强，不是多 VpnService 或 TPROXY/UID 路由兼容验收。
