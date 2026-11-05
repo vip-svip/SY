@@ -217,6 +217,27 @@ public final class HookConfigParserHostTest {
             throw new AssertionError("serializer/parser failed the 96-rule round trip");
         }
         System.out.println("PASS: Developer Hook parser and serializer round-trip 96 rules for one target");
+        StringBuilder developerRules = new StringBuilder(
+                "schema_version=1\nads_enabled=0\nprivacy_enabled=0\n[list:targets]\n"
+                        + "com.example.owned,dev_hook_enabled=1");
+        for (int i = 1; i <= 96; i++) {
+            developerRules.append(",dev_rule_").append(i).append("=rule").append(i)
+                    .append("|com.example.owned.Rule").append(i).append("#isEnabled()Z|OBSERVE|").append(i);
+        }
+        UnifiedHookConfigParser.Result parsedDeveloperRules =
+                UnifiedHookConfigParser.parse(developerRules.toString());
+        if (parsedDeveloperRules.targets.get("com.example.owned").developerRules.size() != 96) {
+            throw new AssertionError("parser still caps Developer Hook rules at 64");
+        }
+        String serializedDeveloperRules = UnifiedHookConfigSerializer.serialize(
+                false, false, parsedDeveloperRules.targets);
+        UnifiedHookConfigParser.Result roundTripDeveloperRules =
+                UnifiedHookConfigParser.parse(serializedDeveloperRules);
+        if (roundTripDeveloperRules.targets.get("com.example.owned").developerRules.size() != 96
+                || !serializedDeveloperRules.contains("dev_rule_b64_96=")) {
+            throw new AssertionError("serializer did not preserve more than 64 Developer Hook rules");
+        }
+        System.out.println("PASS: Developer Hook parser and serializer round-trip 96 rules per target");
         System.out.println("PASS: both current and legacy parsers accept 2,500 targets above 64 KiB and 1,000 lines");
     }
 }
@@ -228,6 +249,7 @@ javac -d "$T/parser-classes" \
   "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaKeyGesturePolicy.java" \
   "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaDialogMatchPolicy.java" \
   "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigParser.java" \
+  "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigSerializer.java" \
   "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/HookTargetConfigParser.java" \
   "$T/HookConfigParserHostTest.java"
 java -cp "$T/parser-classes" de.privacyguard.adhook.HookConfigParserHostTest
