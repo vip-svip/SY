@@ -13,6 +13,30 @@ import tempfile
 
 package = Path(sys.argv[1]).read_text(encoding="utf-8")
 unbound = Path(sys.argv[2]).read_text(encoding="utf-8")
+root = Path(sys.argv[1]).parents[2]
+module_script_path = root / "fx-module/scripts/unbound.sh"
+root_proxy_path = root / "fx-module/scripts/yulong-root-proxy.sh"
+assert module_script_path.is_file(), "tracked FX Unbound lifecycle script missing"
+assert root_proxy_path.is_file(), "tracked FX Root Proxy lifecycle script missing"
+module_script = module_script_path.read_text(encoding="utf-8")
+root_proxy = root_proxy_path.read_text(encoding="utf-8")
+for token in (
+    'ROOT="$MODDIR/engines/unbound"',
+    'BIN="$ROOT/unbound"',
+    'CHECKBIN="$ROOT/unbound-checkconf"',
+    'ANCHOR="$ROOT/unbound-anchor"',
+    'PROBE="$ROOT/fx-dns-probe"',
+    'ROOT_HINTS="$ROOT/root.hints"',
+    'ROOT_KEY_SEED="$ROOT/root.key.seed"',
+    '_hash "$BIN" "$ROOT/unbound.sha256"',
+    '_hash "$ROOT_HINTS" "$ROOT/root.hints.sha256"',
+    'interface: 127.0.0.1',
+    'port: 5353',
+    'do-tcp: yes',
+    'do-udp: yes',
+):
+    assert token in module_script, f"FX Unbound lifecycle contract missing: {token}"
+assert 'sh "$MP/scripts/unbound.sh" ensure "$MP" "$PG"' in root_proxy, "Root Proxy does not start the independent local Unbound resolver"
 start = package.find("      - name: Stage checksum-verified Unbound Android ARM64 runtime\n")
 end = package.find("      - name: Decode and integrate Yulong 7.0.1 built-in DNS/Hosts rules", start)
 assert start >= 0 and end > start, "KernelSU package must stage Unbound before Yulong DNS/Hosts integration"
