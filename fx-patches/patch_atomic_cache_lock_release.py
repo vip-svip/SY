@@ -2,6 +2,7 @@
 """Atomically release the per-URL Hosts and subscription cache locks."""
 from pathlib import Path
 import re
+import shutil
 import sys
 
 module = Path(sys.argv[1] if len(sys.argv) > 1 else "fx-module")
