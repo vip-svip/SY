@@ -86,13 +86,12 @@ required = {
     "rotation saves only filename": "outState.putString(STATE_PENDING_LIBRARY_EXPORT, pendingFridaLibraryExportFileName)",
     "rotation restores filename": "state.getString(STATE_PENDING_LIBRARY_EXPORT)",
     "large script draft cache": "new android.util.AtomicFile(new File(getCacheDir(), SCRIPT_DRAFT_CACHE_NAME))",
-    "large script draft cache remains file-backed": "MAX_FRIDA_DRAFT_BYTES = 512 * 1024",
     "large script draft Bundle marker": "outState.putBoolean(STATE_SCRIPT_DRAFT_FILE, true)",
     "large script draft restore": "readTransientFridaScriptDraft()",
     "large script draft atomic write": "atomic.finishWrite(output)",
     "large script draft rollback": "atomic.failWrite(output)",
     "large draft cache requires Bundle ownership marker": "if (state == null || !state.getBoolean(STATE_SCRIPT_DRAFT_FILE, false))",
-    "corrupt draft cache removed after read failure": "// Do not let a corrupt/oversized cache be retried as a valid draft forever.",
+    "corrupt draft cache removed after read failure": "// Do not let a corrupt cache be retried as a valid draft forever.",
     "failed or oversized new draft removes previous cache": "// A failed write can roll back to an older AtomicFile.",
     "stale private-cache cleanup": "cleanupStalePendingLibraryExports(pendingFridaLibraryExportFileName)",
     "clipboard remains explicitly separate": "copyFridaScriptLibraryJson()",
@@ -119,6 +118,8 @@ for label, needle in store_required.items():
         raise SystemExit(f"FAIL: missing store {label}: {needle}")
 if "MAX_" in policy or "MAX_" in store or "MAX_LIBRARY_JSON_BYTES" in source or "MAX_LIBRARY_JSON_BYTES" in library:
     raise SystemExit("FAIL: arbitrary script-library name/source/count/JSON capacity cap remains")
+if "MAX_FRIDA_DRAFT_BYTES" in source or "512 * 1024" in source or "128 * 1024" in source:
+    raise SystemExit("FAIL: legacy Frida save/import/export/draft still has an arbitrary size cap")
 for label, needle in {
     "file import previews overlaps": "previewAndImportFridaScriptLibraryJson(json)",
     "clipboard import previews overlaps": "previewAndImportFridaScriptLibraryJson(input.getText().toString())",

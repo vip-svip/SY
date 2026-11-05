@@ -4949,3 +4949,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Regression-script cleanup: removed a stale assertion for a newline-delimited conflict list; the actual native preview uses the localized full-name list and is now asserted directly. The check also verifies the obsolete truncation suffix is absent.
 
 - Follow-up compatibility fix: aligned the legacy Frida SAF regression with the unbounded library contract, retained its separate file-backed draft safeguards for later editor transport work, and removed the remaining 64-character name truncation during Activity rotation.
+
+
+## 2026-11-05 — Remove remaining legacy Dia script storage caps
+
+- Removed the legacy Frida page's 128 KiB per-script save guard, 64-character saved-script name guard, and 512 KiB standalone JavaScript SAF import/export guards. Shared store validation still rejects empty names/content, delimiters/control characters, malformed JSON values, and malformed UTF-8.
+- Removed the 512 KiB ceiling from AtomicFile-backed Activity draft persistence; writes remain atomic and corrupt drafts are removed on read failure. Activity state stores only an ownership marker for large drafts, not their full source in the Bundle.
+- Updated the SAF regression to validate actual import/export/cancellation/rotation/overwrite guarantees and reject arbitrary capacity constants instead of requiring old limits.
+- Remaining distinct limitation: full-screen editor Binder/Bundle handoff and Frida runtime command transport still use a 48 KiB guard. File-backed editor handoff and runtime script staging remain the next engineering task; no unlimited runtime injection is claimed.

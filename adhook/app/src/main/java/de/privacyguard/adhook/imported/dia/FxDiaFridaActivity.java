@@ -64,7 +64,6 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
     private static final String PENDING_LIBRARY_EXPORT_PREFIX = "fx-dia-frida-library-";
     private static final String STATE_SCRIPT_DRAFT_FILE = "fx_frida_script_draft_file";
     private static final String SCRIPT_DRAFT_CACHE_NAME = "fx-dia-frida-script-state.js";
-    private static final int MAX_FRIDA_DRAFT_BYTES = 512 * 1024;
     private volatile boolean activityDestroyed;
     private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
             1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(12),
@@ -608,7 +607,6 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
     private boolean writeTransientFridaScriptDraft(String source) {
         if (source == null) return false;
         byte[] bytes = source.getBytes(StandardCharsets.UTF_8);
-        if (bytes.length > MAX_FRIDA_DRAFT_BYTES) return false;
         android.util.AtomicFile atomic = transientFridaScriptDraftFile();
         FileOutputStream output = null;
         try {
@@ -631,8 +629,6 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
             byte[] buffer = new byte[8192];
             int count;
             while ((count = input.read(buffer)) != -1) {
-                if (output.size() > MAX_FRIDA_DRAFT_BYTES - count)
-                    throw new IllegalArgumentException("暂存脚本超过 512 KiB 限制。");
                 output.write(buffer, 0, count);
             }
             return new String(output.toByteArray(), StandardCharsets.UTF_8);
@@ -776,14 +772,13 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
             if (sourceBytes <= MAX_FRIDA_SOURCE_BYTES) {
                 outState.putString("fx_frida_script", source);
                 deleteTransientFridaScriptDraft();
-            } else if (sourceBytes <= MAX_FRIDA_DRAFT_BYTES
-                    && writeTransientFridaScriptDraft(source)) {
+            } else if (writeTransientFridaScriptDraft(source)) {
                 outState.putBoolean(STATE_SCRIPT_DRAFT_FILE, true);
             } else {
                 // A failed write can roll back to an older AtomicFile. The new Bundle
                 // has no ownership marker, so remove that previous draft immediately.
                 deleteTransientFridaScriptDraft();
-                setStatus("脚本超过 512 KiB 或暂存失败；Activity 重建后可能无法恢复该草稿，请先导出/保存脚本。");
+                setStatus("脚本暂存失败；Activity 重建后可能无法恢复该草稿，请先导出/保存脚本。");
             }
         }
         if (targetPackage != null) outState.putString("fx_frida_target_package", targetPackage);
@@ -825,10 +820,6 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
             setStatus("当前 Frida 脚本为空，未保存。");
             return;
         }
-        if (source.getBytes(StandardCharsets.UTF_8).length > 128 * 1024) {
-            setStatus("单个 Frida 脚本不能超过 128 KiB。");
-            return;
-        }
         restoreSaveScriptDialog = true;
         showSaveFridaScriptDialog();
     }
@@ -840,7 +831,6 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         saveScriptNameInput = name;
         name.setSingleLine(true);
         name.setHint("脚本名称，例如 HTTP 连接观察");
-        name.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(64)});
         name.setText(saveScriptNameDraft);
         name.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) { }
@@ -856,8 +846,8 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 .setPositiveButton("保存", (d, which) -> {
                     String label = name.getText() == null ? "" : name.getText().toString().trim();
                     clearSaveScriptDialogState();
-                    if (label.isEmpty() || label.length() > 64 || label.indexOf('|') >= 0) {
-                        setStatus("脚本名称不能为空，且不能超过 64 个字符。");
+                    if (label.isEmpty() || label.indexOf('|') >= 0) {
+                        setStatus("脚本名称不能为空，且不能包含竖线字符。");
                         return;
                     }
                     try {
@@ -1142,8 +1132,6 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 int count;
                 while ((count = input.read(buffer)) != -1) {
                     ensureFridaWorkerActive();
-                    if (output.size() > 512 * 1024 - count)
-                        throw new IllegalArgumentException("脚本超过 512 KiB 限制。");
                     output.write(buffer, 0, count);
                 }
                 String source = FxDiaScriptLibraryPolicy.decodeUtf8(output.toByteArray());
@@ -1166,10 +1154,6 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
     private void exportScript(Uri uri) {
         String source = script == null ? "" : script.getText().toString();
         if (source.isEmpty()) { setStatus("当前没有可导出的 JS 脚本。"); return; }
-        if (source.getBytes(StandardCharsets.UTF_8).length > 512 * 1024) {
-            setStatus("脚本超过 512 KiB 限制，无法导出。");
-            return;
-        }
         submitWorker(() -> {
             try (java.io.OutputStream output = getContentResolver().openOutputStream(uri, "w")) {
                 if (output == null) throw new IllegalStateException("无法创建目标文件。");
