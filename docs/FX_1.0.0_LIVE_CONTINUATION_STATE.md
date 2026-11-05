@@ -6089,3 +6089,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 修正后 GitHub Actions：VPN Coexistence Arbiter run `42102744421` SUCCESS；Targeted Host Regression run `42102745222` SUCCESS；Six UI Modes run `42102744474` SUCCESS。Module Runtime Regression run `42102744532` 在记录时仍为 in_progress，不据此宣称通过。
 - 已从 GitHub 回读测试脚本，确认隔离假命令、非零退出、unknown/unavailable 断言已写入。此批为 Host/CI shell 回归；未运行 Android Gradle 构建、APK/KernelSU ZIP 构建、模拟器或真机 VPN/TUN/DNS 数据面测试。
 - 下一步：跟进 Module Runtime Regression run `42102744532`；随后转入本地 DNS 独立服务的启停/卸载恢复与端口回滚测试，继续保持 VPN 与 DNS 分离的生命周期。
+
+
+### VPN arbiter probe hardening — CI follow-up
+
+- 后续协作提交 `bba5e10275de0b847c49c848ce827f393c009596` 修正只读 link fixture 的 Shell 转义；未覆盖或回退本批 arbiter 代码。
+- 最新 HEAD 对应 Actions：`FX VPN Coexistence Arbiter` run `42102744421` SUCCESS（脚本语法、完整共存分级回归、只读性扫描、runner 网络 smoke test 均通过）；`FX Targeted Host Regression` run `42102745222` SUCCESS；`FX Six UI Modes` run `42102744474` SUCCESS。
+- `FX Module Runtime Regression` run `42102744532` 记录时仍在执行，VPN/DNS/TUN/Root Proxy 专项结果未定。无 Android 真机证据，不将 CI 结果等同设备验收。
