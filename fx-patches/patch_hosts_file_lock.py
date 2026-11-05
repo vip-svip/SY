@@ -11,10 +11,10 @@ if not target.is_file():
 source = target.read_text(encoding="utf-8")
 marker = "# FX_HOSTS_FILE_LOCK_V3"
 required_lock_tokens = (
-    '_hf_release="$_hf_lock.release.$"',
+    '_hf_release="$_hf_lock.release.$$"',
     'mv "$_hf_lock" "$_hf_release"',
-    'if [ "$_hf_release_owner" = "$" ]; then',
-    '_hf_stale="$_hf_lock.stale.$.$_hf_wait"',
+    'if [ "$_hf_release_owner" = "$$" ]; then',
+    '_hf_stale="$_hf_lock.stale.$$.$_hf_wait"',
     'mv "$_hf_lock" "$_hf_stale"',
     'if [ "$_hf_moved_owner" = "$_hf_owner" ]',
 )
