@@ -194,6 +194,8 @@ public final class HookConfigParserHostTest {
 JAVA
 javac -d "$T/parser-classes" \
   "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/DeveloperHookRule.java" \
+  "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/DeveloperExecutableDescriptor.java" \
+  "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/SensorPrivacyPolicy.java" \
   "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaKeyGesturePolicy.java" \
   "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaDialogMatchPolicy.java" \
   "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigParser.java" \
