@@ -67,3 +67,30 @@ jobs:
         run: |
           set -euo pipefail
           gradle --no-daemon -p adhook :fx-gkd-selector:jvmTest
+      - name: Set up Android SDK for the FX app integration seam
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-37.0 build-tools;36.0.0
+      - name: Normalize Android 17 platform path for AGP
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          if [[ -d "$sdk_root/platforms/android-37.0" && ! -e "$sdk_root/platforms/android-37" ]]; then
+            ln -s android-37.0 "$sdk_root/platforms/android-37"
+          fi
+          test -s "$sdk_root/platforms/android-37/android.jar"
+      - name: Compile FX app and the GKD Accessibility adapter
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon -Pandroid.useAndroidX=true -p adhook \
+            :app:compileDebugKotlin \
+            :app:compileDebugJavaWithJavac \
+            :app:compileDebugUnitTestKotlin
+      - name: Run the FX GKD selector adapter unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon -Pandroid.useAndroidX=true -p adhook \
+            :app:testDebugUnitTest --tests 'de.privacyguard.adhook.FxGkdSelectorRuntimeTest'
