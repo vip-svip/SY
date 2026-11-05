@@ -151,8 +151,8 @@ public final class FxYulongAdGeneralActivity extends de.privacyguard.adhook.FxNa
         LinearLayout root = new LinearLayout(this); root.setOrientation(1); root.setBackgroundColor(0xfff7f8fa);
         LinearLayout header = new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(10), dp(6), dp(12), dp(6));
-        header.addView(button("‹ 返回", this::finish));
-        header.addView(text("游龙广告插件 7.0.1 · 通用设置", 18, 0xff17212b, true),
+        header.addView(button("‹ 返回 Ad", this::finish));
+        header.addView(text("Ad · 通用设置与备份恢复", 18, 0xff17212b, true),
                 new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
         ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
@@ -171,7 +171,7 @@ public final class FxYulongAdGeneralActivity extends de.privacyguard.adhook.FxNa
                 button("从 JSON 导入设置", this::pickImport),
                 operationStatus);
 
-        card(body, "页面快捷入口", "这些功能仍保留在游龙广告插件自己的四级页面中。",
+        card(body, "页面快捷入口", "以下入口属于 FX Ad 的内部功能页面，可在统一应用内继续管理。",
                 button("过滤列表", () -> openPage("过滤列表")),
                 button("DNS 设置", () -> openPage("DNS 设置")),
                 button("域名白/黑名单", () -> openPage("域名名单")),
@@ -180,14 +180,14 @@ public final class FxYulongAdGeneralActivity extends de.privacyguard.adhook.FxNa
 
         card(body, "系统快捷开关",
                 "通过 Android 系统的“添加磁贴”确认流程，将游龙广告过滤或 FX VPN 加入快捷设置面板。磁贴由系统托管；添加不会自动启动过滤或 VPN。",
-                button("添加“游龙广告过滤”快捷开关", () ->
-                        requestQuickSettingsTile(FxYulongAdTileService.class, "游龙广告过滤")),
+                button("添加“FX 广告过滤”快捷开关", () ->
+                        requestQuickSettingsTile(FxYulongAdTileService.class, "FX 广告过滤")),
                 button("添加“FX VPN”快捷开关", () ->
                         requestQuickSettingsTile(FxYulongVpnTileService.class, "FX VPN")));
 
         card(body, "桌面小组件",
-                "将 FX 游龙广告过滤状态组件固定到支持的桌面启动器。组件会读取设备端真实 VPN/Root Proxy 状态；固定操作由桌面启动器确认。",
-                button("添加游龙广告过滤桌面小组件", this::requestHomeWidgetPin));
+                "将 FX 广告过滤状态组件固定到支持的桌面启动器。组件会读取设备端真实 VPN/Root Proxy 状态；固定操作由桌面启动器确认。",
+                button("添加 FX 广告过滤桌面小组件", this::requestHomeWidgetPin));
 
         android.content.SharedPreferences taskerPrefs =
                 getSharedPreferences(FxYulongAdTaskerReceiver.PREFS_NAME, MODE_PRIVATE);
@@ -260,7 +260,7 @@ public final class FxYulongAdGeneralActivity extends de.privacyguard.adhook.FxNa
         card(body, "界面、主题与语言",
                 "FX 已合并为单一原生应用，界面主题、语言和强调色属于 FX 应用级偏好；不会再创建第二套游龙 Activity 主题配置。");
         card(body, "关于",
-                "原始功能来源：游龙广告插件 7.0.1。\n"
+                "功能模块：FX Ad。\n"
                         + "当前宿主：FX 1.0.0 / FX Hook。\n"
                         + "网络架构：FX 单一 VPN/TUN + Root DNS Proxy 回退；不安装游龙原版第二个 VpnService。\n"
                         + "配置和备份仅保存在本机，导入导出由用户通过 Android 文件选择器授权。");
