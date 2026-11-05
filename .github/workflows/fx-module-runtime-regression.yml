@@ -57,6 +57,7 @@ jobs:
           set -euo pipefail
           module="$FX_MODULE_RUNTIME"
           install -D -m 0755 scripts/native-vpn-config.sh "$module/scripts/native-vpn-config.sh"
+          install -D -m 0755 scripts/fx-vpn-coexistence-arbiter.sh "$module/scripts/fx-vpn-coexistence-arbiter.sh"
           python3 fx-patches/patch_vpn_apps.py "$module"
           python3 fx-patches/patch_vpn_direct_core_stop_result.py "$module"
           python3 fx-patches/patch_vpn_core_stop_guard.py "$module"
@@ -83,8 +84,10 @@ jobs:
           module="$FX_MODULE_RUNTIME"
           python3 scripts/tests/fx-vpn-watchdog-patcher-regression.py
           python3 fx-patches/patch_yulong_ad_master.py "$module"
+          python3 fx-patches/patch_vpn_coexistence_status.py "$module"
+          python3 scripts/tests/fx-vpn-coexistence-status-regression.py
           python3 fx-patches/patch_yulong_ad_dns_logs.py "$module"
-          for file in "$module/scripts/apply.sh" "$module/scripts/status.sh" "$module/scripts/vpncore.sh" "$module/scripts/vpn-external-watchdog.sh" "$module/scripts/localdns-watchdog.sh"; do
+          for file in "$module/scripts/apply.sh" "$module/scripts/status.sh" "$module/scripts/fx-vpn-coexistence-arbiter.sh" "$module/scripts/vpncore.sh" "$module/scripts/vpn-external-watchdog.sh" "$module/scripts/localdns-watchdog.sh"; do
             test -s "$file"
             sh -n "$file"
           done
