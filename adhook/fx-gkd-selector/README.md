@@ -16,10 +16,10 @@ The FX APK consumes only `:fx-gkd-selector`. The upstream `:gkd-app` is delibera
 The app-side integration is in:
 - `FxGkdSelectorEngine.kt`: validates and matches upstream selectors against an immutable FX node snapshot.
 - `FxGkdAccessibilitySnapshot.kt`: copies a bounded Accessibility tree and excludes text/description for password and editable nodes.
-- `FxGkdRuleStore.kt`: stores up to 128 local rules, each scoped to one installed user app, with a default-off master switch and bounded cooldown.
+- `FxGkdRuleStore.kt`: stores up to 128 local rules, each scoped to one installed user app, with a default-off master switch and bounded cooldown. Versioned JSON import/export (256 KiB max) validates packages, selectors and cooldowns, merges without overwriting existing rules, and always imports rules disabled.
 - `FxGkdAutomationRuntime.kt`: matches opted-in local rules and permits only a visible clickable node that is rechecked as non-password/non-editable immediately before ACTION_CLICK.
 - `FxAccessibilityService.java`: reuses the existing FX service; it reads a window tree only when the user enables the GKD master switch and the event package has an enabled local rule.
-- `FxGkdAutomationActivity.java`: Hook-tab UI for adding, enabling, disabling, and deleting local selector rules.
+- `FxGkdAutomationActivity.java`: Hook-tab UI for adding, enabling, disabling, deleting, importing and exporting local selector rules; targets can be selected from installed user apps.
 
 The initial runtime is intentionally limited: no upstream subscriptions or cloud sync, rule groups/exclusions, AI providers, screenshots, trigger history, Shizuku/AIDL bridge, or GKD boot/notification/tile lifecycle have been migrated yet. It is not a claim of full GKD-XA feature parity.
 
