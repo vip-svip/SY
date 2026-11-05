@@ -44,7 +44,7 @@ grep -Fq "liveNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)" "$automati
 grep -Fq "MAX_NODES = 700" "$snapshot"
 grep -Fq "MAX_DEPTH = 32" "$snapshot"
 grep -Fq "info.isPassword || info.isEditable" "$snapshot"
-grep -Fq "FxGkdAutomationRuntime.process(this, pkg, root)" "$service"
+grep -Fq "FxGkdAutomationRuntime.process(this, eventPackage, root)" "$service"
 grep -Fq "FxGkdRuleStore.hasEnabledRule(this, pkg)" "$service"
 grep -Fq "matchesUpstreamAttributeAndWidgetSelectors" "$unit"
 grep -Fq "respectsSelectorResultLimit" "$unit"
