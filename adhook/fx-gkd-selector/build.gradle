@@ -1,0 +1,47 @@
+plugins {
+    id 'org.jetbrains.kotlin.multiplatform'
+}
+
+def upstreamSelector = rootProject.file('../vendor/GKD-XA/gkd-selector/src')
+
+kotlin {
+    jvm {
+        compilations.all {
+            kotlinOptions.jvmTarget = '17'
+        }
+    }
+
+    sourceSets {
+        commonMain {
+            kotlin.srcDir(new File(upstreamSelector, 'commonMain/kotlin'))
+            languageSettings.optIn('kotlin.js.ExperimentalJsExport')
+            languageSettings.optIn('kotlin.js.ExperimentalJsStatic')
+            dependencies {
+                implementation 'org.jetbrains.kotlin:kotlin-stdlib:2.4.21'
+            }
+        }
+        jvmMain {
+            kotlin.srcDir(new File(upstreamSelector, 'jvmMain/kotlin'))
+        }
+        commonTest {
+            kotlin.srcDir(new File(upstreamSelector, 'commonTest/kotlin'))
+            dependencies {
+                implementation 'org.jetbrains.kotlin:kotlin-test:2.4.21'
+            }
+        }
+        jvmTest {
+            kotlin.srcDir(new File(upstreamSelector, 'jvmTest/kotlin'))
+            dependencies {
+                implementation 'org.jetbrains.kotlin:kotlin-test:2.4.21'
+                implementation 'org.jetbrains.kotlin:kotlin-test-junit:2.4.21'
+                implementation 'junit:junit:4.13.2'
+            }
+        }
+    }
+}
+
+tasks.withType(Test).configureEach {
+    testLogging {
+        events 'failed', 'skipped'
+    }
+}
