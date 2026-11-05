@@ -265,7 +265,7 @@ def main() -> None:
         case("case 11: pre-planted marker temp symlink cannot redirect installer root write")
         module11 = tmp / "c11/module"
         state11 = tmp / "c11/state"
-        make_payload(module11, "marker-temp")
+        apk11 = make_payload(module11, "marker-temp")
         state11.mkdir(parents=True)
         marker_sentinel = tmp / "c11/marker-sentinel"
         marker_sentinel.write_text("keep-marker\\n", encoding="utf-8")
@@ -287,7 +287,7 @@ def main() -> None:
             "HARNESS": str(harness),
             "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
         }
-        child = subprocess.Popen(["sh", str(wrapper)], env=env11, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        child = subprocess.Popen([ "sh", str(wrapper)], env=env11, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         try:
             import time
             for _ in range(300):
@@ -299,14 +299,19 @@ def main() -> None:
             marker_tmp.symlink_to(marker_sentinel)
             gate.touch()
             out, err = child.communicate(timeout=5)
-            assert child.returncode != 0, f"pre-planted marker temp symlink must fail closed: {out}{err}"
+            assert child.returncode == 0, f"random marker temp must bypass the pre-planted predictable symlink safely: {out}{err}"
             assert marker_sentinel.read_text(encoding="utf-8") == "keep-marker\\n", "marker temp symlink redirected a privileged write"
-            assert not (state11 / "system-app-apk.sha256").exists(), "marker must not be committed after temp collision"
-            print("  ok: pre-planted marker temp symlink refused")
+            assert marker_tmp.is_symlink(), "installer removed or replaced the pre-planted predictable symlink"
+            expected = sha256_of(apk11)
+            assert (state11 / "system-app-apk.sha256").read_text(encoding="utf-8").strip() == expected, "verified marker was not committed"
+            leftovers = list(state11.glob("system-app-apk.sha256.tmp.*"))
+            assert leftovers == [marker_tmp], f"unexpected marker temp files remain: {leftovers}"
+            print("  ok: randomized exclusive marker temp ignored pre-planted symlink")
         finally:
             if child.poll() is None:
                 child.kill()
                 child.wait()
+
 
     print("PASS: install-stage system-app deployment validates, stages, fails closed and stays idempotent")
 
