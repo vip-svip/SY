@@ -287,7 +287,7 @@ fx_system_app_stage() {
   _fx_marker_tmp="$fx_system_app_marker.tmp.$$"
   if ! fx_system_app_path_is_safe "$_fx_marker_tmp" ||
      [ -e "$_fx_marker_tmp" ] || [ -L "$_fx_marker_tmp" ] ||
-     ! ( umask 077; set -C; printf '%s\\n' "$_fx_actual" > "$_fx_marker_tmp" ) 2>/dev/null ||
+          ! ( umask 077; set -C; printf '%s\n' "$_fx_actual" > "$_fx_marker_tmp" ) 2>/dev/null ||
      ! chmod 0600 "$_fx_marker_tmp" 2>/dev/null ||
      ! mv -f "$_fx_marker_tmp" "$fx_system_app_marker" 2>/dev/null; then
     [ -f "$_fx_marker_tmp" ] && [ ! -L "$_fx_marker_tmp" ] && rm -f "$_fx_marker_tmp" 2>/dev/null || :
