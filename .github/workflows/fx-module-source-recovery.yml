@@ -1,0 +1,51 @@
+name: FX Module Source Recovery
+
+on:
+  push:
+    branches:
+      - fx-v1.0.0-unified-hook-integration
+    paths:
+      - .github/workflows/fx-module-source-recovery.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout integration branch
+        uses: actions/checkout@v4
+      - name: Recover canonical FX module scripts from the existing 1.0.0 release
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/FX-v1.0.0.zip"
+          unpack="$RUNNER_TEMP/fx-module-unpack"
+          curl --fail --silent --show-error --location \
+            https://github.com/vip-svip/SY/releases/download/1.0.0/FX-v1.0.0.zip \
+            -o "$archive"
+          unzip -tq "$archive"
+          mkdir -p "$unpack" recovered-fx-module
+          unzip -q "$archive" -d "$unpack"
+          module_prop="$(find "$unpack" -maxdepth 3 -type f -name module.prop -print -quit)"
+          [[ -n "$module_prop" ]] || { echo "::error::No module.prop in the published FX module archive"; exit 1; }
+          source_root="$(dirname "$module_prop")"
+          [[ -d "$source_root/scripts" ]] || { echo "::error::Published FX module has no scripts directory"; exit 1; }
+          cp -a "$source_root/scripts" recovered-fx-module/
+          for file in module.prop service.sh post-fs-data.sh uninstall.sh; do
+            [[ ! -f "$source_root/$file" ]] || cp -a "$source_root/$file" recovered-fx-module/
+          done
+          if [[ -d "$source_root/bin" ]]; then
+            find "$source_root/bin" -type f -printf '%P\t%s bytes\n' | sort > recovered-fx-module/BIN-MANIFEST.txt
+          fi
+          sha256sum "$archive" > recovered-fx-module/RELEASE-ARCHIVE-SHA256.txt
+          find recovered-fx-module -type f | sort
+      - name: Upload recovered source snapshot for code integration
+        uses: actions/upload-artifact@v4
+        with:
+          name: fx-module-source-snapshot
+          path: recovered-fx-module/
+          if-no-files-found: error
+          retention-days: 1
