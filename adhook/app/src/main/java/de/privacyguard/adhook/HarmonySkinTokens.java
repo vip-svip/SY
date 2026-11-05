@@ -26,7 +26,6 @@ final class HarmonySkinTokens {
         static final int ACTION_BORDER = 0xffc9dcf5;
         static final int SWITCH_OFF_TRACK = 0xffc2ccd8;
         static final int INPUT_BORDER = 0xffb7cce5;
-        static final int INPUT_BORDER = 0xffb7cce5;
         private HarmonyColorTokens() { }
     }
 
