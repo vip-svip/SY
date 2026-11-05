@@ -33,7 +33,21 @@ jobs:
           [[ -n "$module_prop" ]] || { echo "::error::No module.prop in the published FX module archive"; exit 1; }
           source_root="$(dirname "$module_prop")"
           [[ -d "$source_root/scripts" ]] || { echo "::error::Published FX module has no scripts directory"; exit 1; }
-          [[ -s "$source_root/scripts/vpn-external-watchdog.sh" ]] || { echo "::error::Published FX external VPN watchdog is missing"; exit 1; }
+          # The checked-in fx-module tree is an overlay, not the complete runtime.
+          # Validate the exact core files consumed by service.sh, the coexistence
+          # arbiter, and the package workflow before publishing this recovery snapshot.
+          required=(
+            module.prop customize.sh post-fs-data.sh service.sh uninstall.sh
+            scripts/apply.sh scripts/default.conf scripts/util.sh scripts/certmgr.sh
+            scripts/vpncore.sh scripts/yulong-root-proxy.sh scripts/yulong-vpn-control.sh
+            scripts/vpn-external-watchdog.sh
+          )
+          for file in "${required[@]}"; do
+            [[ -s "$source_root/$file" ]] || {
+              echo "::error::Published FX module is incomplete: missing $file"
+              exit 1
+            }
+          done
           sha256sum "$source_root/scripts/vpn-external-watchdog.sh"
           cp -a "$source_root/scripts" recovered-fx-module/
           for file in module.prop customize.sh service.sh post-fs-data.sh uninstall.sh; do
@@ -54,6 +68,16 @@ jobs:
             find "$source_root/bin" -type f -printf '%P\t%s bytes\n' | sort > recovered-fx-module/BIN-MANIFEST.txt
           fi
           sha256sum "$archive" > recovered-fx-module/RELEASE-ARCHIVE-SHA256.txt
+          # Provide a per-file integrity manifest so later source integration can
+          # verify provenance without dumping the recovered runtime into CI logs.
+          (
+            cd recovered-fx-module
+            find . -type f ! -name SOURCE-SHA256SUMS.txt -print0 |
+              sort -z | xargs -0 -r sha256sum > SOURCE-SHA256SUMS.txt
+          )
+          printf '%s\n' "source=GitHub Release 1.0.0" "archive=FX-v1.0.0.zip" \
+            "recovery_branch=$GITHUB_REF_NAME" "recovery_commit=$GITHUB_SHA" \
+            > recovered-fx-module/SOURCE-ORIGIN.txt
           find recovered-fx-module -type f | sort
       - name: Upload recovered source snapshot for code integration
         uses: actions/upload-artifact@v4
