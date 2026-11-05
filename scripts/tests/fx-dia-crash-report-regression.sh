@@ -98,7 +98,7 @@ assert "FxDiaCrashRecord.hexUtf8(safeStack)" in formatter, "HEX mode must encode
 assert "hexExportRedactsOriginalStackBeforeEncoding" in unit, "JUnit must cover HEX stack secret redaction"
 assert "hexUtf8(secret)" in host_export_test, "host test must detect reversible-HEX secret leaks"
 assert "reportView.setText(record.format(" in activity, "local crash report view must retain raw diagnostic detail"
-for token in ("Authorization", "KEY_VALUE", "QUERY_VALUE", "URL_USER_INFO", "BEARER", "JWT", "PEM_PRIVATE_KEY"):
+for token in ("authorization|proxy-authorization", "(?im)", "KEY_VALUE", "QUERY_VALUE", "URL_USER_INFO", "BEARER", "JWT", "PEM_PRIVATE_KEY"):
     assert token in redactor, f"crash export credential redaction missing: {token}"
 assert '"encrypt_stack"' in activity, "Dia original encrypt_stack preference must be preserved"
 for token in ("ClipboardManager", "ClipData.newPlainText", "Intent.ACTION_SEND", "Intent.createChooser",
