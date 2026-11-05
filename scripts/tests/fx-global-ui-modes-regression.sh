@@ -15,12 +15,14 @@ cupertino_renderer="$root/adhook/app/src/main/java/de/privacyguard/adhook/Cupert
 native_skin_test="$root/adhook/app/src/test/java/de/privacyguard/adhook/FxNativeSkinPaletteTest.kt"
 ad_main="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java"
 ad_general="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdGeneralActivity.java"
+shield_scan="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongScanActivity.java"
+shield_rescue="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongRescueActivity.java"
 ad_summary="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdSummaryActivity.java"
 ad_firewall="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongFirewallActivity.java"
 shield_main="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongShieldActivity.java"
 dia_frida="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaFridaActivity.java"
 dia_scripts="$root/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaScriptLibraryActivity.java"
-for f in "$mode" "$panel" "$shell" "$tokens" "$activity" "$host" "$skin" "$harmony_tokens" "$cupertino_tokens" "$harmony_renderer" "$cupertino_renderer" "$native_skin_test" "$ad_main" "$ad_general" "$ad_summary" "$ad_firewall" "$shield_main" "$dia_frida" "$dia_scripts"; do
+for f in "$mode" "$panel" "$shell" "$tokens" "$activity" "$host" "$skin" "$harmony_tokens" "$cupertino_tokens" "$harmony_renderer" "$cupertino_renderer" "$native_skin_test" "$ad_main" "$ad_general" "$ad_summary" "$ad_firewall" "$shield_main" "$shield_scan" "$shield_rescue" "$dia_frida" "$dia_scripts"; do
   test -s "$f" || { echo "FAIL: missing UI mode source $f"; exit 1; }
 done
 for token in CLASSIC_WEB_COMPAT FX_LIQUID_NATIVE MIUIX_STYLE HUAWEI_HARMONY_STYLE IOS_CUPERTINO_STYLE classic glass miuix huawei ios; do
@@ -222,6 +224,12 @@ grep -Fq 'decor.post(() ->' "$skin" || { echo "FAIL: dialog renderer does not re
 grep -Fq 'FxNativeSkin.showDialog(this, managedDialog);' "$activity" || { echo "FAIL: Ad rule add/edit dialogs bypass the shared Skin"; exit 1; }
 grep -Fq 'FxNativeSkin.showDialog(this, nativeCertificateDialog);' "$activity" || { echo "FAIL: system CA dialog bypasses the shared Skin"; exit 1; }
 grep -Fq 'FxNativeSkin.showDialog(this, dialog);' "$activity" || { echo "FAIL: Hosts/wallpaper dialogs bypass the shared Skin"; exit 1; }
+grep -Fq 'fxDialogBuilder()' "$ad_general" || { echo "FAIL: Ad general backup-import dialog bypasses the shared Skin"; exit 1; }
+! grep -Fq 'new android.app.AlertDialog.Builder' "$ad_general" || { echo "FAIL: Ad general page still uses a platform AlertDialog builder"; exit 1; }
+grep -Fq 'fxDialogBuilder()' "$shield_scan" || { echo "FAIL: Shield scan confirmation bypasses the shared Skin"; exit 1; }
+! grep -Fq 'new AlertDialog.Builder' "$shield_scan" || { echo "FAIL: Shield scan page still uses a platform AlertDialog builder"; exit 1; }
+grep -Fq 'fxDialogBuilder()' "$shield_rescue" || { echo "FAIL: Shield rescue confirmations bypass the shared Skin"; exit 1; }
+! grep -Fq 'new AlertDialog.Builder' "$shield_rescue" || { echo "FAIL: Shield rescue page still uses a platform AlertDialog builder"; exit 1; }
 grep -Fq 'FxNativeSkin.watch(this, pageContent);' "$activity" || { echo "FAIL: MainActivity native pages do not receive shared Skin tokens"; exit 1; }
 grep -Fq 'static void applyComponents(Activity activity, View content)' "$skin" || { echo "FAIL: detached dialog component Skin entry is missing"; exit 1; }
 grep -Fq 'FxNativeSkin.applyComponents(this, panel);' "$activity" || { echo "FAIL: dynamic privacy dialog must use the detached component-only renderer"; exit 1; }
