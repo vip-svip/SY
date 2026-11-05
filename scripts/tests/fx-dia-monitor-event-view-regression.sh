@@ -92,7 +92,7 @@ grep -Fq 'restorePendingScrollPosition()' "$SESSION" || fail "session-log scroll
 grep -Fq 'loadGeneration++;' "$EVENTS" || fail "Activity teardown generation invalidation missing"
 grep -Fq 'isSafePackageName(targetPackage)' "$EVENTS" || fail "target package validation missing"
 grep -Fq "if [ -L '/data' ] || [ ! -d '/data' ]" "$SESSION" || fail "session log reader/clearer must reject an unsafe /data root"
-grep -Fq "if [ -L '/data/adb' ] || [ ! -d '/data/adb' ]" "$SESSION" || fail "session log reader/clearer must reject an unsafe /data/adb parent"
+grep -Fq "[ -L '/data/adb' ] || [ ! -d '/data/adb' ]" "$SESSION" || fail "session log reader/clearer must reject an unsafe /data/adb parent"
 grep -Fq 'FX_DIA_LOG_PATH_UNAVAILABLE' "$SESSION" || fail "session log path guard failure marker missing"
 grep -Fq 'private String checkedDirectoryPrefix()' "$SESSION" || fail "session log read/clear operations must share the path guard"
 grep -Fq 'if [ -L' "$EVENTS" || fail "symlink log path guard missing"

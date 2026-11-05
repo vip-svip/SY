@@ -5965,3 +5965,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 - 修正回归测试的生成过程：使用字面回调替换保留 shell `$$`，避免 JavaScript 替换字符串语法将 `$$` 折叠为单个 `$`，造成上一次修订未实际改变文件内容。
 - 当前测试现验证生产 patcher 输出的 `$$_sl_try` PID 路径，不改变锁 patcher 或模块运行逻辑。
+
+
+### Dia 会话日志 Host 断言对齐 shell 条件位置（2026-11-06）
+
+- `14231dd4` 的 Host Regression 在 `fx-dia-monitor-event-view-regression.sh` 失败于 `/data/adb` 父目录断言：测试错误要求该条件以 `if` 开始，但实际 guard 先检查 `/data`，再以 `|| [ -L '/data/adb' ]` 追加下层检查。
+- 将断言改为匹配实际的 `||` 子句；生产 guard 保持原样。该 Host 失败属于测试匹配错误，不是目录防护逻辑失败。
