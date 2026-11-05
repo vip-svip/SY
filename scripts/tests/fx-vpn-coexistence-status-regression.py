@@ -207,6 +207,7 @@ def main() -> int:
         if d:
             check(d["source"] == "arbiter", f"source must be arbiter (got {d.get('source')})")
             check(d["verdict"] == "partial", f"arbiter verdict wins (got {d.get('verdict')})")
+            check(d["route_probe"] == "unverified", "missing arbiter route probe defaults to unverified")
 
         print("== case 9: defensive wording when arbiter is unreadable ==")
         st = tmp / "s9"
