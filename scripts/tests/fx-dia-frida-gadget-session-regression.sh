@@ -224,6 +224,7 @@ echo "GADGET_SESSION_TEST_STAGE: local UID/process fixture"
 # claim Android-device Frida compatibility.
 T=$(mktemp -d "/tmp/fx-dia-gadget-session.XXXXXX")
 cleanup(){
+  if [ -n "${zombie_reader:-}" ]; then kill "$zombie_reader" 2>/dev/null || :; wait "$zombie_reader" 2>/dev/null || :; fi
   if [ -n "${zombie_parent:-}" ]; then kill "$zombie_parent" 2>/dev/null || :; wait "$zombie_parent" 2>/dev/null || :; fi
   if [ -s "$T/logs/gadget-27043.pid" ]; then
     cli_pid=$(sed -n '1p' "$T/logs/gadget-27043.pid")
@@ -505,6 +506,8 @@ while :; do
   _zombie_wait=$((_zombie_wait+1))
 done
 mkfifo "$T/zombie-feeder.stdin"
+cat "$T/zombie-feeder.stdin" >/dev/null &
+zombie_reader=$!
 nohup sh -c 'while :; do state=$(cat "/proc/$1/stat" 2>/dev/null); state=${state##*) }; state=${state%% *}; case "$state" in Z|X|x) exit 0;; esac; kill -0 "$1" 2>/dev/null || exit 0; sleep 1; done' "fx-gadget-feed-zombie-test" "$zombie_cli" "$T/zombie-feeder.stdin" > "$T/zombie-feeder.stdin" 2>/dev/null < /dev/null &
 zombie_feeder=$!
 _zombie_wait=0
@@ -514,6 +517,8 @@ while kill -0 "$zombie_feeder" 2>/dev/null; do
   _zombie_wait=$((_zombie_wait+1))
 done
 wait "$zombie_feeder" 2>/dev/null || :
+wait "$zombie_reader" 2>/dev/null || :
+zombie_reader=
 kill "$zombie_parent" 2>/dev/null || :
 wait "$zombie_parent" 2>/dev/null || :
 zombie_parent=
