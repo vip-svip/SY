@@ -23,6 +23,12 @@ required = (
     'json.optString("dataplane", "unknown")',
     'json.optString("source", "unknown")',
     '"verified".equals(routeProbe)',
+    'formatVpnCoexistencePort(json, "dns", "DNS 上游", 5353)',
+    'formatVpnCoexistencePort(json, "dns_filter", "DNS 过滤", 53)',
+    'formatVpnCoexistencePort(json, "proxy", "代理", 7890)',
+    'state.optString("owner", "unknown")',
+    '"free".equals(owner)',
+    '"other".equals(owner)',
     'nativeAction("刷新 VPN 共存状态", null)',
 )
 missing = [item for item in required if item not in source]

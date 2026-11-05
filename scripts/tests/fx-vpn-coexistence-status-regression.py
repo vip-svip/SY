@@ -86,7 +86,7 @@ case "$slot" in
     ;;
   *) verdict=unknown; grade=探测不可用; rc=2; slot_json=null ;;
 esac
-printf '{"ok":1,"verdict":"%s","grade_cn":"%s","exit":%s,"probe":"ok","route_probe":"unverified","vpn_service_slot_used":%s}' "$verdict" "$grade" "$rc" "$slot_json"
+printf '{"ok":1,"verdict":"%s","grade_cn":"%s","exit":%s,"probe":"ok","route_probe":"unverified","vpn_service_slot_used":%s,"dns":{"port":5353,"owner":"free"},"dns_filter":{"port":53,"owner":"other"},"proxy":{"port":7890,"owner":"free"}}' "$verdict" "$grade" "$rc" "$slot_json"
 """, encoding="utf-8")
     arbiter.chmod(0o755)
     return module
@@ -166,6 +166,9 @@ def main() -> int:
             check(d["external_uid"] == "10123", "owner uid preserved")
             check(d["external_if"] == "tun0", "outer iface preserved")
             check(d["vpn_service_slot_used"] is False, "verified arbiter slot state is preserved")
+            check(d["dns"]["port"] == 5353 and d["dns"]["owner"] == "free", "upstream DNS port state is preserved")
+            check(d["dns_filter"]["port"] == 53 and d["dns_filter"]["owner"] == "other", "client-facing DNS filter conflict is preserved")
+            check(d["proxy"]["port"] == 7890 and d["proxy"]["owner"] == "free", "proxy port state is preserved")
 
         print("== case 3: external VPN without uid -> partial (binding unverified) ==")
         st = tmp / "s3"
@@ -244,6 +247,7 @@ def main() -> int:
             check(d["route_probe"] == "unverified", "local fallback labels route probe unverified")
             check(d["verdict"] == "unknown", "missing arbiter must not certify the VPN slot invariant")
             check(d["vpn_service_slot_used"] is None, "unverified slot state is JSON null")
+            check(d["dns_filter"]["owner"] == "unknown", "missing arbiter does not invent DNS port availability")
 
         print("== case 10: arbiter reports unknown slot -> JSON null and unknown verdict ==")
         st = tmp / "s10"

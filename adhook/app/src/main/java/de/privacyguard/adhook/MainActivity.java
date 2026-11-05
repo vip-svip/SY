@@ -1554,6 +1554,16 @@ public final class MainActivity extends ComponentActivity {
         });
     }
 
+    private static String formatVpnCoexistencePort(JSONObject json, String key,
+            String label, int fallbackPort) {
+        JSONObject state = json.optJSONObject(key);
+        int port = state == null ? fallbackPort : state.optInt("port", fallbackPort);
+        String owner = state == null ? "unknown" : state.optString("owner", "unknown");
+        String availability = "free".equals(owner) ? "空闲"
+                : "other".equals(owner) ? "已占用" : "未知";
+        return label + " " + port + "：" + availability;
+    }
+
     private void refreshVpnCoexistenceStatus(TextView target, Button refresh) {
         if (target == null || target.getParent() == null) return;
         target.setText("正在读取 FX / 第三方 VPN 共存状态…");
@@ -1586,6 +1596,9 @@ public final class MainActivity extends ComponentActivity {
                         if (!iface.isEmpty()) external += "（" + iface + "）";
                         String externalUid = json.optString("external_uid", "");
                         if (!externalUid.isEmpty()) external += " · UID " + externalUid;
+                        String portStatus = formatVpnCoexistencePort(json, "dns", "DNS 上游", 5353)
+                                + " · " + formatVpnCoexistencePort(json, "dns_filter", "DNS 过滤", 53)
+                                + " · " + formatVpnCoexistencePort(json, "proxy", "代理", 7890);
                         Object slotValue = json.opt("vpn_service_slot_used");
                         String slotText = !(slotValue instanceof Boolean)
                                 ? "FX VpnService 槽位状态未知"
@@ -1596,6 +1609,7 @@ public final class MainActivity extends ComponentActivity {
                                 + "\n" + external + " · " + routeText
                                 + "\n数据面：" + json.optString("dataplane", "unknown")
                                 + " · " + slotText
+                                + "\n端口：" + portStatus
                                 + "\n裁决来源：" + json.optString("source", "unknown")
                                 + (json.optBoolean("interception_blocked", false)
                                         ? "\nFX 流量拦截当前受限" : ""));

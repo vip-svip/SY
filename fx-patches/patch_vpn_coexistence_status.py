@@ -51,6 +51,12 @@ fx_coexist_status_write() {
   _fx_cs_probe=""
   _fx_cs_route_probe="unverified"
   _fx_cs_slot="unknown"
+  _fx_cs_dns_port=5353
+  _fx_cs_dns_owner=unknown
+  _fx_cs_filter_dns_port=53
+  _fx_cs_filter_dns_owner=unknown
+  _fx_cs_proxy_port=7890
+  _fx_cs_proxy_owner=unknown
   # apply.sh 使用 MODDIR（不是 MODPATH）；MODDIR 未定义时必须留空而不是崩溃。
   _fx_cs_arb=${FX_COEXIST_ARBITER:-${MODDIR:-}/scripts/fx-vpn-coexistence-arbiter.sh}
   if [ -r "$_fx_cs_arb" ]; then
@@ -60,10 +66,22 @@ fx_coexist_status_write() {
     _fx_cs_probe=$(printf '%s' "$_fx_cs_out" | sed -n 's/.*"probe":"\([a-z_]*\)".*/\1/p')
     _fx_cs_route_probe=$(printf '%s' "$_fx_cs_out" | sed -n 's/.*"route_probe":"\([a-z_]*\)".*/\1/p')
     _fx_cs_slot=$(printf '%s' "$_fx_cs_out" | sed -n 's/.*"vpn_service_slot_used":\(true\|false\|null\)[,}].*/\1/p')
+    _fx_cs_dns_port=$(printf '%s' "$_fx_cs_out" | sed -n 's/.*"dns":{"port":\([0-9][0-9]*\),"owner":"[a-z]*"}.*/\1/p')
+    _fx_cs_dns_owner=$(printf '%s' "$_fx_cs_out" | sed -n 's/.*"dns":{"port":[0-9][0-9]*,"owner":"\([a-z]*\)".*/\1/p')
+    _fx_cs_filter_dns_port=$(printf '%s' "$_fx_cs_out" | sed -n 's/.*"dns_filter":{"port":\([0-9][0-9]*\),"owner":"[a-z]*"}.*/\1/p')
+    _fx_cs_filter_dns_owner=$(printf '%s' "$_fx_cs_out" | sed -n 's/.*"dns_filter":{"port":[0-9][0-9]*,"owner":"\([a-z]*\)".*/\1/p')
+    _fx_cs_proxy_port=$(printf '%s' "$_fx_cs_out" | sed -n 's/.*"proxy":{"port":\([0-9][0-9]*\),"owner":"[a-z]*"}.*/\1/p')
+    _fx_cs_proxy_owner=$(printf '%s' "$_fx_cs_out" | sed -n 's/.*"proxy":{"port":[0-9][0-9]*,"owner":"\([a-z]*\)".*/\1/p')
   fi
 
   _fx_cs_route_probe=${_fx_cs_route_probe:-unverified}
   case "$_fx_cs_slot" in true|false|null) ;; *) _fx_cs_slot="unknown" ;; esac
+  case "$_fx_cs_dns_port" in ""|*[!0-9]*) _fx_cs_dns_port=5353 ;; esac
+  case "$_fx_cs_filter_dns_port" in ""|*[!0-9]*) _fx_cs_filter_dns_port=53 ;; esac
+  case "$_fx_cs_proxy_port" in ""|*[!0-9]*) _fx_cs_proxy_port=7890 ;; esac
+  case "$_fx_cs_dns_owner" in free|other|unknown) ;; *) _fx_cs_dns_owner=unknown ;; esac
+  case "$_fx_cs_filter_dns_owner" in free|other|unknown) ;; *) _fx_cs_filter_dns_owner=unknown ;; esac
+  case "$_fx_cs_proxy_owner" in free|other|unknown) ;; *) _fx_cs_proxy_owner=unknown ;; esac
 
   # A readable path is not sufficient: only a complete arbiter record is the
   # authoritative source. Empty/partial output (for example an unreadable
@@ -116,8 +134,7 @@ fx_coexist_status_write() {
     printf '"external_vpn":%s,"external_if":"%s","external_uid":"%s",' \
       "$_fx_cs_ext" "$_fx_cs_if" "$_fx_cs_uid"
     case "$_fx_cs_slot" in true|false) _fx_cs_slot_json=$_fx_cs_slot ;; *) _fx_cs_slot_json=null ;; esac
-    printf '"interception_blocked":%s,"dataplane":"kernel","vpn_service_slot_used":%s}\n' \
-      "$([ "$_fx_cs_blocked" = "1" ] && echo true || echo false)" "$_fx_cs_slot_json"
+    printf '"dns":{"port":%s,"owner":"%s"},"dns_filter":{"port":%s,"owner":"%s"},"proxy":{"port":%s,"owner":"%s"},"interception_blocked":%s,"dataplane":"kernel","vpn_service_slot_used":%s}\n' "$_fx_cs_dns_port" "$_fx_cs_dns_owner" "$_fx_cs_filter_dns_port" "$_fx_cs_filter_dns_owner" "$_fx_cs_proxy_port" "$_fx_cs_proxy_owner" "$([ "$_fx_cs_blocked" = "1" ] && echo true || echo false)" "$_fx_cs_slot_json"
   ) > "$_fx_cs_tmp" 2>/dev/null || { rm -f "$_fx_cs_tmp" 2>/dev/null; return 0; }
 
   # 回读校验后才替换，避免发布半截 JSON。

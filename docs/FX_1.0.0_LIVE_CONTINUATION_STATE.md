@@ -6143,3 +6143,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Documented supported Kotlin forms in `docs/FX-HOOK-DEVELOPER-CUSTOM-RULES.md` and connected the regression to `fx-targeted-regression.yml`.
 - Commits: `0850121972c87017e1bdcaf00f49f97882feb921` (parser), `2eb061cf48e7bcb73486b2a2eeb36d557deba1df` (JUnit tests), `16067ae9648609f388c5e775b0e5dc2d574e7ff2` / `5251cb214e0eb6b70e502947251cfcdd9e45eca7` (Host test), `1ca95d7d963b967ee93becc04b94ed94ea272ffa` (docs), `6adb8ddb38a961c3051094f9e3db73a961fc8113` (CI).
 - Verification: all six modified/new files were re-read from the branch and SHA-checked. Targeted Host Actions run `42103395746` was queued at the time of this update; no pass is claimed yet. Android Gradle build, LSPosed injection and real-device Hook execution were not performed.
+
+
+## 2026-11-06 — VPN 共存端口状态贯通原生页面
+
+- arbiter 的 5353 上游 DNS、53 客户端过滤 DNS、7890 代理端口状态现由 `patch_vpn_coexistence_status.py` 从同一份裁决 JSON 解析，并写入 0600 临时文件后原子替换状态快照；端口值和 owner 枚举进入白名单校验。
+- 旧版/缺失 arbiter 字段回退到默认端口号与 `unknown`，不会把未知当空闲。已有 `dns`、`proxy` 等快照消费者保持兼容，新增 `dns_filter`。
+- MainActivity 的共存卡新增端口状态展示：DNS 上游、DNS 过滤入口与代理分别显示空闲/已占用/未知；不把 `other` 进一步推断为具体应用进程身份。
+- Host 状态发布回归和 UI 源码契约扩展同步覆盖端口传递、旧 arbiter 缺字段回退和页面显示。构建、设备端 Root / procfs 权限和真实监听进程归属仍以对应 CI/真机结果为准。
