@@ -44,6 +44,9 @@ final class FxNativeSkin {
     private static final WeakHashMap<View, FxUiMode> BUTTON_SKINS = new WeakHashMap<>();
     private static final WeakHashMap<View, FxUiMode> SWITCH_SKINS = new WeakHashMap<>();
     private static final WeakHashMap<View, FxUiMode> FORM_SKINS = new WeakHashMap<>();
+    // Tagged component renderers run from the debounced global-layout walker.
+    // Cache the last (mode, role) to avoid replacing Drawables on every layout.
+    private static final WeakHashMap<View, String> TAGGED_COMPONENT_SKINS = new WeakHashMap<>();
 
     private static final long REAPPLY_DEBOUNCE_MS = 80L;
 
@@ -187,6 +190,16 @@ final class FxNativeSkin {
         }
     }
 
+    static boolean beginTaggedComponentRender(View view, FxUiMode mode, String role) {
+        if (view == null || mode == null || role == null) return false;
+        String token = mode.getStorageId() + "|" + role;
+        synchronized (TAGGED_COMPONENT_SKINS) {
+            if (token.equals(TAGGED_COMPONENT_SKINS.get(view))) return false;
+            TAGGED_COMPONENT_SKINS.put(view, token);
+            return true;
+        }
+    }
+
     static void apply(Activity activity, View pageContent) {
         if (activity == null || pageContent == null) return;
         apply(activity, pageContent, FxUiMode.read(activity),
@@ -298,9 +311,9 @@ final class FxNativeSkin {
         // Tagged page titles, section headers, cards and action rows are
         // rendered by the dedicated Harmony/Cupertino component adapters.
         if (mode == FxUiMode.HUAWEI_HARMONY_STYLE) {
-            HarmonySkinRenderer.applyTaggedComponent(activity, view);
+            HarmonySkinRenderer.applyTaggedComponent(activity, view, mode);
         } else if (mode == FxUiMode.IOS_CUPERTINO_STYLE) {
-            CupertinoSkinRenderer.applyTaggedComponent(activity, view);
+            CupertinoSkinRenderer.applyTaggedComponent(activity, view, mode);
         }
 
         if (view instanceof ViewGroup) {
