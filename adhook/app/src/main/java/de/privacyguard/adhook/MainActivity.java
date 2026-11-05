@@ -2980,6 +2980,7 @@ public final class MainActivity extends ComponentActivity {
                     String effectiveMode = state.optString("vpn_effective_mode",
                             "direct".equals(mode) ? "direct" : "unknown");
                     String fallbackReason = state.optString("vpn_mode_fallback_reason", "");
+                    String dnsFilterCoverage = state.optString("dns_filter_coverage", "unknown");
                     lastNativeVpnMode = mode;
                     if (!state.optBoolean("root_proxy_known", false))
                         throw new IllegalStateException("Root Proxy 状态不可用");
@@ -3008,8 +3009,16 @@ public final class MainActivity extends ComponentActivity {
                                 ? "外层 Android VPN 共存：TUN 已安全回退到 FX Root REDIRECT 并确认运行；不申请第二个 VpnService"
                                 : "外层 Android VPN 共存：已选择 FX Root REDIRECT 回退，但后端尚未确认运行；不申请第二个 VpnService";
                     }
+                    String dnsCoverageLabel = "port53_redirect_active".equals(dnsFilterCoverage)
+                            ? "Private DNS 关闭 · 端口 53 已由 FX 重定向"
+                            : "strict_private_dns_bypasses_redirect".equals(dnsFilterCoverage)
+                            ? "严格 Private DNS 加密解析可能绕过本地广告过滤"
+                            : "opportunistic_private_dns_may_bypass_redirect".equals(dnsFilterCoverage)
+                            ? "自动 Private DNS 可能使部分解析绕过本地广告过滤"
+                            : "Private DNS / DNS 过滤覆盖状态待确认";
                     String node = state.optString("vpn_node", "");
                     nativeVpnState.setText("模式：" + modeLabel + " · 实际：" + effectiveModeLabel + " · " + live
+                            + " · " + dnsCoverageLabel
                             + (node.isEmpty() ? " · 尚未选择节点" : " · 节点已配置"));
                     refreshAndroidVpnNetworkStatus();
                     nativeVpnSwitch.setEnabled(true);
