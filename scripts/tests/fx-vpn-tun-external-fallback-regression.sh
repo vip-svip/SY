@@ -11,7 +11,7 @@ MOD="$T/module"
 mkdir -p "$MOD/scripts"
 cat > "$MOD/scripts/vpncore.sh" <<'VPNCORE'
 #!/system/bin/sh
-pg_get(){ printf '%s\\n' "${2:-direct}"; }
+pg_get(){ printf '%s\n' "${2:-direct}"; }
 a=$(pg_get vpn_mode direct 2>/dev/null)
 b=$(pg_get vpn_mode direct 2>/dev/null)
 c=$(pg_get vpn_mode direct 2>/dev/null)
@@ -40,9 +40,9 @@ VPN_MODE=${VPN_MODE:-direct}
 VPN_NODE=$(grep -m1 '^vpn_node=' "$PG/settings.conf" 2>/dev/null | cut -d= -f2-)
 vpn_status_text(){ printf '%s' stopped; }
   echo "VPN: $(vpn_status_text) (规则=$VPN_RULES_ACTIVE 监听=$VPN_LISTENER_ON:$VPN_LISTENER_PORT)"
-printf '{"vpn_mode":"%s","vpn_on":%s}\\n' \\
-  "$VPN_MODE" \\
-  "$VPN_ON" \\
+printf '{"vpn_mode":"%s","vpn_on":%s}\n' \
+  "$VPN_MODE" \
+  "$VPN_ON" \
 STATUS
 chmod 0755 "$MOD/scripts/"*.sh
 python3 "$PATCHER" "$MOD" >/dev/null || fail "patcher rejected canonical VPN anchors"
@@ -64,7 +64,7 @@ v_start = v.index("vpncore_effective_mode() {")
 v_end = v.index("\n}\n", v_start) + 3
 a_start = a.index("fx_select_vpn_effective_mode() {")
 a_end = a.index("\n}\n", a_start) + 3
-functions = """pg_get(){ printf '%s\\n' "${PG_SAVED_MODE:-direct}"; }\n"""
+functions = """pg_get(){ printf '%s\n' "${PG_SAVED_MODE:-direct}"; }\n"""
 functions += v[v_start:v_end] + "\n" + a[a_start:a_end] + "\n"
 output.write_text(functions, encoding="utf-8")
 PY
