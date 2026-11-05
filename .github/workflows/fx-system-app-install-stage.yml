@@ -12,6 +12,8 @@ on:
       - fx-v1.0.0-unified-hook-integration
     paths:
       - 'fx-patches/patch_system_app_install_stage.py'
+      - 'fx-patches/fx_system_app_post_fs_data.sh'
+      - 'fx-module/post-fs-data.sh'
       - 'scripts/tests/fx-system-app-install-stage-*.py'
       - 'scripts/tests/fx-system-app-install-stage-*.sh'
       - 'scripts/tests/fx-system-app-overlay-boot-regression.sh'
