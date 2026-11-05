@@ -637,12 +637,10 @@ _status_locked() {
     *) echo "dns_filter_coverage=unknown" ;;
   esac
   if ! _is_enabled; then
-    _status_fail_open disabled
-    return 0
+    _status_fail_open disabled; return $?
   fi
   if [ ! -e "$ACTIVE_META" ] && [ ! -e "$ACTIVE" ] && [ ! -e "$EGRESS" ]; then
-    _status_fail_open not_active
-    return 0
+    _status_fail_open not_active; return $?
   fi
   for _state_file in "$ACTIVE_META" "$ACTIVE" "$EGRESS"; do
     [ -f "$_state_file" ] && [ ! -L "$_state_file" ] || {

@@ -5340,3 +5340,5 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - CI for the initial cleanup-failure hardening exposed two gaps in its new regression: the mocked detach fault targeted only one alternating IPv4 chain, and status branches discarded `_status_fail_open`'s nonzero result with an unconditional return 0.
 - The fault injection now rejects deletion of either FX-owned IPv4 OUTPUT jump. Every status fail-open branch propagates the cleanup result, so callers can distinguish a fully cleaned inactive state from an incomplete firewall cleanup.
 - The targeted host and module runtime workflows are rerun on this correction; previous failed runs remain recorded rather than being represented as passing.
+
+- Follow-up: the disabled/not-active early status branches also now propagate cleanup failure; all status fail-open paths consistently return the cleanup result.
