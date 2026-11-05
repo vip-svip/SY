@@ -908,7 +908,7 @@ public final class FxDiaBackupActivity extends de.privacyguard.adhook.FxNativeTa
         LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setBackgroundColor(0xfff7f8fa);
         LinearLayout header=new LinearLayout(this);header.setPadding(dp(10),dp(6),dp(10),dp(6));
         header.addView(button("‹ 返回设置",this::finish));header.addView(text("设置 · 数据备份与恢复",18,0xff17212b,true),new LinearLayout.LayoutParams(0,-2,1));root.addView(header);
-        backupScroll=new ScrollView(this);LinearLayout body=new LinearLayout(this);body.setOrientation(1);body.setPadding(dp(8),dp(4),dp(8),dp(18));backupScroll.addView(body);root.addView(backupScroll,new LinearLayout.LayoutParams(-1,0,1));setContentViewWithNativeTabs(root, 5);
+        backupScroll=new ScrollView(this);LinearLayout body=new LinearLayout(this);body.setOrientation(1);body.setPadding(dp(8),dp(4),dp(8),dp(18));backupScroll.addView(body);root.addView(backupScroll,new LinearLayout.LayoutParams(-1,0,1));setContentViewWithNativeTabs(root, 4);
         body.addView(text("本地备份覆盖 FX settings.conf、Hook 目标规则、护盾白/黑名单、Stellar 授权记录和 Hook 发布状态。",13,0xff526170,false));
         body.addView(text("注意：模块配置包含 VPN 节点凭据、DNS 和过滤设置。请将备份保存在可信位置，不要公开分享。",12,0xffb45309,true));
         backupPassword=new EditText(this);
