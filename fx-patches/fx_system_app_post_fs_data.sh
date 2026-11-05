@@ -15,11 +15,11 @@ path_components_are_safe(){
   _pc_path=$1
   case "$_pc_path" in /*) ;; *) return 1 ;; esac
   case "$_pc_path" in *//*|*/../*|*/..|*/./*|*/.) return 1 ;; esac
-  _pc_rest=\${_pc_path#/}
+  _pc_rest=${_pc_path#/}
   _pc_current=
   while [ -n "$_pc_rest" ]; do
     case "$_pc_rest" in
-      */*) _pc_part=\${_pc_rest%%/*}; _pc_rest=\${_pc_rest#*/} ;;
+      */*) _pc_part=${_pc_rest%%/*}; _pc_rest=${_pc_rest#*/} ;;
       *) _pc_part=$_pc_rest; _pc_rest= ;;
     esac
     case "$_pc_part" in ''|.|..) return 1 ;; esac
