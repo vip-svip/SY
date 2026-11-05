@@ -168,7 +168,7 @@ fx_arb_slot_used() {
   # VpnService.prepare()/Builder and still be reported as slot-independent.
   _scan_count=0
   for _f in "$_root"/scripts/*.sh; do
-    [ -e "$_f" ] || continue
+    [ -e "$_f" ] || [ -L "$_f" ] || continue
     _scan_count=$((_scan_count + 1))
     if [ -L "$_f" ] || [ ! -f "$_f" ] || [ ! -r "$_f" ]; then
       _missing=1
