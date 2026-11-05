@@ -402,7 +402,7 @@ public final class MainActivity extends ComponentActivity {
                         runOnUiThread(() -> {
                             if (isFinishing() || isDestroyed()) return;
                             if (fallbackStart.exitCode == 0) {
-                                Toast.makeText(this, "已通过第三方 VPN / FX Root DNS 启用网络保护",
+                                Toast.makeText(this, "已启动 FX Root Proxy DNS 保护（不代表第三方 VPN 已连接）",
                                         Toast.LENGTH_LONG).show();
                                 refreshWebUiAfterNativeVpn();
                                 syncNativeVpnControls();
