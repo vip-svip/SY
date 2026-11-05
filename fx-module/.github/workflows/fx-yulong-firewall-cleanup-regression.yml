@@ -1,0 +1,35 @@
+name: FX Yulong Firewall Cleanup Regression
+
+on:
+  push:
+    branches:
+      - fx-v1.0.0-unified-hook-integration
+    paths:
+      - "fx-module/scripts/yulong-app-firewall.sh"
+      - "scripts/yulong-app-firewall.sh"
+      - "fx-patches/patch_yulong_app_firewall.py"
+      - "scripts/tests/fx-yulong-app-firewall-regression.sh"
+      - ".github/workflows/fx-yulong-firewall-cleanup-regression.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Give each push its own slot so parallel AI commits cannot cancel this safety test.
+concurrency:
+  group: fx-yulong-firewall-cleanup-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  firewall-cleanup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate firewall cleanup failure handling
+        shell: bash
+        run: |
+          set -euo pipefail
+          sh -n fx-module/scripts/yulong-app-firewall.sh
+          sh -n scripts/tests/fx-yulong-app-firewall-regression.sh
+          bash scripts/tests/fx-yulong-app-firewall-regression.sh
