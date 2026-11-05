@@ -4400,3 +4400,44 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 1. 继续检查 Hook 目标页中剩余的原始 `ArrayAdapter` / Spinner，按实际业务含义统一 Skin 文本 renderer；避免全局机械替换造成行高/长文案截断。
 2. 扩展 Ad / 隐私导入 Activity 的表单、Dialog、列表和加载/空/错误状态 renderer；语义危险色、证书状态、扫描风险色必须保持。
 3. 检查五 Skin 切换时页面状态/草稿/滚动恢复及网络服务不中断；继续严格区分 Host 静态回归与 Android/真机验收。
+
+
+## 2026-11-05 — Frida 脚本库、会话日志、监控事件与代码编辑器接入五 Skin 角色
+
+### 源码改动
+- `FxDiaScriptLibraryActivity.java`：
+  - 页面标题加入 `fx-title:18`。
+  - 导入/导出/新建操作组加入 `fx-card-group`。
+  - 动态脚本条目现在使用 `fx-list-row`，脚本名 `fx-list-title`，UTF-8 大小与“不会自动执行”说明 `fx-list-subtitle`。
+  - 原有排序、搜索、保存/删除回调和 JSON 数据格式不变。
+- `FxDiaSessionLogActivity.java`：
+  - 标题、目标身份、状态与筛选/操作容器接入共享 Skin 角色。
+  - 刷新/清空操作由共享 `fx-action-row` button helper 提供；原始多行 monospace 日志正文未作换色或内容改写。
+- `FxDiaMonitorEventsActivity.java`：
+  - 标题、目标身份、状态、过滤控件容器、自动刷新 Switch 和事件数量加入 Skin 角色。
+  - 动态事件项改为带 `fx-list-row` 的容器和 `fx-list-subtitle` 文本；仍保留每次最多显示 120 条、筛选条件、点击查看详情和滚动恢复。
+  - 事件详情 Dialog 统一使用 `FxNativeSkin.showDialog()`，弹窗仍显示原事件类别和原始白名单元数据。
+- `FxDiaCodeEditorActivity.java`：
+  - 返回/保存按钮、标题与编辑说明接入 Skin 角色。
+  - Sora `CodeEditor` 内容与其语言选择/编辑逻辑保持原样，避免主题适配改写用户代码。
+- `FxNativeSkin.java`：将共享 Skin facade 与 `showDialog(Activity, Dialog)` 暴露为 public API，供 `de.privacyguard.adhook.imported.dia` 子包调用。原因是 Java 子包不是同一 package，包级类/方法不能跨子包访问。
+
+### 回归
+- 扩展 `scripts/tests/fx-dia-frida-page-navigation-regression.sh`：
+  - 检查脚本库动态行、会话日志操作/标题、监控事件行/Switch/详情弹窗、全屏编辑器标题/操作/说明的 Skin 角色。
+  - 检查 FxNativeSkin 类和 Dialog helper 为 public，防止跨包访问编译错误。
+  - 原有 Frida Hook Hub 入口、debuggable 目标 picker、目标身份传递、日志页面路由、AppEntry observer 元数据-only 检查继续保留。
+
+### 提交
+- 脚本库 Skin 角色：`ca39c20020df1237444f16b0b9f9ede9c4bb0695`
+- Session Log Skin 角色：`be87e4a4c879e4a799cc0692e0509c26ed37f4c8`
+- Monitor Events 角色/详情 Dialog：`2d1bfdbc647dd3aa3b139f9e7c7ced18083bdd68`
+- 全屏代码编辑器角色：`a79bc653919b9b42df50f7b951cc70bd13378246`
+- FxNativeSkin 跨子包 Dialog API：`eb360b47b7ac87ac2fe2aa87a81f5f8b276e720a`
+- Frida 页面 Skin 角色与 public API 回归：`8d4ac461446c104ae07fa51ed016880e155cd415`、`45c68f0322f4adf3c748ba3231027d45e7cb654f`
+- 本状态提交的父 HEAD：`fdcfff394753074b49a54f5ba3ebca548d59276d`；状态写入后仍以 GitHub 实时分支 ref 为最新依据。
+
+### 验证边界
+- 已完成 GitHub 源码回读：四个页面角色标签存在，脚本库/监控事件动态行均交给对应 Renderer；日志正文与 CodeEditor 组件未被全局 Skin 改写；跨包 Dialog API 已公开。
+- 最新定向 Host run `41987810702` 在读取本节时尚未取得 job 记录/最终结论；不得把它当作通过，后续必须读取其最终状态及具体步骤日志。
+- 本批未执行 Android Gradle compile、Android JUnit、APK assemble、安装、UI 自动化或真机视觉检查；尚不能声称五种 Skin 的所有 Activity 已逐页完成。
