@@ -585,7 +585,7 @@ cat > "$TMP/fakebin/find" <<'EOF'
 exit 1
 EOF
 chmod 0755 "$TMP/fakebin/find"
-_out=$(PATH="$TMP/fakebin:$PATH" \
+_out=$(env PATH="$TMP/fakebin:$PATH" \
   FX_ARB_LINK_FILE="$TMP/links.txt" FX_ARB_VPNINFO_FILE="$TMP/info.txt" \
   FX_ARB_PROC_NET_DIR="$TMP/net_free" FX_ARB_MODULE_ROOT="$TMP/mod_clean" \
   sh "$ARB" 2>&1)
