@@ -80,6 +80,26 @@ public class FxYulongVolumeTriggerSequenceTest {
     }
 
     @Test
+    public void changingDirectionOrRequiredCountCannotReuseOldPartialPresses() {
+        FxYulongVolumeTriggerSequence sequence = new FxYulongVolumeTriggerSequence();
+        int up = FxYulongVolumeTriggerSequence.DIRECTION_UP;
+        int down = FxYulongVolumeTriggerSequence.DIRECTION_DOWN;
+
+        assertFalse(sequence.recordPress(down, down, 3, 1000L));
+        // A changed threshold starts a fresh sequence instead of counting the
+        // old press toward the newly selected two-press trigger.
+        assertFalse(sequence.recordPress(down, down, 2, 1200L));
+        assertTrue(sequence.recordPress(down, down, 2, 1400L));
+
+        sequence.resetSequence();
+        assertFalse(sequence.recordPress(up, up, 3, 20000L));
+        // A direction change also invalidates the partial sequence.
+        assertFalse(sequence.recordPress(up, down, 2, 20200L));
+        assertFalse(sequence.recordPress(down, down, 2, 20400L));
+        assertTrue(sequence.recordPress(down, down, 2, 20600L));
+    }
+
+    @Test
     public void resetClearsPartialSequenceWithoutChangingUserOptions() {
         FxYulongVolumeTriggerSequence sequence = new FxYulongVolumeTriggerSequence();
         int up = FxYulongVolumeTriggerSequence.DIRECTION_UP;
