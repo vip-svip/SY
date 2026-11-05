@@ -5009,3 +5009,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 分支 HEAD 快照：`04cae02c4dfbd8bf7b84fd205d1847ba71ce8475`。
 - 将 64 KiB 分块断言放在 RootAccess 源码内容上验证，而不是 Frida Activity 源码上；InputStream 重载同样先压缩空白再检查，避免换行格式导致误报。提交 `04cae02c4dfbd8bf7b84fd205d1847ba71ce8475`。
 - 该提交仍由现有 `scripts/tests/**` push workflow 触发；commit-status 查询无 check 记录，执行结果待 Actions 提供。
+
+## 2026-11-05 — Dia Frida 大型脚本草稿恢复内存优化
+
+- `FxDiaFridaActivity.readTransientFridaScriptDraft()` 改为 `InputStreamReader` + 8 KiB 字符缓冲区增量 UTF-8 解码，避免先将完整草稿读入 `ByteArrayOutputStream`，再复制成第二份 `byte[]`；没有引入脚本大小上限。
+- `fx-dia-frida-script-library-saf-regression.sh` 新增静态回归断言，防止恢复路径退回整份字节缓冲复制。
+- 提交：`70e655dbce9df6af2c09db90186cd05ae8577409`（Activity），`d81dd4eb7f822a87590ff948cf47b14db8492b57`（回归断言）。
+- Gadget session regression 的既有断言原先把 `RootAccess.java` 的方法签名/缓冲区检查错误地在 Frida Activity 字符串中匹配，已修正到 RootAccess 源码并做空白归一化；提交：`2728c6dc9b09ebc50ceecfd554f7970c57f58a2e`、`04cae02c4dfbd8bf7b84fd205d1847ba71ce8475`。
+- GitHub Actions：最新 `04cae02` 的 FX Targeted Host Regression 已通过；FX Module Runtime Regression 当时仍在运行。此前两次 Host 失败均为既有测试断言归属/换行匹配问题，修正后重新触发验证。尚未声称 Android Gradle 构建或真机测试通过。
