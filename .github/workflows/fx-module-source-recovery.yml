@@ -39,7 +39,6 @@ jobs:
           required=(
             module.prop customize.sh post-fs-data.sh service.sh uninstall.sh
             scripts/apply.sh scripts/default.conf scripts/util.sh scripts/certmgr.sh
-            scripts/vpncore.sh scripts/yulong-root-proxy.sh scripts/yulong-vpn-control.sh
             scripts/vpn-external-watchdog.sh
           )
           for file in "${required[@]}"; do
@@ -52,6 +51,13 @@ jobs:
           cp -a "$source_root/scripts" recovered-fx-module/
           for file in module.prop customize.sh service.sh post-fs-data.sh uninstall.sh; do
             [[ ! -f "$source_root/$file" ]] || cp -a "$source_root/$file" recovered-fx-module/
+          done
+          # Merge current branch-owned module overlays over the historical Release baseline.
+          if [[ -d fx-module/scripts ]]; then
+            cp -a fx-module/scripts/. recovered-fx-module/scripts/
+          fi
+          for file in module.prop customize.sh post-fs-data.sh service.sh uninstall.sh; do
+            [[ ! -s "fx-module/$file" ]] || install -m 0755 "fx-module/$file" "recovered-fx-module/$file"
           done
           # The module ZIP deliberately retires its WebUI; recover the canonical
           # UI from the exact standalone APK asset used by the module build.
