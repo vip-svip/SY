@@ -22,7 +22,7 @@ permissions:
 # Cancel superseded runs so rapid commits do not queue redundant 300-test suites.
 concurrency:
   group: fx-app-validation-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   validate-migration:
