@@ -54,9 +54,10 @@ for token in (
     r'&& [ -f \"$d/scripts/util.sh\" ] && [ ! -L \"$d/scripts/util.sh\" ]',
     r'&& [ -f \"$d/scripts/',
     r'&& [ ! -L \"$d/scripts/',
-    'yulong-ad-control.sh',
 ):
     assert token in module_paths, "DNS Root module discovery must enforce: " + token
+assert '"yulong-ad-control.sh".equals(name)' in helper, \
+    "shared Root module command builder must allowlist the required Ad control script"
 assert '"dns-log-tail".equals(args)' in module_lookup, "DNS log read must be an allowlisted operation"
 assert '"cache-flush".equals(args)' in module_lookup, "DNS cache flush must be an allowlisted operation"
 assert '"dns-log-clear".equals(args)' in module_lookup, "DNS log clear must be an allowlisted operation"
