@@ -6,13 +6,9 @@ import sys
 
 module = Path(sys.argv[1] if len(sys.argv) > 1 else "fx-module")
 repo = Path(__file__).resolve().parent.parent
-source = repo / "fx-module/scripts/vpn-external-watchdog.sh"
 target = module / "scripts/vpn-external-watchdog.sh"
-if not source.is_file() or source.stat().st_size < 1000:
-    raise SystemExit("canonical external VPN watchdog source is missing or incomplete")
-target.parent.mkdir(parents=True, exist_ok=True)
-if source.resolve() != target.resolve():
-    shutil.copy2(source, target)
+if not target.is_file() or target.stat().st_size < 1000:
+    raise SystemExit("published FX module archive is missing its canonical external VPN watchdog")
 target.chmod(0o755)
 
 def replace_once(text: str, old: str, new: str, label: str) -> str:
@@ -59,7 +55,7 @@ if 'vpn-external-watchdog.sh" uninstall' not in uninstall:
     uninstall = replace_once(
         uninstall, root_proxy_anchor,
         'if [ -f "$MODDIR/scripts/vpn-external-watchdog.sh" ]; then\n'
-        '  if ! sh "$MODDIR/scripts/vpn-external-watchdog.sh" uninstall "$MODDIR" "$PG" >> "$PG/vpn-external-watchdog.log" 2>&1; then\n'
+        '  if ! sh "$MODDIR/scripts/vpn-external-watchdog.sh" stop "$MODDIR" "$PG" >> "$PG/vpn-external-watchdog.log" 2>&1; then\n'
         '    PG_KEEP_DATA=1\n'
         '    _mitm_warn "could not confirm stopping the external VPN watcher; preserving state for safe retry"\n'
         '  fi\n'
@@ -67,4 +63,4 @@ if 'vpn-external-watchdog.sh" uninstall' not in uninstall:
         "uninstall.sh watcher-before-Root-Proxy",
     )
 uninstall_path.write_text(uninstall, encoding="utf-8")
-print("Staged external VPN watchdog and wired boot snapshot/apply/start plus watcher-first uninstall cleanup.")
+print("Preserved the published external VPN watchdog and wired watcher-first uninstall cleanup.")
