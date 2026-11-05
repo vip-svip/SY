@@ -3761,3 +3761,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 已通过的 Wallpaper 是静态源码/宿主回归，不是 Android Gradle 构建，也不是设备实际选图、恢复默认、跨进程重启和所有 Skin 壁纸截图验收。
 - 尚未执行 Gradle testDebugUnitTest/assembleDebug、Android 安装、真机六 Tab × 五 Skin 截图、壁纸实机选图和导航服务无中断验证。
 - 下一步：等定向回归完成，修复具体失败；继续五 Skin 内部控件 tokens/逐页覆盖，清理剩余来源品牌文案，并完成功能清单级映射/测试；不提前构建最终 APK 或 KernelSU ZIP。
+
+
+## 2026-11-05 — Ad 主页补齐快捷入口并修正导航回归
+
+- 最新 Ad 主页已加入 DNS 查询日志和分应用流量统计快捷入口；此前已有广告过滤控制中心、通用设置/备份恢复、每日摘要、防火墙、应用白名单入口。
+- 用户要求所有来源功能都归入 FX 对应业务 Tab，不能再回到来源应用启动器。当前 Ad 主页入口均启动 FX APK 内部 Activity，统一高亮 Ad Tab；旧来源品牌只留在研发注释/类名中，不显示给用户。
+- 定向测试 fx-unified-navigation-regression.sh 曾因一条静态断言将 Ad 页使用的 txt(...) helper 误写成 text(...) 而失败。检查页面真实代码确认是测试写错，不是 Ad 入口缺失；已把断言修正为 txt("Ad · 广告过滤控制中心")。
+- 验证：GitHub Actions FX Targeted Host Regression Run 41980484108（commit 19197a4eaedd1dbb81737a53fcb03b7dcafc1304）已完成，job host-regressions = success；日志中 fx-unified-navigation-regression.sh 明确输出 PASS。此 Run 针对导航回归脚本变更，只能证明该导航检查通过，不代表 Android APK 已编译或真机验收。
+- 较早 Run 41980356221 的失败已定位并修复；Run 41980429861 在旧提交上另有一项不相关的 VPN API Host 检查因未恢复 Release WebUI 资源而失败，不能视作当前 19197a4 的结果。应继续修正 targeted workflow：仅当 canonical WebUI 资源已从 Release 解包就绪时才执行依赖该资源的 Host 检查，否则明确 SKIP，并由完整 build workflow 在 staging 后验证。
+- 当前继续开发重点：五种 Skin 在所有页面控件中的细节一致性、Wallpaper 在 ClassicWebCompat 下的完整背景透出、Ad/DNS/Firewall/App stats 等旧功能的逐项业务整合。尚未完成 Gradle 编译、安装运行或真机视觉验收。
