@@ -71,7 +71,7 @@ for token in (
     'autoRefreshSwitch.setTag("fx-switch-row")',
     'row.setTag("fx-list-row")',
     'eventText.setTag("fx-list-subtitle")',
-    'FxNativeSkin.showDialog(this, dialog)'
+    'showFxDialog(dialog);'
 ):
     if token not in monitor:
         raise SystemExit(f"FAIL: monitor event page is missing Skin role {token}")
