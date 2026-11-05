@@ -30,8 +30,26 @@ if command -v mkfifo >/dev/null 2>&1; then
   if _read_lock_owner "$T/legacy-lock-fifo" >/dev/null 2>&1; then
     fail "legacy lock reader accepted a FIFO PID"
   fi
+  if _remove_lock_path "$T/legacy-lock-fifo" >/dev/null 2>&1; then
+    fail "legacy lock remover deleted a FIFO PID"
+  fi
+  [ -p "$T/legacy-lock-fifo/pid" ] || fail "FIFO PID was removed during safe lock cleanup"
+  rm -f "$T/legacy-lock-fifo/pid"
   rmdir "$T/legacy-lock-fifo" || fail "FIFO lock fixture could not be cleaned safely"
 fi
+mkdir "$T/legacy-lock-symlink-dir-target"
+printf '%s\\n' keep > "$T/legacy-lock-symlink-dir-target/pid"
+ln -s "$T/legacy-lock-symlink-dir-target" "$T/legacy-lock-symlink-dir"
+if _read_lock_owner "$T/legacy-lock-symlink-dir" >/dev/null 2>&1; then
+  fail "legacy lock reader followed a lock-directory symlink"
+fi
+if _remove_lock_path "$T/legacy-lock-symlink-dir" >/dev/null 2>&1; then
+  fail "legacy lock remover accepted a lock-directory symlink"
+fi
+grep -Fqx keep "$T/legacy-lock-symlink-dir-target/pid" || fail "lock-directory symlink target was modified"
+rm -f "$T/legacy-lock-symlink-dir"
+rm -f "$T/legacy-lock-symlink-dir-target/pid"
+rmdir "$T/legacy-lock-symlink-dir-target"
 mkdir "$T/legacy-lock-symlink"
 printf '%s\n' 12345 > "$T/legacy-lock-target"
 ln -s "$T/legacy-lock-target" "$T/legacy-lock-symlink/pid"
