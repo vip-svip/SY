@@ -4890,8 +4890,8 @@ public final class MainActivity extends ComponentActivity {
             ApplicationInfo ai = filtered.get(i);
             LinearLayout row = new LinearLayout(this);
             row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(dp(16), dp(10), dp(16), dp(10));
-            row.setBackgroundColor(0xffffffff);
+            row.setPadding(dp(14), dp(10), dp(14), dp(10));
+            row.setBackground(uiPanelDrawable());
             ImageView icon = new ImageView(this);
             Drawable drawable = appIcons.get(ai.packageName);
             if (drawable != null) {
@@ -4910,18 +4910,18 @@ public final class MainActivity extends ComponentActivity {
             name.setText(appLabels.containsKey(ai.packageName)
                     ? appLabels.get(ai.packageName) : ai.packageName);
             name.setTextSize(16);
-            name.setTextColor(0xff17212b);
+            name.setTextColor(uiPrimaryTextColor());
             TextView pkg = new TextView(this);
             pkg.setText(ai.packageName);
             pkg.setTextSize(11);
-            pkg.setTextColor(0xff75808a);
+            pkg.setTextColor(uiSecondaryTextColor());
             labels.addView(name);
             labels.addView(pkg);
             row.addView(labels, new LinearLayout.LayoutParams(0, -2, 1));
             TextView arrow = new TextView(this);
             arrow.setText("›");
             arrow.setTextSize(28);
-            arrow.setTextColor(0xff637080);
+            arrow.setTextColor(uiSecondaryTextColor());
             row.addView(arrow);
             row.setOnClickListener(v -> {
                 captureHookAppListState();
@@ -4929,8 +4929,12 @@ public final class MainActivity extends ComponentActivity {
             });
             content.addView(row, new LinearLayout.LayoutParams(-1, -2));
             View divider = new View(this);
-            divider.setBackgroundColor(0xffe8ebee);
-            content.addView(divider, new LinearLayout.LayoutParams(-1, dp(1)));
+            // FxNativeSkin maps this known neutral separator to the active
+            // Harmony/Cupertino/other Skin divider without recoloring custom views.
+            divider.setBackgroundColor(0xffe3e8ee);
+            LinearLayout.LayoutParams dividerParams = new LinearLayout.LayoutParams(-1, dp(1));
+            dividerParams.setMargins(dp(12), dp(2), dp(12), dp(2));
+            content.addView(divider, dividerParams);
         }
         if (end < filtered.size()) {
             Button more = new Button(this);
