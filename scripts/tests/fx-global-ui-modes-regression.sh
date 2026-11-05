@@ -107,6 +107,18 @@ for role in 'role.startsWith("fx-title:")' 'role.startsWith("fx-section:")' '"fx
 done
 grep -Fq '"fx-card-group".equals(role)' "$harmony_renderer" || { echo "FAIL: Harmony renderer misses grouped action surfaces"; exit 1; }
 grep -Fq '"fx-card-group".equals(role)' "$cupertino_renderer" || { echo "FAIL: Cupertino renderer misses grouped action surfaces"; exit 1; }
+for role in '"fx-list-row".equals(role)' '"fx-list-title".equals(role)' '"fx-list-subtitle".equals(role)'; do
+  grep -Fq "$role" "$harmony_renderer" || { echo "FAIL: Harmony app-list renderer missing $role"; exit 1; }
+  grep -Fq "$role" "$cupertino_renderer" || { echo "FAIL: Cupertino app-list renderer missing $role"; exit 1; }
+done
+for role in 'row.setTag("fx-list-row")' 'name.setTag("fx-list-title")' 'packageName.setTag("fx-list-subtitle")' 'pkg.setTag("fx-list-subtitle")' 'enabled.setTag("fx-switch-row")'; do
+  grep -Fq "$role" "$activity" || { echo "FAIL: Hook/VPN app list missing global Skin role $role"; exit 1; }
+done
+for token in 'LIST_ROW_SURFACE' 'LIST_ROW_BORDER' 'LIST_ROW_RIPPLE' 'LIST_ROW_RADIUS_DP' 'LIST_ROW_TITLE_SP' 'LIST_ROW_SUBTITLE_SP' 'LIST_ROW_MIN_HEIGHT_DP' 'LIST_ROW_HORIZONTAL_PADDING_DP' 'LIST_ROW_VERTICAL_PADDING_DP'; do
+  grep -Fq "$token" "$harmony_tokens" || { echo "FAIL: Harmony app-list token missing $token"; exit 1; }
+  grep -Fq "$token" "$cupertino_tokens" || { echo "FAIL: Cupertino app-list token missing $token"; exit 1; }
+done
+grep -Fq 'harmonyAndCupertinoAppListRowsUseIndependentGeometryAndTypography' "$native_skin_test" || { echo "FAIL: app-list Skin token unit test missing"; exit 1; }
 for role in 'title.setTag("fx-card-title")' 'detail.setTag("fx-card-body")' 'description.setTag("fx-card-body")' 'sw.setTag("fx-switch-row")'; do
   grep -Fq "$role" "$activity" || { echo "FAIL: shared native page is missing component role assignment: $role"; exit 1; }
 done
