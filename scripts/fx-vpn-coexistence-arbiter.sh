@@ -97,7 +97,7 @@ fx_arb_listening() {
         if (n < 2 || toupper(a[n]) != want) next
         # TCP sockets are conflicts only while listening. UDP tables are
         # already bound-socket inventories (normally state 07), regardless
-        # of the awk implementation's FILENAME behavior.
+        # of awk FILENAME behavior.
         if (is_udp == 1 || toupper($4) == "0A") found = 1
       }
       END { exit(found ? 0 : 1) }
