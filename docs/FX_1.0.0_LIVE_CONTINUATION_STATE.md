@@ -5199,3 +5199,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 回归检查发现中间修订的源码替换范围过宽，导致 `FxDiaFridaActivity.java` 内容被截断；本提交以已验证提交 `1865680` 的完整文件为基底恢复全部内容，再只定位修改 feeder 启动命令，确认 Root 临时文件清理逻辑等既有实现保留。
 - feeder 与 Linux 僵尸行为夹具统一改为读取 /proc/<pid>/stat 并通过 POSIX 参数展开提取状态，避开嵌套单引号；保留真实僵尸子进程测试。
 - 先前失败的 Host Regression `42057131094` 暴露 Activity 文件被截断后造成的二级回归；本次需以新 CI 结果验收。
+
+
+## 2026-11-05 — feeder 状态解析语法修正
+
+- 将生产 feeder、Host 行为夹具及 zombie 状态轮询统一为 POSIX 参数展开解析 /proc/<pid>/stat，移除嵌套单引号；此前失败的 Host run `42056347974` 已定位为该引用错误。
+- 本次提交以 Host Regression 的真实执行结果作为验收；Android Root Shell 与真机仍未验证。
