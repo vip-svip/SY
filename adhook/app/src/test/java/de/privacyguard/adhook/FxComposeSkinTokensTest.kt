@@ -19,13 +19,16 @@ class FxComposeSkinTokensTest {
     )
 
     @Test
-    fun exposesFiveIndependentNavigationGeometries() {
+    fun exposesSixIndependentNavigationGeometries() {
+        val defaultMode = resolve("default")
         val classic = resolve("classic")
         val glass = resolve("glass")
         val miuix = resolve("miuix")
         val harmony = resolve("huawei")
         val cupertino = resolve("ios")
 
+        assertEquals(66, defaultMode.tabBarHeightDp)
+        assertEquals(14, defaultMode.barCornerRadiusDp)
         assertEquals(60, classic.tabBarHeightDp)
         assertEquals(72, glass.tabBarHeightDp)
         assertEquals(68, miuix.tabBarHeightDp)
@@ -41,6 +44,7 @@ class FxComposeSkinTokensTest {
 
     @Test
     fun onlyLiquidSkinSelectsLensTabRenderer() {
+        assertFalse(resolve("default").useLiquidTabsRenderer)
         assertFalse(resolve("classic").useLiquidTabsRenderer)
         assertTrue(resolve("glass").useLiquidTabsRenderer)
         assertFalse(resolve("miuix").useLiquidTabsRenderer)
@@ -71,7 +75,8 @@ class FxComposeSkinTokensTest {
     }
 
     @Test
-    fun unknownModeFallsBackToClassicSkinTokens() {
-        assertEquals(resolve("classic"), resolve("not-a-skin"))
+    fun defaultAndClassicRemainDistinctAndUnknownValuesRecoverToDefault() {
+        assertNotEquals(resolve("default"), resolve("classic"))
+        assertEquals(resolve("default"), resolve("not-a-skin"))
     }
 }
