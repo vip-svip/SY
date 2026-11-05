@@ -317,7 +317,7 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
                     new AlertDialog.Builder(this).setTitle("脚本名称已存在")
                             .setMessage("“" + name + "”已存在。继续编辑会在保存时覆盖该脚本。")
                             .setNegativeButton("取消", null)
-                            .setPositiveButton("编辑现有脚本", (d, w) ->
+                            .setPositiveButton("编辑现有脚本", (existingDialog, w) ->
                                     openEditor(name, scripts.optString(name, ""))).show();
                 }).create();
         dialog.setOnCancelListener(ignored -> {
