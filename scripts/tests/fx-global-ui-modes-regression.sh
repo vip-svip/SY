@@ -4,10 +4,11 @@ root="$(cd "$(dirname "$0")/../.." && pwd)"
 mode="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxUiMode.kt"
 panel="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxDesignModePanel.kt"
 shell="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeAppShell.kt"
+tokens="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxComposeSkinTokens.kt"
 activity="$root/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
 host="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeTabActivity.java"
 skin="$root/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeSkin.java"
-for f in "$mode" "$panel" "$shell" "$activity" "$host" "$skin"; do
+for f in "$mode" "$panel" "$shell" "$tokens" "$activity" "$host" "$skin"; do
   test -s "$f" || { echo "FAIL: missing UI mode source $f"; exit 1; }
 done
 for token in CLASSIC_WEB_COMPAT FX_LIQUID_NATIVE MIUIX_STYLE HUAWEI_HARMONY_STYLE IOS_CUPERTINO_STYLE classic glass miuix huawei ios; do
@@ -18,13 +19,19 @@ for token in FxUiMode.CLASSIC_WEB_COMPAT FxUiMode.FX_LIQUID_NATIVE FxUiMode.MIUI
 done
 grep -Fq 'LiquidBottomTabs(' "$shell" || { echo "FAIL: liquid renderer missing"; exit 1; }
 grep -Fq 'MiuixTheme(' "$shell" || { echo "FAIL: Miuix renderer missing"; exit 1; }
-grep -Fq 'mode == "glass"' "$shell" || { echo "FAIL: liquid mode branch missing"; exit 1; }
-grep -Fq 'mode == "miuix"' "$shell" || { echo "FAIL: Miuix mode branch missing"; exit 1; }
-grep -Fq '"classic" ->' "$shell" || { echo "FAIL: classic mode branch missing"; exit 1; }
+grep -Fq 'tokens.useLiquidTabsRenderer' "$shell" || { echo "FAIL: liquid renderer is not selected by the skin token set"; exit 1; }
+grep -Fq 'fxComposeShellTokens(' "$shell" || { echo "FAIL: shared shell does not resolve the active skin tokens"; exit 1; }
+grep -Fq 'tokens.barBorder' "$shell" || { echo "FAIL: per-skin shell border token is not applied"; exit 1; }
 grep -Fq '"huawei".equals(uiMode)' "$activity" || { echo "FAIL: HUAWEI native page palette missing"; exit 1; }
 grep -Fq '"ios".equals(uiMode)' "$activity" || { echo "FAIL: iOS native page palette missing"; exit 1; }
-grep -Fq '"huawei" -> Color(0xFFF1F5FA)' "$shell" || { echo "FAIL: HUAWEI Harmony shell palette missing"; exit 1; }
-grep -Fq '"ios" -> Color(0xFFF2F2F7)' "$shell" || { echo "FAIL: iOS Cupertino shell palette missing"; exit 1; }
+for token in FxClassicComposeTokens FxLiquidComposeTokens FxMiuixComposeTokens FxHarmonyComposeTokens FxCupertinoComposeTokens; do
+  grep -Fq "internal object $token" "$tokens" || { echo "FAIL: missing independent skin token set $token"; exit 1; }
+done
+grep -Fq 'pageBackground = Color(0xFFF1F5FA)' "$tokens" || { echo "FAIL: HUAWEI Harmony page background token missing"; exit 1; }
+grep -Fq 'pageBackground = Color(0xFFF2F2F7)' "$tokens" || { echo "FAIL: iOS Cupertino page background token missing"; exit 1; }
+grep -Fq 'tabBarHeightDp = 60' "$tokens" || { echo "FAIL: Classic tab geometry missing"; exit 1; }
+grep -Fq 'tabBarHeightDp = 68' "$tokens" || { echo "FAIL: Miuix tab geometry missing"; exit 1; }
+grep -Fq 'tabBarHeightDp = 76' "$tokens" || { echo "FAIL: Cupertino tab geometry missing"; exit 1; }
 grep -Fq 'webView.setVisibility(View.VISIBLE)' "$activity" || { echo "FAIL: ClassicWebCompat WebView not mounted"; exit 1; }
 grep -Fq 'navigateWebPage(webPageForBottomTab(index))' "$activity" || { echo "FAIL: ClassicWebCompat tab routing missing"; exit 1; }
 grep -Fq 'FxUiMode.read(this).getStorageId()' "$activity"
