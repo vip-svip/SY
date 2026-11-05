@@ -46,7 +46,13 @@ internal object FxGkdAutomationRuntime {
             try { rootHandle.recycle() } catch (_: RuntimeException) {}
             return false
         }
-        if (eventPackage.isBlank() || eventPackage == service.packageName) {
+        if (eventPackage.isBlank() || eventPackage == service.packageName ||
+            !isInstalledUserApplication(service, eventPackage)
+        ) {
+            try { rootHandle.recycle() } catch (_: RuntimeException) {}
+            return false
+        }
+        if (!FxGkdRuleStore.hasEnabledRule(service, eventPackage)) {
             try { rootHandle.recycle() } catch (_: RuntimeException) {}
             return false
         }
@@ -87,6 +93,11 @@ internal object FxGkdAutomationRuntime {
                     if (liveNode.isPassword || liveNode.isEditable ||
                         !liveNode.isVisibleToUser || !liveNode.isClickable
                     ) continue
+                    // Honor a user disable or per-rule revocation that arrives while
+                    // a bounded snapshot is being matched.
+                    if (!FxGkdRuleStore.isRuleEnabled(service, rule.source.id, eventPackage)) {
+                        continue
+                    }
 
                     if (liveNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
                         lastActionByRule[rule.source.id] = now
@@ -97,6 +108,24 @@ internal object FxGkdAutomationRuntime {
             return false
         } finally {
             snapshot.close()
+        }
+    }
+
+    private fun isInstalledUserApplication(
+        service: AccessibilityService,
+        packageName: String
+    ): Boolean {
+        if (!FxGkdRuleStore.isValidPackageName(packageName)) return false
+        return try {
+            val info = service.packageManager.getApplicationInfo(packageName, 0)
+            (info.flags and (
+                android.content.pm.ApplicationInfo.FLAG_SYSTEM or
+                    android.content.pm.ApplicationInfo.FLAG_UPDATED_SYSTEM_APP
+            )) == 0
+        } catch (_: android.content.pm.PackageManager.NameNotFoundException) {
+            false
+        } catch (_: SecurityException) {
+            false
         }
     }
 
