@@ -69,8 +69,7 @@ required = {
     "stdin feeder has a port-specific identity": "fx-gadget-feed-$port",
     "CLI session survives Activity return": "nohup",
     "PID record is staged before rename": '.gadget-$port.pid.XXXXXX',
-    "session log viewer is bounded": "tail -n 500",
-    "Gadget WAIT/RESUME config semantics remain": 'interaction.put("on_load", wait ? "wait" : "resume")',
+        "Gadget WAIT/RESUME config semantics remain": 'interaction.put("on_load", wait ? "wait" : "resume")',
     "Gadget rejects frida-server port": "if (port == 27042)",
 }
 for label, needle in required.items():
@@ -120,14 +119,20 @@ if "rm -f" in check or 'kill "$' in check:
 show = source[source.index("private void showGadgetSessionLog()"):
                source.index("private void copyGadgetConnectCommand()")]
 for label, needle in (
-    ("Gadget log path rejects symlinks", r'[ ! -L \"$path\" ]'),
-    ("Gadget log path must be absent or a regular file", r'[ ! -f \"$path\" ]'),
-    ("Gadget log path must be readable", r'[ ! -r \"$path\" ]'),
-    ("Gadget log path rejects special files", "FX_GADGET_LOG_TYPE_REJECTED"),
-    ("Gadget log reads remain bounded", "tail -n 500"),
+    ("Gadget log page route passes only the selected port", 'page.putExtra("fx_dia_session_log_gadget_port", port)'),
+    ("Gadget log page route uses the native viewer", "FxDiaSessionLogActivity.class"),
 ):
     if needle not in show:
-        raise SystemExit(f"FAIL: Gadget session log reader safety missing: {label}")
+        raise SystemExit(f"FAIL: Gadget session log route missing: {label}")
+for label, needle in (
+    ("Gadget log path is built from the validated port", 'LOG_DIR + "/gadget-" + gadgetPort + ".log"'),
+    ("Gadget log port excludes invalid values and frida-server default", "gadgetPort >= 1024 && gadgetPort <= 65535 && gadgetPort != 27042"),
+    ("Gadget log reads remain bounded", "tail -n 500"),
+    ("Gadget log reads reject symlink files", "! -L " + ' + quote(logPath)'),
+    ("Gadget log clear remains confirmation gated", 'setTitle("清空 Frida 会话日志")'),
+):
+    if needle not in session_log:
+        raise SystemExit(f"FAIL: Native Gadget session log safety missing: {label}")
 logs_guard = source[source.index("private String prepareDiaLogsDirectoryPrefix()"):
                     source.index("private String checkedSessionLogDirectoryPrefix()")]
 existing_guard = source[source.index("private String checkedSessionLogDirectoryPrefix()"):
