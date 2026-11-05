@@ -109,8 +109,8 @@ for filename, tokens in privacy_pages.items():
         assert token in source, f"{filename} is not presented as an FX Privacy page: {token}"
 for token in ("shield_prefs", "automatic_scan_last_result", "FxYulongProtectionService", "FxYulongRescueOverlayService"):
     assert token in daily, f"daily summary data source missing: {token}"
-assert 'body.addView(button("返回安全护盾首页",this::finish));' in daily
-assert 'body.addView(button("返回安全护盾首页",()->startActivity(new Intent(this,FxYulongShieldActivity.class))));' not in daily
+assert 'body.addView(button("返回隐私首页",this::finish));' in daily
+assert 'body.addView(button("返回隐私首页",()->startActivity(new Intent(this,FxYulongShieldActivity.class))));' not in daily
 assert r'+"\\n"' not in daily, "daily summary must render real line breaks, not literal \\n"
 assert r'+"\n"' in daily, "daily summary service/permission lines must use newline separators"
 warning = (shield_dir / "FxYulongWarningActivity.java").read_text(encoding="utf-8")
