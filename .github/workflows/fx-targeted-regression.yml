@@ -75,6 +75,8 @@ jobs:
           if grep -Eq '^\.github/workflows/(build-fx-adhook|build-fx-kernelsu|fx-targeted-regression)\.yml$' <<<"$changed"; then
             changed="ALL"
           fi
+            changed="ALL"
+          fi
           echo "Changed paths:"
           printf '%s\n' "$changed"
 
