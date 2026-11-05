@@ -93,6 +93,11 @@ while [ "$i" -le 140 ]; do
   i=$((i+1))
 done
 [ "$(sh "$SCRIPT" list | grep -c '|')" -eq 152 ] || fail "catalog truncated above 128 entries or former aggregate limit"
+mkdir -p "$PG/jsruntime/staging"
+staged="$PG/jsruntime/staging/fx-native-script-regression"
+printf '%s' "$large_source" > "$staged"
+[ "$(sh "$SCRIPT" add-file "$staged" "$multi_note" 1)" = "OK" ] || fail "file-backed large script import was rejected"
+[ "$(sh "$SCRIPT" list | grep -c '|')" -eq 153 ] || fail "file-backed large script was not retained"
 # The parser/serializer must decode FXSRC_B64 rows while keeping HTTPS URLs readable.
 # The targeted Host lane has no release archive; use a minimal canonical parser fixture.
 if [ -s "$ROOT/fx-module/webroot/index.html" ]; then
