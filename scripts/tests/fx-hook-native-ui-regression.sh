@@ -87,6 +87,12 @@ rows = source[rows_start:rows_end]
 for token in ("row.setOnClickListener(v -> {", "showTarget(ai)", "MAX_APP_ROWS_PER_PAGE",
               "appendAppRows(end, nextEnd)"):
     assert token in rows, f"Hook result-row interaction/pagination missing: {token}"
+for token in ("row.setBackground(uiPanelDrawable())",
+              "name.setTextColor(uiPrimaryTextColor())",
+              "pkg.setTextColor(uiSecondaryTextColor())",
+              "arrow.setTextColor(uiSecondaryTextColor())",
+              "divider.setBackgroundColor(0xffe3e8ee)"):
+    assert token in rows, f"Hook app-row Skin token is missing: {token}"
 print("PASS: Hook authorization groups and app-list Skin surfaces preserve authorization, search, target routing and pagination.")
 PY
 grep -q "Locale.ROOT" "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java" || fail "case-insensitive app search is locale-dependent"
