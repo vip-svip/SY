@@ -5,14 +5,14 @@ ROOT=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
 SOURCE="$ROOT/fx-module/post-fs-data.sh"
 [ -s "$SOURCE" ] || { echo "FAIL: post-fs-data source missing" >&2; exit 1; }
 sh -n "$SOURCE" || { echo "FAIL: post-fs-data syntax invalid" >&2; exit 1; }
-T=$(mktemp -d "\${TMPDIR:-/tmp}/fx-overlay-boot.XXXXXX")
+T=$(mktemp -d "${TMPDIR:-/tmp}/fx-overlay-boot.XXXXXX")
 trap 'rm -rf "$T"' EXIT HUP INT TERM
 BIN="$T/bin"
 mkdir -p "$BIN"
 cat > "$BIN/ls" <<'LS'
 #!/bin/sh
-if [ "\${1:-}" = "-Zd" ]; then
-  printf 'u:object_r:system_file:s0 %s\n' "\${2:-}"
+if [ "${1:-}" = "-Zd" ]; then
+  printf 'u:object_r:system_file:s0 %s\n' "${2:-}"
 else
   exec /bin/ls "$@"
 fi
