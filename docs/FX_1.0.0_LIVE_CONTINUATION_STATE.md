@@ -5371,3 +5371,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Verification: isolated host-shell execution of the production-equivalent lock-removal cases passed. The complete Root Proxy runtime regression harness and full source `sh -n` were not run in this environment because a repository checkout/runtime download is unavailable. GitHub combined status returned no checks and the available commit-workflow query returned no runs; CI result is therefore unknown, not passed. No Android build, install, emulator, or real-device validation was performed.
 - Current branch HEAD at state update: `472451b2b7c6d3a2853aad4aa98ddb2f8babcae3`.
 - Next implementation focus: continue Root Proxy / independent local DNS coexistence and service lifecycle tests; then proceed with the next complete native UI page group. Preserve existing VPN and DNS routes; do not generate a final APK/module before acceptance gates.
+
+
+## 2026-11-06 — VPN 共存原生状态卡补齐槽位与 UID 证据
+
+- 本批基于分支 HEAD `d043ba89c41dafc605a08fda692f06de92d59d0e`，将 VPN 共存卡片补齐快照中的第三方 VPN UID 与 `vpn_service_slot_used`。
+- 当快照明确给出 `false` 时，UI 显示“FX 内核数据面不占 Android VpnService 槽位”；明确为 `true` 时显示正在占用；旧快照缺字段则显示未知，不猜测。
+- 保留路由探测的 fail-closed 文案：只有 `route_probe=verified` 才显示已验证；其他值均显示未验证。
+- 改动：`adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`、`scripts/tests/fx-vpn-coexistence-ui-regression.py`。
+- 验证状态：源码锚点和回归断言已更新；提交后等待 GitHub Actions Host Regression。尚未进行 Android Gradle 构建、模拟器或真机测试；UI 回归属于源码契约检查，不等于设备端渲染验收。
+- 平台边界不变：该字段仅说明 FX 内核数据面不占普通 VpnService 槽位，不代表 Android Framework 支持多个活动 VpnService。

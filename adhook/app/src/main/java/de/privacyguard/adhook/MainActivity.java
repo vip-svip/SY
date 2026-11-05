@@ -1577,10 +1577,18 @@ public final class MainActivity extends ComponentActivity {
                                 ? "检测到第三方 VPN" : "未检测到第三方 VPN";
                         String iface = json.optString("external_if", "");
                         if (!iface.isEmpty()) external += "（" + iface + "）";
+                        String externalUid = json.optString("external_uid", "");
+                        if (!externalUid.isEmpty()) external += " · UID " + externalUid;
+                        String slotText = !json.has("vpn_service_slot_used")
+                                ? "FX VpnService 槽位状态未知"
+                                : (json.optBoolean("vpn_service_slot_used", true)
+                                        ? "FX 使用 Android VpnService 槽位"
+                                        : "FX 内核数据面不占 Android VpnService 槽位");
                         target.setText("共存等级：" + grade + " · " + verdict
                                 + "\n" + external + " · " + routeText
                                 + "\n数据面：" + json.optString("dataplane", "unknown")
-                                + " · 裁决来源：" + json.optString("source", "unknown")
+                                + " · " + slotText
+                                + "\n裁决来源：" + json.optString("source", "unknown")
                                 + (json.optBoolean("interception_blocked", false)
                                         ? "\nFX 流量拦截当前受限" : ""));
                     } catch (Exception error) {
