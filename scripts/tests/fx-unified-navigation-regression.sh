@@ -44,6 +44,7 @@ dia_monitor = Path(sys.argv[15]).read_text(encoding="utf-8")
 dia_session = Path(sys.argv[16]).read_text(encoding="utf-8")
 dia_signature = Path(sys.argv[17]).read_text(encoding="utf-8")
 dia_system = Path(sys.argv[18]).read_text(encoding="utf-8")
+dia_json = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaJsonActivity.java")
 settings_start = activity.index("    private void showSettings()")
 settings_end = activity.index("    private String importedSuiteTitle(", settings_start)
 settings = activity[settings_start:settings_end]
@@ -79,6 +80,8 @@ dia_json = source("adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/
 for token in ("‹ 返回 Hook", "Hook · JSON 操作", "FX Hook JSON", "fx-hook-json.json", "setContentViewWithNativeTabs(root, 4)"):
     assert token in dia_json, f"JSON editor is not integrated as a Hook tool: {token}"
 assert "FX Dia JSON" not in dia_json and "Dia ·" not in dia_json
+assert "FX Hook JSON" in dia_json and "fx-hook-json.json" in dia_json
+assert "setContentViewWithNativeTabs(root, 4)" in dia_json
 assert "HUAWEI HarmonyStyle" in settings and "iOS CupertinoStyle" in settings
 assert "逐页组件适配仍在继续" in settings
 restore_start = activity.index("        if (restoreHookScreen)")
