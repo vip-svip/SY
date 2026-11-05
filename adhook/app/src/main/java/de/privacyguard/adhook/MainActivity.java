@@ -156,6 +156,10 @@ public final class MainActivity extends ComponentActivity {
     private boolean customRuleEditorRestorePending;
     private boolean customRuleImportDialogOpen;
     private boolean customRuleImportRestorePending;
+    private final Handler customRuleImportDraftHandler = new Handler(Looper.getMainLooper());
+    private EditText customRuleImportDraftEditor;
+    private String customRuleImportDraftPackage;
+    private Runnable customRuleImportDraftSaveRunnable;
     private String customRuleGroupDialogMode;
     private String customRuleGroupDialogValue;
     private boolean customRuleGroupDialogRestorePending;
@@ -481,6 +485,7 @@ public final class MainActivity extends ComponentActivity {
     }
 
     @Override protected void onPause() {
+        flushCustomRuleImportDraftWrite();
         if (hookUiVisible && (hookHubVisible || hookTargetVisible)) {
             hookAuthorizationRefreshPending = true;
         }
@@ -494,6 +499,7 @@ public final class MainActivity extends ComponentActivity {
     }
 
     @Override protected void onSaveInstanceState(Bundle outState) {
+        flushCustomRuleImportDraftWrite();
         if (!hookUiVisible && !settingsUiVisible) captureNativePageScrollPosition();
         outState.putIntArray("fx_native_tab_scroll_positions", nativeTabScrollPositions.clone());
         outState.putInt("fx_last_web_tab", lastWebTabIndex);
@@ -4409,6 +4415,7 @@ public final class MainActivity extends ComponentActivity {
     }
 
     @Override protected void onDestroy() {
+        flushCustomRuleImportDraftWrite();
         cancelHookTargetScopeOperation();
         hookTargetScopeExecutor.shutdownNow();
         hookRootCheckGeneration++;
@@ -7162,6 +7169,44 @@ public final class MainActivity extends ComponentActivity {
     }
 
 
+    private void scheduleCustomRuleImportDraftWrite(EditText input, String targetPackage) {
+        customRuleImportDraftEditor = input;
+        customRuleImportDraftPackage = targetPackage;
+        if (customRuleImportDraftSaveRunnable != null) {
+            customRuleImportDraftHandler.removeCallbacks(customRuleImportDraftSaveRunnable);
+        }
+        Runnable pending = () -> {
+            if (customRuleImportDraftEditor != input
+                    || !targetPackage.equals(customRuleImportDraftPackage)) return;
+            String draft = input.getText() == null ? "" : input.getText().toString();
+            getPreferences(0).edit()
+                    .putString(targetPackage + ":dev_rule_import_json_draft", draft)
+                    .apply();
+            customRuleImportDraftSaveRunnable = null;
+            customRuleImportDraftEditor = null;
+            customRuleImportDraftPackage = null;
+        };
+        customRuleImportDraftSaveRunnable = pending;
+        customRuleImportDraftHandler.postDelayed(pending, 400L);
+    }
+
+    private void flushCustomRuleImportDraftWrite() {
+        if (customRuleImportDraftSaveRunnable != null) {
+            customRuleImportDraftHandler.removeCallbacks(customRuleImportDraftSaveRunnable);
+            customRuleImportDraftSaveRunnable = null;
+        }
+        EditText input = customRuleImportDraftEditor;
+        String targetPackage = customRuleImportDraftPackage;
+        if (input != null && targetPackage != null) {
+            String draft = input.getText() == null ? "" : input.getText().toString();
+            getPreferences(0).edit()
+                    .putString(targetPackage + ":dev_rule_import_json_draft", draft)
+                    .apply();
+        }
+        customRuleImportDraftEditor = null;
+        customRuleImportDraftPackage = null;
+    }
+
     private void showCustomRuleImportDialog() {
         customRuleImportDialogOpen = true;
         customRuleImportRestorePending = false;
@@ -7176,8 +7221,7 @@ public final class MainActivity extends ComponentActivity {
         input.addTextChangedListener(new android.text.TextWatcher() {
             @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) { }
             @Override public void onTextChanged(CharSequence value, int start, int before, int count) {
-                getPreferences(0).edit().putString(importDraftKey,
-                        value == null ? "" : value.toString()).apply();
+                scheduleCustomRuleImportDraftWrite(input, selectedPackage);
             }
             @Override public void afterTextChanged(android.text.Editable value) { }
         });
@@ -7185,14 +7229,17 @@ public final class MainActivity extends ComponentActivity {
                 .setMessage("支持旧版 JSON 数组及带 sourcePackage 的可移植规则组对象。来源包与当前目标不同时，只改写方法所属类的包名前缀；每条规则仍须通过目标包名与方法签名校验。")
                 .setView(input)
                 .setNegativeButton("取消", (dialog, which) -> {
+                    flushCustomRuleImportDraftWrite();
                     customRuleImportDialogOpen = false;
                     customRuleImportRestorePending = false;
                 })
                 .setOnCancelListener(dialog -> {
+                    flushCustomRuleImportDraftWrite();
                     customRuleImportDialogOpen = false;
                     customRuleImportRestorePending = false;
                 })
                 .setPositiveButton("验证并导入", (dialog, which) -> {
+                    flushCustomRuleImportDraftWrite();
                     customRuleImportDialogOpen = false;
                     customRuleImportRestorePending = false;
                     try {

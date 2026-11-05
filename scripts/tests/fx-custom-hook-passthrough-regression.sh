@@ -68,4 +68,26 @@ for fixed_loop in (
 assert "最多 64 条规则" not in source and "最多配置 64 条自定义规则" not in source
 print("PASS: editor, grouping, import/export, render and publish enumerate custom rules dynamically")
 PY
+python3 - "$MAIN" <<'PY'
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+assert "postDelayed(pending, 400L)" in source, "large JSON draft writes are not debounced"
+assert "scheduleCustomRuleImportDraftWrite(input, selectedPackage)" in source, "import editor does not use debounced draft persistence"
+assert "private void flushCustomRuleImportDraftWrite()" in source, "import draft has no synchronous flush helper"
+for signature in (
+    "protected void onPause()",
+    "protected void onSaveInstanceState(Bundle outState)",
+    "protected void onDestroy()",
+):
+    start = source.index(signature)
+    next_override = source.find("\\n    @Override", start + len(signature))
+    if next_override < 0:
+        next_override = len(source)
+    assert "flushCustomRuleImportDraftWrite();" in source[start:next_override], (
+        "pending import draft is not flushed from " + signature
+    )
+print("PASS: large custom Hook JSON drafts persist with a 400 ms debounce and lifecycle flush")
+PY
+
 echo "PASS: custom Hook passthrough actions are exact-type, debuggable-only, explicit-opt-in and fail-closed"
