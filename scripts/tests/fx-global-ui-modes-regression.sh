@@ -134,6 +134,9 @@ for token in 'CARD_SURFACE' 'CARD_STROKE' 'ROW_RIPPLE' 'SECTION_RADIUS_DP' 'PAGE
 done
 grep -Fq 'applyTextInputSkin(activity, (EditText) view, mode, palette)' "$skin" || { echo "FAIL: EditText controls must use skin hint tokens"; exit 1; }
 grep -Fq 'applySpinnerSkin(activity, (Spinner) view, mode, palette)' "$skin" || { echo "FAIL: Spinner controls must use skin selection tokens"; exit 1; }
+for token in   'HarmonySkinTokens.HarmonyTypographyTokens.SPINNER_LABEL_SP'   'HarmonySkinTokens.HarmonySpacingTokens.SPINNER_HORIZONTAL_PADDING_DP'   'CupertinoSkinTokens.CupertinoTypographyTokens.SPINNER_LABEL_SP'   'CupertinoSkinTokens.CupertinoSpacingTokens.SPINNER_VERTICAL_PADDING_DP'; do
+  grep -Fq "$token" "$activity" || { echo "FAIL: MainActivity Spinner renderer does not use shared Skin token $token"; exit 1; }
+done
 grep -Fq 'control.setHintTextColor(palette.secondaryText)' "$skin" || { echo "FAIL: EditText placeholder color is not skin-aware"; exit 1; }
 grep -Fq 'palette.inputBorder' "$skin" || { echo "FAIL: focused/unfocused form border token is missing"; exit 1; }
 grep -Fq 'INPUT_BORDER = 0xffb7cce5' "$harmony_tokens" || { echo "FAIL: Harmony form border token missing"; exit 1; }
