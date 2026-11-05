@@ -69,6 +69,24 @@ for token in (
 ):
     assert token in activity, "Root summary module resolver must reject symlinked or malformed module paths: " + token
 assert '  dns-log-summary)' in control, "control command missing"
+module_start = activity.index("private String moduleShell(String scriptArgs)")
+module_end = activity.index("private void root(", module_start)
+module_lookup = activity[module_start:module_end]
+for token in (
+    "[ -d '/data' ]", "[ ! -L '/data' ]",
+    "[ -d '/data/adb' ]", "[ ! -L '/data/adb' ]",
+    "[ -d '/data/adb/modules' ]", "[ ! -L '/data/adb/modules' ]",
+    "[ ! -L '/data/adb/modules_update' ]",
+    "grep -qx 'id=privacyguard'",
+    "grep -qx 'version=1.0.0'",
+    "yulong-ad-control.sh",
+):
+    assert token in module_lookup, f"Ad summary Root module discovery must enforce: {token}"
+assert r'if [ -d \"$d\" ] && [ ! -L \"$d\" ]' in module_lookup, "candidate module directories must be real directories"
+assert r'&& [ -f \"$d/module.prop\" ] && [ ! -L \"$d/module.prop\" ]' in module_lookup, "module.prop must be a real file"
+assert r'&& [ -d \"$d/scripts\" ] && [ ! -L \"$d/scripts\" ]' in module_lookup, "scripts parent must be a real directory"
+assert r'&& [ -f \"$d/scripts/yulong-ad-control.sh\" ]' in module_lookup, "control script must be a regular file"
+assert r'&& [ ! -L \"$d/scripts/yulong-ad-control.sh\" ]' in module_lookup, "control script symlinks must be rejected"
 assert 'pg_get dns_querylog_enabled 0' in control, "statistics command does not honor opt-in"
 assert 'yulong-ad-dns-summary.sh' in control, "control command does not invoke numeric summary helper"
 assert 'yulong-ad-dns-summary.sh' in patcher and 'copy2' in patcher, "Release patcher does not stage summary helper"

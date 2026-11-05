@@ -5847,3 +5847,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 规则缓存重建时只保留仍有已编译启用规则的包记录；规则配置失效时清空节流状态，不设置人工包数量上限。
 - 新增 Android-free `FxGkdPackageScanThrottle` 与 3 个 JVM 单测，覆盖同包 cooldown、跨包互不干扰、规则移除清理和总失效清空；更新 GKD workflow 路径触发与单测筛选。
 - `fx-gkd-automation-regression.sh` 同步检查该节流器确实接入运行时。等待最新 GKD/Host Actions；本批尚未进行 Android 设备无障碍点击真实验收。
+
+
+### Ad 总结页 Root 模块发现安全回归补齐（2026-11-06）
+
+- Ad 总结页 `FxYulongAdSummaryActivity.moduleShell()` 已使用与 Ad 主控制页相同的 fail-closed 模块发现：校验 `/data`、`/data/adb`、modules 根目录、modules_update 类型、模块目录、module.prop、scripts 目录和控制脚本的真实文件类型，并精确匹配 FX id/version。
+- 本批只补充 `fx-yulong-ad-dns-summary-regression.sh` 对该模块发现契约的逐项断言，防止未来某一页面退回到仅 grep id 的宽松 Root 路径解析；产品源码保持不变。
+- 回归与当前 HEAD 的 Targeted Host Regression 一并验证；未宣称 APK 构建、安装或 Root 真机验证。
