@@ -198,6 +198,7 @@ cat > "$CONF" <<'BAD_NO_MASTER'
 [list:yulong_app_firewall]
 BAD_NO_MASTER
 if run list > "$TMP/missing-master" 2>&1; then fail "firewall list accepted a missing master section"; fi
+grep -qx 'FXYULONGFW2' "$TMP/$TMP/missing-master" && fail "invalid master emitted a success protocol header"
 cat > "$CONF" <<'BAD_DUP_MASTER'
 [conf:yulong_app_firewall]
 enabled=0
@@ -205,17 +206,20 @@ enabled=0
 enabled=1
 BAD_DUP_MASTER
 if run list > "$TMP/duplicate-master" 2>&1; then fail "firewall list accepted duplicate master sections"; fi
+grep -qx 'FXYULONGFW2' "$TMP/$TMP/duplicate-master" && fail "invalid master emitted a success protocol header"
 cat > "$CONF" <<'BAD_INVALID_MASTER'
 [conf:yulong_app_firewall]
 enabled=maybe
 BAD_INVALID_MASTER
 if run list > "$TMP/invalid-master" 2>&1; then fail "firewall list accepted an invalid master value"; fi
+grep -qx 'FXYULONGFW2' "$TMP/$TMP/invalid-master" && fail "invalid master emitted a success protocol header"
 cat > "$CONF" <<'BAD_DUP_VALUE'
 [conf:yulong_app_firewall]
 enabled=0
 enabled=1
 BAD_DUP_VALUE
 if run list > "$TMP/duplicate-master-value" 2>&1; then fail "firewall list accepted duplicate master keys"; fi
+grep -qx 'FXYULONGFW2' "$TMP/$TMP/duplicate-master-value" && fail "invalid master emitted a success protocol header"
 
 # An absent list section is a valid empty selection, but duplicate sections are not.
 cat > "$CONF" <<'EMPTY_RULES'

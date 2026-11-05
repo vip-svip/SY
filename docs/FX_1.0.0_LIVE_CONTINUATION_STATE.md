@@ -5825,3 +5825,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 最新 Host 失败 `42098905295` 的断言为 `daily summary worker queue must remain bounded`。追踪最近协作提交确认：回归脚本将 `summary` 路径改为隐私页 `FxYulongDailySummaryActivity`，但仍沿用 Ad 页原有 Root worker 队列断言。
 - 将测试拆分为 `ad_summary`（`imported/ad/FxYulongAdSummaryActivity`）：验证 1 槽位有界 Root worker、AbortPolicy、拒绝处理及销毁关闭；`summary`（`imported/shield/FxYulongDailySummaryActivity`）：验证本地 SharedPreferences 和实际服务状态，不要求 Root worker。
 - 这样保留两页各自真实数据来源与生命周期要求，不新增无必要线程。当前 HEAD 的 Host/Module Runtime 结果待本提交后重新检查。
+
+
+### Ad 防火墙主状态回归验证接线（2026-11-06）
+
+- `bb8c815c` 的 Host run `42098758244` 运行到新增 master/list section 场景时发现 AWK `else if` 换行语法错误；提交 `1688fc360405` 已将条件合为单行，保持逻辑不变。
+- `b6c2c4da` 的 Host run `42099086925` 是安装器夹具增量，未运行防火墙专项测试；本次进一步要求每个无效/重复 master fixture 不得输出 `FXYULONGFW2` 成功协议头，并改动 firewall 专项脚本以触发针对性 Host 回归。
+- `b6c2c4da` Module Runtime run `42099086747` 的 TUN/DNS/watchdog 和 Root Proxy/native VPN 两步均完成 SUCCESS，但 workflow 标记 CANCELLED；不记为完整 workflow success。
