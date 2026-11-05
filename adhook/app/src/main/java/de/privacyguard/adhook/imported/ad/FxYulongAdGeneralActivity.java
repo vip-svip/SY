@@ -1,6 +1,7 @@
 package de.privacyguard.adhook.imported.ad;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.appwidget.AppWidgetManager;
 import android.content.Intent;
 import android.content.BroadcastReceiver;
