@@ -203,8 +203,8 @@ public final class FxDiaGlobalSettingsActivity extends de.privacyguard.adhook.Fx
         LinearLayout header = new LinearLayout(this);
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(10), dp(6), dp(12), dp(6));
-        header.addView(button("‹ 返回", this::finish));
-        header.addView(text("Dia · 全局设置", 18, 0xff17212b, true),
+        header.addView(button("‹ 返回 Hook", this::finish));
+        header.addView(text("Hook · 工具与运行设置", 18, 0xff17212b, true),
                 new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
 
@@ -216,7 +216,7 @@ public final class FxDiaGlobalSettingsActivity extends de.privacyguard.adhook.Fx
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
 
         TextView notice = text(
-                "此页对应 Dia 23.11 的原始 my_settings PreferenceScreen。FX 只启用已经迁入并验证的操作；原版依赖独立 APK、跨进程共享偏好或框架重启的项目会明确标记为未迁移。",
+                "管理 FX Hook 的提示显示、LSPosed 作用域、数据备份与系统扩展。尚未接入或当前设备不支持的能力会明确标记，不会启动旧应用或创建第二套设置入口。",
                 12, 0xff526170, false);
         notice.setPadding(dp(16), dp(10), dp(16), dp(12));
         body.addView(notice);
@@ -233,8 +233,8 @@ public final class FxDiaGlobalSettingsActivity extends de.privacyguard.adhook.Fx
         addStoredSwitch("自动申请 LSPosed 作用域",
                 "开启后，进入用户应用的 Hook 配置页时，FX 会先读取 LSPosed 当前作用域；若尚未包含该应用，则通过官方 libXposed 服务向 LSPosed Manager 提交申请。系统应用不会自动申请，Manager 仍须批准；作用域批准不代表目标进程已注入。",
                 "lsp_sync", false);
-        addAction("快速重启系统",
-                "执行 Dia 23.11 原版的 stop;start 框架服务层重启命令，不会重启内核或整台设备。需要 KernelSU Root 授权；正在运行的应用、VPN 和 Hook 会被中断。",
+        addAction("重启 LSPosed 框架服务",
+                "通过 Root 执行框架服务 stop;start，不会重启内核或整台设备。需要 KernelSU Root 授权；正在运行的应用、VPN 和 Hook 会被中断。",
                 this::confirmFrameworkRestart);
         frameworkRestartStatus = text("框架服务重启：尚未执行。", 12, 0xff687583, false);
         frameworkRestartStatus.setPadding(dp(16), dp(4), dp(16), dp(8));
@@ -258,13 +258,13 @@ public final class FxDiaGlobalSettingsActivity extends de.privacyguard.adhook.Fx
         TextView communityState = text("原版默认禁用", 12, 0xff9aa4ae, false);
         row("内部社区", "原版 PreferenceScreen 中此项默认 enabled=false；FX 保持禁用。", communityState, null);
         addAction("关于软件",
-                "查看 Dia 原始版本信息及 FX 统一迁移说明。",
+                "查看 FX Hook 版本和统一运行信息。",
                 () -> new AlertDialog.Builder(this)
-                        .setTitle("关于 Dia 23.11")
-                        .setMessage("原始功能版本：Dia 23.11\n当前宿主：FX 1.0.0 / FX Hook\n该页面属于统一应用内的迁移界面，不会启动原 Dia APK。")
+                        .setTitle("关于 FX Hook")
+                        .setMessage("当前版本：FX 1.0.0\n功能宿主：FX Hook\n此页面由 FX 统一管理，不会启动其他 APK。")
                         .setPositiveButton("关闭", null)
                         .show());
 
-        setContentViewWithNativeTabs(root, 5);
+        setContentViewWithNativeTabs(root, 4);
     }
 }
