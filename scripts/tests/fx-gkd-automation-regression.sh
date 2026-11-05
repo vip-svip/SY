@@ -79,10 +79,16 @@ for forbidden in ("dispatchGesture(", "takeScreenshot(", "HttpURLConnection", "O
 assert main.count('addNativeActionCard("GKD 选择器自动化"') == 1
 assert 'addNativeActionCard("GKD 辅助自动化"' not in main
 assert "FxGkdAutomationActivity.class" in main
-for token in ("FxGkdRuleStore.isEnabled(this)", "FxGkdRuleStore.setEnabled(this, checked)",
+for token in ("FxGkdRuleStore.isEnabled(this)", "FxGkdRuleStore.setEnabled(this, enabled)",
               "FxGkdRuleStore.addRule(", "isInstalledUserApplication(pkg)",
-              "FxGkdRuleStore.setRuleEnabled(", "FxGkdRuleStore.removeRule("):
+              "FxGkdRuleStore.setRuleEnabled(", "FxGkdRuleStore.removeRule(",
+              "updateMasterEnabled(Switch control, boolean enabled)",
+              "updateRuleEnabled(FxGkdRule rule, Switch control, boolean enabled)",
+              "showPackagePicker(EditText packageInput)",
+              "getInstalledApplications(0)", "candidates.size() >= 500"):
     assert token in activity, f"GKD local rule UI contract missing: {token}"
+assert "规则状态保存失败，已恢复原状态。" in activity, "failed per-rule writes must restore the displayed switch state"
+assert "规则删除失败，原数据保持不变。" in activity, "failed deletes must not imply success"
 assert "body.getChildCount() > 6" in activity, "rule refresh must not remove the master switch/add-rule button"
 assert 'setText("启用 GKD 本地规则自动化")' in activity
 assert 'setPositiveButton("校验并保存"' in activity
