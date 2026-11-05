@@ -66,17 +66,17 @@ public final class FxYulongVirusDbTest {
 
     @Test public void malformedHtmlAndErrorPayloadsAreRejected() {
         assertTrue(FxYulongVirusDb.parse("<html><body>502 Bad Gateway</body></html>", false).isEmpty());
-        assertTrue(FxYulongVirusDb.parse("{\\"error\\":\\"Bad Gateway\\"}", false).isEmpty());
-        assertTrue(FxYulongVirusDb.parse("[{\\"error\\":\\"temporary\\"}]", false).isEmpty());
-        assertTrue(FxYulongVirusDb.parse("[  {\\"error\\":\\"temporary\\"}]", false).isEmpty());
-        assertTrue(FxYulongVirusDb.parse("[\\n {\\"error\\":\\"temporary\\"}]", false).isEmpty());
+        assertTrue(FxYulongVirusDb.parse("{\"error\":\"Bad Gateway\"}", false).isEmpty());
+        assertTrue(FxYulongVirusDb.parse("[{\"error\":\"temporary\"}]", false).isEmpty());
+        assertTrue(FxYulongVirusDb.parse("[  {\"error\":\"temporary\"}]", false).isEmpty());
+        assertTrue(FxYulongVirusDb.parse("[\\n {\"error\":\"temporary\"}]", false).isEmpty());
         assertTrue(FxYulongVirusDb.parse("503 Service Unavailable", false).isEmpty());
         assertTrue(FxYulongVirusDb.parse("502 Bad Gateway", true).isEmpty());
     }
 
     @Test public void packageParserAcceptsOnlyCompleteDottedIdentifiers() {
         assertEquals(new HashSet<>(Arrays.asList("com.example.good", "org.sample.client")),
-                FxYulongVirusDb.parse("[\\"com.example.good\\",\\"org.sample.client\\"]", true));
+                FxYulongVirusDb.parse("[\"com.example.good\",\"org.sample.client\"]", true));
         assertTrue(FxYulongVirusDb.parse("com.example.good\ninvalid package token", true).isEmpty());
         assertTrue(FxYulongVirusDb.parse("https://cdn.example.com/error.html", true).isEmpty());
     }
