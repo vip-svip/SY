@@ -3,6 +3,17 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 ACTIVITY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java"
 [ -s "$ACTIVITY" ] || { echo "FAIL: Yulong Ad Activity source missing" >&2; exit 1; }
+POLICY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdSnapshotPolicy.java"
+HOST_TEST="$ROOT/scripts/tests/FxYulongAdSnapshotPolicyHostTest.java"
+[ -s "$POLICY" ] && [ -s "$HOST_TEST" ] || { echo "FAIL: Yulong Ad snapshot policy sources missing" >&2; exit 1; }
+WORK=$(mktemp -d "${TMPDIR:-/tmp}/fx-yulong-ad-snapshot.XXXXXX")
+trap 'rm -rf "$WORK"' EXIT HUP INT TERM
+if command -v javac >/dev/null 2>&1 && command -v java >/dev/null 2>&1; then
+  javac -d "$WORK" "$POLICY" "$HOST_TEST"
+  java -cp "$WORK" de.privacyguard.adhook.imported.ad.FxYulongAdSnapshotPolicyHostTest
+else
+  echo "SKIP: JDK unavailable; Ad snapshot parser Host test not executed."
+fi
 python3 - "$ACTIVITY" "$ROOT" <<'PY'
 from pathlib import Path
 import sys
@@ -115,5 +126,17 @@ for label, source, capacity in (("Ad backup", general, "ArrayBlockingQueue<>(8)"
     assert "RejectedExecutionException" in source, f"{label} queue saturation must be handled"
     assert "worker.shutdownNow()" in source, f"{label} worker must stop with Activity lifecycle"
 assert "private void submitWorker(Runnable task)" in general, "backup import/export must surface worker rejection"
+for token in (
+    "FxYulongAdSnapshotPolicy.parseAdMasterEnabled(snapshot)",
+    'Boolean master=adMaster();',
+    "广告过滤主开关状态未知（暂不可切换）",
+    "setAdMasterUnknown();",
+    "if(master==null)",
+    "sw.setEnabled(false)",
+):
+    assert token in s, f"Ad master unknown-state behavior missing: {token}"
+assert "private Boolean adMaster()" in s, "Ad master parser must return an explicit unknown state"
+ad_master_method = s[s.index("private Boolean adMaster()"):s.index("private void setAdMasterUnknown()")]
+assert "return true;" not in ad_master_method, "missing AD_MASTER must not default to enabled"
 print("PASS: Yulong Ad drafts persist across multiple page switches and recreation; page scroll and DNS log search/scroll state survive recreation; stale DNS refresh results are discarded")
 PY

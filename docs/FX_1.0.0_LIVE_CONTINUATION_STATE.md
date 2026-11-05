@@ -5692,3 +5692,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 更新 `FxYulongFirewallActivity` 的行内说明和确认对话框，明确“任一共享成员当前生效的 Wi-Fi / 移动数据限制都会影响全部共享应用”，不再仅笼统表述为所有应用同时受影响。
 - `fx-yulong-app-firewall-regression.sh` 新增共享 UID 双包场景：一个包只拦 Wi-Fi，另一个包只拦移动数据；验证两个独立配置均保留，且 IPv4/IPv6 规则都按同一 UID 同时生成两类拦截，然后恢复原测试配置继续执行生命周期回归。
 - `fx-yulong-firewall-activity-regression.sh` 增加 UI 文案契约检查。此次仅验证 Host 源码和 mock iptables 行为，不代表 Android 真机包 UID/网络栈验收。
+
+
+## 2026-11-06 — Ad 首页主开关未知态 fail-closed
+
+- 将 Ad 主开关状态解析抽为 Android-free `FxYulongAdSnapshotPolicy`。只有协议头 `FXYULONGAD1` 有效且快照中恰有一个 `AD_MASTER|0/1` 时才返回明确状态；缺失、重复、非法值、重复头或协议头前噪声均返回未知。
+- Ad 首页收到未知状态时不再默认显示“已启用”，开关文案改为“状态未知（暂不可切换）”并禁用。Root 读取失败时清空旧快照并禁用该开关，避免旧状态残留造成误导。
+- 新增独立 JDK Host 测试覆盖 true/false、缺失/空快照、头缺失、master 缺失、非法值、重复字段与协议噪声；接入 `fx-yulong-ad-activity-state-regression.sh`。
+- 本批提交后核对 Targeted Host Regression 与 Six UI Modes；未做 Android Gradle 构建或设备 UI 验收。

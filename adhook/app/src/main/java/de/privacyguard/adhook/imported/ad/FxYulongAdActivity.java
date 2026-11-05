@@ -534,7 +534,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
    }
   }
   private void renderHome(){
-  Switch master=new Switch(this);master.setText("启用广告过滤主开关");master.setTag("ad-master");master.setEnabled(false);
+  Switch master=new Switch(this);master.setText("广告过滤主开关状态未知（暂不可切换）");master.setTag("ad-master");master.setEnabled(false);
   master.setOnCheckedChangeListener((b,on)->{if(!syncing)apply("ad-master "+(on?"1":"0"),"广告过滤主开关");});
   card("广告过滤","总开关只控制 FX [list:rule] 中的过滤来源；白名单、黑名单、反诈规则和 VPN 路由保持独立。",master,btn("管理过滤列表",()->open("过滤列表")));
   card("DNS 设置","管理本地 AdGuard Home、DNS 转发与 QUIC/DoT 策略。",btn("DNS 设置",()->open("DNS 设置")));
@@ -801,7 +801,7 @@ private void saveVpnDns(String key,EditText input){
   });
  }
  private void renderLogs(){card("运行日志","显示 FX 当前模块日志，不将全局日志冒充原版逐应用统计。");root("logs",r->card("FX 日志","本机启动与过滤记录",txt(safe(r.output),11,0xff526170,false)));}
- private void load(){root("list",r->{if(r.exitCode!=0){status.setText("读取失败："+safe(r.output));restorePageScrollIfNeeded();return;}snapshot=r.output==null?"":r.output;status.setText("已读取设备端 FX 配置。");bind();restorePageScrollIfNeeded();});}
+ private void load(){root("list",r->{if(r.exitCode!=0){snapshot="";setAdMasterUnknown();status.setText("读取失败："+safe(r.output));restorePageScrollIfNeeded();return;}snapshot=r.output==null?"":r.output;Boolean master=adMaster();status.setText(master==null?"广告过滤主开关状态未知；请刷新并检查 FX 配置快照。":"已读取设备端 FX 配置。");bind();restorePageScrollIfNeeded();});}
  private void restorePageScrollIfNeeded(){
   if(!pendingPageScrollRestore||pageScroll==null)return;
   final int y=pendingPageScrollY;
@@ -819,7 +819,7 @@ private void saveVpnDns(String key,EditText input){
     LinearLayout p=(LinearLayout)body.getChildAt(i);
     for(int j=0;j<p.getChildCount();j++)if(p.getChildAt(j) instanceof Switch){
      Switch sw=(Switch)p.getChildAt(j);
-     if("ad-master".equals(sw.getTag())){sw.setChecked(adMaster());sw.setEnabled(true);}
+     if("ad-master".equals(sw.getTag())){Boolean master=adMaster();if(master==null){sw.setText("广告过滤主开关状态未知（暂不可切换）");sw.setEnabled(false);}else{sw.setText("启用广告过滤主开关");sw.setChecked(master);sw.setEnabled(true);}}
     }
    }
    syncing=false;
@@ -842,13 +842,22 @@ private void saveVpnDns(String key,EditText input){
   android.content.ClipboardManager clipboard=(android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
   if(clipboard!=null){clipboard.setPrimaryClip(android.content.ClipData.newPlainText("FX Tasker action",value));Toast.makeText(this,"广播 Action 已复制。",Toast.LENGTH_SHORT).show();}
 }
-private boolean adMaster(){
-  for(String line:snapshot.split("\\r?\\n")){
-   String[] p=line.split("\\|",-1);
-   if(p.length==2&&p[0].equals("AD_MASTER"))return p[1].equals("1");
+private Boolean adMaster(){
+   return FxYulongAdSnapshotPolicy.parseAdMasterEnabled(snapshot);
   }
-  return true;
-}
+  private void setAdMasterUnknown(){
+   if(body==null)return;
+   for(int i=0;i<body.getChildCount();i++)if(body.getChildAt(i) instanceof LinearLayout){
+    LinearLayout panel=(LinearLayout)body.getChildAt(i);
+    for(int j=0;j<panel.getChildCount();j++)if(panel.getChildAt(j) instanceof Switch){
+     Switch control=(Switch)panel.getChildAt(j);
+     if("ad-master".equals(control.getTag())){
+      control.setText("广告过滤主开关状态未知（暂不可切换）");
+      control.setEnabled(false);
+     }
+    }
+   }
+  }
 private String dnsValue(String key){for(String line:snapshot.split("\\r?\\n")){String[] p=line.split("\\|",-1);if(p.length==3&&p[0].equals("DNS")&&p[1].equals(key))return p[2];}return "0";}
  private void domainRow(Row e,boolean allow){LinearLayout r=new LinearLayout(this);r.setTag("fx-list-row");r.setOrientation(1);r.setPadding(dp(8),dp(5),dp(8),dp(5));TextView domain=txt((allow?"白名单 · ":"黑名单 · ")+e.value,13,0xff17212b,true);domain.setTag("fx-list-title");r.addView(domain);TextView source=txt(e.title,10,0xff718091,false);source.setTag("fx-list-subtitle");r.addView(source);r.addView(btn("移除",()->apply((allow?"allow-remove ":"block-remove ")+q(e.value),"名单移除")));entries.addView(r);}
  @Override protected void onDestroy(){trustedNetworkGeneration++;trustedNetworkStatus=null;rootProxyStatusGeneration++;rootProxyStatus=null;proxyWhitelistGeneration++;worker.shutdownNow();super.onDestroy();}
