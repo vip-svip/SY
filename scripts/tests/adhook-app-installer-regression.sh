@@ -4,8 +4,22 @@ ROOT=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
 MODULE="$ROOT"
 if [ -s "$ROOT/fx-module/scripts/install_adhook_app.sh" ]; then MODULE="$ROOT/fx-module"; fi
 INSTALLER="$MODULE/scripts/install_adhook_app.sh"; REMOVER="$MODULE/scripts/remove_adhook_app.sh"
+WORKFLOW_ROOT="$ROOT"
+[ -s "$WORKFLOW_ROOT/.github/workflows/build-fx-adhook.yml" ] || WORKFLOW_ROOT=$(CDPATH= cd -- "$ROOT/.." && pwd)
+WORKFLOW="$WORKFLOW_ROOT/.github/workflows/build-fx-adhook.yml"
+SERVICE="$WORKFLOW_ROOT/fx-module/service.sh"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 [ -s "$INSTALLER" ] && [ -s "$REMOVER" ] || fail "installer/remover missing"
+[ -s "$WORKFLOW" ] || fail "FX APK build workflow missing"
+grep -Fq '_overlay_apk="$MODDIR/system/app/FX/FX.apk"' "$INSTALLER" || fail "installer does not prefer the system-app overlay"
+grep -Fq 'pm list packages -s "$1"' "$INSTALLER" || fail "installer does not verify PackageManager system classification"
+grep -Fq 'verified FX Hook as a system app from the systemless /system/app overlay' "$INSTALLER" || fail "system-app overlay verification path missing"
+grep -Fq 'install -m 0644 "$apk" fx-module/system/app/FX/FX.apk' "$WORKFLOW" || fail "build pipeline does not stage the APK into the system-app overlay"
+grep -Fq 'sha256sum fx-module/system/app/FX/FX.apk' "$WORKFLOW" || fail "system-app overlay checksum is not generated"
+grep -Fq 'not a privileged app; no platform signature or privileged permission grant is implied' "$WORKFLOW" || fail "system app build metadata omits privilege/signature boundary"
+! grep -Fq 'fx-module/system/priv-app/FX' "$WORKFLOW" || fail "unsigned APK must not be staged as a privileged app"
+[ -s "$SERVICE" ] || fail "KernelSU boot service missing"
+grep -Fq 'sh "$MODDIR/scripts/install_adhook_app.sh" "$MODDIR"' "$SERVICE" || fail "boot service does not deploy the FX APK"
 if [ "$MODULE" != "$ROOT" ]; then
   cmp -s "$ROOT/scripts/install_adhook_app.sh" "$INSTALLER" || fail "packaged installer drift"
   cmp -s "$ROOT/scripts/remove_adhook_app.sh" "$REMOVER" || fail "packaged remover drift"
