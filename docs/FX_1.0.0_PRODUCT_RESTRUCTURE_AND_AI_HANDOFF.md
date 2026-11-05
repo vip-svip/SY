@@ -173,7 +173,7 @@ FX 是一个单 APK、单入口、统一配置和生命周期的 Android 工具�
 
 ### 1.7 六种界面模式（独立默认模式 + 五种皮肤）的统一源码实现方法
 
-- 统一模型：扩展 FxUiMode，为新增模式分配稳定 ID（建议 huawei、ios），新增 default ID 作为首次安装默认值；保留既有 default、classic、glass、miuix、huawei、ios ID 的原有含义；未知/损坏值安全回退 default，不覆盖已有有效用户设置。
+- 统一模型：扩展 FxUiMode，为新增模式分配稳定 ID（建议 huawei、ios），新增 default ID 作为首次安装默认值；保留既有 classic、glass、miuix、huawei、ios ID 的原有含义；未知/损坏值安全回退 default，不覆盖已有有效用户设置。
 - Renderer：将模式到页面的映射集中在 FxNativeAppShell/统一 Skin Host，不允许各 Activity 私自读取偏好或各自维护不同的模式 ID。
 - Design tokens：新增独立 HarmonyOS 与 Cupertino token 集，禁止把所有模式写成散落的 if (mode == ...) 色值；共用语义组件接口，模式仅替换 token 和 renderer。
 - 页面迁移：先完成六个 Tab 的共享组件，再逐页覆盖主页面、列表、表单、编辑器、弹窗、空状态、错误状态；旧页面无法适配时明确记录兼容边界。
@@ -804,7 +804,8 @@ FX 1.0.0 的六种界面模式使用统一持久化 ID，禁止页面各自保�
 
 | 模式 | 存储 ID | 渲染职责 |
 |---|---|---|
-| Default | `default` | FX 自有标准原生基础界面；首次安装默认选中；独立 tokens/renderer |\n| ClassicWebCompat | `classic` | 经典兼容配色、低圆角导航与兼容布局；不改变业务服务 |
+| Default | `default` | FX 自有标准原生基础界面；首次安装默认选中；独立 tokens/renderer |
+| ClassicWebCompat | `classic` | 经典兼容配色、低圆角导航与兼容布局；不改变业务服务 |
 | FXLiquidNative | `glass` | 原生页面、液态玻璃导航、Backdrop 模糊/折射效果 |
 | MiuixStyle | `miuix` | Miuix Theme、系统动态配色、Miuix 风格导航和卡片 |
 | HUAWEI HarmonyStyle | `huawei` | HarmonyColor/Shape/Typography/Spacing tokens 与 Harmony Renderer；Android 公共 API 回退 |
@@ -943,7 +944,8 @@ GKD-XA 包含独立 Application/MainActivity/AppRoot、Room 数据库、AIDL 特
 
 | 显示名称 | 内部模式/ID | 实现要求 |
 |---|---|---|
-| 默认模式 | Default / `default` | FX 自有标准原生基础界面；首次安装默认选中；独立 renderer/tokens |\n| 老版本界面（网页界面） | ClassicWebCompat / `classic` | 以游龙工具 10.0.2 原版真实页面、资源、导航与交互为证据；无法复用的加密资源必须重建，不能臆造逐像素还原 |
+| 默认模式 | Default / `default` | FX 自有标准原生基础界面；首次安装默认选中；独立 renderer/tokens |
+| 老版本界面（网页界面） | ClassicWebCompat / `classic` | 以游龙工具 10.0.2 原版真实页面、资源、导航与交互为证据；无法复用的加密资源必须重建，不能臆造逐像素还原 |
 | 原生界面（液态玻璃） | FXLiquidNative / `glass` | Compose 原生 UI、玻璃材质、模糊降级、可读性和低耗电 |
 | Miuix 界面（小米澎湃风格） | MiuixStyle / miuix | Miuix/HyperOS 风格组件和布局，不依赖小米私有 API |
 | 华为界面（Harmony 风格） | HUAWEI HarmonyStyle / huawei | Harmony tokens 与 renderer，普通 Android 设备可用，不冒充鸿蒙原生 |
