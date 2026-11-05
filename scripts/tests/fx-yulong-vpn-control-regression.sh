@@ -81,6 +81,8 @@ active=$(cat "$PG/root-proxy-active" 2>/dev/null || echo 0)
 enabled=$(pg_get vpn_external_dns_proxy 0)
 echo "enabled=$enabled"
 echo "active=$active"
+echo "private_dns_mode=hostname"
+echo "dns_filter_coverage=strict_private_dns_bypasses_redirect"
 __ROOT_PROXY__
 
 chmod 755 "$MOD/scripts/apply.sh" "$MOD/scripts/status.sh" "$MOD/scripts/yulong-root-proxy.sh"
@@ -97,6 +99,8 @@ grep -Fq 'vpn_mode=global' "$PG/settings.conf" || fail "FX start did not select 
 status_output=$(sh "$SOURCE" "$MOD" "$PG" status)
 printf '%s\n' "$status_output" | grep -Fq '"vpn_on":true' || fail "status did not confirm live FX VPN"
 printf '%s\n' "$status_output" | grep -Fq '"root_proxy_known":true' || fail "status did not report a verified Root Proxy state"
+printf '%s\n' "$status_output" | grep -Fq '"private_dns_mode":"hostname"' || fail "controller did not expose the Android Private DNS mode"
+printf '%s\n' "$status_output" | grep -Fq '"dns_filter_coverage":"strict_private_dns_bypasses_redirect"' || fail "controller did not expose strict Private DNS bypass coverage"
 sh "$SOURCE" "$MOD" "$PG" stop > "$TMP/fx-stop.out" || fail "FX VPN stop failed"
 grep -Fq 'vpn_stopped=1' "$TMP/fx-stop.out" || fail "FX VPN stop confirmation missing"
 grep -Fq 'vpn_mode=direct' "$PG/settings.conf" || fail "FX VPN stop did not return to direct"
