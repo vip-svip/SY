@@ -5,6 +5,12 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
 
+data class FxGkdImportResult(
+    val imported: Int,
+    val skipped: Int,
+    val error: String?
+)
+
 data class FxGkdRule(
     val id: String,
     val packageName: String,
@@ -20,6 +26,9 @@ data class FxGkdRule(
  * not enabled by this first runtime slice.
  */
 object FxGkdRuleStore {
+    const val MAX_IMPORT_BYTES = 256 * 1024
+    private const val EXPORT_FORMAT = "FX-GKD-LOCAL-RULES"
+    private const val EXPORT_SCHEMA_VERSION = 1
     private const val PREFS = "fx_gkd_automation"
     private const val KEY_MASTER_ENABLED = "enabled"
     private const val KEY_RULES = "rules_json"
@@ -77,6 +86,114 @@ object FxGkdRuleStore {
             }
         } catch (_: Exception) {
             emptyList()
+        }
+    }
+
+    /**
+     * Export only local rule configuration. No screen contents, runtime history,
+     * credentials, or service state are part of this portable document.
+     */
+    @JvmStatic
+    @Synchronized
+    fun exportJson(context: Context): String {
+        val exportedRules = JSONArray()
+        getRules(context).forEach { rule ->
+            exportedRules.put(
+                JSONObject()
+                    .put("id", rule.id)
+                    .put("package", rule.packageName)
+                    .put("selector", rule.selector)
+                    .put("cooldown_ms", rule.cooldownMillis)
+                    .put("enabled", rule.enabled)
+            )
+        }
+        return JSONObject()
+            .put("format", EXPORT_FORMAT)
+            .put("schema_version", EXPORT_SCHEMA_VERSION)
+            .put("rules", exportedRules)
+            .toString(2)
+    }
+
+    /**
+     * Merge a validated local export. Imported rules are always disabled,
+     * regardless of the enabled field in the file. Existing rules remain intact.
+     */
+    @JvmStatic
+    @Synchronized
+    fun importJson(context: Context, raw: String): FxGkdImportResult {
+        if (raw.toByteArray(Charsets.UTF_8).size > MAX_IMPORT_BYTES) {
+            return FxGkdImportResult(0, 0, "导入文件超过 256 KiB。")
+        }
+
+        val document = try {
+            JSONObject(raw)
+        } catch (_: Exception) {
+            return FxGkdImportResult(0, 0, "JSON 文件无法解析。")
+        }
+        if (document.optString("format") != EXPORT_FORMAT ||
+            document.optInt("schema_version", -1) != EXPORT_SCHEMA_VERSION
+        ) {
+            return FxGkdImportResult(0, 0, "文件格式或版本不受支持。")
+        }
+        val sourceRules = document.optJSONArray("rules")
+            ?: return FxGkdImportResult(0, 0, "文件缺少 rules 数组。")
+        if (sourceRules.length() > MAX_RULES) {
+            return FxGkdImportResult(0, 0, "单个文件最多允许 $MAX_RULES 条规则。")
+        }
+
+        val merged = getRules(context).toMutableList()
+        val known = merged.map { it.packageName + "\u0000" + it.selector }.toMutableSet()
+        var skipped = 0
+
+        for (index in 0 until sourceRules.length()) {
+            val item = sourceRules.optJSONObject(index)
+            if (item == null) {
+                skipped++
+                continue
+            }
+            val packageName = item.optString("package").trim()
+            val selector = item.optString("selector").trim()
+            val cooldown = item.optLong("cooldown_ms", DEFAULT_COOLDOWN_MS)
+            if (!isValidPackageName(packageName) || packageName == context.packageName ||
+                selector.isEmpty() || selector.length > 512 ||
+                cooldown !in MIN_COOLDOWN_MS..MAX_COOLDOWN_MS ||
+                merged.size >= MAX_RULES ||
+                !isInstalledUserApplication(context, packageName) ||
+                !FxGkdSelectorEngine.compile(selector).isValid ||
+                !known.add(packageName + "\u0000" + selector)
+            ) {
+                skipped++
+                continue
+            }
+            // Never import an enabled action. Users must review and enable it locally.
+            merged += FxGkdRule(
+                id = UUID.randomUUID().toString(),
+                packageName = packageName,
+                selector = selector,
+                cooldownMillis = cooldown,
+                enabled = false
+            )
+        }
+
+        val imported = merged.size - getRules(context).size
+        if (imported == 0) return FxGkdImportResult(0, skipped, "没有可导入的有效新规则。")
+        if (!writeRules(context, merged)) {
+            return FxGkdImportResult(0, skipped, "规则写入失败，原有规则保持不变。")
+        }
+        return FxGkdImportResult(imported, skipped, null)
+    }
+
+    private fun isInstalledUserApplication(context: Context, packageName: String): Boolean {
+        return try {
+            val info = context.packageManager.getApplicationInfo(packageName, 0)
+            (info.flags and (
+                android.content.pm.ApplicationInfo.FLAG_SYSTEM or
+                    android.content.pm.ApplicationInfo.FLAG_UPDATED_SYSTEM_APP
+            )) == 0
+        } catch (_: android.content.pm.PackageManager.NameNotFoundException) {
+            false
+        } catch (_: SecurityException) {
+            false
         }
     }
 
