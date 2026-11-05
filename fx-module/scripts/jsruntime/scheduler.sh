@@ -48,7 +48,7 @@ process_matches() {
   _fields=$(pid_fields "$_candidate_pid") || return 1
   _live_start=${_fields#*|}
   [ -z "$_expected_start" ] || [ "$_live_start" = "$_expected_start" ] || return 1
-  tr '\000' ' ' < "/proc/$_candidate_pid/cmdline" 2>/dev/null     | grep -F "$SCRIPT_PATH" >/dev/null 2>&1
+  tr '\000' '\n' < "/proc/$_candidate_pid/cmdline" 2>/dev/null | grep -F -x "$SCRIPT_PATH" >/dev/null 2>&1
 }
 
 read_owner() {
