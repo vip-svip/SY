@@ -160,7 +160,28 @@ new_sub_unlock = '''subfetch_unlock() {
   LOCK_HELD=0
   return 0
 }'''
-replace_once(subfetch_file, old_sub_unlock, new_sub_unlock, "subscription lock must release by atomic rename")
+subfetch_source = subfetch_file.read_text(encoding="utf-8")
+if "FX_SUBFETCH_FILE_LOCK_V2" in subfetch_source:
+    # The canonical V2 implementation already creates a private regular-file
+    # lock and releases it by owner-checked atomic rename. Preserve it rather
+    # than trying to rewrite obsolete directory/PID lock anchors.
+    required_v2 = (
+        'mv "$LOCK" "$_sl_release"',
+        '_sl_read_lock_owner "$LOCK"',
+        '_sl_read_lock_owner "$_sl_stale"',
+        '_sl_read_lock_owner "$_sl_release"',
+        'if [ "$_sl_moved_owner" = "$_sl_owner" ]',
+        'if [ "$_sl_release_owner" = "$" ]',
+    )
+    missing_v2 = [token for token in required_v2 if token not in subfetch_source]
+    if missing_v2:
+        raise SystemExit(
+            f"{subfetch_file}: V2 subscription lock is incomplete: " + ", ".join(missing_v2)
+        )
+    if 'rm -f "$LOCK/pid"' in subfetch_source or 'rmdir "$LOCK"' in subfetch_source:
+        raise SystemExit(f"{subfetch_file}: V2 subscription lock retains legacy PID cleanup")
+else:
+    replace_once(subfetch_file, old_sub_unlock, new_sub_unlock, "subscription lock must release by atomic rename")
 
 
 # The workflow stages the canonical Root Proxy before this shared lock patch.
@@ -179,24 +200,25 @@ if 'mv "$LOCK" "$_release"' not in root_lock_body:
 if 'rm -f "$LOCK/pid"' in root_lock_body or 'rmdir "$LOCK"' in root_lock_body:
     raise SystemExit(f"{root_proxy}: obsolete directory/PID lock cleanup remains")
 
-replace_once(
-    subfetch_file,
-    '_sl_owner=$(cat "$LOCK/pid" 2>/dev/null)\n',
-    '_sl_owner=$(cat "$LOCK/pid" 2>/dev/null || :)\n',
-    "subscription lock owner read must tolerate atomic release",
-)
-replace_once(
-    subfetch_file,
-    '_sl_again=$(cat "$LOCK/pid" 2>/dev/null)\n',
-    '_sl_again=$(cat "$LOCK/pid" 2>/dev/null || :)\n',
-    "subscription stale-owner recheck must tolerate concurrent release",
-)
-replace_once(
-    subfetch_file,
-    '_sl_moved_owner=$(cat "$_sl_stale/pid" 2>/dev/null)\n',
-    '_sl_moved_owner=$(cat "$_sl_stale/pid" 2>/dev/null || :)\n',
-    "subscription quarantined-owner read must tolerate concurrent release",
-)
+if "FX_SUBFETCH_FILE_LOCK_V2" not in subfetch_source:
+    replace_once(
+        subfetch_file,
+        '_sl_owner=$(cat "$LOCK/pid" 2>/dev/null)\n',
+        '_sl_owner=$(cat "$LOCK/pid" 2>/dev/null || :)\n',
+        "subscription lock owner read must tolerate atomic release",
+    )
+    replace_once(
+        subfetch_file,
+        '_sl_again=$(cat "$LOCK/pid" 2>/dev/null)\n',
+        '_sl_again=$(cat "$LOCK/pid" 2>/dev/null || :)\n',
+        "subscription stale-owner recheck must tolerate concurrent release",
+    )
+    replace_once(
+        subfetch_file,
+        '_sl_moved_owner=$(cat "$_sl_stale/pid" 2>/dev/null)\n',
+        '_sl_moved_owner=$(cat "$_sl_stale/pid" 2>/dev/null || :)\n',
+        "subscription quarantined-owner read must tolerate concurrent release",
+    )
 # Keep the CI failure actionable: an errexit-triggered worker must identify which
 # concurrent request exited, rather than leaving only an empty test log.
 replace_once(
