@@ -4588,3 +4588,16 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 尚未执行 FX Host 回归、Android 编译、APK/LSPosed 模块构建、支持设备真机拦截和本地反诈功能回归。
 - 适用性目前仅有来源仓库记录的 RMX5200 / ColorOS 16 / Android 16 / PhoneManager 17.1.6 实测；其他系统版本必须逐项兼容核验。
 - 当前状态只能标记为「来源审计完成、需求登记完成、代码迁移未开始」，不得把仓库已有 APK 视为 FX 集成产物。
+
+## 2026-11-05 — Host 回归失败根因修复与后续成功证据
+
+### 失败记录（不隐藏中间失败）
+- run 41988885927，HEAD 5c46c9a90ae0c79bff69c56c3754b821a432679f，失败于 fx-dia-frida-page-navigation-regression.sh：该脚本仍要求 Monitor Events 直接调用 FxNativeSkin.showDialog(this, dialog)，而实现已经统一为 FxNativeTabActivity.showFxDialog(dialog)。已将过时断言改为新 helper，并保留 public Skin/Dialog API 可见性检查。
+- run 41989189687，HEAD 81828e8b74127196bec390b8d7cc6f5f78645c08，失败于 fx-yulong-shield-six-tab-regression.sh：旧测试固定要求 FxNativeAppShell.kt 存在 .height(72.dp)，但五 Skin 已切换为 tokens.tabBarHeightDp.dp；同时该脚本仍引用已重命名的 handleImportedNativeTabIntent。已改为验证 token-driven geometry：Classic 60dp、Liquid 72dp、Miuix 68dp、Harmony 72dp、Cupertino 76dp，并更新为 handleNativeTabIntent。
+- 更早 run 41988567924 的失败为测试脚本在新 Ad modal 断言前引用了尚未赋值的 ad_main（NameError）；后续 35d6b146 已调整加载顺序，并在后续 run 中通过相关路径。
+
+### 修复后的成功证据
+- run 41988961088，HEAD 2131778f18b7843a81bdfb8f5581c6fd7b3e05ee，Host job host-regressions = success；通过六 Tab / Settings 边界相关回归。
+- run 41989284497，HEAD 4ab6f7d6b9bb3e080a4a382d188672a11d5a8dbe，Host job host-regressions = success；日志显示 Dia Frida SAF 脚本库、二进制导入、Gadget 配置/部署/会话、服务器生命周期及 fx-dia-frida-page-navigation-regression.sh 全部通过。
+- run 41989495360，HEAD f1f8295ef1a9108a86f16584757eae20098b25c1，Host job host-regressions = success；日志明确显示 fx-yulong-shield-native-regression.sh、fx-yulong-shield-six-tab-regression.sh 和 Shield worker-bound 回归通过。
+- 以上是指定 commit 的 Host regression 成功证据，不是当前分支 HEAD 的 CI badge，也不是 Gradle/Android JUnit/安装/真机验收。
