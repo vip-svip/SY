@@ -546,7 +546,7 @@ E. iOS CupertinoStyle：在 Android APK 内实现 Cupertino 视觉与交互风�
 - 五种模式必须共享同一业务状态、ViewModel/Repository、数据库、权限和服务生命周期。换肤不得停止/重启 VPN、Root 内核级代理、DNS、Hosts、Hook、Frida 或脚本运行时。
 - 五种模式必须逐页适配六个 Tab；禁止只让主壳换色而内部页面仍使用同一套默认 Material 控件就声称完成。
 - 增加 FxUiMode 单测、稳定 ID/旧值迁移测试、renderer 路由回归、六 Tab 覆盖回归；加入截图或 UI 自动化测试。验证需分层记录：静态检查、单测、Gradle 编译、UI 自动化、华为/非华为 Android 设备、iOS 风格视觉验收。真实 iOS 客户端不属于当前 Android APK 交付范围。
-- 当前源码已知只有 ClassicWebCompat、FXLiquidNative、MiuixStyle 三种模式模型/渲染分支；HUAWEI 与 iOS 仍为待实现，不得因需求文档已有章节就标记源码完成。
+- 截至 2026-11-05，源码已接入五种模式的稳定 ID/别名映射、五项模式选择器、全局 Compose Shell 五种基础外观分支，并通过 FxNativeSkin 向 MainActivity 与迁入 Activity 的原生页面应用基础配色和透明背景适配。HUAWEI/iOS 已有全局导航/页面表面基础 Skin，但尚未完成所有页面的独立组件 tokens/renderer 与逐页截图验收；不得宣称完整视觉重构已完成。
 
 【架构要求】
 - Presentation：ClassicWebCompat / FXLiquidNative / MiuixStyle / HUAWEI HarmonyStyle / iOS CupertinoStyle 五种 skin。
@@ -616,7 +616,7 @@ FX 1.0.0 的三个模式使用统一持久化 ID，禁止页面各自保存不�
 
 切换验收：在 VPN 运行、代理连接、DNS 过滤、Hook 操作或脚本运行期间切换五种模式，服务 PID/运行状态、当前连接、配置、当前 Tab 和页面滚动状态不得因换肤而被主动重置。模式切换失败时保留旧值。旧版本 `classic/glass/miuix` ID 必须兼容。
 
-注意：当前源码已建立统一模式模型、选择面板、全局 Shell 的三种差异化视觉；HUAWEI 与 iOS 两种 Skin 仍是待实现扩展和持久化切换；这不等于五种模式所有页面均已完成逐页视觉验收。ClassicWebCompat 当前仍沿用现有 native 页面容器与兼容样式，若要求恢复完整旧 WebUI 的逐页行为，必须另做页面级迁移/回归，不能仅凭模式名称宣称完成。
+注意：当前源码已建立五模式模型、持久化与选择面板；Shell 已有五种导航/背景外观，FxNativeSkin 已覆盖主 Activity 和共享迁入 Activity 的基础页面表面。HUAWEI/iOS 的全局 Skin 仍属基础接入，六个 Tab 的完整控件 token 化、深浅色/字体缩放/大屏/无障碍逐页验收尚未完成。ClassicWebCompat 当前显示 FX APK 中打包的 WebUI 页面；虽然已检查游龙工具 10.0.2 APK 的壁纸与界面模式行为，但其原始完整 UI 资源/交互并未全部复刻，禁止把兼容入口名称写成 10.0.2 完整界面已逐页还原。
 
 
 ## 11. 整体重构纠偏（本节优先级高于历史描述）
@@ -631,3 +631,25 @@ FX 1.0.0 的三个模式使用统一持久化 ID，禁止页面各自保存不�
 6. **APK 10.0.2 UI 与壁纸**：ClassicWebCompat 必须以用户提供的游龙工具_10.0.2.apk 真实资源和页面为依据；壁纸能力归入设置→外观与个性化，壁纸只改变 UI 背景。若 APK 原件缺失，记录证据阻塞，不得臆造原版细节。
 7. **旧段落清理**：任何旧文案中出现“Ad/Hosts”作为 Tab 名、“设置下的迁移应用”、“迁移来源应用独立三级入口”都视为过期要求，开发 AI 必须同步清理对应 UI、路由、测试断言和文档。
 
+
+
+## 12. 当前实际业务入口与 Tab 归属（2026-11-05，优先于旧映射表）
+
+固定 Tab 索引（从 0 开始）：VPN=0、Ad=1、隐私=2、脚本=3、Hook=4、设置=5。所有二级 Activity 的导航高亮和返回文案必须跟随其实际业务归属，而不是沿用来源 APK 的原 Tab。
+
+- **Ad（1）**：游龙广告插件来源能力融入 FX Ad；包括广告控制中心、通用设置与备份格式兼容、DNS 日志、防火墙、应用白名单、本机统计/摘要、过滤列表、域名名单和计划任务。用户可见标题只显示 FX Ad/Ad，不显示“游龙广告插件 7.0.1”。
+- **VPN（0）**：系统 HTTP 代理编辑页归 VPN；节点/代理/TUN/路由/DNS/MITM 继续由 VPN 业务管理。不要把系统 HTTP 代理归入 Hook 或 Settings。
+- **隐私（2）**：安全防护中心及屏幕滤镜、每日安全总结、病毒库、扫描、风险详情、批量清理、完整性、救援、白名单/管控名单等 Shield 子页统一高亮“隐私”，返回按钮回到隐私业务链。
+- **脚本（3）**：Frida JavaScript 脚本库归脚本页；浏览器 UserScript/扩展和其他脚本生态能力也归此页。
+- **Hook（4）**：Dia 来源的 Frida 环境/注入、DEX 浏览与方法选取、Activity 入口、文件/so、JSON、Inspector、监控事件、Frida 会话日志、签名信息、系统扩展、Hook 工具全局设置与自定义 Hook 页面。用户可见名称以“Hook”命名，不暴露 Dia 旧应用品牌。
+- **设置（5）**：五种 Skin、壁纸、主题/动效、全局权限/诊断偏好、FX 统一备份恢复、关于。备份页由设置入口直达；不要重复出现在 Hook 工具页。
+
+当前代码入口：
+- MainActivity.buildNativeHostsPage()：Ad 主页面及广告来源功能子页入口。
+- MainActivity.buildNativePrivacyPage()：安全防护中心入口。
+- MainActivity.showHookHub()：Hook 工具与调试入口、授权状态。
+- MainActivity.buildNativeScriptPage()：Frida JavaScript 脚本库入口。
+- MainActivity.showSettings()：壁纸/五 Skin/全局备份恢复等系统级配置。
+- FxNativeTabActivity：通过统一 FxUiMode.read() 和共享 Shell 提供五 Skin；每个子页必须明确业务 Tab 索引。
+
+回归要求：验证 Settings 无迁移应用、六个主 Tab 标签固定、Ad/Shield/Dia 页面不暴露旧来源品牌、Shield 选中隐私、Dia Hook 工具选中 Hook、Frida JS 脚本库选中脚本、备份选中设置、HTTP 代理选中 VPN；这些页面映射必须在业务页中真实可达，不可只保留死的旧路由。
