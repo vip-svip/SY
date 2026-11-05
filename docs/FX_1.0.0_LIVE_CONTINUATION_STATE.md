@@ -5506,3 +5506,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - DNS 统计数字仍以本机当前保留日志的隐私聚合结果为准，不读取或展示原始域名/IP。
 - Summary 路径安全及并发读取：提交 `31c275c57ebb`、`64fbd542197e` 分别加入候选模块和父目录类型/symlink 校验；修正 Host 源码匹配断言后，`da3b9c70ee5c` Host `42092919337`、Six UI `42092919389`、Module Runtime `42092919165` 均通过。
 - 本批严格解析器改动提交后须重新观察 CI；APK 构建、安装、设备 DNS UI 验收均未在本批完成。
+
+
+### Hosts cache lock V3 与旧集成回归同步（2026-11-06）
+
+- `FX Module Runtime Regression` 对 V3 的首轮验证中，外部 VPN/TUN/DNS/watchdog 回归组全部通过；Root Proxy/native VPN 集成组最后在旧断言 `FX_HOSTS_FILE_LOCK_V2` 处失败。失败原因是测试仍要求旧版标记，不是新锁运行逻辑失败。
+- 已将 `fx-atomic-cache-lock-release-regression.sh` 的两处 Hosts 版本断言更新为 V3，并把新动态安全清理回归嵌入该完整缓存锁回归。后续模块回归会同时验证真实补丁器和 FIFO/符号链接/未知内容拒绝策略。

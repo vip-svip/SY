@@ -40,12 +40,13 @@ python3 "$FILE_LOCK_PATCHER" "$MODULE" || fail "first subscription file-lock pat
 python3 "$FILE_LOCK_PATCHER" "$MODULE" || fail "second subscription file-lock patch application failed"
 python3 "$LEGACY_TEST_PATCHER" "$MODULE" || fail "first stale-lock compatibility test patch application failed"
 python3 "$LEGACY_TEST_PATCHER" "$MODULE" || fail "second stale-lock compatibility test patch application failed"
+sh "$ROOT/scripts/tests/fx-hosts-cache-lock-regression.sh" "$MODULE" || fail "Hosts cache safe lock cleanup regression failed"
 
 # Run the canonical concurrency fixture, not an older copy embedded in the
 # published module. The source fixture contains the deterministic transfer gate.
 install -D -m 0755 "$ROOT/scripts/tests/v1.0.0-subfetch-concurrency-regression.sh" "$SUB_TEST"
 
-grep -Fq 'FX_HOSTS_FILE_LOCK_V2' "$APPLY" || fail "Hosts cache does not use the reviewed atomic file lock"
+grep -Fq 'FX_HOSTS_FILE_LOCK_V3' "$APPLY" || fail "Hosts cache does not use the reviewed atomic file lock"
 grep -Fq 'set -C' "$APPLY" || fail "Hosts lock does not use noclobber atomic file creation"
 grep -Fq 'mv "$_hf_lock" "$_hf_release"' "$APPLY" || fail "Hosts lock release does not atomically rename its owner file"
 grep -Fq 'FX_SUBFETCH_FILE_LOCK_V2' "$SUBFETCH" || fail "subscription cache does not use the reviewed atomic file lock"
@@ -62,7 +63,7 @@ from pathlib import Path
 import sys
 apply = Path(sys.argv[1]).read_text(encoding="utf-8")
 subfetch = Path(sys.argv[2]).read_text(encoding="utf-8")
-assert 'FX_HOSTS_FILE_LOCK_V2' in apply, "Hosts atomic file lock version marker missing"
+assert 'FX_HOSTS_FILE_LOCK_V3' in apply, "Hosts atomic file lock version marker missing"
 assert '( umask 077; set -C; printf ' in apply, "Hosts lock must atomically create a private owner file"
 assert '[ ! -L "$_hf_lock" ] && [ ! -e "$_hf_lock" ]' in apply, "Hosts lock must refuse symlink or pre-existing paths"
 assert 'mv "$_hf_lock" "$_hf_release"' in apply, "Hosts lock release must atomically rename its owner file"
