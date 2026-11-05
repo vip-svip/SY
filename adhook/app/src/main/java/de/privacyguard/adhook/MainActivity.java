@@ -7015,9 +7015,10 @@ public final class MainActivity extends ComponentActivity {
                                 .setPositiveButton("知道了", null).show();
                         return;
                     }
-                    for (int n = 1; n <= 64; n++) {
-                        String existing = getPreferences(0).getString(selectedPackage + ":dev_rule_" + n, null);
-                        if (n != editingSlot && existing != null
+                    for (int existingSlot : getCustomRuleSlots(selectedPackage)) {
+                        String existing = getPreferences(0).getString(
+                                selectedPackage + ":dev_rule_" + existingSlot, null);
+                        if (existingSlot != editingSlot && existing != null
                                 && existing.startsWith(rule.id + "|")) {
                             FxNativeSkin.builder(this).setMessage("规则 ID 已存在，请换一个 ID。")
                                     .setPositiveButton("知道了", null).show();
@@ -7044,11 +7045,12 @@ public final class MainActivity extends ComponentActivity {
                         }
                         previouslyEnabled = !"OFF".equalsIgnoreCase(previous[2]);
                     } else {
+                        java.util.Set<Integer> occupied =
+                                new java.util.HashSet<>(getCustomRuleSlots(selectedPackage));
                         slot = 1;
-                        while (slot <= 64
-                                && getPreferences(0).contains(selectedPackage + ":dev_rule_" + slot)) slot++;
-                        if (slot > 64) {
-                            FxNativeSkin.builder(this).setMessage("每个应用最多配置 64 条自定义规则。")
+                        while (occupied.contains(slot) && slot < Integer.MAX_VALUE) slot++;
+                        if (occupied.contains(slot)) {
+                            FxNativeSkin.builder(this).setMessage("规则槽位已耗尽，无法再分配新的规则。")
                                     .setPositiveButton("知道了", null).show();
                             return;
                         }
@@ -7108,7 +7110,7 @@ public final class MainActivity extends ComponentActivity {
             org.json.JSONArray rules = new org.json.JSONArray();
             java.util.Set<String> exportedGroups = new java.util.LinkedHashSet<>(getCustomRuleGroups());
             exportedGroups.add("默认");
-            for (int n = 1; n <= 64; n++) {
+            for (int n : getCustomRuleSlots(selectedPackage)) {
                 String value = getPreferences(0).getString(selectedPackage + ":dev_rule_" + n, null);
                 if (value == null) continue;
                 String[] parts = value.split("\\|", -1);
@@ -7224,13 +7226,13 @@ public final class MainActivity extends ComponentActivity {
                         }
                         if (!sourcePackage.matches("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+"))
                             throw new IllegalArgumentException("规则组来源包名无效。");
-                        if (array.length() > 64) throw new IllegalArgumentException("单次导入最多 64 条规则。");
+                        // Import size is bounded above; rule count itself is not capped.
 
                         java.util.Set<String> ids = new java.util.HashSet<>();
                         java.util.List<String> candidates = new java.util.ArrayList<>();
                         java.util.List<String> baseActions = new java.util.ArrayList<>();
                         java.util.List<String> baseGroups = new java.util.ArrayList<>();
-                        for (int n = 1; n <= 64; n++) {
+                        for (int n : getCustomRuleSlots(selectedPackage)) {
                             String existing = getPreferences(0).getString(selectedPackage + ":dev_rule_" + n, null);
                             if (existing != null) {
                                 String[] parts = existing.split("\\|", -1);
@@ -7296,9 +7298,6 @@ public final class MainActivity extends ComponentActivity {
                             baseActions.add(action);
                             baseGroups.add(groupName);
                         }
-                        if (candidates.size() > 64)
-                            throw new IllegalArgumentException("当前应用最多保存 64 条规则。");
-
                         android.content.SharedPreferences rulePreferences = getPreferences(0);
                         String hookEnabledKey = selectedPackage + ":dev_hook_enabled";
                         String groupsKey = selectedPackage + ":dev_rule_groups";
@@ -7309,23 +7308,17 @@ public final class MainActivity extends ComponentActivity {
                                 rulePreferences.getStringSet(groupsKey, java.util.Collections.emptySet()));
                         java.util.Map<String, ?> previousValues = rulePreferences.getAll();
                         java.util.Map<String, Object> previousRuleState = new java.util.HashMap<>();
-                        for (int n = 1; n <= 64; n++) {
-                            for (String suffix : new String[]{"", "_base", "_group"}) {
-                                String key = selectedPackage + ":dev_rule_" + n + suffix;
-                                Object value = previousValues.get(key);
-                                if (value instanceof String) previousRuleState.put(key, value);
-                            }
+                        for (String key : getCustomRulePreferenceKeys(selectedPackage, 0)) {
+                            Object value = previousValues.get(key);
+                            if (value instanceof String) previousRuleState.put(key, value);
                         }
                         Object previousImportDraft = previousValues.get(importDraftKey);
                         if (previousImportDraft instanceof String)
                             previousRuleState.put(importDraftKey, previousImportDraft);
 
                         android.content.SharedPreferences.Editor editor = rulePreferences.edit();
-                        for (int n = 1; n <= 64; n++) {
-                            editor.remove(selectedPackage + ":dev_rule_" + n);
-                            editor.remove(selectedPackage + ":dev_rule_base_" + n);
-                            editor.remove(selectedPackage + ":dev_rule_group_" + n);
-                        }
+                        for (String key : getCustomRulePreferenceKeys(selectedPackage, candidates.size()))
+                            editor.remove(key);
                         for (int i = 0; i < candidates.size(); i++) {
                             editor.putString(selectedPackage + ":dev_rule_" + (i + 1), candidates.get(i));
                             editor.putString(selectedPackage + ":dev_rule_base_" + (i + 1), baseActions.get(i));
@@ -7342,11 +7335,8 @@ public final class MainActivity extends ComponentActivity {
                             // SharedPreferences updates its in-memory map before disk I/O.
                             // Restore the previous rule set in memory and retry persistence.
                             android.content.SharedPreferences.Editor rollback = rulePreferences.edit();
-                            for (int n = 1; n <= 64; n++) {
-                                rollback.remove(selectedPackage + ":dev_rule_" + n);
-                                rollback.remove(selectedPackage + ":dev_rule_base_" + n);
-                                rollback.remove(selectedPackage + ":dev_rule_group_" + n);
-                            }
+                            for (String key : getCustomRulePreferenceKeys(selectedPackage, candidates.size()))
+                                rollback.remove(key);
                             rollback.remove(importDraftKey);
                             for (java.util.Map.Entry<String, Object> entry : previousRuleState.entrySet()) {
                                 rollback.putString(entry.getKey(), (String) entry.getValue());
@@ -7768,7 +7758,7 @@ public final class MainActivity extends ComponentActivity {
                 LinearLayout groupRows = new LinearLayout(this);
                 groupRows.setOrientation(LinearLayout.VERTICAL);
                 int groupCount = 0;
-                for (int slot = 1; slot <= 64; slot++) {
+                for (int slot : getCustomRuleSlots(selectedPackage)) {
                     String ruleKey = selectedPackage + ":dev_rule_" + slot;
                     String value = getPreferences(0).getString(ruleKey, null);
                     if (value == null) continue;
@@ -8153,7 +8143,7 @@ public final class MainActivity extends ComponentActivity {
                     has = true;
                 }
                 boolean customEnabled=false;
-                for(int n=1;n<=64;n++) {
+                for(int n : getCustomRuleSlots(p)) {
                     String rule=getPreferences(0).getString(p+":dev_rule_"+n,null);
                     if(rule!=null) {
                         if(!customEnabled) { row.append(",dev_hook_enabled=1"); customEnabled=true; }
