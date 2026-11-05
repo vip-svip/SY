@@ -1480,6 +1480,10 @@ public final class MainActivity extends ComponentActivity {
         intro.setTextColor(0xff718091);
         intro.setPadding(dp(18), 0, dp(18), dp(10));
         content.addView(intro);
+        section("Frida JavaScript 脚本");
+        addNativeActionCard("Frida JavaScript 脚本库", "管理 Frida 专用 JavaScript 脚本、导入导出与脚本编辑；执行仍受目标进程、设备 ABI 与 Frida 运行状态约束。", "打开脚本库", () ->
+                startActivity(new Intent(this,
+                        de.privacyguard.adhook.imported.dia.FxDiaScriptLibraryActivity.class)));
         section("脚本管理");
         TextView status = new TextView(this);
         status.setText("正在读取脚本列表…");
@@ -3075,9 +3079,26 @@ public final class MainActivity extends ComponentActivity {
                 startActivity(new Intent(this,
                         de.privacyguard.adhook.imported.dia.FxDiaFridaActivity.class)
                         .putExtra("dia_page", "Frida 环境")));
-        addNativeActionCard("JavaScript 脚本库", "管理 Hook 脚本、编辑与运行记录；脚本执行受目标应用、运行时与权限能力限制。", "打开脚本库", () ->
+        addNativeActionCard("Activity 入口与禁用", "按目标应用浏览 Activity 入口与组件启用状态；仅对明确选择的目标应用执行。", "打开 Activity 浏览器", () ->
                 startActivity(new Intent(this,
-                        de.privacyguard.adhook.imported.dia.FxDiaScriptLibraryActivity.class)));
+                        de.privacyguard.adhook.imported.dia.FxDiaActivityBrowserActivity.class)
+                        .putExtra("launcher_only", true)
+                        .putExtra("dia_page", "Activity 入口与禁用")));
+        addNativeActionCard("文件与 so 库浏览", "在用户授权的应用沙箱和 FX 可访问目录内浏览文件及 ELF 元信息。", "打开文件浏览器", () ->
+                startActivity(new Intent(this,
+                        de.privacyguard.adhook.imported.dia.FxDiaFileActivity.class)));
+        addNativeActionCard("JSON 数据工具", "查看和编辑本地 JSON 数据；写入操作由具体工具页执行并保留校验。", "打开 JSON 工具", () ->
+                startActivity(new Intent(this,
+                        de.privacyguard.adhook.imported.dia.FxDiaJsonActivity.class)));
+        addNativeActionCard("内存与数据库检查", "打开已接入的内存快照、数据库与运行时检查工具。", "打开检查器", () ->
+                startActivity(new Intent(this,
+                        de.privacyguard.adhook.imported.dia.FxDiaInspectorActivity.class)));
+        addNativeActionCard("APK 签名信息", "读取已安装应用或指定 APK 的签名证书指纹，不伪造签名或修改校验结果。", "查看签名信息", () ->
+                startActivity(new Intent(this,
+                        de.privacyguard.adhook.imported.dia.FxDiaSignatureActivity.class)));
+        addNativeActionCard("崩溃诊断报告", "查看 FX 收集并保存在本机的崩溃诊断记录；导出前会处理敏感字段。", "查看崩溃报告", () ->
+                startActivity(new Intent(this,
+                        de.privacyguard.adhook.imported.dia.FxDiaCrashReportActivity.class)));
         addNativeActionCard("DEX 类与方法浏览", "扫描目标用户应用的 DEX，并将经过校验的方法签名带入自定义 Hook 编辑器。", "浏览 DEX 并选取方法", () -> {
             Intent dexBrowser = new Intent(this,
                     de.privacyguard.adhook.imported.dia.FxDiaDexBrowserActivity.class);
@@ -3093,9 +3114,6 @@ public final class MainActivity extends ComponentActivity {
         addNativeActionCard("运行事件与监控", "查看 Frida 运行事件、方法观察与已接入的进程诊断。", "打开事件监控", () ->
                 startActivity(new Intent(this,
                         de.privacyguard.adhook.imported.dia.FxDiaMonitorEventsActivity.class)));
-        addNativeActionCard("Hook 工具备份恢复", "管理 Hook 工具的本地与远端备份；备份导入仍需用户明确选择文件并确认。", "打开备份管理", () ->
-                startActivity(new Intent(this,
-                        de.privacyguard.adhook.imported.dia.FxDiaBackupActivity.class)));
         addNativeActionCard("Hook 工具与运行设置", "管理 LSPosed 提示、作用域辅助、系统扩展与工具运行偏好。", "打开 Hook 设置", () ->
                 startActivity(new Intent(this,
                         de.privacyguard.adhook.imported.dia.FxDiaGlobalSettingsActivity.class)));
@@ -3251,6 +3269,10 @@ public final class MainActivity extends ComponentActivity {
         intro.setTextColor(0xff66727e);
         intro.setPadding(dp(18), dp(4), dp(18), dp(14));
         content.addView(intro);
+        section("备份与恢复");
+        addNativeActionCard("FX 配置备份", "管理模块配置、FX Hook 与安全防护偏好的本地加密备份、GitHub 与 WebDAV 备份。恢复前会显示覆盖范围并要求确认。", "打开备份管理", () ->
+                startActivity(new Intent(this,
+                        de.privacyguard.adhook.imported.dia.FxDiaBackupActivity.class)));
         section("壁纸与背景");
         addNativeActionCard(
                 "壁纸随心换",
