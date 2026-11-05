@@ -130,7 +130,7 @@ public final class FxDiaGpsPickerActivity extends de.privacyguard.adhook.FxNativ
         webView = new WebView(this);
         configureWebView(webView);
         root.addView(webView, new LinearLayout.LayoutParams(-1, 0, 1));
-        setContentViewWithNativeTabs(root, 5);
+        setContentViewWithNativeTabs(root, 4);
 
         boolean restoredMap = false;
         if (state != null) {
