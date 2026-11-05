@@ -104,3 +104,13 @@ GKD-XA 根工程把 Kotlin JVM target 设为 21，并依赖 Compose、Room 3、K
 3. 先实现明确用户启用的安全动作执行器，默认关闭；规则和目标 App 范围可查看、可撤销。动作前后做 cooldown、幂等与事件去重，保留运行记录。
 4. 移植 snapshots/history/AI providers 及配套权限，再在 Hook Tab 添加统一 Compose 子页面。
 5. 最后逐项整合 Shizuku/AIDL、后台/开机/通知/Tile 生命周期，确保不重复注册第二套服务或入口。
+
+
+### GPL-3.0 许可资产与发行门禁（2026-11-05 更新）
+
+- 已将上游 pinned commit 的 `vendor/GKD-XA/LICENSE` 原文复制到 APK 资源 `adhook/app/src/main/assets/licenses/GKD-XA-GPL-3.0.txt`；原文长度 35,148 bytes，与上游文件保持一致。
+- `THIRD_PARTY_NOTICES.txt` 已记录仓库、commit、selector source path、FX wrapper path、许可和未迁移边界。
+- 设置中的“开源许可”查看器新增 `GKD-XA v1.4.8 选择器 · GPL-3.0` 条目；文件读取限制 48 KiB，高于该许可正文大小。
+- `fx-open-source-licenses-regression.sh` 检查许可原文资产、设置查看入口、来源 commit 和完整文本。
+- **发行法律门禁仍未解除**：FX 仓库根目录目前没有项目级 LICENSE。GKD 选择器源码现在编译进单 APK，是否构成需要将整个组合程序按 GPLv3 兼容方式授权/分发，必须由项目权利人确认并完成对应源代码、版权和修改声明安排。不能只因为 APK 内附了 GPL 文本就声称整个 FX 发行合规；在权利与许可范围没有确认前，不得发布为闭源/专有产品，也不得把上游 GKD 代码重新标成 FX 独有。
+- 独立选择器 CI 已覆盖 upstream `:fx-gkd-selector:jvmTest`；FX 集成工作流正在增加 Android App 编译和 `FxGkdSelectorRuntimeTest`。应分别报告 upstream JVM 测试、FX App 编译/单测与真机服务验收，不能合并成一个“全部通过”。
