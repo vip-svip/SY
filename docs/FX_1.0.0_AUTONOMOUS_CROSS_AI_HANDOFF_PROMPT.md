@@ -235,8 +235,9 @@ Settings 只包含：
 
 默认模式 + 五种可切换皮肤，共六种全局界面模式，属于同一 APK 的 Presentation：
 
-| 模式 | 稳定 storage ID | 视觉与实现重点 |\n| 默认模式 | default | FX 自有标准原生基础界面；首次安装默认选中；独立 tokens/renderer，不等同液态玻璃 |
+| 模式 | 稳定 storage ID | 视觉与实现重点 |
 |---|---|---|
+| 默认模式 | `default` | FX 自有标准原生基础界面；首次安装默认选中；独立 tokens/renderer，不等同液态玻璃 |
 | ClassicWebCompat | classic | 游龙工具 10.0.2 经典网页 UI 风格，真实资源/交互证据与兼容桥接 |
 | FXLiquidNative | glass | Android 原生液态玻璃、半透明、Backdrop 模糊、折射/高光、低性能降级 |
 | MiuixStyle | miuix | 小米澎湃/Miuix 风格、分组设置、圆角卡片、合法开源组件 |
