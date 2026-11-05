@@ -199,11 +199,11 @@ assert "target.equals(selectedPackage)" in main, "GPS result must remain scoped 
 assert "target.equals(pendingRestorePackage)" in main, "GPS result must survive while the selected app is still restoring"
 assert "if (!targetEditorRestoring)" in main, "GPS result must defer opening the target until asynchronous app-list restoration completes"
 # SAF script export must persist its payload outside the Activity instance and clean up on every result path.
-for token in ("NATIVE_SCRIPT_EXPORT_PREFS", "NATIVE_SCRIPT_EXPORT_PAYLOAD", "MAX_NATIVE_SCRIPT_EXPORT_BYTES", "fx_pending_native_script_export"):
+for token in ("NATIVE_SCRIPT_EXPORT_PREFS", "NATIVE_SCRIPT_EXPORT_PAYLOAD", "fx_pending_native_script_export"):
     assert token in main, f"missing SAF export persistence contract: {token}"
-assert "putString(NATIVE_SCRIPT_EXPORT_PAYLOAD, payload).commit()" in main
-assert "512 * 1024" in main, "SAF export payload must remain bounded below Binder transaction limits"
+assert "putString(NATIVE_SCRIPT_EXPORT_PAYLOAD, payload).commit()" in main, "SAF export payload must survive Activity recreation"
 assert "getString(NATIVE_SCRIPT_EXPORT_PAYLOAD, null)" in main
+assert "MAX_NATIVE_SCRIPT_EXPORT_BYTES" not in main, "script export must not impose an arbitrary product-level payload ceiling"
 assert "finally {\n                clearPendingNativeScriptExport();\n            }" in main
 assert "clearPendingNativeScriptExport();" in main, "cancel/launch failure must clear staged export payload"
 for page in pages:
