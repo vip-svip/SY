@@ -36,6 +36,18 @@ fi
 if grep -Eq '最多 64 条规则|最多配置 64 条自定义规则|当前应用最多保存 64 条规则' "$MAIN"; then
     fail "custom Hook UI still advertises a 64-rule cap"
 fi
+python3 - "$MAIN" <<'PY'
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+start = source.index("private void showCustomRuleImportDialog()")
+end = source.index("\\n    private ", start + 20)
+dialog = source[start:end]
+assert "LengthFilter" not in dialog, "custom Hook JSON import still has an editor character ceiling"
+assert "65536" not in dialog and "64 KiB" not in dialog, "custom Hook JSON import still has a fixed payload ceiling"
+assert "new org.json.JSONArray(raw)" in dialog and "new org.json.JSONObject(raw)" in dialog
+print("PASS: custom Hook JSON import has no fixed character or UTF-8 payload cap")
+PY
 grep -Fq 'parserAndSerializerRoundTripMoreThanSixtyFourDeveloperRules' "$PARSER_UNIT" || fail "more-than-64 parser/serializer unit coverage missing"
 grep -Fq 'acceptsSparseLegacyDeveloperRuleSlotsAboveSixtyFour' "$PARSER_UNIT" || fail "sparse legacy slot compatibility test missing"
 python3 - "$MAIN" <<'PY'
