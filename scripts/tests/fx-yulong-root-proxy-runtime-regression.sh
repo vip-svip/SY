@@ -347,6 +347,7 @@ for scenario in route route2 package-manager unbound adguard probe route-recheck
       ;;
   esac
   assert_stopped "$CASE_DIR" "$scenario fail-open"
+  if [ "$scenario" = unbound ]; then MOCK_UNBOUND_INDEPENDENT=1; export MOCK_UNBOUND_INDEPENDENT; fi
 done
 MOCK_UNBOUND_INDEPENDENT=1; export MOCK_UNBOUND_INDEPENDENT
 
