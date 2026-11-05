@@ -12,6 +12,9 @@ final class CupertinoSkinTokens {
         static final int CARD_SURFACE = 0xeaffffff;
         static final int CARD_STROKE = 0x1f8e8e93;
         static final int ROW_RIPPLE = 0x1f007aff;
+        static final int LIST_ROW_SURFACE = 0xeaffffff;
+        static final int LIST_ROW_BORDER = 0x1f8e8e93;
+        static final int LIST_ROW_RIPPLE = 0x1f007aff;
         static final int BACKGROUND = 0xfff2f2f7;
         static final int WALLPAPER_TINT = 0xffffffff;
         static final int NAV_SURFACE = 0xf9ffffff;
@@ -35,6 +38,7 @@ final class CupertinoSkinTokens {
         static final int CARD_RADIUS_DP = 16;
         static final int SECTION_RADIUS_DP = 14;
         static final int ACTION_RADIUS_DP = 18;
+        static final int LIST_ROW_RADIUS_DP = 12;
         private CupertinoShapeTokens() { }
     }
 
@@ -48,6 +52,8 @@ final class CupertinoSkinTokens {
         static final float SWITCH_LABEL_SP = 16f;
         static final float CHOICE_LABEL_SP = 15f;
         static final float INPUT_LABEL_SP = 16f;
+        static final float LIST_ROW_TITLE_SP = 15f;
+        static final float LIST_ROW_SUBTITLE_SP = 11f;
         private CupertinoTypographyTokens() { }
     }
 
@@ -72,6 +78,9 @@ final class CupertinoSkinTokens {
         static final int CARD_HORIZONTAL_PADDING_DP = 16;
         static final int CARD_VERTICAL_PADDING_DP = 12;
         static final int ROW_MIN_HEIGHT_DP = 50;
+        static final int LIST_ROW_MIN_HEIGHT_DP = 52;
+        static final int LIST_ROW_HORIZONTAL_PADDING_DP = 16;
+        static final int LIST_ROW_VERTICAL_PADDING_DP = 10;
 
         private CupertinoSpacingTokens() { }
     }
