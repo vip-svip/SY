@@ -4849,3 +4849,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - Root Proxy atomic lock, stale/live-owner handling, concurrent serialization and independent local-DNS engine ownership: PASS.
   - TUN-to-REDIRECT fallback fixture: PASS. It verifies the outer VPN interface, owner UID, explicit compatibility switch and route proof; unsafe/unknown states fall back to direct mode; requested/effective mode and fallback reason are reported.
 - The fixture is a host-side deterministic test of the patcher and mode-selection functions. It does not establish live Android VPN coexistence or device-kernel behavior.
+
+
+## 原始来源 Intake Artifact 恢复（2026-11-05）
+
+- 补充发现 GitHub Actions run `41538478144` 的 artifact `fx-apk-source-intake`，artifact ID `13184309776`，当前未过期（到期 2026-11-16），已下载并校验 SHA-256：`5e8328d9c940d961fb49073ac9be8b2d2aac793148bafff700eed80a97851a3a`。因此此前“/FX Library 没有源码 ZIP”只代表 Library 目录缺失，不代表 GitHub Actions 没有可用来源。
+- Artifact 内有三个已解包来源树：Dia 23.11（31,698 个文件，package `dialog.box`，Manifest 70 个组件）；游龙广告 7.0.1（9,105 个文件，package `com.youlong.ad`，Manifest 20 个组件，原版声明 `AdBlockVpnService` 与 `RootProxyService`）；游龙安全护盾 9.9.60（39,311 个文件，package `com.youlong.hd`，Manifest 44 个组件，含 Stellar 内部组件）。
+- 该 artifact 不含原始 `_10.10.62_src.zip`，也未发现 `GKD-XA_1.4.8_src.zip`；GKD-XA 仍以仓库 `.gitmodules` 指向的独立上游 submodule 为来源，需单独回读 gitlink/commit。Artifact 内三个解包目录不是原始 ZIP 本体，不能把它们描述成五份源码 ZIP 全部齐备。
+- 架构约束：原游龙 7.0.1 的 `AdBlockVpnService` 不得直接迁入 FX Manifest 形成第二个 VpnService；FX 应继续使用自己的 Root/系统网络栈数据面与 Root Proxy，按 Android 单 VPN 槽限制检测外部 VPN。
+- 已用 artifact SHA、Manifest 包名和组件数完成来源身份初步核验；尚未完成 Dia/7.0.1/9.9.60 的完整 Smali/资源/许可证逐项映射，也未核验 10.10.62 源码。
