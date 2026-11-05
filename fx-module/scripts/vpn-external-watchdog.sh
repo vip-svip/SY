@@ -74,7 +74,7 @@ case "$cmd" in
     ;;
   stop|uninstall)
     MODDIR=${2:-$MODDIR}; PG=${3:-$PG}; PROXY="$MODDIR/scripts/yulong-root-proxy.sh"; PIDFILE="$PG/vpn-external-watchdog.pid"; LOG="$PG/vpn-external-watchdog.log"
-    [ ! -L "$PIDFILE" ] || { log "refusing symlink PID record"; exit 1; }
+    [ ! -L "$PIDFILE" ] || { log "refusing symlink PID record"; echo "refusing symlink PID record: $PIDFILE" >&2; exit 1; }
     if [ -e "$PIDFILE" ]; then
       _old=$(read_pid) || { log "invalid watcher PID record; preserving state"; exit 1; }
       if pid_matches "$_old"; then
