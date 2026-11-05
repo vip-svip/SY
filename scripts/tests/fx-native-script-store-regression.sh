@@ -118,4 +118,10 @@ after_patch=$(sha256sum "$MOD/webroot/index.html" | awk '{print $1}')
 [ "$before_patch" = "$after_patch" ] || fail "native script patcher is not idempotent"
 [ -x "$MOD/scripts/jsruntime/local-run.sh" ] || fail "native QuickJS local runner was not installed"
 cmp -s "$ROOT/fx-patches/native-script-run.sh" "$MOD/scripts/jsruntime/local-run.sh" || fail "installed local runner differs from canonical source"
+MAIN="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
+grep -Fq 'nativeScriptStoreCommand("add-file"' "$MAIN" || fail "Android script storage still transports source bytes in shell arguments"
+grep -Fq 'storeNativeScriptFile(staged, displayName, "1"' "$MAIN" || fail "file imports do not use the file-backed store transport"
+grep -Fq 'storeNativeScriptValue(value, name, enabled' "$MAIN" || fail "JSON imports do not use the file-backed store transport"
+if grep -Fq 'total > 1024 * 1024' "$MAIN"; then fail "Android file import still has a 1 MiB cap"; fi
+if grep -Fq 'MAX_NATIVE_SCRIPT_EXPORT_BYTES' "$MAIN"; then fail "Android script export still has a fixed payload cap"; fi
 echo "PASS: native script-list backend supports CRUD, preserves unrelated config, round-trips multiline source and installs the local runner"
