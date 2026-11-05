@@ -110,7 +110,7 @@ final class HarmonySkinRenderer {
             detail.setPadding(0, dp(4, density), 0, dp(6, density));
             return;
         }
-        if (("fx-card".equals(role) || "fx-setting-card".equals(role)) && view instanceof ViewGroup) {
+        if (("fx-card".equals(role) || "fx-card-group".equals(role) || "fx-setting-card".equals(role)) && view instanceof ViewGroup) {
             ViewGroup card = (ViewGroup) view;
             card.setBackground(rounded(HarmonyColorTokens.CARD_SURFACE,
                     HarmonyColorTokens.CARD_STROKE, HarmonyShapeTokens.CARD_RADIUS_DP, density));
