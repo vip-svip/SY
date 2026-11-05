@@ -163,21 +163,25 @@ fx_arb_slot_used() {
     fi
   done
 
-  # Also inspect every top-level module shell script. Checking only the four
-  # historical entry points allowed a newly added dataplane helper to call
-  # VpnService.prepare()/Builder and still be reported as slot-independent.
+  # Scan every module-owned shell source, including newly added helpers.
+  # Exclude this observer: it necessarily contains the VpnService detection
+  # expression in its own source and must never self-report as a VPN client.
+  # Full-line comments are not executable API usage and are ignored.
   _scan_count=0
-  for _f in "$_root"/scripts/*.sh; do
-    [ -e "$_f" ] || [ -L "$_f" ] || continue
+  _find_failed=0
+  _scan_files=$(find "$_root" \\( -type f -o -type l \\) -name '*.sh' -print 2>/dev/null) || _find_failed=1
+  for _f in $_scan_files; do
+    [ "$_f" = "$_root/scripts/fx-vpn-coexistence-arbiter.sh" ] && continue
     _scan_count=$((_scan_count + 1))
     if [ -L "$_f" ] || [ ! -f "$_f" ] || [ ! -r "$_f" ]; then
       _missing=1
       continue
     fi
-    if grep -Eq 'VpnService[[:space:]]*\.[[:space:]]*(prepare|Builder)|VpnService\$Builder' "$_f" 2>/dev/null; then
+    if grep -Eq '^[[:space:]]*[^#].*VpnService[[:space:]]*\\.[[:space:]]*(prepare|Builder)|^[[:space:]]*[^#].*VpnService\\$Builder' "$_f" 2>/dev/null; then
       _hit=1
     fi
   done
+  [ "$_find_failed" = "0" ] || _missing=1
   [ "$_scan_count" -gt 0 ] || _missing=1
 
   # A positive API match is decisive even if another scanned file is absent.
