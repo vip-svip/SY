@@ -47,6 +47,20 @@ public final class FxYulongAdSummaryActivity extends de.privacyguard.adhook.FxNa
         return FxYulongRootModuleCommand.command("yulong-ad-control.sh", scriptArgs);
     }
 
+    /**
+     * Keep only the newest pending Root read. An already-running command is
+     * allowed to finish, but its generation check prevents it from painting
+     * stale data; a queued command that has not started is superseded.
+     */
+    private void enqueueLatest(Runnable task) {
+        if (task == null) throw new IllegalArgumentException("Root task is required");
+        if (isFinishing() || isDestroyed()) {
+            throw new RejectedExecutionException("summary Activity is no longer active");
+        }
+        worker.getQueue().poll();
+        worker.execute(task);
+    }
+
     private void root(String args, int generation,
                       java.util.function.Consumer<RootAccess.Result> callback) {
         try {
