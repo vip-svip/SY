@@ -215,10 +215,10 @@ grep -Fq 'control.setHintTextColor(palette.secondaryText)' "$skin" || { echo "FA
 grep -Fq 'palette.inputBorder' "$skin" || { echo "FAIL: focused/unfocused form border token is missing"; exit 1; }
 grep -Fq 'INPUT_BORDER = 0xffb7cce5' "$harmony_tokens" || { echo "FAIL: Harmony form border token missing"; exit 1; }
 grep -Fq 'INPUT_BORDER = 0xffc6c6cc' "$cupertino_tokens" || { echo "FAIL: Cupertino form border token missing"; exit 1; }
-[[ "$(grep -Fc 'static final int INPUT_BORDER' "$harmony_tokens")" -eq 1 ]] || { echo "FAIL: Harmony INPUT_BORDER must be declared exactly once"; exit 1; }
-[[ "$(grep -Fc 'static final int INPUT_BORDER' "$cupertino_tokens")" -eq 1 ]] || { echo "FAIL: Cupertino INPUT_BORDER must be declared exactly once"; exit 1; }
-[[ "$(grep -Fc 'static final int INPUT_MIN_HEIGHT_DP' "$harmony_tokens")" -eq 1 ]] || { echo "FAIL: Harmony INPUT_MIN_HEIGHT_DP must be declared exactly once"; exit 1; }
-[[ "$(grep -Fc 'static final int INPUT_MIN_HEIGHT_DP' "$cupertino_tokens")" -eq 1 ]] || { echo "FAIL: Cupertino INPUT_MIN_HEIGHT_DP must be declared exactly once"; exit 1; }
+[ "$(grep -Fc 'static final int INPUT_BORDER' "$harmony_tokens")" -eq 1 ] || { echo "FAIL: Harmony INPUT_BORDER must be declared exactly once"; exit 1; }
+[ "$(grep -Fc 'static final int INPUT_BORDER' "$cupertino_tokens")" -eq 1 ] || { echo "FAIL: Cupertino INPUT_BORDER must be declared exactly once"; exit 1; }
+[ "$(grep -Fc 'static final int INPUT_MIN_HEIGHT_DP' "$harmony_tokens")" -eq 1 ] || { echo "FAIL: Harmony INPUT_MIN_HEIGHT_DP must be declared exactly once"; exit 1; }
+[ "$(grep -Fc 'static final int INPUT_MIN_HEIGHT_DP' "$cupertino_tokens")" -eq 1 ] || { echo "FAIL: Cupertino INPUT_MIN_HEIGHT_DP must be declared exactly once"; exit 1; }
 python3 - "$harmony_tokens" "$cupertino_tokens" <<'PY'
 from collections import Counter
 from pathlib import Path
