@@ -6583,3 +6583,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 当前源码回读确认 `writeHostsPage` 已有 /data、/data/local、/data/local/tmp 逐级目录非符号链接检查、`umask 077`、唯一 `mktemp`、EXIT 清理 trap、临时文件常规文件检查及 `fileedit.sh replacepage`。
 - 修复已在当前分支 HEAD `5938090c1eba4d2ab63887b06de96d7caec5dd17` 中；Hook APK migration run `42109361175` 当前为 pending，尚未把此修复记为 CI 通过。此前同一工作流的失败是该测试的误报。
 - 设备级验证仍需实际 Android 保存操作、系统 Hosts 应用和权限/SELinux 检查；Host 静态匹配不替代真机。
+
+
+## 2026-11-06 — Hook migration Hosts temp-path regression false negative 修复
+
+- 根因来自 workflow run `42107889234` / job `127527465583`：Release-restored migration 阶段运行 `fx-native-managed-lists-regression.sh` 时，其内嵌 Python 检查器报告 `Hosts page save temp-path invariant missing`。
+- 核对生产实现 `MainActivity.writeHostsPage()`：已按顺序检查 `/data`、`/data/local`、`/data/local/tmp` 均为非符号链接目录，再设置 `umask 077`、创建随机临时文件、注册 EXIT 清理、检查临时文件类型并将内容写入后调用 `fileedit.sh replacepage`。生产安全逻辑不需要放宽。
+- 真正缺陷：回归测试注释声称会规范化 Java 字符串中的转义双引号，但没有做转换；导致合法源码中的 `\\\"` 与测试期望的普通双引号不匹配。
+- 修复提交：`347945fceea63e9152e282c2021b8aef88323d31`；随后将转义规范化改成无歧义的 `chr(92) + '"'` 写法，提交 `ce0f9d4dd3a588df1df0287c802f781788ddbac7`。
+- 本地对从目标分支读取的 `writeHostsPage()` 源码执行等价 token 验证，10 项契约均匹配；最终测试文件已回读，blob `ed7bb1734fd210d25bced59dbe28cb758fa03aca`。
+- 尚未确认该修复后的 GitHub Actions 运行结果；必须等待 `build-fx-adhook.yml` migration lane 实际运行，不能将源码 token 检查等价为完整 workflow / APK 构建通过。设备级验证仍未执行。
