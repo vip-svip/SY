@@ -5025,6 +5025,6 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Root JSON 状态现在区分字段明确为 false 的“未授权”和状态接口缺少 `root` 字段的“未知（状态接口未提供）”，避免数据缺失造成错误结论。
 - 代码提交：`f7571e7793ea74b98624b5d1a271000fb61ce4ba`。
 - 回归覆盖：`scripts/tests/fx-native-privacy-settings-regression.sh` 增加 app-side 状态契约断言；修正该测试在没有 restored FX module archive 的 targeted Host 环境中直接失败的问题，使 app-side 静态检查始终运行，而依赖模块归档的配置持久化/回滚检查仅在归档可用时执行。相关测试适配提交：`880f4bb109fc2bf7621f624cf8c1ddff24252468`、`e2c3f33053aab51babc1556db77491eab3a9d697`、`2dc4d9db5409035db4207696dcf75e646a2db0e9`，随后由 `8ad3f7ebcaaae0badc60df76c4b612f41a7735c6` 与 `11a078e90c78533c66f64ba050f0f9dd54a8ef01` 整理测试为始终执行状态检查、模块归档可用时再执行模块行为验证。
-- 验证：GitHub Actions FX Targeted Host Regression run `42029516063`（HEAD `11a078e`）已 completed/success；FX Module Runtime Regression run `42029515963` 当时 pending，尚不能标记通过。该 targeted workflow 的成功包含新增 app-side 状态静态断言；不代表 Android 编译、Accessibility 服务真机连接、Root/LSPosed 实际注入或模块归档行为已通过。
+- 验证：GitHub Actions FX Targeted Host Regression run `42029516063`（HEAD `11a078e`）已 completed/success；FX Module Runtime Regression run `42029515963`（同一代码 HEAD）已 completed/success。Targeted workflow 的成功包含新增 app-side 状态静态断言；Runtime workflow 成功仅代表其现有 VPN/DNS Host 回归通过，不代表 Android 编译、Accessibility 服务真机连接、Root/LSPosed 实际注入或本次隐私 UI 的模块归档行为已通过。
 - 未运行/未验证：Android Gradle 构建、APK 安装、真机无障碍设置切换与 Binder 生命周期、Root/LSPosed 真机状态、模块完整归档测试（等待 runtime workflow）。
 - 下一批：继续核对 Hook 目标应用详情的授权状态与规则发布回读一致性；并行回到本地 DNS/外部 VPN/内核代理真实链路验收矩阵。不得把系统 Accessibility 开关开启等同于目标应用已执行 Hook。
