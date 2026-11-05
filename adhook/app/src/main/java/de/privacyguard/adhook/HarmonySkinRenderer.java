@@ -89,21 +89,6 @@ final class HarmonySkinRenderer {
             section.setMinimumHeight(dp(HarmonySpacingTokens.ROW_MIN_HEIGHT_DP, density));
             return;
         }
-        if ("fx-card-title".equals(role) && view instanceof TextView) {
-            TextView heading = (TextView) view;
-            heading.setTextColor(HarmonyColorTokens.PRIMARY_TEXT);
-            heading.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
-            heading.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,
-                    HarmonyTypographyTokens.CARD_TITLE_SP);
-            return;
-        }
-        if ("fx-card-body".equals(role) || "fx-card-detail".equals(role) && view instanceof TextView) {
-            TextView detail = (TextView) view;
-            detail.setTextColor(HarmonyColorTokens.SECONDARY_TEXT);
-            detail.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 13f);
-            detail.setLineSpacing(dp(2, density), 1.05f);
-            return;
-        }
         if (("fx-card-detail".equals(role) || "fx-card-body".equals(role)) && view instanceof TextView) {
             TextView detail = (TextView) view;
             detail.setTextColor(HarmonyColorTokens.SECONDARY_TEXT);
