@@ -245,8 +245,9 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
 
     private void renderRules() {
         if (body == null) return;
-        // Keep the top guidance, system permission status, master switch and add button.
-        while (body.getChildCount() > 5) body.removeViewAt(5);
+        // Keep the two notice cards, service status, permission button,
+        // master switch and add-rule button. Only replace the rule-list tail.
+        while (body.getChildCount() > 6) body.removeViewAt(6);
         TextView section = text("本地规则（仅保存在本机）", 0xff17212b, 16);
         section.setTypeface(null, android.graphics.Typeface.BOLD);
         body.addView(section);
