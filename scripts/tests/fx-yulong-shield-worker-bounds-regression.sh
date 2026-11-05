@@ -47,4 +47,20 @@ grep -Fq 'request != checkGeneration' "$INTEGRITY" || fail "late Integrity resul
 grep -Fq 'catch (Throwable error)' "$INTEGRITY" || fail "Root worker exceptions are not converted to a UI result"
 grep -Fq 'checkButton.setEnabled(true)' "$INTEGRITY" || fail "Integrity check button is not restored after worker completion/failure"
 grep -Fq 'moduleStatus.setText(report)' "$INTEGRITY" || fail "Integrity worker failure/result is not reported on the UI thread"
+python3 - "$INTEGRITY" <<'PY'
+from pathlib import Path
+import sys
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+required = (
+    r'[ ! -L \"$d\" ]',
+    r'[ ! -L \"$d/module.prop\" ]',
+    r'[ ! -L \"$MP/$f\" ]',
+    r'[ ! -L \"$MP/bin/arm64/qjs\" ]',
+)
+for token in required:
+    if token not in source:
+        raise SystemExit(f"FAIL: module integrity check follows symlink input; missing {token}")
+PY
+
 echo "PASS: Shield workers are single-threaded and bounded, reject overload explicitly, and invalidate UI callbacks before teardown"
