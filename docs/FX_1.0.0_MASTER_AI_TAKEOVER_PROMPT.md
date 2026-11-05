@@ -256,3 +256,14 @@ GKD-XA 上游包含自己的 `Application`、`MainActivity`、`AppRoot`、ViewMo
 - DEX 符号包含 `com.youlong.gj.MiuixScreenKt`、`MiuixUiRoot`、`MiuixWallpaperDialog`；确认 10.0.2 包含 Miuix 原生页面和壁纸弹窗。
 - 壁纸行为基线：标题“壁纸随心换”；“上传本地图片”/“恢复默认壁纸”；私有目录、最长边 1920 px、JPEG 85、SharedPreferences `native_wallpaper_prefs/wallpaper_path`。FX 已有 `FxWallpaperStore`、Settings 壁纸控制和共享六 Tab 壁纸层。
 - `assets/index.java` 与 `assets/bizhi.png` 是封装/加密数据而非可直接复制的 HTML/PNG；`assets/apk.tar.xz` 内部列出 `hd.apk`、`ylads.apk`、`cj.apk`。完整资源解密、原版逐页界面提取仍未完成，ClassicWebCompat 不得标记为逐像素复刻。
+
+
+## GKD-XA 1.4.8 当前实施接续状态（2026-11-05）
+
+- 上游 GKD-XA 固定 commit `8a6ce935da11671dac7e1a7595416ec99ee07436`，GPL-3.0；只把 pinned selector 模块编进 FX 单 APK，不接入 GKD 第二 Application/Launcher/AccessibilityService。
+- 已有 `FxGkdSelectorEngine`、`FxGkdAccessibilitySnapshot`、`FxGkdRuleStore`、`FxGkdAutomationRuntime` 和 Hook 内页 `FxGkdAutomationActivity`。首批功能只有用户自行创建的本地包名规则、GKD selector 校验/匹配和 Click。
+- 真实服务链已接入 FX 唯一 `FxAccessibilityService`；总开关默认关闭，目标用户应用逐包限定，关闭后服务将恢复只订阅窗口变化。节点快照不读取密码/可编辑字段文本，不截图、不上传、不记录页面文本；动作仅在点击前复核总开关、规则、服务状态和前台包名。
+- GKD Workflow `.github/workflows/fx-gkd-selector.yml` 运行 pinned upstream JVM tests、FX app Kotlin/Java compile、`FxGkdSelectorEngineTest` 与 `fx-gkd-automation-regression.sh`。先检查最新 run 和日志再决定下一批。
+- **不可声称 GKD-XA 全功能已迁移**：订阅源/规则组/排除项/导入导出/数据库迁移/快照/AI/历史/日志/特权桥/后台与开机/通知与磁贴/备份恢复尚未完成。也没有 Android 真机动作/耗电验收。
+- 接手后优先：编译/测试失败 → 事件去重和处理预算 → 本地规则组/排除项/订阅仓库 → 触发记录/快照 → AI/特权与完整生命周期。
+- GPL-3.0 许可与整个 FX 发行的兼容性需单独法务确认；不可把附带许可证文件视为自动解决整个组合程序分发义务。
