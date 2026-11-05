@@ -60,6 +60,17 @@ class FxUiModeTest {
     }
 
     @Test
+    fun normalizesWhitespaceAndCaseForLegacyImportedAliases() {
+        assertEquals(FxUiMode.DEFAULT_STANDARD, FxUiMode.fromStorageId("  FXDEFAULT  "))
+        assertEquals(FxUiMode.FX_LIQUID_NATIVE, FxUiMode.fromStorageId(" FXLIQUIDNATIVE "))
+        assertEquals(FxUiMode.MIUIX_STYLE, FxUiMode.fromStorageId(" MIUIXSTYLE "))
+        assertEquals(FxUiMode.HUAWEI_HARMONY_STYLE, FxUiMode.fromStorageId(" HUAWEI HARMONYSTYLE "))
+        assertEquals(FxUiMode.IOS_CUPERTINO_STYLE, FxUiMode.fromStorageId(" IOS CUPERTINOSTYLE "))
+        assertEquals(FxUiMode.CLASSIC_WEB_COMPAT, FxUiMode.fromStorageId(" CLASSICWEBCOMPAT "))
+        assertEquals(FxUiMode.DEFAULT_STANDARD, FxUiMode.fromStorageId("   "))
+    }
+
+    @Test
     fun acceptsCanonicalDisplayNamesAsImportAliases() {
         assertEquals(FxUiMode.CLASSIC_WEB_COMPAT, FxUiMode.fromStorageId("ClassicWebCompat"))
         assertEquals(FxUiMode.FX_LIQUID_NATIVE, FxUiMode.fromStorageId("FXLiquidNative"))
