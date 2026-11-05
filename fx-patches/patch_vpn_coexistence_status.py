@@ -65,6 +65,31 @@ fx_coexist_status_write() {
   _fx_cs_route_probe=${_fx_cs_route_probe:-unverified}
   case "$_fx_cs_slot" in true|false|null) ;; *) _fx_cs_slot="unknown" ;; esac
 
+  # A readable path is not sufficient: only a complete arbiter record is the
+  # authoritative source. Empty/partial output (for example an unreadable
+  # executable or a stale helper) must be labelled local, not arbiter.
+  _fx_cs_arb_valid=0
+  if [ -n "$_fx_cs_verdict" ] && [ -n "$_fx_cs_grade" ] && [ -n "$_fx_cs_probe" ]; then
+    case "$_fx_cs_slot" in true|false|null) _fx_cs_arb_valid=1 ;; esac
+  fi
+
+  # Local fallback stays conservative; the slot evidence check below will
+  # downgrade it to unknown whenever the arbiter cannot certify the invariant.
+  _fx_cs_source="local"
+  if [ "$_fx_cs_arb_valid" = "1" ]; then
+    _fx_cs_source="arbiter"
+  else
+    if [ "$_fx_cs_blocked" = "1" ] && [ -z "$_fx_cs_if" ]; then
+      _fx_cs_verdict="unknown"; _fx_cs_grade="探测不可用"
+    elif [ -z "$_fx_cs_if" ]; then
+      _fx_cs_verdict="kernel_only"; _fx_cs_grade="内核级独立"
+    else
+      _fx_cs_verdict="partial"; _fx_cs_grade="部分兼容"
+    fi
+    _fx_cs_probe=${_fx_cs_probe:-unknown}
+    _fx_cs_route_probe="unverified"
+  fi
+
   # The published grade must agree with the slot evidence. A positive API
   # match is incompatible; absent/null slot evidence cannot certify kernel-only
   # or partial coexistence because the root dataplane invariant is unverified.
@@ -80,22 +105,6 @@ fx_coexist_status_write() {
       _fx_cs_probe=${_fx_cs_probe:-unknown}
       ;;
   esac
-
-  # 本地保守兜底：绝不把未知说成并行。
-  _fx_cs_source="local"
-  if [ -n "$_fx_cs_verdict" ]; then
-    _fx_cs_source="arbiter"
-  else
-    if [ "$_fx_cs_blocked" = "1" ] && [ -z "$_fx_cs_if" ]; then
-      _fx_cs_verdict="unknown"; _fx_cs_grade="探测不可用"
-    elif [ -z "$_fx_cs_if" ]; then
-      _fx_cs_verdict="kernel_only"; _fx_cs_grade="内核级独立"
-    else
-      _fx_cs_verdict="partial"; _fx_cs_grade="部分兼容"
-    fi
-    _fx_cs_probe=${_fx_cs_probe:-unknown}
-    _fx_cs_route_probe="unverified"
-  fi
 
   _fx_cs_ext=false
   [ -n "$_fx_cs_if" ] && _fx_cs_ext=true

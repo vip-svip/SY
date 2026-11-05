@@ -5597,3 +5597,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - CI 复查 `574c83d64640`：状态发布器的 true/false/null 断言已全部通过；仅“arbiter 不可用”用例的 `FX_COEXIST_ARBITER` 环境变量覆盖仍读到原模块夹具，改用确定存在但输出为空的 `/dev/null`，验证无有效 arbiter JSON 时应降级到 local/unknown/null。
 - Live smoke workflow 原先在 `set -e` 下执行 arbiter，合法的 fail-closed 退出码 2 会令 shell 提前结束，未把 JSON 交给 live assertion。现在仅接受退出码 0 或 2，再由 Python 校验状态与退出码一致；当 slot 为 null 时必须 verdict=unknown 且 exit=2。
 - 本轮之前的 Host 失败只在 case 9 的 source 标签断言；arbiter fixture 的 true/false/null 案例和六套 UI 均已通过，完整 Runtime finalize 步骤因同一 Host 测试失败而停止，待本修正提交重新验证。
+
+
+### VPN 共存发布器来源标记校验（2026-11-06）
+
+- 状态发布器此前仅凭 arbiter 路径可读就把 `source` 标成 `arbiter`；当路径指向空文件（如 `/dev/null`）或旧版/不完整 helper 时，实际数据来自本地 fallback，却被错误标记为 arbiter。
+- 现在仅在 verdict、grade、probe 与 slot 字段均完整时接受 arbiter 记录；否则标记 `source=local`，再由槽位证据规则将缺失/null/非法 slot 降为 `unknown`。slot=true 仍强制 incompatible，slot=false 才保留已验证的 arbiter verdict。
+- 修复 Host 回归 case 9 对 `/dev/null` 的真实边界验证，不改变网络数据面与端口探测行为。
