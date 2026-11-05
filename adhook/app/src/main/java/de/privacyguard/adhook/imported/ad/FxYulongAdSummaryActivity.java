@@ -65,8 +65,8 @@ public final class FxYulongAdSummaryActivity extends de.privacyguard.adhook.FxNa
         LinearLayout root = new LinearLayout(this); root.setOrientation(1); root.setBackgroundColor(0xfff7f8fa);
         LinearLayout header = new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(10), dp(6), dp(12), dp(6));
-        header.addView(button("‹ 返回", this::finish));
-        header.addView(text("游龙广告插件 · 本机防护总结", 18, 0xff17212b, true),
+        header.addView(button("‹ 返回 Ad", this::finish));
+        header.addView(text("Ad · 本机防护总结", 18, 0xff17212b, true),
                 new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
         ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
