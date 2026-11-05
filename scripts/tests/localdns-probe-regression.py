@@ -71,6 +71,7 @@ def main():
         assert run_case(binary, 0x0180, 73).returncode == 73  # QR missing
         assert run_case(binary, 0x8080, 73).returncode == 73  # RD missing
         assert run_case(binary, 0x8980, 73).returncode == 73  # non-zero opcode
+        assert run_case(binary, 0x81C0, 73).returncode == 73  # reserved Z bit
         assert run_case(binary, 0x8380, 73).returncode == 73  # truncated UDP reply
         assert run_case(binary, mutate=flip_transaction_id, expect=73).returncode == 73
         assert run_case(binary, mutate=alter_question, expect=73).returncode == 73
