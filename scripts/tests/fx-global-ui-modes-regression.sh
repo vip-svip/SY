@@ -357,7 +357,7 @@ for token in (
 replacement = source[source.index("private static Integer replacementText"):source.index("\n    }\n}", source.index("private static Integer replacementText"))]
 for alert in ("0xff9b2c2c", "0xffa32620", "0xffa12d2d",
               "0xfffff6e8", "0xff7a4b13", "0xff79552b",
-              "0xff237347", "0xff24734a"):
+              "0xff237347", "0xff24734a", "0xff2e7d32"):
     assert alert not in replacement, f"alert/success color should not be remapped: {alert}"
 print("PASS: primary, secondary and accent text tokens map across all five skins while alert colors remain semantic.")
 PY
@@ -377,7 +377,7 @@ assert "isSemanticActionBackground(button.getBackground())" in semantic_guard
 semantic = source[source.index("private static boolean isSemanticActionColor"):source.index("private static void applySwitchSkin")]
 for color in ("0xff9b2c2c", "0xffa32620", "0xffa12d2d",
               "0xfffff6e8", "0xff7a4b13", "0xff79552b",
-              "0xff237347", "0xff24734a"):
+              "0xff237347", "0xff24734a", "0xff2e7d32"):
     assert color in semantic, f"semantic action color missing from preservation guard: {color}"
 print("PASS: semantic destructive/warning/success buttons bypass generic accent recoloring.")
 PY
