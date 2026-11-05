@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Verify the unified FX Hook system-app overlay; retain an ordinary-app fallback for older modules.
+# Verify the unified FX Hook system-app overlay; only overlay-less legacy modules use ordinary-app fallback.
 set -u
 MODDIR=${1:-}
 if [ -z "$MODDIR" ]; then _d=$(dirname "$0" 2>/dev/null); MODDIR=$(cd "$_d/.." 2>/dev/null && pwd); fi
@@ -98,8 +98,8 @@ force_replace_signature_mismatch(){
 }
 install_one(){
   _pkg=de.privacyguard.adhook; _slug=fxunifiedhook
-  # New module archives carry a systemless /system/app overlay. Keep the
-  # optional payload as a compatibility fallback for older module ZIPs.
+  # New module archives carry a systemless /system/app overlay. The optional
+  # payload is only a compatibility fallback for legacy archives without it.
   _overlay_apk="$MODDIR/system/app/FX/FX.apk"
   if [ -s "$_overlay_apk" ]; then _apk="$_overlay_apk"; else _apk="$MODDIR/optional/FXUnifiedHook.apk"; fi
   _marker="$STATE_DIR/adhook-apk-$_slug.sha256"; _owned="$STATE_DIR/adhook-apk-$_slug.fx-owned"
@@ -129,6 +129,14 @@ install_one(){
       # system classification and update that data-side package in place below.
       log_msg "FX Hook is an updated system app under /data/app; module APK digest changed"
     fi
+  fi
+  # A packaged systemless overlay must be recognized by PackageManager as a
+  # system app before any update/install is attempted. If the overlay mount or
+  # SELinux labeling failed, never silently downgrade the required deployment
+  # to an ordinary /data/app install.
+  if [ -s "$_overlay_apk" ] && [ "$_is_system_app" != 1 ]; then
+    log_msg "ERROR: FX system-app overlay is present but PackageManager does not classify the package as a system app; refusing ordinary-app fallback. Check KernelSU overlay mount, post-fs-data SELinux labeling and reboot."
+    return 1
   fi
   _prior=$(cat "$_marker" 2>/dev/null); _was_present=0; package_present "$_pkg" && _was_present=1
   if [ "$_was_present" = 1 ] && [ "$_prior" = "$_actual" ]; then
