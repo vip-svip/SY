@@ -5248,3 +5248,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 保留原有 route-recheck 场景，新增 address-recheck 场景，验证地址漂移和路由漂移两种独立故障。
 - 验证等级：待本批 GitHub Actions Host Regression 与 FX Module Runtime Regression 运行；尚未进行 Android 真机 VPN 切换测试。
 - 下一批：继续检查 FX Root Proxy 的接口/地址重绑定及 Unbound 生命周期竞态；不将该 Root Proxy DNS 兼容路径等同于 FX 内核 VPN 数据面。
+
+
+## 2026-11-06 — Root Proxy activation-time tunnel address drift regression verified
+
+- 最新代码 HEAD：`6f20d26d9c1ea3f7df1337157834fdde3490771c`（包含 `test(dns): cover VPN tunnel address drift during activation` 与计数器 fixture 修正）。
+- Host Regression：PASS，run [42069868626](https://github.com/vip-svip/SY/actions/runs/42069868626)。
+- FX Module Runtime Regression：PASS，run [42069868514](https://github.com/vip-svip/SY/actions/runs/42069868514)。模块归档恢复、VPN/DNS 补丁应用、外部 VPN/TUN/DNS/watchdog 回归及 Root Proxy/native VPN 集成回归均通过。
+- 新增 address-recheck 用例与既有 route-recheck 并列，覆盖 DNS 重定向激活期间隧道地址变化；测试通过，验证 Root Proxy 在活动状态提交前拒绝地址漂移并 fail-open 回滚。
+- 本批仅为 Host/CI 模拟运行时测试；Android 真机 VPN 切换、DNS 泄漏和功耗测试未执行。
+- 当前硬限制仍然有效：标准 Android 单用户/配置文件通常只有一个活动 VpnService 槽位；Root Proxy 是第三方 VPN 的 DNS 兼容路径，不等于 FX 内核 VPN 独立数据面，也不证明 ROM 级多 VpnService 并行。
+- 下一批：检查 Root Proxy 在 VPN 接口重建、同名接口复用和地址快速轮换时的状态恢复，以及 Unbound 重载/停止失败后的 watchdog 收敛。
