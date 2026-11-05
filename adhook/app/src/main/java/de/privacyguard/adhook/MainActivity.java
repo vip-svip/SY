@@ -3104,6 +3104,8 @@ public final class MainActivity extends ComponentActivity {
         addNativeActionCard("系统扩展", "管理 FX 已接入的系统扩展能力；不支持或尚未接入的旧操作会明确标记。", "打开系统扩展", () ->
                 startActivity(new Intent(this,
                         de.privacyguard.adhook.imported.dia.FxDiaSystemExpandActivity.class)));
+        addNativeActionCard("Dialog 对话框 Hook", "按目标应用管理 Dialog 文本/资源 ID 匹配与提示；只在对应目标应用和授权范围生效。", "选择目标应用", () -> showAppList("Dialog处理"));
+        addNativeActionCard("按键动作 Hook", "为目标应用配置返回/对话框动作触发组合；保存前检查按键序列冲突。", "选择目标应用", () -> showAppList("按键控制"));
         section("最近一次配置发布");
         android.content.SharedPreferences publishState =
                 getSharedPreferences("fx_hook_publish", MODE_PRIVATE);
@@ -4590,7 +4592,9 @@ public final class MainActivity extends ComponentActivity {
         settingsUiVisible = false;
         hookTargetVisible = false;
         hookHubVisible = false;
-        boolean hookToolsPage = "自定义 Hook".equals(activePrivacySection);
+        boolean hookToolsPage = "自定义 Hook".equals(activePrivacySection)
+                || "Dialog处理".equals(activePrivacySection)
+                || "按键控制".equals(activePrivacySection);
         selectedPackage = null; selectedBottomTab = activePrivacySection == null || hookToolsPage ? 4 : 2; base("选择应用");
         Button home = new Button(this); home.setText("Hook 授权中心与高级工具"); home.setOnClickListener(v -> showHookHub()); content.addView(home);
         search = new EditText(this); search.setSingleLine(true); search.setHint("搜索应用名称或包名");
