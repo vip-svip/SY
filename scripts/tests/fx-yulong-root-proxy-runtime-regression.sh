@@ -87,10 +87,10 @@ IF_VALIDATOR="$T/interface-validator.sh"
 sed -n '/^_valid_if() {/,/^}/p' "$SOURCE" > "$IF_VALIDATOR"
 [ -s "$IF_VALIDATOR" ] || fail "production interface validator could not be extracted"
 . "$IF_VALIDATOR"
-for iface in tun0 wg0 rmnet_data0 wlan0 tun0:1 123456789012345; do
+for iface in tun0 wg0 rmnet_data0 wlan0 eth0.100 veth-test 123456789012345; do
   _valid_if "$iface" || fail "valid Linux interface name rejected: $iface"
 done
-for iface in "" 1234567890123456 "bad/name" "bad name"; do
+for iface in "" . .. tun0:1 1234567890123456 "bad/name" "bad name"; do
   if _valid_if "$iface"; then fail "invalid Linux interface name accepted: $iface"; fi
 done
 : > "$T/settings.log"

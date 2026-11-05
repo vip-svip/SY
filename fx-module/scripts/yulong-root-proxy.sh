@@ -84,7 +84,7 @@ _valid_uid() { case "${1:-}" in ''|*[!0-9]*|0) return 1;; *) return 0;; esac; }
 _valid_if() {
   # Linux IFNAMSIZ includes the trailing NUL, so an interface name is at
   # most 15 ASCII bytes. Reject overlong names before passing them to ip.
-  case "${1:-}" in ''|*[!A-Za-z0-9_.:-]*) return 1 ;; esac
+  case "${1:-}" in ''|.|..|*[!A-Za-z0-9_.-]*) return 1 ;; esac
   [ "${#1}" -le 15 ]
 }
 _valid_ipv4() {
