@@ -46,7 +46,7 @@ case "${3:-}" in
   -D)
     [ "${4:-}" = OUTPUT ] && [ "${5:-}" = -j ] || exit 1
     [ "${MOCK_FAIL_DELETE_CHAIN:-}" != "${6:-}" ] || exit 1
-    tmp="$MOCK_HOOKS4.tmp.$"; grep -vx "${6:-}" "$MOCK_HOOKS4" > "$tmp" || :; mv -f "$tmp" "$MOCK_HOOKS4"; exit 0 ;;
+    tmp=$(mktemp "$MOCK_HOOKS4.tmp.XXXXXX") || exit 1; grep -vx "${6:-}" "$MOCK_HOOKS4" > "$tmp" || :; mv -f "$tmp" "$MOCK_HOOKS4"; exit 0 ;;
 esac
 exit 0
 IPTABLES
