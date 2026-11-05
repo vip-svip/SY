@@ -99,9 +99,9 @@ esac
 IP6TABLES
 cat > "$BIN/settings" <<'SETTINGS'
 #!/bin/sh
-printf 'settings %s\\n' "$*" >> "$MOCK_SETTINGS_LOG"
+printf 'settings %s\n' "$*" >> "$MOCK_SETTINGS_LOG"
 [ "$1 $2 $3" = "get global private_dns_mode" ] || exit 64
-printf '%s\\n' "${MOCK_PRIVATE_DNS_MODE:-off}"
+printf '%s\n' "${MOCK_PRIVATE_DNS_MODE:-off}"
 SETTINGS
 cat > "$BIN/timeout" <<'TIMEOUT'
 #!/bin/sh
@@ -238,15 +238,15 @@ printf '%s\n' "$status_out" | grep -Fqx active=1 || fail "healthy Root Proxy was
 printf '%s\n' "$status_out" | grep -Fqx redirects=attached || fail "status did not confirm both redirects"
 printf '%s\n' "$status_out" | grep -Fqx route=verified || fail "status did not revalidate the VPN egress"
 printf '%s\n' "$status_out" | grep -Fqx dns_probe=passed || fail "status did not confirm local DNS health"
-printf '%s\\n' "$status_out" | grep -Fqx private_dns_mode=hostname || fail "strict Private DNS mode was not reported"
-printf '%s\\n' "$status_out" | grep -Fqx dns_filter_coverage=strict_private_dns_bypasses_redirect || fail "strict Private DNS bypass coverage was not reported"
+printf '%s\n' "$status_out" | grep -Fqx private_dns_mode=hostname || fail "strict Private DNS mode was not reported"
+printf '%s\n' "$status_out" | grep -Fqx dns_filter_coverage=strict_private_dns_bypasses_redirect || fail "strict Private DNS bypass coverage was not reported"
 if grep -Fq 'settings put' "$T/settings.log"; then fail "Root Proxy modified the user's Android Private DNS setting"; fi
 MOCK_PRIVATE_DNS_MODE=opportunistic; export MOCK_PRIVATE_DNS_MODE
 status_out=$(run_status "$CASE_DIR")
-printf '%s\\n' "$status_out" | grep -Fqx dns_filter_coverage=opportunistic_private_dns_may_bypass_redirect || fail "opportunistic Private DNS coverage was not reported"
+printf '%s\n' "$status_out" | grep -Fqx dns_filter_coverage=opportunistic_private_dns_may_bypass_redirect || fail "opportunistic Private DNS coverage was not reported"
 MOCK_PRIVATE_DNS_MODE=off; export MOCK_PRIVATE_DNS_MODE
 status_out=$(run_status "$CASE_DIR")
-printf '%s\\n' "$status_out" | grep -Fqx dns_filter_coverage=port53_redirect_active || fail "Private DNS off coverage was not reported"
+printf '%s\n' "$status_out" | grep -Fqx dns_filter_coverage=port53_redirect_active || fail "Private DNS off coverage was not reported"
 
 # Metadata alone must not be treated as proof of a live redirect.
 : > "$CASE_DIR/hooks4"
