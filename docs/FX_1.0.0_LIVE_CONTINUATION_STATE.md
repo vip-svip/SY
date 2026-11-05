@@ -4829,3 +4829,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Updated the regression entrypoint to detect this known source-layout boundary. In a minimal checkout it now explicitly skips only the Release-archive Hosts/subscription cache-lock portion, runs the tracked Root Proxy lock regression, and exits successfully only if that Root Proxy test passes. It does not create placeholder scripts or weaken the module-backed Release checks.
 - CI log confirms: Root Proxy atomic lock, stale/live owner, concurrent serialization and independent local-DNS engine ownership regression passed. The separate Root Proxy regression and VPN external-fallback regression also ran in the targeted workflow.
 - Full Hosts/subscription cache-lock coverage remains dependent on the restored FX Release module in the module-backed build lane; it is not claimed as tested by this host-only run.
+
+
+## 2026-11-05 — System-app overlay uninstall regression
+
+- Extended `scripts/tests/adhook-app-installer-regression.sh` to simulate PackageManager resolving FX Hook from `/system/app/FX/FX.apk` during module removal.
+- The regression verifies the remover clears only FX ownership markers, does not call `pm uninstall`, and leaves the system package registered for KernelSU's module unmount to remove. This closes a distinct lifecycle edge not covered by the previous updated-`/data/app` system-classification scenario.
+- Commit: `295e37730230fd3a16f0b60f9fe65398d5210aa8` — `test(hook): verify system overlay uninstall is handled by module unmount`.
+- GitHub Actions run `42012660923` completed successfully; `host-regressions` = `success`. The log explicitly reports: `PASS: system-app detection, overlay-safe uninstall, ordinary-app fallback, signature safety, ownership-safe cleanup, and stale-marker handling`.
+- Re-read verified test blob SHA `22809df48f99f2a4fb2605f155768a47298eb627`.
+- This validates the shell-level PackageManager/remover contract with a mock; it does not replace a real KernelSU mount/unmount test on a device.
