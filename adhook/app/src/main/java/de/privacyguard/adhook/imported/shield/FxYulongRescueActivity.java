@@ -72,8 +72,8 @@ public final class FxYulongRescueActivity extends de.privacyguard.adhook.FxNativ
         LinearLayout header = new LinearLayout(this);
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(10), dp(6), dp(10), dp(6));
-        header.addView(button("‹ 返回安全护盾", this::returnToShieldHub));
-        header.addView(text("安全护盾 · 救援中心", 18, 0xff17212b, true),
+        header.addView(button("‹ 返回隐私", this::returnToShieldHub));
+        header.addView(text("隐私 · 救援中心", 18, 0xff17212b, true),
                 new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
 
