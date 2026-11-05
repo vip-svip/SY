@@ -172,6 +172,13 @@ settings_start = activity.index("private void showSettings()")
 settings_end = activity.index("private void showNativeWallpaperDialog()", settings_start)
 assert 'section("备份与恢复")' in activity[settings_start:settings_end]
 assert 'FxDiaBackupActivity.class' in activity[settings_start:settings_end]
+settings_page = activity[settings_start:settings_end]
+for group in ("licenseGroup", "runtimeGroup", "authorizationGroup", "logsGroup"):
+    assert f"addNativeActionGroup({group})" in settings_page, f"Settings {group} is not rendered as a native group card"
+assert "迁移应用" not in settings_page, "Settings must not expose source-app migration entries"
+assert "ACTION_ACCESSIBILITY_SETTINGS" in settings_page
+assert "refreshNativeModuleStatus(runtimeStatus, 2)" in settings_page
+assert "this::showNativeRuntimeLogs" in settings_page
 script_start = activity.index("private void buildNativeScriptPage()")
 script_end = activity.index("private void ", script_start+20)
 assert 'FxDiaScriptLibraryActivity.class' in activity[script_start:script_end]
