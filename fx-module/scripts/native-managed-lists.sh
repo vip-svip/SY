@@ -354,7 +354,18 @@ mutate_transaction() {
   cp -p "$CONF" "$BACKUP_FILE" || return 1
   case "$action" in
     add) append_row "$section" "$value" "$note" || { rc=$?; return "$rc"; } ;;
-    edit|toggle|delete)
+    edit)
+      # The caller's early duplicate check is only a UI fast-fail. Recheck
+      # under the transaction lock so concurrent writers cannot create
+      # duplicate entries between validation and commit.
+      _nl_ignore_case=0
+      [ "$section" = rule ] || _nl_ignore_case=1
+      if value_exists "$section" "$value" "$_nl_ignore_case" "$index"; then
+        echo "duplicate list value" >&2
+        return 3
+      fi
+      update_row "$section" "$index" "$action" "$value" "$note" "$enabled" || { rc=$?; return "$rc"; } ;;
+    toggle|delete)
       update_row "$section" "$index" "$action" "$value" "$note" "$enabled" || { rc=$?; return "$rc"; } ;;
     *) return 2 ;;
   esac
