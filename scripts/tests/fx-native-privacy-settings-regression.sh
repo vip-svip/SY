@@ -199,7 +199,7 @@ PG="$TMP/path-guard/state-link" sh "$HELPER" set "$key" "$new" >"$TMP/symlink-se
 rc=$?
 set -e
 [ "$rc" -eq 21 ] || fail "native privacy writer accepted a symlinked state directory (rc=$rc)"
-grep -qx "$key=$old" "$PG/settings.conf" 2>/dev/null && fail "symlinked native state path changed the target settings"
+grep -qx "$key=$old" "$TMP/pg/settings.conf" || fail "symlinked native state path changed the target settings"
 mkdir -p "$TMP/path-target/state"
 cp "$TMP/pg/settings.conf" "$TMP/path-target/state/settings.conf"
 ln -s "$TMP/path-target" "$TMP/path-guard/ancestor-link"
