@@ -1547,6 +1547,48 @@ public final class MainActivity extends ComponentActivity {
         });
     }
 
+    private void refreshVpnCoexistenceStatus(TextView target, Button refresh) {
+        if (target == null || target.getParent() == null) return;
+        target.setText("正在读取 FX / 第三方 VPN 共存状态…");
+        if (refresh != null) refresh.setEnabled(false);
+        runNativeModuleCommand(
+                "if [ -r /data/adb/privacyguard/vpn-coexistence.json ]; then "
+                        + "cat /data/adb/privacyguard/vpn-coexistence.json; "
+                        + "else echo FX_COEXISTENCE_STATUS_NOT_PUBLISHED; fi",
+                15000L, result -> {
+                    if (refresh != null) refresh.setEnabled(true);
+                    if (target.getParent() == null) return;
+                    try {
+                        if (result.exitCode != 0) throw new IllegalStateException(
+                                result.output == null ? "Root 状态读取失败" : result.output.trim());
+                        String raw = result.output == null ? "" : result.output.trim();
+                        if (raw.contains("FX_COEXISTENCE_STATUS_NOT_PUBLISHED")) {
+                            target.setText("共存状态尚未发布。请先让 FX 模块完成一次网络配置应用，再刷新。");
+                            return;
+                        }
+                        JSONObject json = new JSONObject(raw);
+                        if (json.optInt("ok", 0) != 1) throw new IllegalStateException("状态文件格式无效");
+                        String grade = json.optString("grade_cn", "状态未知");
+                        String verdict = json.optString("verdict", "unknown");
+                        String routeProbe = json.optString("route_probe", "unverified");
+                        String routeText = "verified".equals(routeProbe) ? "路由探测已验证"
+                                : "路由绑定未验证";
+                        String external = json.optBoolean("external_vpn", false)
+                                ? "检测到第三方 VPN" : "未检测到第三方 VPN";
+                        String iface = json.optString("external_if", "");
+                        if (!iface.isEmpty()) external += "（" + iface + "）";
+                        target.setText("共存等级：" + grade + " · " + verdict
+                                + "\\n" + external + " · " + routeText
+                                + "\\n数据面：" + json.optString("dataplane", "unknown")
+                                + " · 裁决来源：" + json.optString("source", "unknown")
+                                + (json.optBoolean("interception_blocked", false)
+                                        ? "\\nFX 流量拦截当前受限" : ""));
+                    } catch (Exception error) {
+                        target.setText("共存状态读取失败：" + error.getMessage());
+                    }
+                });
+    }
+
     private void buildNativeScriptPage() {
         content.addView(title("脚本中心", 22));
         TextView intro = new TextView(this);
@@ -2462,6 +2504,18 @@ public final class MainActivity extends ComponentActivity {
         nativeSystemVpnState.setPadding(0, dp(2), 0, dp(8));
         nativeSystemVpnState.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         card.addView(nativeSystemVpnState);
+
+        TextView coexistenceState = new TextView(this);
+        coexistenceState.setText("正在读取 FX / 第三方 VPN 共存状态…");
+        coexistenceState.setTextSize(12);
+        coexistenceState.setTextColor(0xff667784);
+        coexistenceState.setPadding(0, dp(4), 0, dp(6));
+        coexistenceState.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        card.addView(coexistenceState);
+        Button refreshCoexistence = nativeAction("刷新 VPN 共存状态", null);
+        refreshCoexistence.setOnClickListener(v -> refreshVpnCoexistenceStatus(coexistenceState, refreshCoexistence));
+        card.addView(refreshCoexistence, new LinearLayout.LayoutParams(-1, dp(40)));
+        refreshVpnCoexistenceStatus(coexistenceState, refreshCoexistence);
 
         nativeVpnNodeButton = new Button(this);
         nativeVpnNodeButton.setAllCaps(false);
