@@ -2935,6 +2935,15 @@ public final class MainActivity extends ComponentActivity {
         // not only imported Activities. This runs after each page has been built,
         // so its existing legacy card/background/text tokens are translated too.
         FxNativeSkin.apply(this, pageContent);
+        // base() creates the shell before its callers append their page controls.
+        // Re-apply once the current UI transaction has completed so cards and
+        // labels added immediately after base() also receive the selected palette.
+        pageContent.post(() -> {
+            if (!isFinishing() && !isDestroyed()
+                    && pageContent.getParent() != null) {
+                FxNativeSkin.apply(this, pageContent);
+            }
+        });
         androidx.compose.ui.platform.ComposeView shell =
                 new androidx.compose.ui.platform.ComposeView(this);
         // ComposeView is created and composed before setContentView attaches it.
