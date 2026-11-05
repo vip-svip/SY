@@ -114,7 +114,7 @@ public class WhitelistActivity extends de.privacyguard.adhook.FxNativeTabActivit
         root.addView(buildHeader());
         root.addView(buildContent());
 
-        setContentViewWithNativeTabs(root, 5);
+        setContentViewWithNativeTabs(root, 2);
         if (savedInstanceState != null) {
             query = savedInstanceState.getString(STATE_QUERY, "");
             searchInput.setText(query);
