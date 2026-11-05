@@ -5261,6 +5261,7 @@ public final class MainActivity extends ComponentActivity {
             showAppList(activePrivacySection);
             return;
         }
+        final ApplicationInfo resolvedTarget = ai;
         hookUiVisible = true;
         settingsUiVisible = false;
         hookTargetVisible = true;
@@ -5724,7 +5725,7 @@ public final class MainActivity extends ComponentActivity {
             }
             hookCustomRulesPageVisible = true;
             customHookReturnToTarget = true;
-            showTarget(ai);
+            showTarget(resolvedTarget);
         });
         content.addView(manageRules);
         Button save=new Button(this); save.setText("保存并发布 Hook 配置");
