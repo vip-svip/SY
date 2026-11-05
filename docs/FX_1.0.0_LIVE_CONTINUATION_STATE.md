@@ -3934,3 +3934,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 已有 Wallpaper 复刻契约：壁纸弹窗“壁纸随心换”，上传本地图片、恢复默认；私有文件、最长边 1920、JPEG 85、prefs `native_wallpaper_prefs/wallpaper_path`。FX 已有对应 Store 与全局壁纸壳。
 - 参考 APK 哈希、ZIP 目录和 DEX 结构已经核验；完整 JADX 反编译/资产解密和原版逐页截图仍未完成。ClassicWebCompat 不能声称逐像素复制 10.0.2。
 - 本次资料更新提交：产品审计 `84a6a46f86db`；独立 AI 提示词同步 `d8487dd663de`。
+
+
+## 2026-11-05 — 统一导航纠偏：移除来源应用目录，Ad 作为唯一第二 Tab
+
+- 产品入口固定为 VPN、Ad、隐私、脚本、Hook、设置（索引 0–5）；第二 Tab 只显示 Ad，Hosts 只是 Ad 内部页面。
+- MainActivity 已删除旧 migration hub 的状态字段、目录/分类/待迁移页/返回栈方法，以及 DEX picker 返回旧 Dia 分类树的逻辑；DEX picker 回归统一 Hook 目标/应用列表。提交：6d4bda992cd4172243509db69bcd8b6e3acf0dd2。
+- Web 路由将 pageAd 设为规范 ID，pageHosts 仅作历史 DOM alias；已更新两个导航回归脚本，检查来源目录不存在且业务功能仍在 Ad/隐私/Hook/脚本中。提交：9423cd6cece752e3fc8f32e452a2667f9e758947、c08c17c6eecfc826c05fc286db8a33a5262da60c。
+- 新建跨 AI 完整自主接管提示词 docs/FX_1.0.0_AUTONOMOUS_CROSS_AI_HANDOFF_PROMPT.md；更新产品总方案，修正 Domain 不再包含 Migration 产品域、P2 定义为开发期来源功能归并，并写入完成边界。相关提交：82248bec763b2f7f6a842ce411b3bbcf9eedb4fc、9d545c19dd0fca8106c41abd226a92957a85a739。
+- 当前源码状态：MainActivity 中旧 migration hub 符号已查无；Settings 代码段无迁移应用入口；pageAd 路由与 pageHosts 兼容映射存在。导航改动尚待执行对应 Host 回归并查看 Actions 结果。
+- 这不代表全部功能已迁入。Ad 多层执行、VPN 内核级代理与第三方 VPN 共存、防泄漏、MITM/证书、全部隐私护盾、Dia/GKD 运行时、代理脚本 API 和浏览器扩展仍需逐项实现与验证。五 Skin 页面级覆盖、10.0.2 逐页 UI 复刻也未全部验收。
+- 当前可报告验证级别：GitHub 源码回读与静态文本断言；未在本批执行 Gradle 构建、APK 安装、UI 自动化或真机验收。不得发最终 APK/KernelSU ZIP。
+- 下一步：回读最新导航源码与回归脚本、运行针对性 Host 回归；随后选择 Ad 完整业务链或 VPN Root 数据面风险项继续实际实现。
