@@ -188,6 +188,10 @@ grep -Fq 'FxUiMode.write(MainActivity.this' "$activity"
 grep -Fq 'applyWebUiMode();' "$activity"
 grep -Fq 'FxNativeSkin.watch(this, pageContent);' "$host" || { echo "FAIL: imported native screens do not receive shared Skin tokens"; exit 1; }
 grep -Fq 'static void showDialog(Activity activity, AlertDialog dialog)' "$skin" || { echo "FAIL: shared native dialog renderer missing"; exit 1; }
+grep -Fq 'import androidx.appcompat.app.AlertDialog;' "$activity" || { echo "FAIL: MainActivity must use the same AlertDialog type as the shared Skin-aware Builder"; exit 1; }
+! grep -Fq 'import android.app.AlertDialog;' "$activity" || { echo "FAIL: MainActivity platform AlertDialog type is incompatible with the AppCompat Skin builder"; exit 1; }
+grep -Fq 'static AlertDialog.Builder builder(Activity activity)' "$skin" || { echo "FAIL: centralized Skin-aware AlertDialog Builder missing"; exit 1; }
+grep -Fq 'FxNativeSkin.showDialog(activity, dialog);' "$skin" || { echo "FAIL: Skin-aware Builder does not intercept show()"; exit 1; }
 grep -Fq 'static AlertDialog.Builder builder(Activity activity)' "$skin" || { echo "FAIL: Skin-aware AlertDialog Builder missing"; exit 1; }
 python3 - "$activity" "$skin" <<'PY'
 from pathlib import Path
