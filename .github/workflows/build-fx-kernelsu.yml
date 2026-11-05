@@ -191,6 +191,7 @@ jobs:
           # executing concurrency checks against the restored module itself.
           python3 -m py_compile fx-patches/patch_subfetch_file_lock.py fx-patches/patch_subfetch_legacy_lock_tests.py
           python3 fx-patches/patch_subfetch_file_lock.py fx-module
+          python3 scripts/tests/fx-subfetch-patcher-regression.py
           python3 fx-patches/patch_subfetch_legacy_lock_tests.py fx-module
           install -D -m 0755 scripts/tests/v1.0.0-subfetch-concurrency-regression.sh fx-module/scripts/tests/v1.0.0-subfetch-concurrency-regression.sh
           sh fx-module/scripts/tests/v1.0.0-subfetch-concurrency-regression.sh
