@@ -13,6 +13,7 @@ public class FxYulongScanCompletenessTest {
         assertFalse(FxYulongScanCompleteness.isComplete(true, true, false, false, 0));
         assertFalse(FxYulongScanCompleteness.isComplete(true, true, true, true, 0));
         assertFalse(FxYulongScanCompleteness.isComplete(true, true, true, false, 2));
+        assertFalse(FxYulongScanCompleteness.isComplete(true, true, true, false, -1));
         assertTrue(FxYulongScanCompleteness.isComplete(true, true, true, false, 0));
     }
 }
