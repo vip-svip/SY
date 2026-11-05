@@ -13,10 +13,13 @@ public final class FxDiaScriptLibraryPolicy {
     public static String decodeUtf8(byte[] bytes) {
         if (bytes == null) throw new IllegalArgumentException("JSON 数据为空。");
         try {
-            return StandardCharsets.UTF_8.newDecoder()
+            String decoded = StandardCharsets.UTF_8.newDecoder()
                     .onMalformedInput(CodingErrorAction.REPORT)
                     .onUnmappableCharacter(CodingErrorAction.REPORT)
                     .decode(ByteBuffer.wrap(bytes)).toString();
+            // Local SAF files commonly carry a UTF-8 BOM; JSON parsers may ignore it.
+            return !decoded.isEmpty() && decoded.charAt(0) == 0xFEFF
+                    ? decoded.substring(1) : decoded;
         } catch (CharacterCodingException malformed) {
             throw new IllegalArgumentException("JSON 文件不是有效的 UTF-8 编码。", malformed);
         }
