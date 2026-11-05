@@ -10,6 +10,8 @@ trap 'rm -rf "$T"' EXIT HUP INT TERM
 : > "$T/settings.log"
 MOCK_SETTINGS_LOG="$T/settings.log"; export MOCK_SETTINGS_LOG
 MOCK_PRIVATE_DNS_MODE=hostname; export MOCK_PRIVATE_DNS_MODE
+MOCK_UNBOUND_INDEPENDENT=1; export MOCK_UNBOUND_INDEPENDENT
+MOCK_ADGUARD_INDEPENDENT=0; export MOCK_ADGUARD_INDEPENDENT
 MOD="$T/module"; BIN="$T/bin"
 mkdir -p "$MOD/scripts" "$BIN"
 cp "$SOURCE" "$MOD/scripts/yulong-root-proxy.sh"
@@ -19,7 +21,9 @@ cat > "$MOD/scripts/util.sh" <<'UTIL'
 #!/system/bin/sh
 pg_get(){
   case "$1" in
-    vpn_external_dns_proxy|vpn_external_compat|dns_forward) printf '%s\n' "${MOCK_ENABLED:-1}" ;;
+    vpn_external_dns_proxy|vpn_external_compat) printf '%s\n' "${MOCK_ENABLED:-1}" ;;
+    dns_forward) printf '%s\n' "${MOCK_UNBOUND_INDEPENDENT:-1}" ;;
+    dns_engine_adguardhome) printf '%s\n' "${MOCK_ADGUARD_INDEPENDENT:-0}" ;;
     *) printf '%s\n' "${2:-}" ;;
   esac
 }
@@ -154,6 +158,10 @@ run_status(){
     MOCK_ROUTE_COUNT="$CASE_DIR/route-count" MOCK_ENGINE_LOG="$CASE_DIR/engines.log" \
     "$@" sh "$MOD/scripts/yulong-root-proxy.sh" status
 }
+run_stop(){
+  CASE_DIR=$1; shift
+  env MP="$MOD" PG="$CASE_DIR/state" CONF="$CASE_DIR/state/settings.conf" PATH="$BIN:$PATH" MOCK_RULE_LOG="$CASE_DIR/rules.log" MOCK_HOOKS4="$CASE_DIR/hooks4" MOCK_HOOKS6="$CASE_DIR/hooks6" MOCK_ROUTE_COUNT="$CASE_DIR/route-count" MOCK_ENGINE_LOG="$CASE_DIR/engines.log" "$@" sh "$MOD/scripts/yulong-root-proxy.sh" stop "$MOD" "$CASE_DIR/state"
+}
 assert_stopped(){
   case_dir=$1
   [ ! -e "$case_dir/state/yulong-root-proxy-active" ] || fail "$2 left active marker"
@@ -162,7 +170,18 @@ assert_stopped(){
   [ ! -s "$case_dir/hooks4" ] || fail "$2 left IPv4 OUTPUT hook"
   [ ! -s "$case_dir/hooks6" ] || fail "$2 left IPv6 OUTPUT hook"
   [ ! -e "$case_dir/state/yulong-root-proxy.lock" ] || fail "$2 leaked lock"
-  grep -Fq adguard-stop "$case_dir/engines.log" || fail "$2 did not stop AdGuard"
+  if [ "${MOCK_ADGUARD_INDEPENDENT:-0}" = 1 ]; then
+    ! grep -Fq adguard-stop "$case_dir/engines.log" || fail "$2 stopped independently enabled AdGuard"
+    grep -Fq "keeping AdGuard Home running" "$case_dir/state/yulong-root-proxy.log" || fail "$2 did not preserve independent AdGuard"
+  else
+    grep -Fq adguard-stop "$case_dir/engines.log" || fail "$2 did not stop non-independent AdGuard"
+  fi
+  if [ "${MOCK_UNBOUND_INDEPENDENT:-0}" = 1 ]; then
+    ! grep -Fq unbound-stop "$case_dir/engines.log" || fail "$2 stopped independently enabled Unbound"
+    grep -Fq "keeping Unbound running" "$case_dir/state/yulong-root-proxy.log" || fail "$2 did not preserve independent Unbound"
+  else
+    grep -Fq unbound-stop "$case_dir/engines.log" || fail "$2 did not stop non-independent Unbound"
+  fi
   grep -Fq unbound-stop "$case_dir/engines.log" || fail "$2 did not stop Unbound"
 }
 
@@ -281,5 +300,21 @@ prepare_case ipv6-attach
 if run_proxy "$CASE_DIR" MOCK_FAIL_IPV6_ATTACH=1 >/dev/null 2>&1; then fail "IPv6 attach failure was accepted"; fi
 assert_stopped "$CASE_DIR" "IPv6 attach rollback"
 grep -Fq 'iptables -t nat -D OUTPUT -j FXYRP4_A' "$CASE_DIR/rules.log" || fail "IPv4 OUTPUT rollback command absent"
+
+# Root Proxy owns only redirection rules; independently enabled DNS daemons survive stop.
+prepare_case independent-local-dns
+run_proxy "$CASE_DIR" >/dev/null || fail "Root Proxy setup failed for independent-DNS stop case"
+run_stop "$CASE_DIR" MOCK_ADGUARD_INDEPENDENT=1 MOCK_UNBOUND_INDEPENDENT=1 >/dev/null || fail "Root Proxy stop failed with independent DNS enabled"
+[ ! -e "$CASE_DIR/state/yulong-root-proxy-active" ] || fail "Root Proxy stop left its active marker"
+[ ! -s "$CASE_DIR/hooks4" ] && [ ! -s "$CASE_DIR/hooks6" ] || fail "Root Proxy stop left DNS redirect hooks"
+! grep -Fq adguard-stop "$CASE_DIR/engines.log" || fail "Root Proxy stop killed independently enabled AdGuard"
+! grep -Fq unbound-stop "$CASE_DIR/engines.log" || fail "Root Proxy stop killed independently enabled Unbound"
+
+# When neither local DNS engine is independently enabled, stop releases both daemons.
+prepare_case disabled-local-dns
+run_proxy "$CASE_DIR" >/dev/null || fail "Root Proxy setup failed for disabled-DNS stop case"
+run_stop "$CASE_DIR" MOCK_ADGUARD_INDEPENDENT=0 MOCK_UNBOUND_INDEPENDENT=0 >/dev/null || fail "Root Proxy stop failed with DNS engines disabled"
+grep -Fq adguard-stop "$CASE_DIR/engines.log" || fail "Root Proxy did not stop disabled AdGuard"
+grep -Fq unbound-stop "$CASE_DIR/engines.log" || fail "Root Proxy did not stop disabled Unbound"
 
 echo "PASS: Root Proxy runtime route/UID proofs, dual-stack rules, state-path symlink guards and fail-open rollback"
