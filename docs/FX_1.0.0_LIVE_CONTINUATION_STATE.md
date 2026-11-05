@@ -6430,3 +6430,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 测试提交：`0516184bb5cb9be19d0d5cc6aec2c72677ca84c9`。
 - 新增用例：用 PATH 前置的伪 `find` 返回非零，模拟模块 shell 源码清单命令失败；断言 arbiter 返回 `unknown`、退出码 2、`vpn_service_slot_used=null`，不得把扫描失败误判为不占槽。
 - 本次只增加回归夹具，没有改变设备路由、防火墙或服务状态。完整 regression/CI 运行尚待确认。
+
+
+## 2026-11-06 — Hook PackageManager work is fail-closed after boot timeout
+
+- Production commit: `fd5b833a914cbe72d5b2b000e4d8af099bf5687f` changes `fx-module/service.sh`: after the existing 120-second `sys.boot_completed` wait, Hook installer/PackageManager work now runs only if the property is exactly `1`. If boot completion times out, Hook PM work is explicitly deferred and logged; the main FX DNS/VPN startup continues.
+- Regression commit: `ef6ea56a6a152cb3a0de9270067135723bf809e2` strengthens the Python ordering contract inside `scripts/tests/adhook-app-installer-regression.sh`: it requires the boot wait, exact boot-complete gate, installer invocation inside the gate, and explicit timeout-defer branch in that order.
+- Design boundary: the systemless `/system/app/FX` APK is still verified and SELinux-labeled by `post-fs-data.sh` before PackageManager's system-app scan. The service-stage installer is a later PM reconciliation step; it must not run after timeout while Android's package state may still be incomplete. This does not delay or disable the main DNS/VPN apply path.
+- GitHub readback verified service blob `b42f66ab8209b15aa480b4db1a6c08eb9d6fded9`, test blob `d1b34b2e1c0d8b1b58f2a6c928a8121fb7a94d7c`, and the new ordering assertion text. The Hook build workflow has a target-branch push trigger and invokes the installer regression script.
+- Not yet executed: complete shell regression, Python behavior fixture, Android Gradle/APK build, KernelSU ZIP build, target-ROM PackageManager/SELinux validation. CI run status is not available from the current commit-workflow connector (it only exposes PR-triggered runs); no CI or device pass is claimed.
