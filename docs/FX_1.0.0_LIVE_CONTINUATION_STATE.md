@@ -5753,3 +5753,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Targeted Host Regression 在 `adhook-app-installer-regression.sh` 报告 `packaged installer drift`。核对发现根目录 `scripts/install_adhook_app.sh` 已包含路径组件/符号链接 fail-closed 防护，而 `fx-module/scripts/install_adhook_app.sh` 仍为旧版（文件长度 13,158 / 11,463 字符，内容不一致）。
 - 将 canonical installer 原样同步到模块内副本；卸载脚本此前已逐字节一致，不做无关修改。保留回归中的 `cmp` 一致性要求，不通过放宽断言绕开问题。
 - 本批只修复仓库内发布/测试副本漂移；仍需当前 HEAD 的 Targeted Host、Module Runtime 与 KernelSU package lane 结果确认，未声称真机 Root 安装或 SELinux 设备验证。
+
+
+### DNS 生命周期回归断言转为顺序校验（2026-11-06）
+
+- Host 再次运行已通过 12 项 Ad snapshot policy 测试以及前面的草稿/页面状态检查；随后失败在既有 DNS onDestroy 检查，其 Python 字符串把 `\\n` 作为字面反斜杠，而不是换行，无法匹配源码中的相邻两行。
+- 现直接截取 DNS `onDestroy()` 方法体，并比较 `loadGeneration.incrementAndGet()` 与 `worker.shutdownNow()` 的实际顺序，保持原生命周期安全要求且不依赖换行转义。

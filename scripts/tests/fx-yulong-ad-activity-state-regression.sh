@@ -129,7 +129,10 @@ dns_required = [
 ]
 for token in dns_required:
     assert token in dns, f"missing DNS page state/lifecycle invariant: {token}"
-assert "loadGeneration.incrementAndGet();\\n        worker.shutdownNow();" in dns, \
+destroy_start = dns.index("@Override protected void onDestroy()")
+destroy_end = dns.index("\n    }", destroy_start)
+destroy_body = dns[destroy_start:destroy_end]
+assert destroy_body.index("loadGeneration.incrementAndGet();") < destroy_body.index("worker.shutdownNow();"), \
     "DNS log callbacks must be invalidated before the worker is shut down"
 assert "if (refreshButton != null) refreshButton.setEnabled(false);" in dns, \
     "DNS refresh must prevent duplicate queued reads"
