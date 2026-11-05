@@ -126,6 +126,19 @@ fx_arb_port_owner() {
   return 0
 }
 
+# Detect collisions between FX-owned listeners before checking the host socket table.
+# A free port is not sufficient when two FX daemons are configured to bind it.
+fx_arb_config_conflicts() {
+  _dns=$(fx_arb_normalize_port "$FX_ARB_DNS_PORT" 2>/dev/null) || _dns=
+  _filter=$(fx_arb_normalize_port "$FX_ARB_FILTER_DNS_PORT" 2>/dev/null) || _filter=
+  _proxy=$(fx_arb_normalize_port "$FX_ARB_PROXY_PORT" 2>/dev/null) || _proxy=
+  _out=""
+  if [ -n "$_dns" ] && [ -n "$_filter" ] && [ "$_dns" = "$_filter" ]; then _out="dns=dns_filter"; fi
+  if [ -n "$_dns" ] && [ -n "$_proxy" ] && [ "$_dns" = "$_proxy" ]; then _out="${_out}${_out:+,}dns=proxy"; fi
+  if [ -n "$_filter" ] && [ -n "$_proxy" ] && [ "$_filter" = "$_proxy" ]; then _out="${_out}${_out:+,}dns_filter=proxy"; fi
+  printf '%s' "$_out"
+}
+
 # --- 静态不变量：Root 内核数据面绝不能创建 VpnService（否则会抢槽） -----------
 fx_arb_slot_used() {
   _root=${FX_ARB_MODULE_ROOT:-}
@@ -292,6 +305,7 @@ fx_arb_decide() {
   FX_ARB_DNS_OWNER=$(fx_arb_port_owner "$FX_ARB_DNS_PORT")
   FX_ARB_FILTER_DNS_OWNER=$(fx_arb_port_owner "$FX_ARB_FILTER_DNS_PORT")
   FX_ARB_PROXY_OWNER=$(fx_arb_port_owner "$FX_ARB_PROXY_PORT")
+  FX_ARB_CONFIG_CONFLICTS=$(fx_arb_config_conflicts)
 
   # 1) 硬性不变量：Root 数据面占槽 = 不兼容（违反"不占 VpnService 槽"）
   if [ "$FX_ARB_SLOT_USED" = "true" ]; then
@@ -299,6 +313,15 @@ fx_arb_decide() {
     FX_ARB_GRADE_CN="不兼容"
     FX_ARB_REASONS="root dataplane calls VpnService API and would occupy the VPN slot"
     FX_ARB_RC=3
+    return 0
+  fi
+
+  # A deterministic internal port collision is a known degradation even if
+  # the host's /proc/net inventory is otherwise clean.
+  if [ -n "$FX_ARB_CONFIG_CONFLICTS" ]; then
+    FX_ARB_VERDICT="partial"
+    FX_ARB_GRADE_CN="部分兼容"
+    FX_ARB_REASONS="FX services share configured listener ports: $FX_ARB_CONFIG_CONFLICTS"
     return 0
   fi
 
@@ -379,6 +402,7 @@ fx_arb_json() {
     *) _slot_json=null ;;
   esac
   printf '"vpn_service_slot_used":%s,' "$_slot_json"
+  printf '"config_conflicts":"%s",' "$FX_ARB_CONFIG_CONFLICTS"
   printf '"dns":{"port":%s,"owner":"%s"},"dns_filter":{"port":%s,"owner":"%s"},"proxy":{"port":%s,"owner":"%s"},' \
     "$(fx_arb_json_port "$FX_ARB_DNS_PORT")" "$FX_ARB_DNS_OWNER" \
     "$(fx_arb_json_port "$FX_ARB_FILTER_DNS_PORT")" "$FX_ARB_FILTER_DNS_OWNER" \
@@ -391,6 +415,7 @@ fx_arb_text() {
   echo "  verdict : $FX_ARB_VERDICT ($FX_ARB_GRADE_CN)"
   echo "  external: ${FX_ARB_EXT_IF:-none} uid=${FX_ARB_EXT_UID:-none} probe=$FX_ARB_PROBE"
   echo "  slot    : vpn_service_slot_used=$FX_ARB_SLOT_USED (must be false)"
+  echo "  FX port collisions: ${FX_ARB_CONFIG_CONFLICTS:-none}"
   echo "  dns upstream : port $(fx_arb_display_port "$FX_ARB_DNS_PORT") owner=$FX_ARB_DNS_OWNER"
   echo "  dns filter   : port $(fx_arb_display_port "$FX_ARB_FILTER_DNS_PORT") owner=$FX_ARB_FILTER_DNS_OWNER"
   echo "  proxy        : port $(fx_arb_display_port "$FX_ARB_PROXY_PORT") owner=$FX_ARB_PROXY_OWNER"
