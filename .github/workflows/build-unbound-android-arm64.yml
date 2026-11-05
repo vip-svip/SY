@@ -144,15 +144,21 @@ jobs:
           "$CC" -std=c11 -O2 -Wall -Wextra -Werror "$GITHUB_WORKSPACE/scripts/localdns-probe.c" -o "$GITHUB_WORKSPACE/artifact/fx-dns-probe"
           "$STRIP" --strip-unneeded "$GITHUB_WORKSPACE/artifact/fx-dns-probe"
           cp "$GITHUB_WORKSPACE/.github/dns/Unbound-root.hints" "$GITHUB_WORKSPACE/artifact/root.hints"
-          file "$GITHUB_WORKSPACE/artifact/unbound" | tee "$GITHUB_WORKSPACE/artifact/FILE.txt"
-          readelf -h "$GITHUB_WORKSPACE/artifact/unbound" | grep -E 'Machine:.*AArch64'
-          readelf -lW "$GITHUB_WORKSPACE/artifact/unbound" | grep -F '/system/bin/linker64'
-          readelf -h "$GITHUB_WORKSPACE/artifact/fx-dns-probe" | grep -E 'Machine:.*AArch64'
-          readelf -lW "$GITHUB_WORKSPACE/artifact/fx-dns-probe" | grep -F '/system/bin/linker64'
-          if readelf -d "$GITHUB_WORKSPACE/artifact/unbound" | grep -Eiq 'lib(ssl|crypto|expat)[.]so'; then
-            echo "Unbound must statically link OpenSSL and Expat for Android" >&2
-            exit 1
-          fi
+          # Every shipped helper is an Android ARM64 PIE executable using the
+          # platform linker. Verify all of them, not only the main daemon.
+          for executable in unbound unbound-checkconf unbound-anchor fx-dns-probe; do
+            binary="$GITHUB_WORKSPACE/artifact/$executable"
+            test -s "$binary" && test -x "$binary"
+            file "$binary" | tee -a "$GITHUB_WORKSPACE/artifact/FILE.txt"
+            readelf -h "$binary" | grep -Eq 'Class:[[:space:]]+ELF64'
+            readelf -h "$binary" | grep -Eq 'Machine:[[:space:]]+AArch64'
+            readelf -h "$binary" | grep -Eq 'Type:[[:space:]]+DYN'
+            readelf -lW "$binary" | grep -F '/system/bin/linker64'
+            if readelf -d "$binary" 2>/dev/null | grep -Eiq 'lib(ssl|crypto|expat)[.]so'; then
+              echo "$executable must statically link OpenSSL and Expat for Android" >&2
+              exit 1
+            fi
+          done
           for f in unbound unbound-checkconf unbound-anchor fx-dns-probe root.hints root.key.seed; do
             test -s "$GITHUB_WORKSPACE/artifact/$f"
             sha256sum "$GITHUB_WORKSPACE/artifact/$f" | awk '{print $1 "  " $2}' > "$GITHUB_WORKSPACE/artifact/$f.sha256"
