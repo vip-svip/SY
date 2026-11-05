@@ -71,6 +71,11 @@ fi
 if source.count(old) == 0:
     if new in source:
         print("Local DNS watchdog uninstall fallback already hardened.")
+    elif "localdns-watchdog.pid" not in source and "localdns-watchdog.sh" not in source:
+        # Some published FX module revisions do not own the local-DNS
+        # watchdog lifecycle in uninstall.sh at all. There is no legacy PID
+        # fallback to harden in those archives; keep the patch idempotent.
+        print("Published uninstall has no local-DNS watchdog hook; no fallback patch required.")
     else:
         raise SystemExit("local DNS watchdog fallback anchor changed; refusing unsafe patch")
 else:
