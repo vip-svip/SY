@@ -3345,10 +3345,8 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         clearPendingProcessPickerState();
         monitorEventGeneration++;
         worker.shutdownNow();
-        if (isFinishing()) {
-            deleteTransientFridaScriptDraft();
-            FxDiaCodeEditorTransfer.delete(this, pendingFullEditorSourceFile);
-        }
+        if (isFinishing()) deleteTransientFridaScriptDraft();
+        if (isFinishing()) FxDiaCodeEditorTransfer.delete(this, pendingFullEditorSourceFile);
         super.onDestroy();
     }
 }
