@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - ".github/workflows/build-adguardhome-android-arm64.yml"
+      - ".github/dns/AdGuardHome-FX-runtime-v1.0.0.yaml"
 
 permissions:
   contents: read
