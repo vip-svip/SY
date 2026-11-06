@@ -2289,6 +2289,19 @@ public final class MainActivity extends ComponentActivity {
         actions.addView(nativeAction("全部停用脚本", () -> setNativeScriptsEnabledAll(false, rows, status)));
         actions.addView(nativeAction("刷新脚本订阅", this::refreshNativeScripts));
         actions.addView(nativeAction("查看脚本运行日志", this::showNativeScriptLogs));
+        section("自动订阅更新");
+        TextView schedulerStatus = new TextView(this);
+        schedulerStatus.setText("正在读取自动更新器状态…");
+        schedulerStatus.setTextColor(0xff536170);
+        schedulerStatus.setPadding(dp(18), dp(6), dp(18), dp(8));
+        content.addView(schedulerStatus);
+        LinearLayout schedulerActions = new LinearLayout(this);
+        schedulerActions.setOrientation(LinearLayout.VERTICAL);
+        schedulerActions.addView(nativeAction("刷新自动更新器状态", () -> refreshNativeScriptSchedulerStatus(schedulerStatus)));
+        schedulerActions.addView(nativeAction("启动自动订阅更新", () -> controlNativeScriptScheduler(true, schedulerStatus)));
+        schedulerActions.addView(nativeAction("停止自动订阅更新", () -> controlNativeScriptScheduler(false, schedulerStatus)));
+        addNativeActionGroup(schedulerActions);
+        refreshNativeScriptSchedulerStatus(schedulerStatus);
         actions.addView(nativeAction("查看 MITM / 证书状态", () -> showNativeMitmStatus()));
         actions.addView(nativeAction("管理系统 CA 信任（MITM / HTTPS）", this::showNativeCertificateManager));
         addNativeActionGroup(actions);
@@ -3250,6 +3263,50 @@ public final class MainActivity extends ComponentActivity {
                                             .setPositiveButton("关闭", null).show();
                                 }
                             });
+                }).show();
+    }
+
+    private void refreshNativeScriptSchedulerStatus(TextView status) {
+        if (status != null) status.setText("正在读取 QuickJS 自动订阅更新器状态…");
+        runNativeModuleCommand("sh \"$MP/scripts/jsruntime/native-script-scheduler.sh\" status",
+                15000L, result -> {
+                    if (status == null || status.getParent() == null) return;
+                    String output = result.output == null ? "" : result.output.trim();
+                    if (result.exitCode == 0 && output.contains("running=1")) {
+                        status.setText("自动订阅更新器：运行中 · 按配置的 1–168 小时间隔检查启用的 HTTPS 订阅");
+                    } else if (result.exitCode == 0 && output.contains("running=0")) {
+                        status.setText("自动订阅更新器：未运行 · 手动刷新仍可使用");
+                    } else {
+                        status.setText("自动订阅更新器状态未知：" + output);
+                    }
+                });
+    }
+
+    private void controlNativeScriptScheduler(boolean start, TextView status) {
+        String title = start ? "启动自动订阅更新" : "停止自动订阅更新";
+        FxNativeSkin.builder(this).setTitle(title)
+                .setMessage(start
+                        ? "启动模块内的轻量订阅轮询器。它只同步已启用的 HTTPS 脚本订阅，不会自动执行本地 JavaScript。"
+                        : "停止模块内的订阅轮询器。已下载的脚本缓存和现有脚本配置不会删除。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("确认", (dialog, which) -> {
+                    if (status != null) status.setText(title + "中…");
+                    String command = start
+                            ? "sh \"$MP/scripts/jsruntime/native-script-scheduler.sh\" start >/dev/null 2>&1 &"
+                            : "sh \"$MP/scripts/jsruntime/native-script-scheduler.sh\" stop";
+                    runNativeModuleCommand(command, 15000L, result -> {
+                        String output = result.output == null ? "" : result.output.trim();
+                        if (result.exitCode == 0) {
+                            Toast.makeText(this, title + "请求已提交", Toast.LENGTH_SHORT).show();
+                            if (status != null) status.postDelayed(
+                                    () -> refreshNativeScriptSchedulerStatus(status), 700L);
+                        } else {
+                            if (status != null) status.setText(title + "失败：" + output);
+                            FxNativeSkin.builder(this).setTitle(title + "失败")
+                                    .setMessage(output.isEmpty() ? "模块未返回错误详情。" : output)
+                                    .setPositiveButton("关闭", null).show();
+                        }
+                    });
                 }).show();
     }
 
