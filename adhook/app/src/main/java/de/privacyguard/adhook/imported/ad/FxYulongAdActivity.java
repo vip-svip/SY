@@ -562,7 +562,25 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
     btn("复制原版 Tasker 启用 Action",()->copyAutomationAction("app.pwhs.blockads.TASKER_START")),
     btn("复制原版 Tasker 停用 Action",()->copyAutomationAction("app.pwhs.blockads.TASKER_STOP")));
 }
- private void renderRules(){EditText url=draftField("rule_url");url.setSingleLine(true);url.setHint("https://… 或 builtin://…");EditText name=draftField("rule_name");name.setSingleLine(true);name.setHint("列表名称");card("添加过滤列表","仅允许 HTTPS 订阅及 FX 本地资源。",url,name,btn("添加并应用",()->{String u=url.getText().toString().trim(),n=name.getText().toString().trim();if(!u.isEmpty()&&!n.isEmpty())apply("rule-add "+q(u)+" "+q(n)+" 1","规则添加");}));search=draftField("rule_search");search.setSingleLine(true);search.setHint("搜索过滤列表");card("搜索","输入来源或列表名称",search);search.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int st,int c,int a){}public void onTextChanged(CharSequence s,int st,int be,int co){bind();}public void afterTextChanged(Editable e){}});entries=new LinearLayout(this);entries.setOrientation(1);body.addView(entries);}
+ private void setFilteredRules(boolean enabled){
+  String filter=search==null||search.getText()==null?"":search.getText().toString().trim().toLowerCase(Locale.ROOT);
+  java.util.LinkedHashSet<String> sources=new java.util.LinkedHashSet<>();
+  for(Row row:rows("RULE")){
+   if(filter.isEmpty()||(row.value+" "+row.title).toLowerCase(Locale.ROOT).contains(filter))sources.add(row.value);
+  }
+  if(sources.isEmpty()){status.setText("当前筛选没有可批量更新的过滤列表。");return;}
+  if(sources.size()>2000){status.setText("当前筛选超过 2000 个列表，请缩小筛选范围。");return;}
+  StringBuilder lines=new StringBuilder();
+  for(String source:sources)lines.append(source).append('\n');
+  String encoded=android.util.Base64.encodeToString(lines.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8),android.util.Base64.NO_WRAP);
+  String action=enabled?"启用":"暂停";
+  fxDialogBuilder().setTitle(action+"当前筛选列表")
+    .setMessage("将"+action+"当前搜索筛选命中的 "+sources.size()+" 个过滤列表。此操作不修改订阅地址或列表名称，并作为一个配置事务提交。是否继续？")
+    .setNegativeButton("取消",null)
+    .setPositiveButton(action,(d,w)->apply("rule-set-many "+(enabled?"1":"0")+" "+encoded,"批量"+action+"过滤列表"))
+    .show();
+ }
+ private void renderRules(){EditText url=draftField("rule_url");url.setSingleLine(true);url.setHint("https://… 或 builtin://…");EditText name=draftField("rule_name");name.setSingleLine(true);name.setHint("列表名称");card("添加过滤列表","仅允许 HTTPS 订阅及 FX 本地资源。",url,name,btn("添加并应用",()->{String u=url.getText().toString().trim(),n=name.getText().toString().trim();if(!u.isEmpty()&&!n.isEmpty())apply("rule-add "+q(u)+" "+q(n)+" 1","规则添加");}));search=draftField("rule_search");search.setSingleLine(true);search.setHint("搜索过滤列表");card("搜索","输入来源或列表名称",search,btn("启用当前筛选全部列表",()->setFilteredRules(true)),btn("暂停当前筛选全部列表",()->setFilteredRules(false)));search.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int st,int c,int a){}public void onTextChanged(CharSequence s,int st,int be,int co){bind();}public void afterTextChanged(Editable e){}});entries=new LinearLayout(this);entries.setOrientation(1);body.addView(entries);}
  private void renderDns(){
   card("DNS 配置备份","导出当前 FX DNS 引擎、过滤策略、上游服务器、VPN DNS 与拦截响应模式；仅读取本机配置，不会上传或修改设置。",btn("分享 DNS 配置快照",()->shareDnsProfile()));
   TextView dnsRuntimeState=txt("DNS 运行状态尚未读取。",12,0xff617080,false);
