@@ -1,5 +1,14 @@
 
 
+### FX DNS 开关事务、托管名单读取器与隐私统计同步至打包源码（2026-11-07）
+
+- 文件：`scripts/native-dns-settings.sh`、`scripts/native-managed-lists.sh`、`scripts/yulong-ad-dns-summary.sh`。
+- 将已更新的 DNS 引擎开关依赖约束/批量事务与运行状态输出、托管名单严格读取与变更处理、DNS 查询日志聚合统计实现同步到仓库根目录权威源码。
+- 修正打包覆盖问题：正式构建会以根目录这些脚本覆盖 `fx-module/scripts/`，本轮使构建输入与模块目录中较新的实现一致，避免丢失后端依赖约束、严格名单协议和完整日志统计。
+- 保留第三方 VPN Root Proxy 依赖状态判断、配置事务回滚、名单格式/重复项校验与隐私统计不输出域名明文的行为。
+- 按用户要求未运行测试、静态检查、构建、CI 或设备验证。
+
+
 ### FX DNS 查询日志开关接入 AdGuard Home 持久化日志（2026-11-07）
 
 - 文件：\`fx-module/scripts/adguardhome.sh\`。

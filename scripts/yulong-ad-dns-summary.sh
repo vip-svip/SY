@@ -28,20 +28,43 @@ reject_symlink_components "$DATA_DIR" || {
   exit 21
 }
 [ -d "$DATA_DIR" ] || { echo FXDNSLOG_EMPTY; exit 0; }
-LOG_FILE="$DATA_DIR/querylog.json"
-[ ! -L "$LOG_FILE" ] || { echo "DNS query log symlink rejected" >&2; exit 21; }
-[ -e "$LOG_FILE" ] || { echo FXDNSLOG_EMPTY; exit 0; }
-[ -f "$LOG_FILE" ] || { echo "DNS query log is not a regular file" >&2; exit 21; }
-[ -s "$LOG_FILE" ] || { echo FXDNSLOG_EMPTY; exit 0; }
+_dns_log_found=0
+for LOG_FILE in "$DATA_DIR"/querylog.json "$DATA_DIR"/querylog.json.*; do
+  [ -e "$LOG_FILE" ] || [ -L "$LOG_FILE" ] || continue
+  [ ! -L "$LOG_FILE" ] || { echo "DNS query log symlink rejected: $LOG_FILE" >&2; exit 21; }
+  [ -f "$LOG_FILE" ] || { echo "DNS query log is not a regular file: $LOG_FILE" >&2; exit 21; }
+  [ -s "$LOG_FILE" ] && _dns_log_found=1
+done
+[ "$_dns_log_found" = 1 ] || { echo FXDNSLOG_EMPTY; exit 0; }
 
 awk '
-function read_json_string(pos,    j,c,escaped) {
-  str_value=""; str_valid=0; j=pos+1; escaped=0
+function read_json_string(pos,    j,c,esc,hex) {
+  str_value=""; str_valid=0; j=pos+1
   while (j <= length(current_line)) {
     c=substr(current_line,j,1)
-    if (escaped) { str_value=str_value c; escaped=0; j++; continue }
-    if (c == "\\") { escaped=1; j++; continue }
+    if (c == "\\") {
+      j++
+      if (j > length(current_line)) { str_end=length(current_line); return }
+      esc=substr(current_line,j,1)
+      if (esc=="u") {
+        hex=substr(current_line,j+1,4)
+        if (length(hex)!=4 || hex !~ /^[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]$/) {
+          str_end=j; return
+        }
+        j+=5
+        str_value=str_value "?"
+        continue
+      }
+      if (esc !~ /^["\\\/bfnrt]$/) { str_end=j; return }
+      if (esc=="b" || esc=="f" || esc=="n" || esc=="r" || esc=="t")
+        str_value=str_value " "
+      else
+        str_value=str_value esc
+      j++
+      continue
+    }
     if (c == "\"") { str_end=j; str_valid=1; return }
+    if (c ~ /[[:cntrl:]]/) { str_end=j; return }
     str_value=str_value c; j++
   }
   str_end=length(current_line)
@@ -50,7 +73,10 @@ function scan_record(line,    i,n,c,j,k,key,value,stack,valid,first,last,nextc,e
   current_line=line; n=length(line); first=1; last=n
   while (first<=n && substr(line,first,1) ~ /[[:space:]]/) first++
   while (last>=first && substr(line,last,1) ~ /[[:space:]]/) last--
-  if (substr(line,first,1)!="{" || substr(line,last,1)!="}") return 0
+  # Every non-empty JSONL row in AdGuard Home's query log must be an
+  # object. Treat arrays, scalars and truncated wrappers as malformed rather
+  # than silently classifying them as harmless non-query records.
+  if (first>last || substr(line,first,1)!="{" || substr(line,last,1)!="}") return -1
   query=0; filtered=0; stack=""; valid=1
   for (i=first; i<=last; i++) {
     c=substr(line,i,1)
@@ -70,7 +96,9 @@ function scan_record(line,    i,n,c,j,k,key,value,stack,valid,first,last,nextc,e
           }
         } else if (key=="reason" || key=="status") {
           if (substr(line,k,1)=="\"") {
-            read_json_string(k); value=tolower(str_value)
+            read_json_string(k)
+            if (!str_valid) { valid=0; break }
+            value=tolower(str_value)
             if ((key=="reason" && value ~ /^filtered/) ||
                 (key=="status" && value ~ /(block|filter)/)) filtered=1
           }
@@ -86,16 +114,28 @@ function scan_record(line,    i,n,c,j,k,key,value,stack,valid,first,last,nextc,e
     }
   }
   if (stack!="") valid=0
-  return valid && query
+  return valid ? (query ? 1 : 0) : -1
 }
-BEGIN { queries=0; blocked=0 }
+BEGIN { queries=0; blocked=0; malformed=0 }
 {
-  if (scan_record($0)) {
+  if ($0 ~ /^[[:space:]]*$/) next
+  record_status=scan_record($0)
+  if (record_status < 0) {
+    malformed=1
+    next
+  }
+  if (record_status > 0) {
     queries++
     if (filtered) blocked++
   }
 }
 END {
+  # Never publish plausible-looking partial aggregates when the log contains
+  # a truncated or structurally malformed JSONL record.
+  if (malformed) {
+    print "DNS query log contains a malformed or truncated record" > "/dev/stderr"
+    exit 21
+  }
   if (queries == 0) {
     print "FXDNSLOG_EMPTY"
     exit
@@ -104,4 +144,4 @@ END {
   print "queries=" queries
   print "blocked=" blocked
   print "unblocked=" queries-blocked
-}' "$LOG_FILE"
+}' "$DATA_DIR"/querylog.json "$DATA_DIR"/querylog.json.*

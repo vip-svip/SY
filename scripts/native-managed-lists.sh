@@ -121,16 +121,43 @@ normalize_value() {
 }
 list_rows() {
   section="$1"
-  awk -F'|' -v target="[list:$section]" '
-    BEGIN { rownum=0; inlist=0 }
-    $0==target {inlist=1; next}
-    /^\[/ {inlist=0}
-    inlist && NF>=2 && $1!="" && $1 !~ /^[[:space:]]*#/ {
+  awk -F'|' -v target="[list:$section]" -v kind="$section" '
+    BEGIN { rownum=0; inlist=0; bad=0 }
+    $0==target { inlist=1; next }
+    /^\\[/ { inlist=0 }
+    inlist && $0 !~ /^[[:space:]]*$/ && $0 !~ /^[[:space:]]*#/ {
+      value=$1
       note=$2
-      enabled=(NF>=3 && $3=="0" ? 0 : 1)
-      printf "%d|%s|%s|%d\n", rownum++, $1, note, enabled
+      enabled=(NF==2 ? "1" : $3)
+      key=(kind=="rule" ? value : tolower(value))
+      valid=(NF==2 || NF==3)
+      valid=valid && value!=""
+      valid=valid
+      valid=valid && value !~ /[[:cntrl:]]/ && note !~ /[[:cntrl:]]/
+      valid=valid && (enabled=="0" || enabled=="1")
+      if(kind=="rule") {
+        valid=valid && value ~ /^https?:\\/\\/[A-Za-z0-9._~:/?#@!$&()*+,;=%-]+$/
+      } else {
+        valid=valid && tolower(value) ~ /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/
+        valid=valid && length(value)<=253
+      }
+      if(!valid || seen[key]++) { bad=1; next }
+      rows[++count]=sprintf("%d|%s|%s|%d",rownum++,value,note,enabled)
+    }
+    END {
+      if(bad) exit 2
+      for(i=1;i<=count;i++) print rows[i]
     }
   ' "$CONF"
+}
+list_state() {
+  section="$1"
+  # Build and validate the complete response while holding the same lock used
+  # by writers. Emit the protocol header only after parsing succeeds, so a
+  # concurrent replacement or malformed row cannot produce a partial list.
+  rows=$(list_rows "$section") || return $?
+  printf '%s\\n' FXLIST1
+  [ -z "$rows" ] || printf '%s\\n' "$rows"
 }
 value_exists() {
   section="$1"; wanted="$2"; ignore_case="$3"; excluded="${4:--1}"
@@ -355,8 +382,9 @@ mutate_transaction() {
   case "$action" in
     add) append_row "$section" "$value" "$note" || { rc=$?; return "$rc"; } ;;
     edit)
-      # The CLI duplicate check is only an early fast-fail. Recheck under the
-      # transaction lock so concurrent writers cannot create duplicate values.
+      # The caller's early duplicate check is only a UI fast-fail. Recheck
+      # under the transaction lock so concurrent writers cannot create
+      # duplicate entries between validation and commit.
       _nl_ignore_case=0
       [ "$section" = rule ] || _nl_ignore_case=1
       if value_exists "$section" "$value" "$_nl_ignore_case" "$index"; then
@@ -406,8 +434,7 @@ section=$(resolve_section "$2") || { echo "unknown managed list: $2" >&2; exit 2
 case "$cmd" in
   list)
     [ "$#" -eq 2 ] || exit 2
-    echo FXLIST1
-    list_rows "$section"
+    with_lock list_state "$section"
     ;;
   add)
     [ "$#" -eq 4 ] || { echo "usage: $0 add LIST_ID VALUE NOTE" >&2; exit 2; }
