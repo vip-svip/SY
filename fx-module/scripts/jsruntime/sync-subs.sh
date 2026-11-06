@@ -104,6 +104,7 @@ while IFS='|' read -r url note enabled; do
       meta_match=$(printf '%s\n' "$meta" | sed -n '2p')
       meta_requires_body=$(printf '%s\n' "$meta" | sed -n '3p')
       meta_display_name=$(printf '%s\n' "$meta" | sed -n '4p')
+      meta_env_json=$(printf '%s\n' "$meta" | sed -n '5p')
       case "$meta_type" in request|response|both) ;; *) meta_type='' ;; esac
       case "$meta_match" in ''|*"$(printf '\r')"*) meta_match='' ;; esac
       case "$meta_requires_body" in ''|0) meta_requires_body=0 ;; 1) ;; *) meta_requires_body='' ;; esac
@@ -111,6 +112,13 @@ while IFS='|' read -r url note enabled; do
       meta_name_length=$(printf '%s' "$meta_display_name" | wc -c | tr -d ' ')
       case "$meta_name_length" in ''|*[!0-9]*) meta_display_name='' ;; esac
       [ "$meta_name_length" -le 512 ] 2>/dev/null || meta_display_name=''
+      case "$meta_env_json" in *"$(printf '\r')"*) meta_env_json='' ;; esac
+      meta_env_length=$(printf '%s' "$meta_env_json" | wc -c | tr -d ' ')
+      case "$meta_env_length" in ''|*[!0-9]*) meta_env_json='' ;; esac
+      if [ "$meta_env_length" -gt 2048 ] 2>/dev/null; then meta_env_json=''; fi
+      if [ -n "$meta_env_json" ]; then
+        case "$meta_env_json" in \{*\}) ;; *) meta_env_json='' ;; esac
+      fi
       if [ -z "$meta_type" ] || [ -z "$meta_match" ] || [ -z "$meta_requires_body" ]; then
         rm -f "$tmp"; pg_log "js-sub: invalid encoded trigger metadata for [subscription URL redacted]"; failed=$((failed+1)); continue
       fi
@@ -119,6 +127,7 @@ while IFS='|' read -r url note enabled; do
         printf '// FX-SCRIPT-TYPE: %s\n// FX-SCRIPT-MATCH: %s\n' "$meta_type" "$meta_match"
         if [ "$meta_requires_body" = 1 ]; then printf '// FX-SCRIPT-REQUIRES-BODY: 1\n'; fi
         if [ -n "$meta_display_name" ]; then printf '// FX-SCRIPT-NAME: %s\n' "$meta_display_name"; fi
+        if [ -n "$meta_env_json" ]; then printf '// FX-SCRIPT-ENV-JSON: %s\n' "$meta_env_json"; fi
         cat "$tmp"
       } > "$wrapped"; then
         rm -f "$tmp" "$wrapped"; failed=$((failed+1)); continue
