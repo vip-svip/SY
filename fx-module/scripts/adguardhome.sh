@@ -400,7 +400,9 @@ _render_managed_config() {
   fi
   : > "$_bootstrap_file" || return 1
   if grep -Eq 'https://|tls://|quic://' "$_upstream_file"; then
-    printf '  - 223.5.5.5\n  - 1.1.1.1\n' > "$_bootstrap_file" || return 1
+    # Keep encrypted-upstream bootstrap on FX's own recursive resolver.
+    # Unbound resolves the hostname without introducing a fixed public DNS dependency.
+    printf '  - 127.0.0.1:5353\n' > "$_bootstrap_file" || return 1
   fi
   _dns_querylog_enabled=$(_dns_setting_flag dns_querylog_enabled) || {
     _log 'DNS query-log enable flag is duplicated or malformed'
@@ -664,10 +666,14 @@ _config_contract() {
       server=$2
       sub(/^"/,"",server); sub(/"$/,"",server)
       bootstrap_count++
-      if (!valid_ipv4(server) || bootstrap_seen[server]++) unsafe_bootstrap=1
-      first=split(server,octets,".")
-      if(octets[1]+0==0 || octets[1]+0==127 || octets[1]+0>=224 ||
-         (octets[1]+0==169 && octets[2]+0==254)) unsafe_bootstrap=1
+      if (server=="127.0.0.1:5353") {
+        if (bootstrap_seen[server]++) unsafe_bootstrap=1
+      } else {
+        if (!valid_ipv4(server) || bootstrap_seen[server]++) unsafe_bootstrap=1
+        first=split(server,octets,".")
+        if(octets[1]+0==0 || octets[1]+0==127 || octets[1]+0>=224 ||
+           (octets[1]+0==169 && octets[2]+0==254)) unsafe_bootstrap=1
+      }
     }
     dns && /^  fallback_dns:/ {
       fallback=1
