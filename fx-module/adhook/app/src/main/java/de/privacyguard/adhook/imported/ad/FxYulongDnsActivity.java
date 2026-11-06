@@ -85,7 +85,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
     }
     private String shell(String args) {
         boolean domainListAdd = args != null && args.matches("(allow-add|block-add) [A-Za-z0-9.-]{1,253}");
-        boolean domainListImport = args != null && args.matches("(allow-import|block-import) [A-Za-z0-9+/=]{1,87384}");
+        boolean domainListImport = args != null && args.matches("(allow-import|block-import) [A-Za-z0-9+/=]+");
         if (!"dns-log-tail".equals(args) && !"cache-flush".equals(args)
                 && !"cache-flush adguardhome".equals(args)
                 && !"cache-flush unbound".equals(args)
@@ -102,7 +102,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
                       java.util.function.Consumer<RootAccess.Result> done) {
         try {
             worker.execute(() -> {
-                RootAccess.Result result = RootAccess.execute(command, timeoutMs, 768 * 1024);
+                RootAccess.Result result = RootAccess.execute(command, timeoutMs, Integer.MAX_VALUE);
                 runOnUiThread(() -> { if (!isFinishing() && !isDestroyed()) done.accept(result); });
             });
         } catch (RejectedExecutionException full) {
@@ -154,7 +154,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         Button allowFilteredButton = button("筛选域名批量加入白名单", () -> addFilteredDomains(true));
         Button blockFilteredButton = button("筛选域名批量加入黑名单", () -> addFilteredDomains(false));
         card(body, "本机日志说明",
-                "查询日志默认关闭；启用后 AdGuard Home 按本机保留策略保存记录。这里只显示最近 500 条，不显示客户端 IP，也不会上传。",
+                "查询日志默认关闭；启用后 AdGuard Home 按本机保留策略保存记录。这里显示本机保留的完整查询日志，不显示客户端 IP，也不会上传。",
                 status, refreshButton, clearButton, shareButton, copyDomainsButton, allowFilteredButton, blockFilteredButton);
         cacheFlushButton = button("刷新全部本地 DNS 缓存", () -> confirmCacheFlush("all", "全部本地 DNS"));
         Button aghFlushButton = button("仅刷新 AdGuard Home", () -> confirmCacheFlush("adguardhome", "AdGuard Home"));
@@ -214,7 +214,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
     private void load() {
         final int generation = loadGeneration.incrementAndGet();
         if (refreshButton != null) refreshButton.setEnabled(false);
-        status.setText("正在读取最近 500 条 DNS 查询记录…");
+        status.setText("正在读取DNS 查询记录…");
         String command = shell("dns-log-tail");
         root(command, result -> {
             if (generation != loadGeneration.get()) return;
@@ -487,21 +487,13 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
                 return;
             }
             unique.add(domain);
-            if (unique.size() > 2000) {
-                status.setText("单次最多处理 2000 个唯一域名，请缩小筛选范围。");
-                return;
-            }
         }
         if (unique.isEmpty()) {
             status.setText("当前筛选条件没有可加入名单的域名。");
             return;
         }
-        String payload = String.join("\\n", unique);
+        String payload = String.join("\n", unique);
         byte[] bytes = payload.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-        if (bytes.length > 65536) {
-            status.setText("域名清单超过 64 KiB，已取消整批操作；请缩小筛选范围。");
-            return;
-        }
         String encoded = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP);
         String listName = allow ? "白名单" : "黑名单";
         String operation = (allow ? "allow-import " : "block-import ") + encoded;
@@ -533,8 +525,6 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         List<String> domains = new ArrayList<>();
         int matchedRows = 0;
         int duplicateRows = 0;
-        final int maxBytes = 48 * 1024;
-        int bytes = 0;
         for (Entry item : data) {
             if (!matchesResultFilter(item) || !matchesTimeFilter(item)
                     || !matchesTypeFilter(item) || !matchesRcodeFilter(item)
@@ -544,14 +534,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
                 duplicateRows++;
                 continue;
             }
-            int nextBytes = item.domain.getBytes(java.nio.charset.StandardCharsets.UTF_8).length
-                    + (domains.isEmpty() ? 0 : 1);
-            if (bytes + nextBytes > maxBytes) {
-                status.setText("筛选结果域名清单超过 48 KiB，未复制不完整清单；请缩小筛选范围。");
-                return;
-            }
             domains.add(item.domain);
-            bytes += nextBytes;
         }
         if (domains.isEmpty()) {
             status.setText("当前筛选条件没有可复制的域名。");
@@ -563,7 +546,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
                 status.setText("系统剪贴板不可用，未复制域名。");
                 return;
             }
-            clipboard.setPrimaryClip(ClipData.newPlainText("FX DNS domains", String.join("\\n", domains)));
+            clipboard.setPrimaryClip(ClipData.newPlainText("FX DNS domains", String.join("\n", domains)));
             status.setText("已复制 " + domains.size() + " 个去重域名（匹配 " + matchedRows
                     + " 条记录，合并 " + duplicateRows + " 条重复域名）。仅使用当前本地筛选结果。");
         } catch (RuntimeException failure) {
@@ -580,29 +563,25 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         String query = search == null || search.getText() == null ? ""
                 : search.getText().toString().trim().toLowerCase(Locale.ROOT);
         StringBuilder report = new StringBuilder();
-        report.append("FX Ad DNS query log\\n")
-                .append("filter=").append(query).append("\\n")
-                .append("result=").append(resultFilter == 1 ? "blocked" : resultFilter == 2 ? "allowed" : "all").append("\\n")
-                .append("time=").append(timeFilter == 1 ? "1h" : timeFilter == 2 ? "24h" : timeFilter == 3 ? "7d" : "all").append("\\n")
-                .append("dns_type=").append(typeFilter.isEmpty() ? "all" : typeFilter).append("\\n")
-                .append("rcode=").append(rcodeFilter.isEmpty() ? "all" : rcodeFilter).append("\\n")
-                .append("scope=locally retained latest 500 parsed records\\n")
-                .append("time\\tdomain\\ttype\\trcode\\tresult\\treason\\n");
+        report.append("FX Ad DNS query log\n")
+                .append("filter=").append(query).append("\n")
+                .append("result=").append(resultFilter == 1 ? "blocked" : resultFilter == 2 ? "allowed" : "all").append("\n")
+                .append("time=").append(timeFilter == 1 ? "1h" : timeFilter == 2 ? "24h" : timeFilter == 3 ? "7d" : "all").append("\n")
+                .append("dns_type=").append(typeFilter.isEmpty() ? "all" : typeFilter).append("\n")
+                .append("rcode=").append(rcodeFilter.isEmpty() ? "all" : rcodeFilter).append("\n")
+                .append("scope=all locally retained parsed records\n")
+                .append("time\tdomain\ttype\trcode\tresult\treason\n");
         int included = 0;
         int omitted = 0;
-        final int maxBytes = 48 * 1024;
         for (Entry item : data) {
             if (!matchesResultFilter(item) || !matchesTimeFilter(item) || !matchesTypeFilter(item) || !matchesRcodeFilter(item)
                     || (!query.isEmpty() && !item.searchable().contains(query))) continue;
-            String row = cleanExportField(item.time) + "\\t"
-                    + cleanExportField(item.domain) + "\\t"
-                    + cleanExportField(item.type) + "\\t"
-                    + cleanExportField(item.rcode) + "\\t"
-                    + (item.blocked ? "blocked" : "allowed") + "\\t"
-                    + cleanExportField(item.reason) + "\\n";
-            int used = report.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
-            int bytes = row.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
-            if (used + bytes > maxBytes) { omitted++; continue; }
+            String row = cleanExportField(item.time) + "\t"
+                    + cleanExportField(item.domain) + "\t"
+                    + cleanExportField(item.type) + "\t"
+                    + cleanExportField(item.rcode) + "\t"
+                    + (item.blocked ? "blocked" : "allowed") + "\t"
+                    + cleanExportField(item.reason) + "\n";
             report.append(row);
             included++;
         }
@@ -610,8 +589,6 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
             status.setText("当前搜索条件没有可分享的 DNS 查询记录。");
             return;
         }
-        if (omitted > 0) report.append("# omitted ").append(omitted)
-                .append(" matching rows at 48 KiB share limit\\n");
         try {
             Intent send = new Intent(Intent.ACTION_SEND);
             send.setType("text/plain");
@@ -619,7 +596,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
             send.putExtra(Intent.EXTRA_TEXT, report.toString());
             startActivity(Intent.createChooser(send, "分享 DNS 查询记录"));
             status.setText("已准备分享 " + included + " 条筛选匹配记录"
-                    + (omitted > 0 ? "；另有 " + omitted + " 条因 48 KiB 上限省略。" : "。"));
+                    + "。");
         } catch (RuntimeException unavailable) {
             status.setText("无法打开系统分享面板：" + safe(unavailable.getMessage()));
         }

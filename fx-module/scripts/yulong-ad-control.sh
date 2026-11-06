@@ -1430,7 +1430,7 @@ case "$cmd" in
   fi
   logfile="$PG/adguardhome/work/data/querylog.json"
   if [ -s "$logfile" ]; then
-    tail -n 500 "$logfile"
+    cat "$logfile"
   else
     echo FXDNSLOG_EMPTY
   fi
