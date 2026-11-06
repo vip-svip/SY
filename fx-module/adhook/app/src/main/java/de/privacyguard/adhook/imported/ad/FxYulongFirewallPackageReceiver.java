@@ -87,6 +87,10 @@ public final class FxYulongFirewallPackageReceiver extends BroadcastReceiver {
                 + (firewallEnabled
                     ? "sh \"$MP/scripts/yulong-app-firewall.sh\" apply-event || _rc=$?; "
                     : "")
+                // Keep the DNS bypass list aligned with package installs and removals.
+                // whitelist-prune preserves the saved list when PackageManager cannot
+                // provide a valid installed-package snapshot.
+                + "sh \"$MP/scripts/yulong-root-proxy.sh\" whitelist-prune || _rc=$?; "
                 + "if [ -s /data/adb/privacyguard/yulong-root-proxy-active.meta ]; then "
                 + "sh \"$MP/scripts/yulong-root-proxy.sh\" reconcile || _rc=$?; fi; "
                 + "exit \"$_rc\"";
