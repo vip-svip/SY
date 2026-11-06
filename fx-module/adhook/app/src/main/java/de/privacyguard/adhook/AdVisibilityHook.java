@@ -175,6 +175,8 @@ public final class AdVisibilityHook extends XposedModule {
     private static volatile Object processClipboardShadow;
     private volatile boolean sensorHooksInstalled;
     private volatile boolean wifiScanHooksInstalled;
+    private final Set<Method> wifiScanHookedMethods = ConcurrentHashMap.newKeySet();
+    private final Set<Method> notificationListenHookedMethods = ConcurrentHashMap.newKeySet();
     private volatile boolean wifiInfoSimulationHooksInstalled;
     private volatile boolean networkTypeSimulationHooksInstalled;
     private volatile boolean locationSimulationHooksInstalled;
@@ -1434,10 +1436,12 @@ private boolean targetDeveloperOptIn(String packageName) {
             final boolean registerListener = "registerScanListener".equals(name)
                     || "registerScanResultsCallback".equals(name);
             if (!listResult && !startOperation && !booleanCapability && !registerListener) continue;
+            if (wifiScanHookedMethods.contains(method)) continue;
             try {
                 hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                         .intercept(chain -> shouldBlockWifiScanNow()
                                 ? emptyWifiScanResult(method) : chain.proceed());
+                wifiScanHookedMethods.add(method);
                 installed++;
             } catch (Throwable error) {
                 logFx(Log.DEBUG, "Wi-Fi scan API hook unavailable: "
@@ -1448,7 +1452,6 @@ private boolean targetDeveloperOptIn(String packageName) {
     }
 
     private synchronized boolean installWifiScanPrivacyHooks(final String pkg) {
-        if (wifiScanHooksInstalled) return true;
         int installed = 0;
         try {
             Class<?> manager = Class.forName("android.net.wifi.WifiManager", false, null);
@@ -1464,9 +1467,10 @@ private boolean targetDeveloperOptIn(String packageName) {
         } catch (Throwable error) {
             logFx(Log.DEBUG, "WifiScanner API unavailable; WifiManager hooks remain active");
         }
-        wifiScanHooksInstalled = installed > 0;
+        wifiScanHooksInstalled = !wifiScanHookedMethods.isEmpty();
         logFx(installed > 0 ? Log.INFO : Log.WARN,
-                "opt-in Wi-Fi scan privacy hooks installed=" + installed
+                "opt-in Wi-Fi scan hooks newly installed=" + installed
+                        + " total=" + wifiScanHookedMethods.size()
                         + " across WifiManager/WifiScanner for " + pkg);
         return wifiScanHooksInstalled;
     }
@@ -1478,7 +1482,6 @@ private boolean targetDeveloperOptIn(String packageName) {
      * are untouched. Shared-package processes fail open.
      */
     private synchronized boolean installNotificationListenPrivacyHooks(final String pkg) {
-        if (notificationListenHooksInstalled) return true;
         int installed = 0;
         for (String className : new String[]{
                 "android.app.NotificationManager",
@@ -1491,6 +1494,7 @@ private boolean targetDeveloperOptIn(String packageName) {
                             || !method.getReturnType().isArray()) continue;
                     final Class<?> component = method.getReturnType().getComponentType();
                     if (component == null || !"android.service.notification.StatusBarNotification".equals(component.getName())) continue;
+                    if (notificationListenHookedMethods.contains(method)) continue;
                     try {
                         hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                                 .intercept(chain -> {
@@ -1502,6 +1506,7 @@ private boolean targetDeveloperOptIn(String packageName) {
                                     }
                                     return chain.proceed();
                                 });
+                        notificationListenHookedMethods.add(method);
                         installed++;
                     } catch (Throwable t) {
                         logFx(Log.DEBUG, "notification read hook unavailable: " + className);
@@ -1517,7 +1522,8 @@ private boolean targetDeveloperOptIn(String packageName) {
             Class<?> secure = Class.forName("android.provider.Settings$Secure", false, null);
             Method getString = secure.getDeclaredMethod("getString",
                     Class.forName("android.content.ContentResolver", false, null), String.class);
-            if (getString.getReturnType() == String.class) {
+            if (getString.getReturnType() == String.class
+                    && !notificationListenHookedMethods.contains(getString)) {
                 hook(getString).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                         .intercept(chain -> {
                             Object key = chain.getArgs().size() > 1 ? chain.getArgs().get(1) : null;
@@ -1528,14 +1534,16 @@ private boolean targetDeveloperOptIn(String packageName) {
                                     processPackages.size(), activePackage, active)) return "";
                             return chain.proceed();
                         });
+                notificationListenHookedMethods.add(getString);
                 installed++;
             }
         } catch (Throwable t) {
             logFx(Log.DEBUG, "notification listener setting query hook unavailable");
         }
-        notificationListenHooksInstalled = installed > 0;
+        notificationListenHooksInstalled = !notificationListenHookedMethods.isEmpty();
         logFx(installed > 0 ? Log.INFO : Log.WARN,
-                "opt-in active-notification read hooks installed=" + installed + " for " + pkg);
+                "opt-in active-notification hooks newly installed=" + installed
+                        + " total=" + notificationListenHookedMethods.size() + " for " + pkg);
         return notificationListenHooksInstalled;
     }
 
