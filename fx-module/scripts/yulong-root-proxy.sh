@@ -859,6 +859,7 @@ _status_fail_open() {
   fi
   echo "active=0"
   echo "reason=$_reason"
+  echo "cleanup=complete"
 }
 _status_locked() {
   echo "enabled=$(pg_get vpn_external_dns_proxy 1)"
