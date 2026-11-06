@@ -41,6 +41,31 @@ _nvc_validate_parent_chain "$PG" || { echo "FX VPN config state parent is unsafe
 [ ! -L "$LOCK" ] || { echo "FX VPN lock path is a symbolic link" >&2; exit 22; }
 [ ! -e "$LOCK" ] || [ -d "$LOCK" ] || { echo "FX VPN lock path is not a directory" >&2; exit 22; }
 
+
+validate_config() {
+  awk -F= '
+    $0=="[conf:vpn]" {
+      sections++
+      if(sections>1) bad=1
+      insec=1
+      next
+    }
+    /^\\[/ {insec=0}
+    insec && $0 !~ /^[[:space:]]*$/ && $0 !~ /^[[:space:]]*#/ {
+      if(NF<2 || $1 !~ /^[a-z][a-z0-9_]*$/ || seen[$1]++) {
+        bad=1
+        next
+      }
+      value=$0
+      sub(/^[^=]*=/,"",value)
+      if(value ~ /[[:cntrl:]|]/ || length(value)>1024) bad=1
+    }
+    END {
+      if(sections!=1 || bad) exit 1
+    }
+  ' "$CONF"
+}
+
 valid_key() {
   case "$1" in
     local_ip|local_port|remote_dns|cn_dns|test_url|auto_update_h|chnroute_url|app_mode|core_ver|core_auto|core_bin|mixed_port|log_level|hosts_cache_min|pick_min_ms|pick_test_timeout|pick_max_nodes|hide_level|hide_mtu_clamp|hide_udp_block_all|hide_icmp_block_all|hide_dot_block) return 0 ;;
