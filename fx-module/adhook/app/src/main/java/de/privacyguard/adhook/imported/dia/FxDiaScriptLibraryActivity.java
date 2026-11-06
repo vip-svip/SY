@@ -301,6 +301,10 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
             buttons.setOrientation(LinearLayout.HORIZONTAL);
             buttons.addView(button("编辑", () -> openEditor(name, source)),
                     new LinearLayout.LayoutParams(0, -2, 1));
+            buttons.addView(button("重命名", () -> renameScript(name)),
+                    new LinearLayout.LayoutParams(0, -2, 1));
+            buttons.addView(button("复制为草稿", () -> copyAsDraft(name)),
+                    new LinearLayout.LayoutParams(0, -2, 1));
             buttons.addView(button("删除", () -> confirmDelete(name)),
                     new LinearLayout.LayoutParams(0, -2, 1));
             row.addView(buttons);
@@ -308,6 +312,203 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
             lp.setMargins(dp(10), dp(3), dp(10), dp(3));
             rows.addView(row, lp);
         }
+    }
+
+    private void copyCurrentPageJson() {
+        if (scripts == null) {
+            setStatus("脚本库尚未读取完成。");
+            return;
+        }
+        String query = search == null || search.getText() == null ? ""
+                : search.getText().toString().trim().toLowerCase(java.util.Locale.ROOT);
+        List<String> names = new ArrayList<>();
+        Iterator<String> keys = scripts.keys();
+        while (keys.hasNext()) {
+            String name = keys.next();
+            if (query.isEmpty() || name.toLowerCase(java.util.Locale.ROOT).contains(query)) {
+                names.add(name);
+            }
+        }
+        Collections.sort(names, String.CASE_INSENSITIVE_ORDER);
+        int pageCount = (names.size() + PAGE_SIZE - 1) / PAGE_SIZE;
+        if (pageCount == 0) {
+            setStatus("当前筛选没有可导出的脚本。");
+            return;
+        }
+        currentPage = Math.max(0, Math.min(currentPage, pageCount - 1));
+        int from = currentPage * PAGE_SIZE;
+        int to = Math.min(names.size(), from + PAGE_SIZE);
+        final List<String> pageNames = new ArrayList<>(names.subList(from, to));
+        setStatus("正在生成当前页 " + pageNames.size() + " 个脚本的兼容 JSON…");
+        submitIo(() -> {
+            try {
+                String json = FxDiaScriptLibraryStore.exportJson(this, pageNames);
+                if (json.getBytes(StandardCharsets.UTF_8).length > 512 * 1024) {
+                    runOnUiThread(() -> setStatus("当前页 JSON 超过 512 KiB 剪贴板上限，请减少脚本数量或使用完整 JSON 文件导出。"));
+                    return;
+                }
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    android.content.ClipboardManager clipboard =
+                            (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                    if (clipboard == null) {
+                        setStatus("系统剪贴板不可用，未复制 JSON。");
+                        return;
+                    }
+                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText(
+                            "FX Frida script page JSON", json));
+                    setStatus("已复制当前页 " + pageNames.size()
+                            + " 个脚本的 JSON；schema 与脚本库完整导入格式兼容。");
+                });
+            } catch (Throwable error) {
+                runOnUiThread(() -> setStatus("当前页 JSON 导出失败：" + detail(error)));
+            }
+        });
+    }
+
+    private void confirmDeleteCurrentPage() {
+        if (scripts == null || rows == null) {
+            setStatus("脚本库尚未读取完成。");
+            return;
+        }
+        String query = search == null || search.getText() == null ? ""
+                : search.getText().toString().trim().toLowerCase(java.util.Locale.ROOT);
+        List<String> names = new ArrayList<>();
+        Iterator<String> keys = scripts.keys();
+        while (keys.hasNext()) {
+            String name = keys.next();
+            if (query.isEmpty() || name.toLowerCase(java.util.Locale.ROOT).contains(query)) {
+                names.add(name);
+            }
+        }
+        Collections.sort(names, String.CASE_INSENSITIVE_ORDER);
+        int pageCount = (names.size() + PAGE_SIZE - 1) / PAGE_SIZE;
+        if (pageCount == 0) {
+            setStatus("当前筛选没有可删除的脚本。");
+            return;
+        }
+        currentPage = Math.max(0, Math.min(currentPage, pageCount - 1));
+        int from = currentPage * PAGE_SIZE;
+        int to = Math.min(names.size(), from + PAGE_SIZE);
+        final List<String> pageNames = new ArrayList<>(names.subList(from, to));
+        if (pageNames.isEmpty()) {
+            setStatus("当前页没有可删除的脚本。");
+            return;
+        }
+        StringBuilder preview = new StringBuilder();
+        for (int i = 0; i < Math.min(pageNames.size(), 12); i++) {
+            if (i > 0) preview.append("\\n");
+            preview.append("• ").append(pageNames.get(i));
+        }
+        if (pageNames.size() > 12) preview.append("\\n…另有 ")
+                .append(pageNames.size() - 12).append(" 个脚本");
+        fxDialogBuilder().setTitle("批量删除当前筛选页脚本？")
+                .setMessage("将从本机 Frida 脚本库删除当前搜索条件下第 "
+                        + (currentPage + 1) + " 页的 " + pageNames.size()
+                        + " 个脚本。不会删除其他分页，也不会影响已导出的 JSON 文件。\\n\\n"
+                        + preview)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("删除当前页", (dialog, which) -> submitIo(() -> {
+                    try {
+                        int removed = FxDiaScriptLibraryStore.deleteMany(this, pageNames);
+                        JSONObject loaded = FxDiaScriptLibraryStore.read(this);
+                        runOnUiThread(() -> {
+                            if (isFinishing() || isDestroyed()) return;
+                            scripts = loaded;
+                            renderRows();
+                            setStatus("当前页批量删除完成：移除 " + removed + " 个脚本。");
+                        });
+                    } catch (Throwable error) {
+                        runOnUiThread(() -> setStatus("批量删除失败，脚本库未确认更新：" + detail(error)));
+                    }
+                })).show();
+    }
+
+    private void renameScript(String oldName) {
+        if (scripts == null || !scripts.has(oldName)) {
+            setStatus("原脚本已不存在，请刷新脚本库。");
+            return;
+        }
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setHint("新的脚本名称");
+        input.setText(oldName);
+        input.setSelection(input.getText().length());
+        fxDialogBuilder().setTitle("重命名 Frida 脚本")
+                .setMessage("只修改本地脚本库中的名称，源码内容保持不变；不会执行或注入脚本。")
+                .setView(input)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("保存名称", (dialog, which) -> {
+                    String newName = FxDiaScriptLibraryPolicy.normalizeName(
+                            input.getText() == null ? "" : input.getText().toString());
+                    String error = FxDiaScriptLibraryPolicy.validateName(newName);
+                    if (error != null) {
+                        setStatus(error);
+                        return;
+                    }
+                    submitIo(() -> {
+                        try {
+                            FxDiaScriptLibraryStore.rename(this, oldName, newName);
+                            JSONObject loaded = FxDiaScriptLibraryStore.read(this);
+                            runOnUiThread(() -> {
+                                if (isFinishing() || isDestroyed()) return;
+                                scripts = loaded;
+                                currentPage = 0;
+                                renderRows();
+                                setStatus(oldName.equals(newName) ? "名称未变化。"
+                                        : "脚本已重命名为：“" + newName + "”。源码保持不变。");
+                            });
+                        } catch (Throwable error) {
+                            runOnUiThread(() -> setStatus("重命名失败：" + detail(error)));
+                        }
+                    });
+                }).show();
+    }
+
+    private void copyAsDraft(String sourceName) {
+        if (scripts == null || !scripts.has(sourceName)) {
+            setStatus("源脚本已不存在，请刷新脚本库。");
+            return;
+        }
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setHint("新脚本名称");
+        String base = sourceName + " copy";
+        String suggestion = base;
+        int suffix = 2;
+        while (scripts.has(suggestion) && suffix < 1000) {
+            suggestion = base + " " + suffix++;
+        }
+        input.setText(suggestion);
+        input.setSelection(input.getText().length());
+        fxDialogBuilder().setTitle("复制为独立草稿")
+                .setMessage("复制“" + sourceName + "”的源码到一个新名称。原脚本不会被修改；复制内容只保存到本地库，不会自动执行或注入。")
+                .setView(input)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("复制", (dialog, which) -> {
+                    String newName = FxDiaScriptLibraryPolicy.normalizeName(
+                            input.getText() == null ? "" : input.getText().toString());
+                    String error = FxDiaScriptLibraryPolicy.validateName(newName);
+                    if (error != null) {
+                        setStatus(error);
+                        return;
+                    }
+                    submitIo(() -> {
+                        try {
+                            FxDiaScriptLibraryStore.copy(this, sourceName, newName);
+                            JSONObject loaded = FxDiaScriptLibraryStore.read(this);
+                            runOnUiThread(() -> {
+                                if (isFinishing() || isDestroyed()) return;
+                                scripts = loaded;
+                                currentPage = 0;
+                                renderRows();
+                                setStatus("已复制为新草稿：“" + newName + "”。原脚本保持不变，副本未执行。");
+                            });
+                        } catch (Throwable error) {
+                            runOnUiThread(() -> setStatus("复制脚本失败：" + detail(error)));
+                        }
+                    });
+                }).show();
     }
 
     private void clearCreateScriptDialogState() {
