@@ -872,6 +872,54 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
   });
 }
 
+ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTtl,
+      Switch serveExpired,EditText serveExpiredTtl,EditText serveExpiredReplyTtl,
+      EditText serveExpiredClientTimeout,Switch prefetch,Switch qnameMinimisation,TextView state){
+  root("unbound-runtime-get",result->{
+    if(result.exitCode!=0){state.setText("读取 Unbound 递归引擎参数失败："+safe(result.output));return;}
+    java.util.Map<String,String> values=new java.util.LinkedHashMap<>();
+    String[] lines=(result.output==null?"":result.output).split("\\r?\\n");
+    if(lines.length==0||!"FXYULONGUNBOUND1".equals(lines[0].trim())){
+      state.setText("Unbound 参数响应版本错误，未更新界面。");return;
+    }
+    for(int i=1;i<lines.length;i++){
+      int split=lines[i].indexOf('=');
+      if(split<=0||values.put(lines[i].substring(0,split),lines[i].substring(split+1))!=null){
+        state.setText("Unbound 参数响应包含格式错误或重复字段，未更新界面。");return;
+      }
+    }
+    String[] required={"UNBOUND_CACHE_MAX_TTL","UNBOUND_CACHE_MIN_TTL","UNBOUND_SERVE_EXPIRED",
+        "UNBOUND_SERVE_EXPIRED_TTL","UNBOUND_SERVE_EXPIRED_REPLY_TTL",
+        "UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT","UNBOUND_PREFETCH","UNBOUND_QNAME_MINIMISATION"};
+    for(String key:required)if(!values.containsKey(key)){
+      state.setText("Unbound 参数响应缺少字段："+key+"。");return;
+    }
+    if(!isValidDnsRuntimeUint32(values.get("UNBOUND_CACHE_MAX_TTL"),true)
+        ||!isValidDnsRuntimeUint32(values.get("UNBOUND_CACHE_MIN_TTL"),true)
+        ||new java.math.BigInteger(values.get("UNBOUND_CACHE_MIN_TTL"))
+            .compareTo(new java.math.BigInteger(values.get("UNBOUND_CACHE_MAX_TTL")))>0
+        ||!isValidDnsRuntimeUint32(values.get("UNBOUND_SERVE_EXPIRED_TTL"),true)
+        ||!isValidDnsRuntimeUint32(values.get("UNBOUND_SERVE_EXPIRED_REPLY_TTL"),false)
+        ||!isValidDnsRuntimeUint32(values.get("UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT"),true)){
+      state.setText("Unbound 缓存 TTL 或过期答复期限无效。");return;
+    }
+    for(String key:new String[]{"UNBOUND_SERVE_EXPIRED","UNBOUND_PREFETCH","UNBOUND_QNAME_MINIMISATION"})
+      if(!"0".equals(values.get(key))&&!"1".equals(values.get(key))){
+        state.setText("Unbound 开关值无效："+key+"。");return;
+      }
+    cacheMaxTtl.setText(values.get("UNBOUND_CACHE_MAX_TTL"));
+    cacheMinTtl.setText(values.get("UNBOUND_CACHE_MIN_TTL"));
+    serveExpired.setChecked("1".equals(values.get("UNBOUND_SERVE_EXPIRED")));
+    serveExpiredTtl.setText(values.get("UNBOUND_SERVE_EXPIRED_TTL"));
+    serveExpiredReplyTtl.setText(values.get("UNBOUND_SERVE_EXPIRED_REPLY_TTL"));
+    serveExpiredClientTimeout.setText(values.get("UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT"));
+    prefetch.setChecked("1".equals(values.get("UNBOUND_PREFETCH")));
+    qnameMinimisation.setChecked("1".equals(values.get("UNBOUND_QNAME_MINIMISATION")));
+    state.setText("已读取 Unbound 递归缓存与隐私策略。保存后将重建 Unbound 配置并执行配置检查，再按现有生命周期健康探测切换服务。");
+  });
+ }
+
+
  private void renderDns(){
   EditText dnsProfileImport=draftField("dns_profile_import");dnsProfileImport.setSingleLine(false);dnsProfileImport.setMinLines(5);dnsProfileImport.setHint("粘贴完整 FXYULONGDNSPROFILE1 快照文本");dnsProfileImportField=dnsProfileImport;
   card("DNS 配置备份与恢复","快照导入会完整替换 DNS 引擎开关、过滤策略、三组上游、VPN DNS、拦截响应模式、查询日志保留期限、多上游策略与超时、缓存容量/模式及 DNSSEC；兼容旧版快照并为新增字段补齐默认值，提交前由 Root 后端再次校验，应用失败时回滚原配置。",btn("分享 DNS 配置快照",()->shareDnsProfile()),btn("保存 DNS 快照到文件",()->saveDnsProfileToFile()),btn("从文件读取 DNS 快照",()->openDnsProfileFile()),dnsProfileImport,btn("校验并恢复 DNS 配置快照",()->restoreDnsProfile(dnsProfileImport)));
@@ -1034,6 +1082,72 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
          root(command,result->{
            if(result.exitCode==0){unboundRuntimeState.setText("Unbound 递归参数已保存并应用。");load();}
            else fxDialogBuilder().setTitle("Unbound 参数未应用").setMessage(safe(result.output)).setPositiveButton("关闭",null).show();
+         });
+       }),
+       unboundRuntimeState);
+  loadUnboundRuntimeControls(unboundCacheMaxTtl,unboundCacheMinTtl,unboundServeExpired,
+      unboundServeExpiredTtl,unboundServeExpiredReplyTtl,unboundServeExpiredClientTimeout,
+      unboundPrefetch,unboundQnameMinimisation,unboundRuntimeState);
+
+  EditText unboundCacheMaxTtl=draftField("unbound_cache_max_ttl");
+  unboundCacheMaxTtl.setSingleLine(true);
+  unboundCacheMaxTtl.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+  unboundCacheMaxTtl.setHint("最大缓存 TTL（秒），0 表示不施加额外上限");
+  EditText unboundCacheMinTtl=draftField("unbound_cache_min_ttl");
+  unboundCacheMinTtl.setSingleLine(true);
+  unboundCacheMinTtl.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+  unboundCacheMinTtl.setHint("最小缓存 TTL（秒），0 表示尊重权威 TTL");
+  Switch unboundServeExpired=new Switch(this);
+  unboundServeExpired.setText("上游不可用时返回过期缓存");
+  EditText unboundServeExpiredTtl=draftField("unbound_serve_expired_ttl");
+  unboundServeExpiredTtl.setSingleLine(true);
+  unboundServeExpiredTtl.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+  unboundServeExpiredTtl.setHint("允许返回过期记录的最大年龄（秒），0 表示不设年龄限制");
+  EditText unboundServeExpiredReplyTtl=draftField("unbound_serve_expired_reply_ttl");
+  unboundServeExpiredReplyTtl.setSingleLine(true);
+  unboundServeExpiredReplyTtl.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+  unboundServeExpiredReplyTtl.setHint("过期答复向客户端声明的 TTL（秒）");
+  EditText unboundServeExpiredClientTimeout=draftField("unbound_serve_expired_client_timeout");
+  unboundServeExpiredClientTimeout.setSingleLine(true);
+  unboundServeExpiredClientTimeout.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+  unboundServeExpiredClientTimeout.setHint("尝试实时递归后改用过期答复的等待时间（毫秒），0 表示立即回退");
+  Switch unboundPrefetch=new Switch(this);
+  unboundPrefetch.setText("启用热门记录预取刷新");
+  Switch unboundQnameMinimisation=new Switch(this);
+  unboundQnameMinimisation.setText("启用 DNS QNAME 最小化");
+  TextView unboundRuntimeState=txt("正在读取 Unbound 递归参数…",12,0xff617080,false);
+  card("Unbound 递归缓存与隐私策略",
+       "控制本地递归解析器的缓存 TTL、上游暂时不可用时的过期缓存答复、预取及 QNAME 最小化。最小/最大 TTL 使用秒；过期客户端等待时间使用毫秒。数值按 Unbound uint32 参数范围校验，不设置应用层条数或固定档位。",
+       txt("缓存最大 TTL（秒）",12,0xff617080,true),unboundCacheMaxTtl,
+       txt("缓存最小 TTL（秒）",12,0xff617080,true),unboundCacheMinTtl,
+       unboundServeExpired,
+       txt("允许过期缓存年龄（秒）",12,0xff617080,true),unboundServeExpiredTtl,
+       txt("过期答复 TTL（秒）",12,0xff617080,true),unboundServeExpiredReplyTtl,
+       txt("递归等待后回退时间（毫秒）",12,0xff617080,true),unboundServeExpiredClientTimeout,
+       unboundPrefetch,unboundQnameMinimisation,
+       btn("保存并应用 Unbound 参数",()->{
+         String maxTtl=unboundCacheMaxTtl.getText()==null?"":unboundCacheMaxTtl.getText().toString().trim();
+         String minTtl=unboundCacheMinTtl.getText()==null?"":unboundCacheMinTtl.getText().toString().trim();
+         String expiredTtl=unboundServeExpiredTtl.getText()==null?"":unboundServeExpiredTtl.getText().toString().trim();
+         String replyTtl=unboundServeExpiredReplyTtl.getText()==null?"":unboundServeExpiredReplyTtl.getText().toString().trim();
+         String clientTimeout=unboundServeExpiredClientTimeout.getText()==null?"":unboundServeExpiredClientTimeout.getText().toString().trim();
+         if(!isValidDnsRuntimeUint32(maxTtl,true)||!isValidDnsRuntimeUint32(minTtl,true)
+             ||new java.math.BigInteger(minTtl).compareTo(new java.math.BigInteger(maxTtl))>0
+             ||!isValidDnsRuntimeUint32(expiredTtl,true)
+             ||!isValidDnsRuntimeUint32(replyTtl,false)
+             ||!isValidDnsRuntimeUint32(clientTimeout,true)){
+           status.setText("Unbound TTL、过期答复期限或等待时间无效；须为 uint32 秒/毫秒，且最小 TTL 不得大于最大 TTL。");
+           return;
+         }
+         String command="unbound-runtime-set "+q(maxTtl)+" "+q(minTtl)+" "
+             +(unboundServeExpired.isChecked()?"1":"0")+" "+q(expiredTtl)+" "+q(replyTtl)+" "
+             +q(clientTimeout)+" "+(unboundPrefetch.isChecked()?"1":"0")+" "
+             +(unboundQnameMinimisation.isChecked()?"1":"0");
+         root(command,result->{
+           if(result.exitCode==0){
+             unboundRuntimeState.setText("Unbound 递归参数已保存并应用。");
+             loadDnsRuntimeStatus(dnsRuntimeState);
+           }else fxDialogBuilder().setTitle("Unbound 参数未应用").setMessage(safe(result.output)).setPositiveButton("关闭",null).show();
          });
        }),
        unboundRuntimeState);
