@@ -164,6 +164,19 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
         }
     }
 
+    private String decodeGkdRuleJson(byte[] bytes) {
+        try {
+            String decoded = java.nio.charset.StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+                    .decode(java.nio.ByteBuffer.wrap(bytes)).toString();
+            // Accept an optional UTF-8 BOM, but never replace malformed byte sequences.
+            return !decoded.isEmpty() && decoded.charAt(0) == 0xFEFF
+                    ? decoded.substring(1) : decoded;
+        } catch (java.nio.charset.CharacterCodingException malformed) {
+            throw new IllegalArgumentException("规则文件不是有效的 UTF-8 编码。", malformed);
+        }
+    }
     private void importRulesFromUri(Uri uri) {
         try (java.io.InputStream input = getContentResolver().openInputStream(uri);
              java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream()) {
@@ -177,7 +190,7 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
                 }
                 output.write(buffer, 0, count);
             }
-            String json = new String(output.toByteArray(), java.nio.charset.StandardCharsets.UTF_8);
+            String json = decodeGkdRuleJson(output.toByteArray());
             FxGkdImportResult result = FxGkdRuleStore.importJson(this, json);
             if (result.getError() != null) {
                 Toast.makeText(this, "规则导入未完成：" + result.getError(), Toast.LENGTH_LONG).show();
