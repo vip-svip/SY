@@ -1996,6 +1996,29 @@ public final class MainActivity extends ComponentActivity {
         return ((Boolean) value) ? "已启用" : "未启用";
     }
 
+    private String notificationAccessStatus() {
+        String enabled = android.provider.Settings.Secure.getString(
+                getContentResolver(), "enabled_notification_listeners");
+        if (enabled == null || enabled.isEmpty()) return "未授予";
+        for (String item : enabled.split(":")) {
+            if (item.startsWith(getPackageName() + "/")) return "已授予";
+        }
+        return "未授予";
+    }
+
+    private String usageAccessStatus() {
+        try {
+            android.app.AppOpsManager ops = (android.app.AppOpsManager)
+                    getSystemService(Context.APP_OPS_SERVICE);
+            if (ops == null) return "状态不可用";
+            int mode = ops.checkOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS,
+                    android.os.Process.myUid(), getPackageName());
+            return mode == android.app.AppOpsManager.MODE_ALLOWED ? "已授予" : "未授予";
+        } catch (RuntimeException unavailable) {
+            return "状态不可用";
+        }
+    }
+
     private void refreshNativePrivacyStatus(TextView target) {
         runNativeModuleCommand("sh \"$MP/scripts/status.sh\" json", 30000L, result -> {
             try {
@@ -2017,6 +2040,8 @@ public final class MainActivity extends ComponentActivity {
                 target.setText("Root：" + rootStatus
                         + " · LSPosed：" + json.optString("lsposed_status", json.optString("lsposed", "unknown"))
                         + "\nAccessibility：" + accessibilityStatus
+                        + "\n通知读取授权：" + notificationAccessStatus()
+                        + " · 使用情况访问：" + usageAccessStatus()
                         + "\nRemote Files：" + json.optString("hook_remote_status", "unknown")
                         + " · 已发布目标：" + json.optInt("hook_native_targets", 0)
                         + "\n隐私目标：" + json.optInt("hook_native_privacy_targets", 0)
