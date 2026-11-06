@@ -187,7 +187,10 @@ public final class StashScriptYamlImporter {
                 break;
             case "argument":
                 script.argument = value;
-                if (value.length() > 512 || hasControl(value)) script.supported = false;
+                // FX has no per-script argument transport in the URL subscription model.
+                if (!value.isEmpty() || value.length() > 512 || hasControl(value)) {
+                    script.supported = false;
+                }
                 break;
             case "engine":
                 script.engine = value.toLowerCase(Locale.ROOT);
@@ -236,9 +239,9 @@ public final class StashScriptYamlImporter {
         if (displayName.isEmpty() || displayName.length() > 512) return;
         String bodyFlag = script.requireBody ? "1" : "0";
         String metadata = script.type + "\n" + script.match + "\n"
-                + bodyFlag + "\n" + displayName + "\n\n" + script.argument;
+                + bodyFlag + "\n" + displayName;
         String duplicateKey = provider.url + "\n" + script.type + "\n"
-                + script.match + "\n" + bodyFlag + "\n" + script.argument;
+                + script.match + "\n" + bodyFlag;
         if (!seen.add(duplicateKey)) return;
 
         String encoded = "FXMETA_B64:" + Base64.encodeToString(
