@@ -2228,6 +2228,7 @@ public final class MainActivity extends ComponentActivity {
         actions.addView(nativeAction("从文件导入脚本", this::pickNativeScriptFile));
         actions.addView(nativeAction("导入 Egern YAML HTTP 脚本", this::pickNativeEgernScriptConfig));
         actions.addView(nativeAction("导入 Stash YAML HTTP 脚本", this::pickNativeStashScriptConfig));
+        actions.addView(nativeAction("导入 Surge / Loon / Quantumult X 配置", this::pickNativeScriptFile));
         actions.addView(nativeAction("导出脚本配置", this::exportNativeScripts));
         actions.addView(nativeAction("全部启用脚本", () -> setNativeScriptsEnabledAll(true, rows, status)));
         actions.addView(nativeAction("全部停用脚本", () -> setNativeScriptsEnabledAll(false, rows, status)));
