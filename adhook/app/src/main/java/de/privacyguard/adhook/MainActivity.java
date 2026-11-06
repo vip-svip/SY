@@ -1939,6 +1939,8 @@ public final class MainActivity extends ComponentActivity {
         addNativeActionCard("查看系统隐私信息中心", "打开 Android 系统隐私信息中心，查看近期摄像头、麦克风和位置信息访问记录。此处展示系统记录，不替代 FX 按应用 Hook 策略。", "打开系统面板", this::openAndroidPrivacyDashboard);
         addNativeActionCard("通知读取授权", "管理允许哪些应用读取通知内容。FX 的通知监听策略只有在系统授予通知访问权限后才能工作。", "打开通知授权", () -> openAndroidSettingsPage(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS, "通知使用权设置"));
         addNativeActionCard("应用使用情况访问", "管理应用使用情况访问权限；此权限独立于通知读取授权，也不会自动授予 Root 或 Hook 权限。", "打开使用情况授权", () -> openAndroidSettingsPage(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS, "使用情况访问设置"));
+        addNativeActionCard("悬浮窗显示权限", "管理 FX 是否可以在其他应用上层显示内容；此系统权限不等于无障碍或 Hook 授权。", "打开悬浮窗设置", this::openOverlayPermissionSettings);
+        addNativeActionCard("电池优化例外", "查看并管理 FX 是否被系统电池优化限制。豁免可能增加后台耗电，请按实际需要设置。", "打开电池优化设置", () -> openAndroidSettingsPage(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS, "电池优化设置"));
 
         section("高级隐私与系统防护");
         addNativeSettingsCategory("Root / 模块隐藏", "rootPanel");
@@ -2006,6 +2008,34 @@ public final class MainActivity extends ComponentActivity {
         return "未授予";
     }
 
+    private void openOverlayPermissionSettings() {
+        Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                android.net.Uri.parse("package:" + getPackageName()));
+        if (intent.resolveActivity(getPackageManager()) == null) {
+            openAndroidSettingsPage(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    "悬浮窗权限设置");
+            return;
+        }
+        try {
+            startActivity(intent);
+        } catch (RuntimeException error) {
+            FxNativeSkin.builder(this).setTitle("无法打开悬浮窗权限设置")
+                    .setMessage(error.getMessage() == null ? "系统拒绝打开该设置页面。" : error.getMessage())
+                    .setPositiveButton("关闭", null).show();
+        }
+    }
+
+    private String overlayPermissionStatus() {
+        return android.provider.Settings.canDrawOverlays(this) ? "已授予" : "未授予";
+    }
+
+    private String batteryOptimizationStatus() {
+        android.os.PowerManager power = (android.os.PowerManager)
+                getSystemService(Context.POWER_SERVICE);
+        if (power == null) return "状态不可用";
+        return power.isIgnoringBatteryOptimizations(getPackageName()) ? "已豁免" : "受系统优化管理";
+    }
+
     private String usageAccessStatus() {
         try {
             android.app.AppOpsManager ops = (android.app.AppOpsManager)
@@ -2042,6 +2072,8 @@ public final class MainActivity extends ComponentActivity {
                         + "\nAccessibility：" + accessibilityStatus
                         + "\n通知读取授权：" + notificationAccessStatus()
                         + " · 使用情况访问：" + usageAccessStatus()
+                        + " · 悬浮窗：" + overlayPermissionStatus()
+                        + " · 电池优化：" + batteryOptimizationStatus()
                         + "\nRemote Files：" + json.optString("hook_remote_status", "unknown")
                         + " · 已发布目标：" + json.optInt("hook_native_targets", 0)
                         + "\n隐私目标：" + json.optInt("hook_native_privacy_targets", 0)
