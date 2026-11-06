@@ -774,7 +774,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
        ||!domain.matches("[a-z0-9.-]+")){
     throw new IllegalArgumentException("域名格式无效："+domain);
    }
-   for(String label:domain.split("\\\\.",-1)){
+   for(String label:domain.split("\\.",-1)){
     if(label.isEmpty()||label.length()>63
         ||!label.matches("[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")){
      throw new IllegalArgumentException("域名标签格式无效："+domain);
@@ -792,7 +792,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
       status.setText("读取本地 DNS 聚合统计设置失败："+safe(current.output));return;
     }
     String raw=current.output==null?"":current.output.trim();
-    String[] lines=raw.split("\\\\r?\\\\n");
+    String[] lines=raw.split("\\r?\\n");
     if(lines.length<5||!"FXYULONGDNSSTAT1".equals(lines[0].trim())){
       status.setText("DNS 聚合统计响应格式错误，未修改配置。");return;
     }
@@ -852,7 +852,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
     ignoredDomains.setGravity(android.view.Gravity.TOP|android.view.Gravity.START);
     ignoredDomains.setHint("每行一个域名，也可逗号分隔；例如 example.com");
     ignoredDomains.setText(ignoredDomainsValue.isEmpty()?""
-        :ignoredDomainsValue.replace(",", "\\\\n"));
+        :ignoredDomainsValue.replace(",", "\\n"));
     LinearLayout form=new LinearLayout(this);
     form.setOrientation(LinearLayout.VERTICAL);
     form.addView(enabled);
