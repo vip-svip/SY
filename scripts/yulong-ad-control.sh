@@ -191,7 +191,9 @@ valid_ipv4_dns_csv() {
         n=split($i,a,".")
         if(n!=4){bad=1;exit}
         for(j=1;j<=4;j++)if(a[j]==""||a[j]!~/^[0-9]+$/||length(a[j])>3||a[j]+0>255){bad=1;exit}
-        if($i=="0.0.0.0"||$i=="255.255.255.255"){bad=1;exit}
+        first=a[1]+0; second=a[2]+0
+        if($i=="0.0.0.0"||$i=="255.255.255.255"||
+           first==0||first==127||first>=224||(first==169&&second==254)){bad=1;exit}
       }
     }
     END{exit bad}
@@ -206,8 +208,10 @@ valid_fallback_dns_csv() {
         n=split($i,a,".")
         if(n!=4){bad=1;exit}
         for(j=1;j<=4;j++)if(a[j]==""||a[j]!~/^[0-9]+$/||length(a[j])>3||a[j]+0>255){bad=1;exit}
+        first=a[1]+0; second=a[2]+0
         if($i=="0.0.0.0"||$i=="255.255.255.255" ||
-           a[1]+0==127 || (a[1]+0==169 && a[2]+0==254)){bad=1;exit}
+           first==0 || first==127 || first>=224 ||
+           (first==169 && second==254)){bad=1;exit}
       }
     }
     END{exit bad}
@@ -220,9 +224,13 @@ valid_dns_csv() {
       n=split(v,a,".")
       if(n!=4) return 0
       for(j=1;j<=4;j++) if(a[j]==""||a[j]!~/^[0-9]+$/||length(a[j])>3||a[j]+0>255) return 0
-      if(v=="0.0.0.0"||v=="255.255.255.255") return 0
-      return 1    }
+      first=a[1]+0; second=a[2]+0
+      if(v=="0.0.0.0"||v=="255.255.255.255"||
+         first==0||first==127||first>=224||(first==169&&second==254)) return 0
+      return 1
+    }
     function dns_host(v) {
+      if(v~/^[0-9.]+$/) return ipv4(v)
       return v~/^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/ && v!~/\.\./
     }
     function valid_hostport(v, n, a) {
