@@ -150,6 +150,15 @@ list_rows() {
     }
   ' "$CONF"
 }
+list_state() {
+  section="$1"
+  # Build and validate the complete response while holding the same lock used
+  # by writers. Emit the protocol header only after parsing succeeds, so a
+  # concurrent replacement or malformed row cannot produce a partial list.
+  rows=$(list_rows "$section") || return $?
+  printf '%s\\n' FXLIST1
+  [ -z "$rows" ] || printf '%s\\n' "$rows"
+}
 value_exists() {
   section="$1"; wanted="$2"; ignore_case="$3"; excluded="${4:--1}"
   awk -F'|' -v target="[list:$section]" -v wanted="$wanted" \
@@ -425,8 +434,7 @@ section=$(resolve_section "$2") || { echo "unknown managed list: $2" >&2; exit 2
 case "$cmd" in
   list)
     [ "$#" -eq 2 ] || exit 2
-    echo FXLIST1
-    list_rows "$section"
+    with_lock list_state "$section"
     ;;
   add)
     [ "$#" -eq 4 ] || { echo "usage: $0 add LIST_ID VALUE NOTE" >&2; exit 2; }
