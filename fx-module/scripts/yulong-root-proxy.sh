@@ -197,32 +197,54 @@ _resolve_whitelist_uids() {
   [ -n "$_packages" ] || return 0
   _snapshot=$(cmd package list packages -U 2>/dev/null) || { _log "cannot read PackageManager UID snapshot for Root Proxy whitelist"; return 1; }
   [ -n "$_snapshot" ] || { _log "PackageManager returned an empty UID snapshot"; return 1; }
-  printf '%s\n' "$_snapshot" | awk '
-    $1 ~ /^package:[A-Za-z0-9_.-]+$/ {
-      for(i=2;i<=NF;i++) if($i ~ /^uid:[0-9]+$/) {valid=1; break}
+
+  # Resolve all selected packages against one in-memory PackageManager pass.
+  # The previous implementation launched one AWK process and rescanned the
+  # full package snapshot for every whitelist entry.
+  _resolved=$( {
+    printf '%s\n' "$_packages"
+    printf '%s\n' "__FX_ROOT_PROXY_UID_SNAPSHOT__"
+    printf '%s\n' "$_snapshot"
+  } | awk '
+    $0=="__FX_ROOT_PROXY_UID_SNAPSHOT__" {phase=1; next}
+    !phase {
+      if($0 ~ /^[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+$/) wanted[$0]=1
+      next
     }
-    END {exit !valid}
-  ' || { _log "PackageManager UID snapshot is malformed; fail-open"; return 1; }
-  _resolved=""
-  while IFS= read -r _package; do
-    [ -n "$_package" ] || continue
-    _uid=$(printf '%s\n' "$_snapshot" | awk -v wanted="package:$_package" '
-      $1==wanted {for(i=2;i<=NF;i++) if($i ~ /^uid:[0-9]+$/) {sub(/^uid:/,"",$i); print $i; exit}}
-    ')
-    [ -n "$_uid" ] || continue
-    case "$_uid" in *[!0-9]*|0) _log "invalid current UID for whitelist package $_package"; return 1 ;; esac
-    case "
-$_resolved
-" in *"
-$_uid
-"*) ;; *)
-      [ -n "$_resolved" ] && _resolved="$_resolved
-"
-      _resolved="$_resolved$_uid"
-    ;; esac
-  done <<EOF
-$_packages
-EOF
+    {
+      line=$0
+      sub(/^[ \t]+/, "", line)
+      sub(/[ \t]+$/, "", line)
+      n=split(line, field, /[ \t]+/)
+      if(field[1] ~ /^package:[A-Za-z0-9_.-]+$/) {
+        snapshot_valid=1
+        package=substr(field[1],9)
+        if(package in wanted) {
+          uid=""
+          for(i=2;i<=n;i++) if(field[i] ~ /^uid:[0-9]+$/) {
+            uid=substr(field[i],5)
+            break
+          }
+          # Match legacy behavior: a selected package missing from a partial
+          # PackageManager row contributes no UID; malformed explicit UIDs fail.
+          if(uid!="") {
+            if(uid !~ /^[0-9]+$/ || uid=="0") invalid=1
+            else if(!(uid in seen_uid)) {
+              seen_uid[uid]=1
+              ordered[++count]=uid
+            }
+          }
+        }
+      }
+    }
+    END {
+      if(!snapshot_valid || invalid) exit 1
+      for(i=1;i<=count;i++) print ordered[i]
+    }
+  ' ) || {
+    _log "PackageManager UID snapshot is malformed or contains an invalid selected UID; fail-open"
+    return 1
+  }
   printf '%s\n' "$_resolved"
 }
 _remove_hook() {
