@@ -1330,7 +1330,7 @@ dns_profile_restore() {
       if(index($0,"=")<2 || $0 ~ /\r/){bad=1;next}
       key=substr($0,1,index($0,"=")-1)
       value=substr($0,index($0,"=")+1)
-      if(key !~ /^(dns_engine_adguardhome|dns_forward|custom_dns|global_dns|block_quic|block_dot|block_plain_dns|block_ipv6|block_track_domains|vpn_external_dns_proxy|vpn_external_compat|dns_querylog_enabled|CUSTOM_SERVERS|GLOBAL_SERVERS|FALLBACK_SERVERS|VPN_REMOTE|VPN_CN|RESPONSE_MODE|RESPONSE_IPV4|RESPONSE_IPV6|RESPONSE_TTL|QUERYLOG_RETENTION|QUERYLOG_MEMORY_SIZE|QUERYLOG_IGNORED_ENABLED|QUERYLOG_IGNORED|DNS_REWRITES|STATISTICS_ENABLED|STATISTICS_INTERVAL|STATISTICS_IGNORED_ENABLED|STATISTICS_IGNORED|UPSTREAM_MODE|FASTEST_TIMEOUT|UPSTREAM_TIMEOUT|CACHE_SIZE|CACHE_TTL_MIN|CACHE_TTL_MAX|CACHE_OPTIMISTIC_ANSWER_TTL|CACHE_OPTIMISTIC_MAX_AGE|CACHE_ENABLED|CACHE_OPTIMISTIC|ENABLE_DNSSEC|UNBOUND_CACHE_MAX_TTL|UNBOUND_CACHE_MIN_TTL|UNBOUND_SERVE_EXPIRED|UNBOUND_SERVE_EXPIRED_TTL|UNBOUND_SERVE_EXPIRED_REPLY_TTL|UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT|UNBOUND_PREFETCH|UNBOUND_PREFETCH_KEY|UNBOUND_QNAME_MINIMISATION|UNBOUND_MSG_CACHE_SIZE|UNBOUND_RRSET_CACHE_SIZE|UNBOUND_KEY_CACHE_SIZE|UNBOUND_NEG_CACHE_SIZE|UNBOUND_NUM_THREADS)$/)bad=1
+      if(key !~ /^(dns_engine_adguardhome|dns_forward|custom_dns|global_dns|block_quic|block_dot|block_plain_dns|block_ipv6|block_track_domains|vpn_external_dns_proxy|vpn_external_compat|dns_querylog_enabled|CUSTOM_SERVERS|GLOBAL_SERVERS|FALLBACK_SERVERS|VPN_REMOTE|VPN_CN|RESPONSE_MODE|RESPONSE_IPV4|RESPONSE_IPV6|RESPONSE_TTL|QUERYLOG_RETENTION|QUERYLOG_MEMORY_SIZE|QUERYLOG_IGNORED_ENABLED|QUERYLOG_IGNORED|DNS_REWRITES|STATISTICS_ENABLED|STATISTICS_INTERVAL|STATISTICS_IGNORED_ENABLED|STATISTICS_IGNORED|UPSTREAM_MODE|FASTEST_TIMEOUT|UPSTREAM_TIMEOUT|CACHE_SIZE|CACHE_TTL_MIN|CACHE_TTL_MAX|CACHE_OPTIMISTIC_ANSWER_TTL|CACHE_OPTIMISTIC_MAX_AGE|CACHE_ENABLED|CACHE_OPTIMISTIC|ENABLE_DNSSEC|UNBOUND_CACHE_MAX_TTL|UNBOUND_CACHE_MIN_TTL|UNBOUND_SERVE_EXPIRED|UNBOUND_SERVE_EXPIRED_TTL|UNBOUND_SERVE_EXPIRED_TTL_RESET|UNBOUND_SERVE_EXPIRED_REPLY_TTL|UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT|UNBOUND_PREFETCH|UNBOUND_PREFETCH_KEY|UNBOUND_QNAME_MINIMISATION|UNBOUND_MSG_CACHE_SIZE|UNBOUND_RRSET_CACHE_SIZE|UNBOUND_KEY_CACHE_SIZE|UNBOUND_NEG_CACHE_SIZE|UNBOUND_NUM_THREADS)$/)bad=1
       if(seen[key]++)bad=1
     }
     END {
@@ -1366,6 +1366,7 @@ dns_profile_restore() {
   _profile_unbound_cache_min_ttl=0
   _profile_unbound_serve_expired=1
   _profile_unbound_serve_expired_ttl=86400
+  _profile_unbound_serve_expired_ttl_reset=0
   _profile_unbound_serve_expired_reply_ttl=30
   _profile_unbound_serve_expired_client_timeout=1800
   _profile_unbound_prefetch=1
@@ -1498,6 +1499,9 @@ dns_profile_restore() {
         valid_dns_runtime_uint32 "$_profile_value" 1 || return 2
         _profile_unbound_serve_expired_ttl=$_profile_value
         ;;
+      UNBOUND_SERVE_EXPIRED_TTL_RESET)
+        case "$_profile_value" in 0|1) _profile_unbound_serve_expired_ttl_reset=$_profile_value ;; *) return 2 ;; esac
+        ;;
       UNBOUND_SERVE_EXPIRED_REPLY_TTL)
         valid_dns_runtime_uint32 "$_profile_value" 0 || return 2
         _profile_unbound_serve_expired_reply_ttl=$_profile_value
@@ -1597,7 +1601,7 @@ dns_profile_restore() {
   write_dns_statistics_settings "$_profile_statistics_enabled" "$_profile_statistics_interval" "$_profile_statistics_ignored_enabled" "$_profile_statistics_ignored" || return 1
   awk -v min="$_profile_runtime_cache_ttl_min" -v max="$_profile_runtime_cache_ttl_max" 'BEGIN{exit !(min+0<=max+0)}' || { echo "DNS profile cache TTL minimum exceeds maximum" >&2; return 2; }
   write_dns_runtime_settings "$_profile_runtime_mode" "$_profile_runtime_fastest" "$_profile_runtime_timeout" "$_profile_runtime_cache_size" "$_profile_runtime_cache_enabled" "$_profile_runtime_cache_optimistic" "$_profile_runtime_dnssec" "$_profile_runtime_cache_ttl_min" "$_profile_runtime_cache_ttl_max" "$_profile_runtime_optimistic_answer_ttl" "$_profile_runtime_optimistic_max_age" || return 1
-  write_unbound_runtime_settings "$_profile_unbound_cache_max_ttl" "$_profile_unbound_cache_min_ttl" "$_profile_unbound_serve_expired" "$_profile_unbound_serve_expired_ttl" "$_profile_unbound_serve_expired_reply_ttl" "$_profile_unbound_serve_expired_client_timeout" "$_profile_unbound_prefetch" "$_profile_unbound_prefetch_key" "$_profile_unbound_qname_minimisation" "$_profile_unbound_msg_cache_size" "$_profile_unbound_rrset_cache_size" "$_profile_unbound_key_cache_size" "$_profile_unbound_neg_cache_size" "$_profile_unbound_num_threads" || return 1
+  write_unbound_runtime_settings "$_profile_unbound_cache_max_ttl" "$_profile_unbound_cache_min_ttl" "$_profile_unbound_serve_expired" "$_profile_unbound_serve_expired_ttl" "$_profile_unbound_serve_expired_reply_ttl" "$_profile_unbound_serve_expired_client_timeout" "$_profile_unbound_serve_expired_ttl_reset" "$_profile_unbound_prefetch" "$_profile_unbound_prefetch_key" "$_profile_unbound_qname_minimisation" "$_profile_unbound_msg_cache_size" "$_profile_unbound_rrset_cache_size" "$_profile_unbound_key_cache_size" "$_profile_unbound_neg_cache_size" "$_profile_unbound_num_threads" || return 1
   if [ -n "$_profile_custom" ]; then m_dns_servers custom_dns "$_profile_custom" || return 1
   else m_dns_section_clear custom_dns || return 1; fi
   if [ -n "$_profile_global" ]; then m_dns_servers global_dns "$_profile_global" || return 1
@@ -3346,6 +3350,7 @@ case "$cmd" in
     _diag_unbound_cache_min_ttl=$(_diag_kv_value "$_diag_unbound_runtime" UNBOUND_CACHE_MIN_TTL 2>/dev/null) || _diag_unbound_cache_min_ttl=unknown
     _diag_unbound_serve_expired=$(_diag_kv_value "$_diag_unbound_runtime" UNBOUND_SERVE_EXPIRED 2>/dev/null) || _diag_unbound_serve_expired=unknown
     _diag_unbound_serve_expired_ttl=$(_diag_kv_value "$_diag_unbound_runtime" UNBOUND_SERVE_EXPIRED_TTL 2>/dev/null) || _diag_unbound_serve_expired_ttl=unknown
+    _diag_unbound_serve_expired_ttl_reset=$(_diag_kv_value "$_diag_unbound_runtime" UNBOUND_SERVE_EXPIRED_TTL_RESET 2>/dev/null) || _diag_unbound_serve_expired_ttl_reset=unknown
     _diag_unbound_serve_expired_reply_ttl=$(_diag_kv_value "$_diag_unbound_runtime" UNBOUND_SERVE_EXPIRED_REPLY_TTL 2>/dev/null) || _diag_unbound_serve_expired_reply_ttl=unknown
     _diag_unbound_serve_expired_client_timeout=$(_diag_kv_value "$_diag_unbound_runtime" UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT 2>/dev/null) || _diag_unbound_serve_expired_client_timeout=unknown
     _diag_unbound_prefetch=$(_diag_kv_value "$_diag_unbound_runtime" UNBOUND_PREFETCH 2>/dev/null) || _diag_unbound_prefetch=unknown
