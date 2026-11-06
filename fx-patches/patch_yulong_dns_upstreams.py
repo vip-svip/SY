@@ -23,12 +23,27 @@ EOF_CFG
   # Default remains the device-local Unbound recursive resolver.
   _settings="$PG/settings.conf"
   _custom_enabled=$(awk -F= '$1=="custom_dns"{v=$2} END{print v}' "$_settings" 2>/dev/null)
-  _primary=$(awk -F'[[:space:]]+' '
+  _global_enabled=$(awk -F= '$1=="global_dns"{v=$2} END{print v}' "$_settings" 2>/dev/null)
+  _custom_primary=$(awk -F'[[:space:]]+' '
     $0=="[conf:custom_dns]" {inside=1; next}
     /^\[/ {inside=0}
     inside && $1=="nameserver" && NF>=2 {print $2}
   ' "$_settings" 2>/dev/null)
-  if [ "$_custom_enabled" = "1" ] && [ -n "$_primary" ]; then
+  _global_primary=$(awk -F'[[:space:]]+' '
+    $0=="[conf:global_dns]" {inside=1; next}
+    /^\[/ {inside=0}
+    inside && $1=="nameserver" && NF>=2 {print $2}
+  ' "$_settings" 2>/dev/null)
+  if [ "$_global_enabled" = "1" ]; then
+    [ -n "$_global_primary" ] || { echo "global DNS is enabled but its upstream list is empty" >&2; return 1; }
+    _primary=$_global_primary
+  elif [ "$_custom_enabled" = "1" ]; then
+    [ -n "$_custom_primary" ] || { echo "custom DNS is enabled but its upstream list is empty" >&2; return 1; }
+    _primary=$_custom_primary
+  else
+    _primary=
+  fi
+  if [ -n "$_primary" ]; then
     while IFS= read -r _server; do
       [ -n "$_server" ] && printf '  - "%s"\n' "$_server"
     done <<EOF_PRIMARY
@@ -47,7 +62,8 @@ EOF_PRIMARY
 $_fallback
 EOF_FALLBACK
     else
-      printf '  fallback_dns: []\n'
+      # Without an explicit user fallback, use FX's local recursive resolver.
+      printf '  fallback_dns:\n  - 127.0.0.1:5353\n'
     fi
     # Bootstrap lookups for encrypted upstream hostnames stay inside FX.
     # The local recursive Unbound resolver avoids fixed public DNS dependencies.
