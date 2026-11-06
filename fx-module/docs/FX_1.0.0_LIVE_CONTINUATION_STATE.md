@@ -6820,3 +6820,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 本批快照字段门槛清理提交：正式 App `3791125c729e27c798355d547bc693a656fe538c`；模块 App `0fca4ae11ba6b8dadcf65ad1d6cc89b1a43a104f`。协作线程配置与快照提交包括 `c9ff73e864c4`、`26b21880683b`、`19933b8729f6`、`2ba7e94a9252`；续接记录提交另见本文件更新。
 - 同期 DNS 配置快照补入查询日志排除域名字段，支持备份/恢复时保留统计和查询日志的本地隐私排除设置。
 - 按用户当前要求未运行测试、静态检查、Gradle/APK 构建、CI 或 Android 真机验证；仅记录已提交源码状态，不代表设备验收。
+## 2026-11-07 — DNS 日志构建补丁器兼容当前 Root-managed 渲染器
+
+- 修复 `patch_yulong_ad_dns_logs.py` 与当前 AdGuard Home 架构不兼容的问题。旧补丁器只识别已不存在的 `_rules_file` 锚点及内嵌单一 querylog YAML 块；当前渲染器已由 Root DNS 设置适配器动态注入启用状态、保留周期、内存刷盘批量和排除域名。
+- 补丁器现在识别当前动态渲染契约后保留现有实现、不再尝试回退到旧版单开关逻辑；仍兼容旧版布局，并继续从仓库规范源码同步数字化 DNS 汇总 helper。
+- 同步更新 `fx-patches/patch_yulong_ad_dns_logs.py` 和 `fx-module/build-tools/patches/patch_yulong_ad_dns_logs.py`。
+- 本轮未运行工作流、脚本、测试、静态检查、构建或设备验证；该改动为基于当前源码/工作流引用关系修复的打包兼容性问题。
