@@ -7586,3 +7586,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动文件：`adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaMonitorEventParser.java`。
 - 为原本已识别类别但字段被全部丢弃的 `FRAGMENT`、`STACK`、`RUNTIME`、`MEMORY` 事件补充严格字段白名单；新增调用深度数值字段展示。仍只接受预定义键名和安全值格式，不放开任意日志正文。
 - 本批未运行测试、静态检查、Gradle 构建、CI、安装或真机验证。
+
+
+## 2026-11-06 — Dia 结构化监控事件导出字节上限
+
+- 代码提交：`899890cba007be300243ea4dccf979b3b98ac4eb`。
+- 改动文件：`adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaMonitorEventsActivity.java`。
+- 将结构化事件导出限制从 Java 字符数调整为 UTF-8 实际字节数，按事件逐项累计；达到 256 KiB 时添加截断说明，并按 Unicode 码点截断头部，避免多字节字符使导出文件超限或出现半个代理对。
+- 本批未运行测试、静态检查、Gradle 构建、CI、安装或真机验证。
