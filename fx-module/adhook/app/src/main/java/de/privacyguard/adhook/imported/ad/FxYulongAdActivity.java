@@ -1225,7 +1225,9 @@ private void applyDnsSecurityProfile(String mode,boolean strict,TextView state,
       .setNegativeButton("取消",null)
       .setPositiveButton("应用",(dialog,which)->root("dns-security-profile-set "+mode+" "+(strict?"1":"0"),r->{
         if(r.exitCode==0){
-          group.check(nx.getId());
+          if("nxdomain".equals(mode))group.check(nx.getId());
+          else if("refused".equals(mode))group.check(refused.getId());
+          else if("custom_ip".equals(mode))group.check(empty.getId());
           state.setText(action+"已在同一配置事务中保存并应用。");
           status.setText(action+"已应用。");
           load();
