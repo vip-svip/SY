@@ -33,6 +33,7 @@ public final class FxAccessibilityService extends AccessibilityService {
             "de.privacyguard.adhook.GKD_CONFIG_CHANGED";
 
     private static volatile boolean connected;
+    private static volatile boolean gkdInterrupted;
     private String lastForegroundPackage = "";
     private boolean gkdConfigReceiverRegistered;
     private final FxGkdPendingPackageScan gkdPendingScan = new FxGkdPendingPackageScan();
@@ -55,6 +56,7 @@ public final class FxAccessibilityService extends AccessibilityService {
     };
 
     public static boolean isConnected() { return connected; }
+    public static boolean isGkdAvailable() { return connected && !gkdInterrupted; }
 
     /** Request an in-process service configuration refresh after user rule changes. */
     public static void requestReconfigure(Context context) {
@@ -89,7 +91,8 @@ public final class FxAccessibilityService extends AccessibilityService {
                     .onForegroundPackageChanged(this, pkg);
         }
 
-        if (!isGkdEventType(eventType) || !FxGkdRuleStore.hasEnabledRule(this, pkg)) return;
+        if (gkdInterrupted || !isGkdEventType(eventType)
+                || !FxGkdRuleStore.hasEnabledRule(this, pkg)) return;
         enqueueGkdScan(pkg);
     }
 
@@ -247,6 +250,9 @@ public final class FxAccessibilityService extends AccessibilityService {
     }
 
     @Override public void onInterrupt() {
+        gkdInterrupted = true;
+        gkdPendingScan.clear();
+        gkdMainHandler.removeCallbacksAndMessages(null);
         volumeTriggerSequence.resetSequence();
         FxGkdAutomationRuntime.invalidateRules();
     }
@@ -262,6 +268,7 @@ public final class FxAccessibilityService extends AccessibilityService {
 
     @Override protected void onServiceConnected() {
         gkdServiceDestroyed = false;
+        gkdInterrupted = false;
         volumeTriggerSequence.resetSequence();
         super.onServiceConnected();
         connected = true;
@@ -274,6 +281,7 @@ public final class FxAccessibilityService extends AccessibilityService {
 
     @Override public void onDestroy() {
         gkdServiceDestroyed = true;
+        gkdInterrupted = true;
         gkdPendingScan.clear();
         gkdMainHandler.removeCallbacksAndMessages(null);
         volumeTriggerSequence.resetSequence();
