@@ -6754,3 +6754,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 修正 shell `[` 对 uint32 TTL 最大值可能产生的有符号整数边界问题：AdGuard Home 与 Unbound 两组最小/最大 TTL 比较均改用 AWK 数值关系判断，保留 uint32 输入范围校验。
 - 本轮新增提交：canonical Root `31a63f7cdf7fe7e413343cc92c8e9fbf1cab5e97`；原生页面 `97f28f610dbf8cf77dbacfb21c44309d25bc3cf0` 与模块镜像 `1666f252cfd98762b56e3c254712529f91b69490`；canonical/module TTL 比较修正 `c7d8b2ce37ca4172b171fabff4d9dbf71232be38` / `f0fdc1ce0e4b576dc35daadec7fc2f238e16b0b4`。
 - 按当前要求未运行脚本测试、静态检查、Gradle/APK 构建、CI 或 Android 真机验证；本记录只描述源码落地，不视为测试通过。
+
+## 2026-11-07 — Unbound 递归缓存与隐私策略完整接入
+
+- 为 Unbound 新增 8 个持久化运行参数：`cache-max-ttl`、`cache-min-ttl`、`serve-expired`、`serve-expired-ttl`、`serve-expired-reply-ttl`、`serve-expired-client-timeout`、`prefetch`、`qname-minimisation`。默认值保持现有递归配置的行为。
+- Root 控制脚本新增 `unbound-runtime-get` / `unbound-runtime-set`，使用唯一 section/key 检查、uint32 范围校验和原子配置写入；缓存 min TTL 不得超过 max TTL。过期答案 TTL、客户端等待时间与开关值均独立校验。
+- `unbound.sh` 在生成 `unbound.conf` 时读取持久化参数，按 yes/no 映射写入真实 Unbound 配置；原有 loopback 监听、VPN egress 绑定、DNSSEC validator、EDNS 1232 及缓存容量策略不被此设置入口改变。配置仍通过现有 `unbound-checkconf` 生命周期检查后才允许启动。
+- 两份原生 Ad 页面已接入 Unbound 参数读取、编辑、保存与输入校验；完整 DNS 配置快照扩展到 38 项字段，并保留 18/19/26/30 项旧快照兼容，缺少新增字段时按既有默认值补齐。导入预览展示 Unbound TTL、过期缓存、预取和 QNAME minimisation 的差异。
+- canonical 与 fx-module 的 `yulong-ad-control.sh` 已回到逐字一致；两份 `FxYulongAdActivity.java` 也已逐字一致。Unbound renderer 当前位于 fx-module 的实际模块运行路径。
+- 相关实现提交：Root 后端 `ae4837253138bf347bb119e43f60f94232193891`；Unbound 配置渲染 `c296011533f90a41996b23fcece66ff4d5b6bf60`；canonical/module UI 与快照 `97f28f610dbf`、`1666f252cfd9`、`60748bf88543`、`e3085863be61`；Shell TTL 比较溢出保护 `c7d8b2ce37ca`、`f0fdc1ce0e4b`。
+- 按用户当前要求，本批没有运行 Shell/Java 测试、静态检查、构建、CI 或 Android 真机验证；上述为源码写入与读取状态，不代表设备验收。
