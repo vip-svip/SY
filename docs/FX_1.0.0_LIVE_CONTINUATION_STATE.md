@@ -8162,3 +8162,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 规范脚本同步提交：`5e62b2d7c0b29ecf35a84b8b0022ac4c42cde3ba`，文件 `scripts/adguardhome.sh`。
 - `_config_contract()` 除原有 loopback 监听与唯一 Unbound 主上游约束外，新增对 `fallback_dns` 的运行配置校验：只允许 IPv4 字面量、拒绝非单播/格式错误地址和重复项，最多 3 项；空列表允许。
 - 本批仅更新实现与续接记录，未运行测试、静态检查、构建、CI、安装或设备验证。
+
+
+### FX Hook 自定义规则新增 Kotlin 命名参数签名语法（2026-11-07）
+
+- 实现提交：`87e7a3940f63b05ae17c3313b3699dd876a98d30`，文件 `fx-module/adhook/app/src/main/java/de/privacyguard/adhook/DeveloperExecutableDescriptor.java`。
+- 精确签名解析新增 Kotlin 声明式输入：`fun com.example.Foo.run(value: kotlin.String, count: Int): Boolean`。
+- 参数名仅用于编辑器输入，解析时转换为精确 JVM 参数类型；原有 Java 源码签名、Frida `.overload()` 签名及 DEX/JVM descriptor 路径保持可用。
+- 为避免猜测编译 ABI，拒绝 Kotlin 默认参数表达式、解构参数及非法参数名；仍执行原有目标包归属与完整返回类型校验。
+- 按用户要求未运行测试、静态检查、Gradle 构建、CI 或设备验证。
