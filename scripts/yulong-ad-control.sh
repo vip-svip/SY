@@ -619,8 +619,34 @@ dns_vpn_set_many() {
   echo "vpn_dns=updated remote_dns=$_vpn_remote cn_dns=$_vpn_cn"
 }
 m_vpn_dns_reset() { write_vpn_dns_many 1.1.1.1 223.5.5.5; }
+valid_dns_runtime_duration() {
+  _runtime_duration=$1
+  case "$_runtime_duration" in
+    *ms) _runtime_duration_number=${_runtime_duration%ms}; _runtime_duration_limit=9223372036854 ;;
+    *s)  _runtime_duration_number=${_runtime_duration%s};  _runtime_duration_limit=9223372036 ;;
+    *m)  _runtime_duration_number=${_runtime_duration%m};  _runtime_duration_limit=153722867 ;;
+    *h)  _runtime_duration_number=${_runtime_duration%h};  _runtime_duration_limit=2562047 ;;
+    *) return 1 ;;
+  esac
+  case "$_runtime_duration_number" in ''|*[!0-9]*) return 1 ;; esac
+  awk -v n="$_runtime_duration_number" -v limit="$_runtime_duration_limit" '
+    BEGIN { if (n+0<1 || n+0>limit || int(n+0)!=(n+0)) exit 1 }
+  '
+}
 dns_runtime_values() {
   awk -F= '
+    function valid_duration(value, n, limit) {
+      if (value ~ /^[0-9]+ms$/) {
+        n=substr(value,1,length(value)-2); limit=9223372036854
+      } else if (value ~ /^[0-9]+s$/) {
+        n=substr(value,1,length(value)-1); limit=9223372036
+      } else if (value ~ /^[0-9]+m$/) {
+        n=substr(value,1,length(value)-1); limit=153722867
+      } else if (value ~ /^[0-9]+h$/) {
+        n=substr(value,1,length(value)-1); limit=2562047
+      } else return 0
+      return n ~ /^[0-9]+$/ && n+0>=1 && n+0<=limit && int(n+0)==n+0
+    }
     BEGIN {
       mode="load_balance"; fastest="1s"; timeout="10s"; cache_size="4194304";
       cache_enabled="1"; cache_optimistic="0"; dnssec="1";
@@ -647,8 +673,8 @@ dns_runtime_values() {
     END {
       if(sections>1 || bad)exit 1
       if(mode!="load_balance" && mode!="parallel" && mode!="fastest_addr")exit 1
-      if(fastest!="500ms" && fastest!="1s" && fastest!="2s" && fastest!="5s")exit 1
-      if(timeout!="3s" && timeout!="5s" && timeout!="10s" && timeout!="15s" && timeout!="30s")exit 1
+      if(!valid_duration(fastest))exit 1
+      if(!valid_duration(timeout))exit 1
       if(cache_size!~/^[0-9]+$/ || cache_size+0<=0)exit 1
       if(cache_enabled!="0" && cache_enabled!="1")exit 1
       if(cache_optimistic!="0" && cache_optimistic!="1")exit 1
@@ -672,8 +698,8 @@ write_dns_runtime_settings() {
   _runtime_cache_size=$4; _runtime_cache_enabled=$5
   _runtime_cache_optimistic=$6; _runtime_dnssec=$7
   case "$_runtime_mode" in load_balance|parallel|fastest_addr) : ;; *) echo "invalid DNS upstream mode" >&2; return 2 ;; esac
-  case "$_runtime_fastest" in 500ms|1s|2s|5s) : ;; *) echo "invalid DNS fastest-address timeout" >&2; return 2 ;; esac
-  case "$_runtime_timeout" in 3s|5s|10s|15s|30s) : ;; *) echo "invalid DNS upstream timeout" >&2; return 2 ;; esac
+  valid_dns_runtime_duration "$_runtime_fastest" || { echo "invalid DNS fastest-address timeout" >&2; return 2; }
+  valid_dns_runtime_duration "$_runtime_timeout" || { echo "invalid DNS upstream timeout" >&2; return 2; }
   case "$_runtime_cache_size" in ''|*[!0-9]*|0) echo "DNS cache size must be a positive byte count" >&2; return 2 ;; esac
   for _runtime_flag in "$_runtime_cache_enabled" "$_runtime_cache_optimistic" "$_runtime_dnssec"; do
     case "$_runtime_flag" in 0|1) : ;; *) echo "DNS runtime flags must be 0 or 1" >&2; return 2 ;; esac
@@ -819,10 +845,12 @@ dns_profile_restore() {
         case "$_profile_value" in load_balance|parallel|fastest_addr) _profile_runtime_mode=$_profile_value ;; *) echo "invalid DNS upstream mode" >&2; return 2 ;; esac
         ;;
       FASTEST_TIMEOUT)
-        case "$_profile_value" in 500ms|1s|2s|5s) _profile_runtime_fastest=$_profile_value ;; *) echo "invalid fastest-address timeout" >&2; return 2 ;; esac
+        valid_dns_runtime_duration "$_profile_value" || { echo "invalid fastest-address timeout" >&2; return 2; }
+        _profile_runtime_fastest=$_profile_value
         ;;
       UPSTREAM_TIMEOUT)
-        case "$_profile_value" in 3s|5s|10s|15s|30s) _profile_runtime_timeout=$_profile_value ;; *) echo "invalid upstream timeout" >&2; return 2 ;; esac
+        valid_dns_runtime_duration "$_profile_value" || { echo "invalid upstream timeout" >&2; return 2; }
+        _profile_runtime_timeout=$_profile_value
         ;;
       CACHE_SIZE)
         case "$_profile_value" in ''|*[!0-9]*|0) echo "invalid DNS cache size" >&2; return 2 ;; *) _profile_runtime_cache_size=$_profile_value ;; esac
