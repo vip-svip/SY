@@ -6792,3 +6792,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 更新 `scripts/integrate_yulong_ad_rules.py`（`16aa0013`）：打包迁移逻辑识别新的原生动态规则渲染器，不再要求旧 AdGuard 脚本中的静态 `_rules` heredoc 锚点；对旧发布包仍保留兼容插入路径。
 - 修改 `scripts/native-dns-settings.sh`（`5614d30a`）与 `fx-module/scripts/native-dns-settings.sh`（`6989a8f3`）：启用 AdGuard Home 时自动在同一配置事务中启用本地 Unbound；关闭 Unbound 时同时关闭依赖它的 AdGuard Home 和第三方 VPN Root Proxy；关闭第三方 VPN 兼容模式时关闭 Root Proxy；启用 Root Proxy 时同步启用兼容模式及 Unbound。配置应用失败时继续恢复原设置文件。
 - 按用户当前要求，本批没有运行 Shell/Python/Gradle 检查、回归测试、构建、CI 或 Android 真机验证；不能把源码提交等同于 DNS 设备运行通过。
+
+## 2026-11-06 — AdGuard 规则运行时更新与原生 DNS 操作补齐
+
+- AdGuard 规则动态生成已落入根脚本与模块运行路径：`c3ae2139` / `a92b6fb8`；配置指纹与变更后重启逻辑：`bdd4bf8d` / `c3b71269`。生成规则包含模板基础项、显式启用的游龙内置 Hosts 域名、用户域名白名单和自定义黑名单；不从保留给 FX 96110/反诈的 `[list:fx]` 区域读取普通广告名单。
+- 更新 `scripts/integrate_yulong_ad_rules.py`（`16aa0013`），让打包时的规则集迁移流程识别 AdGuard 原生动态规则生成器，并保留旧发布包兼容路径。
+- DNS 设置依赖闭环：`scripts/native-dns-settings.sh`（`5614d30a`）、`fx-module/scripts/native-dns-settings.sh`（`6989a8f3`）。启用 AdGuard 自动启用 Unbound；关闭 Unbound 会同时关闭依赖它的 AdGuard 和 Root Proxy；启用 Root Proxy 自动开启外部 VPN 兼容和 Unbound。
+- `MainActivity.java`（`2cd4787e`）在 Ad 页 DNS 区新增“刷新本地 DNS 缓存”入口，调用现有游龙 DNS 缓存刷新事务，并在完成后刷新引擎状态。
+- 本轮所有修改均直接提交在 FX 1.0.0 当前分支；未运行测试、静态检查、Python/Java 构建、Gradle、CI 或真机验证。
