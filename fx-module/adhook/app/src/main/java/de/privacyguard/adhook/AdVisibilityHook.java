@@ -327,6 +327,7 @@ public final class AdVisibilityHook extends XposedModule {
         final boolean clipboardIsolateForPackage = privacyEnabled && clipboardIsolationEnabled && target != null && target.clipboardIsolate;
         final boolean sensorForPackage = privacyEnabled && target != null && (target.sensorAccel || target.sensorGyro
                 || target.sensorLight || target.sensorMagnet || target.sensorPressure || target.sensorProx
+                || target.sensorEnvironment || target.sensorFusion || target.sensorGesture || target.sensorBiometric
                 || target.sensorRateLimit);
         final boolean wifiScanForPackage = wifiScanEnabled && target != null && target.wifiScanBlock;
         final boolean wifiSimulationForPackage = target != null && target.wifiSimulation && debuggableTarget;
