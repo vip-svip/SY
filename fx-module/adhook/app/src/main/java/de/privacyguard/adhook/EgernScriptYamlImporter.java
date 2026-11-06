@@ -18,9 +18,11 @@ import java.util.regex.Pattern;
  * Conservative Egern scriptings YAML importer.
  *
  * Only remote HTTPS HTTP request/response entries that map to FX's current
- * URL-triggered hook metadata are emitted. Scheduling, network callbacks,
- * environment injection and binary-body records are not converted into
- * misleading or partially working hooks. Text body-required metadata is retained.
+ * URL-triggered hook metadata are emitted. Scheduling, network callbacks and
+ * binary-body records are not converted into misleading HTTP hooks. Bounded flat
+ * string env maps are retained; nested or unsupported env structures are skipped.
+ * Text body-required metadata is retained and resource limits outside FX defaults
+ * are not silently claimed as supported.
  */
 public final class EgernScriptYamlImporter {
     private static final Pattern ITEM = Pattern.compile(
