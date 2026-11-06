@@ -6839,3 +6839,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 更新 `scripts/native-dns-settings.sh`（`abce1bc2`）及模块运行路径 `fx-module/scripts/native-dns-settings.sh`（`cdd51da5`）：启用 Root Proxy 时在同一配置事务内启用 Unbound、AdGuard Home 和第三方 VPN 兼容；关闭 AdGuard Home 时先撤销 Root Proxy 开关，再关闭 AdGuard，Unbound 可继续作为独立本地递归 DNS 使用。
 - 保留关闭 Unbound 时同步关闭依赖它的 AdGuard 与 Root Proxy 的既有联动，配置 apply 失败仍通过原事务备份回滚。
 - 按用户要求未运行 Shell 检查、回归测试、构建、CI 或真机验证；本次是配置依赖闭环移植，不表示设备上的端口重定向已验证。
+
+
+## 2026-11-06 — DNS 订阅源状态与配置清理扩展
+
+- `scripts/native-dns-settings.sh`（`32f45b21`）及 `fx-module/scripts/native-dns-settings.sh`（`56597625`）在状态协议中增加 HTTP/HTTPS DNS 订阅源总数与启用数，按 `[list:rule]` 区段统计，内置 `builtin://` 规则不计入远程订阅数量。
+- `adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`（`86ee0a75`）在 Ad DNS 状态摘要和 DNS 引擎详情中显示“已启用/总订阅源”。
+- `fx-module/scripts/adguardhome.sh`（`d5bc6750`）进一步清理订阅过滤器名称中的控制字符、连续空白及首尾空白，降低配置名称污染 YAML 的风险。
+- 本批未运行 Shell/Python/Gradle 检查、回归测试、构建、CI 或 Android 真机验证；仅完成源码移植。
