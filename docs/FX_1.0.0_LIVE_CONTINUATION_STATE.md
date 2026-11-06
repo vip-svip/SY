@@ -7270,3 +7270,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `scripts/native-dns-settings.sh` 补齐 Root Proxy 接口、VPN UID、出口 IPv4、重定向、DNS 探测和原因字段透传；`fx-module/scripts/native-dns-settings.sh` 同步增加原因字段。
 - 提交：`7be68209c06a1502f5a0c18dd037eb642e4db145`、`30dc1a90e919f93ec669a832fe2e4d24a6866ab0`、`5916e7cf37d26795b8f615a33fa05b3bd880bcf4`、`1a8204185658130e753087eb74575cfaba5b3e39`。
 - 按当前推进要求未运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-06 — Root Proxy 失败原因可读化
+
+- DNS 管理详情不再直接显示 Root Proxy 内部 reason 标识；将 disabled、VPN 路由不可用、出口变化、IPv4/IPv6 规则链异常、DNS 重定向缺失、本地 DNS 探测失败等状态翻译为中文说明，未知原因保留原始标识以便定位。
+- 主 APK 提交：151451564857bdc45312d7c196ba457fe6589800；模块 APK 提交：c41c4d9fd623548f5752d2113393440732b9b630。
+- 按当前推进要求未运行测试、静态检查、构建、CI 或真机验证。
