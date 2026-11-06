@@ -88,6 +88,24 @@ public final class FxDiaScriptLibraryStore {
         }
     }
 
+    /** Delete a user-confirmed group of script names in one atomic preference write. */
+    public static int deleteMany(Context context, List<String> names) throws Exception {
+        if (context == null || names == null) throw new IllegalArgumentException("批量删除参数无效。");
+        synchronized (LOCK) {
+            JSONObject scripts = readLocked(context);
+            int removed = 0;
+            for (String name : names) {
+                if (name == null) continue;
+                if (scripts.has(name)) {
+                    scripts.remove(name);
+                    removed++;
+                }
+            }
+            if (removed > 0) writeLocked(context, scripts);
+            return removed;
+        }
+    }
+
     public static String exportJson(Context context) throws Exception {
         if (context == null) throw new IllegalArgumentException("Context 为空。");
         synchronized (LOCK) {
