@@ -7051,3 +7051,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - fx-patches/native-script-list.sh 已扩展 add-batch 的 SOURCE 分支：通过文件快照进行 Base64 编码，按内容与名称去重，拒绝空源码、超限源码和伪装为 URL 的本地内容；修正批量清单的换行输出。并同步到 fx-module/scripts/jsruntime/native-list.sh 和 fx-module/build-tools/patches/native-script-list.sh，确保构建恢复模板与模块运行时同一协议。
 - 应用/模块 MainActivity 的混合批量入口已对齐；模块入口修复提交 1e927e8e1c731399c8cbeefc90bd1a8cdf7e7442，模块批量实现对齐提交 bc3c3379e30ba203f5f6198e674a0d049e9b00d4，应用混合批量导入提交 c9a52bde66e6b65cc9a492d489e054831d85a217。存储模板批量 SOURCE/分派/换行修正提交序列：daa26c18d09c30b4650ec164adc86086483c5ed7、9fc9052a6dcdc4f09b03ba0a8248ccd5b8d3453d、7ee356881a5d0a01f3f96a987059b9ee4a4a55c2，模块同步：a06cb17a9cec6bf51226f99d5f4db47a81811bfa、e4804c73b2157aae58ba3509f22564b977969b81、f48dbf090c2706e955b75cec23eaa861f32dab72、69943f8dd3c5c5405a555cc6c76f91ae4d264a4e。
 - 固定 FX 1.0.0；本批按要求未运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-06 — Script 存储分支修复与原子构建部署
+
+- 修复 `native-script-list.sh` 中 `add-file` 本地 JS 分支被残缺重复片段截断的问题：恢复文件快照、来源识别、1 MiB 上限、内容去重与 Base64 行写入；修复 `update` 分支误引用批量计数变量的长度检查，改为明确的 4096 字节元数据限制。
+- 将同一脚本存储实现同步到 `fx-patches/native-script-list.sh`、`fx-module/scripts/jsruntime/native-list.sh`、`fx-module/build-tools/patches/native-script-list.sh`，保持构建恢复模板与模块运行时一致。提交：构建源 `1bab891ddbdb5a7d289ce50f67a39dadbdb8317f`、运行时更新 `eca4be369479df8528ebc42385dfa7dbd8f75344`、模块构建模板 `f5440406b5206cb21283b78cf7d9abee92bb6a0c`。
+- `patch_native_script_store.py` 改为同目录临时文件 + fsync + os.replace 原子发布 `native-list.sh`、`local-run.sh` 与 WebUI HTML；拒绝目标符号链接，保留 WebUI 原权限，并在发布后尽力同步父目录。减少打包进程中断时留下半写文件的风险。提交：构建源 `ac430e5cb3ba4f6663138232f8ed04ca71ff8f74`、模块构建模板 `8b142c5ddd8f3d50edfe6742607240e9dc362b83`。
+- 固定 FX 1.0.0；按当前要求未运行 Shell/Java 检查、回归测试、构建、CI 或真机验证。
