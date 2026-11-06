@@ -29,10 +29,15 @@ reject_symlink_components "$DATA_DIR" || {
 }
 [ -d "$DATA_DIR" ] || { echo FXDNSLOG_EMPTY; exit 0; }
 _dns_log_found=0
+# Build the exact input list while validating every matching path. POSIX sh
+# has no arrays, so positional parameters carry the file list to awk. This
+# avoids passing a literal querylog.json.* when no rotated files exist.
+set --
 for LOG_FILE in "$DATA_DIR"/querylog.json "$DATA_DIR"/querylog.json.*; do
   [ -e "$LOG_FILE" ] || [ -L "$LOG_FILE" ] || continue
   [ ! -L "$LOG_FILE" ] || { echo "DNS query log symlink rejected: $LOG_FILE" >&2; exit 21; }
   [ -f "$LOG_FILE" ] || { echo "DNS query log is not a regular file: $LOG_FILE" >&2; exit 21; }
+  set -- "$@" "$LOG_FILE"
   [ -s "$LOG_FILE" ] && _dns_log_found=1
 done
 [ "$_dns_log_found" = 1 ] || { echo FXDNSLOG_EMPTY; exit 0; }
@@ -144,4 +149,4 @@ END {
   print "queries=" queries
   print "blocked=" blocked
   print "unblocked=" queries-blocked
-}' "$DATA_DIR"/querylog.json "$DATA_DIR"/querylog.json.*
+}' "$@"

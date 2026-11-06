@@ -1224,3 +1224,13 @@
 - 导出包含当前搜索词、拦截状态、时间范围、RR 类型及响应码筛选元数据；记录字段清理制表符/换行，避免破坏 TSV 列结构。导出使用 SAF 输出流，不依赖私有共享目录或外部存储权限。
 - 同步正式 APK 源码与 `fx-module/` 打包源码；源码提交：`709446e6ea0eea86dc2e67aaa15d6a1e8f5dffb7`、`79ded82ee998b1ac0d2f6adc2f549cb284ede0d5`。
 - 按当前要求未运行测试、静态检查、Gradle/APK 构建、CI 或 Android 真机验证；完成的是源码写入，不代表大日志设备实测。
+
+
+## 2026-11-07 — DNS 汇总统计修复无轮转日志输入
+
+- 修复 DNS 汇总统计脚本在仅有活动 `querylog.json`、尚无 `querylog.json.*` 轮转文件时，将未匹配通配符作为字面路径传给 AWK，导致统计报错的问题。
+- 两套脚本在逐项完成路径组件、符号链接及普通文件检查后，使用 POSIX shell 位置参数构建实际日志输入列表；AWK 只接收真实存在且已通过检查的日志文件，兼容只有活动日志、活动加轮转日志及空日志目录。
+- 保留对所有活动/轮转日志的完整聚合、畸形 JSONL fail-closed 和不输出域名/客户端 IP 的隐私行为。
+- 同步文件：`scripts/yulong-ad-dns-summary.sh`、`fx-module/scripts/yulong-ad-dns-summary.sh`。
+- 本批提交：待提交 SHA。
+- 按当前要求未运行脚本、测试、静态检查、构建、CI 或 Android 真机验证；本次仅进行源码修改与 GitHub 提交。
