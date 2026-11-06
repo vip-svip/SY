@@ -2044,13 +2044,17 @@ public final class MainActivity extends ComponentActivity {
     private static String nativeScriptMetadataWithName(String note, String displayName) {
         String decoded = nativeScriptMetadataText(note);
         if (decoded.isEmpty()) return displayName;
-        String[] fields = decoded.split("\n", -1);
+        String[] fields = decoded.split("\\n", -1);
         if (fields.length < 2) return displayName;
         String bodyFlag = fields.length > 2 && "1".equals(fields[2]) ? "1" : "0";
-        String updated = fields[0] + "\n" + fields[1] + "\n" + bodyFlag + "\n"
-                + (displayName == null ? "" : displayName.trim());
+        String safeName = displayName == null ? ""
+                : displayName.replaceAll("[\\\\p{Cntrl}]", " ").trim();
+        StringBuilder updated = new StringBuilder(fields[0]).append('\\n')
+                .append(fields[1]).append('\\n').append(bodyFlag).append('\\n').append(safeName);
+        // Preserve Egern env JSON and forward-compatible trailing metadata fields.
+        for (int i = 4; i < fields.length; i++) updated.append('\\n').append(fields[i]);
         return "FXMETA_B64:" + Base64.encodeToString(
-                updated.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
+                updated.toString().getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
     }
 
     private static String decodeNativeScriptValue(String value) {
