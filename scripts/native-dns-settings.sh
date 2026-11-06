@@ -127,6 +127,46 @@ service_status() {
 dns_section_count() {
   _section=$1
   awk -v target="$_section" '
+    function valid_ipv4(v,n,a,i,first,second) {
+      if(v !~ /^[0-9.]+$/) return 0
+      n=split(v,a,".")
+      if(n!=4) return 0
+      for(i=1;i<=4;i++)
+        if(a[i]!~/^[0-9]+$/ || length(a[i])>3 || a[i]+0>255 ||
+           (a[i]!="0" && a[i]~/^0/)) return 0
+      first=a[1]+0; second=a[2]+0
+      if(v=="0.0.0.0" || v=="255.255.255.255" || first==0 ||
+         first==127 || first>=224 || (first==169 && second==254)) return 0
+      return 1
+    }
+    function valid_ipv4_port(v,n,a) {
+      n=split(v,a,":")
+      return n==2 && valid_ipv4(a[1]) && a[2]~/^[0-9]+$/ &&
+        a[2]+0>=1 && a[2]+0<=65535
+    }
+    function dns_host(v,n,a,i) {
+      if(v~/^[0-9.]+$/) return valid_ipv4(v)
+      if(length(v)>253 || substr(v,1,1)=="." || substr(v,length(v),1)==".") return 0
+      n=split(v,a,".")
+      for(i=1;i<=n;i++)
+        if(length(a[i])<1 || length(a[i])>63 ||
+           a[i]!~/^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$/) return 0
+      return 1
+    }
+    function valid_hostport(v,n,a) {
+      n=split(v,a,":")
+      if(n==1) return dns_host(a[1])
+      return n==2 && dns_host(a[1]) && a[2]~/^[0-9]+$/ &&
+        a[2]+0>=1 && a[2]+0<=65535
+    }
+    function valid_endpoint(v,rest,parts,authority) {
+      if(valid_ipv4(v) || valid_ipv4_port(v)) return 1
+      if(substr(v,1,8)=="https://") {
+        rest=substr(v,9); split(rest,parts,"/"); authority=parts[1]
+        if(!valid_hostport(authority)) return 0
+        return rest~/^[A-Za-z0-9.-]+(:[0-9]+)?(\\/[A-Za-z0-9._~!dns_section_count() {
+  _section=$1
+  awk -v target="$_section" '
     BEGIN {inside=0; sections=0; count=0; bad=0}
     $0=="[conf:" target "]" {sections++; inside=1; next}
     /^\[/ {inside=0}
@@ -135,6 +175,34 @@ dns_section_count() {
     inside {
       if(NF!=2 || $1!="nameserver" || $2 ~ /[[:space:]]/) bad=1
       else count++
+    }
+    END {
+      if(sections>1 || bad) exit 1
+      print count+0
+    }
+  ' "$CONF"
+}()*+,;=:@%/?#-]*)?$/
+      }
+      if(substr(v,1,6)=="tls://") return valid_hostport(substr(v,7))
+      if(substr(v,1,7)=="quic://") return valid_hostport(substr(v,8))
+      return 0
+    }
+    BEGIN {inside=0; sections=0; count=0; bad=0}
+    $0=="[conf:" target "]" {sections++; if(sections>1) bad=1; inside=1; next}
+    /^\\[/ {inside=0}
+    inside && /^[[:space:]]*#/ {next}
+    inside && /^[[:space:]]*$/ {next}
+    inside {
+      if(NF!=2 || $1!="nameserver") {bad=1; next}
+      server=$2
+      if(target=="custom_dns") {
+        if(!valid_endpoint(server)) {bad=1; next}
+      } else if(!valid_ipv4(server) && !valid_ipv4_port(server)) {
+        bad=1; next
+      }
+      normalized=tolower(server)
+      if(seen[normalized]++) {bad=1; next}
+      count++
     }
     END {
       if(sections>1 || bad) exit 1
