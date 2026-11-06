@@ -1237,44 +1237,107 @@ private boolean targetDeveloperOptIn(String packageName) {
         return sensorHooksInstalled;
     }
 
+    private boolean shouldBlockClipboardReadNow() {
+        String activePackage = currentPackage;
+        UnifiedHookConfigParser.Target active = targets.get(activePackage);
+        return ClipboardPrivacyPolicy.shouldBlockRead(privacyEnabled, processPackages.size(),
+                activePackage, active);
+    }
+
+    private static Object emptyClipboardReadResult(Method method) {
+        Class<?> result = method.getReturnType();
+        if (result == boolean.class) return Boolean.FALSE;
+        if (result == byte.class) return Byte.valueOf((byte) 0);
+        if (result == short.class) return Short.valueOf((short) 0);
+        if (result == int.class) return Integer.valueOf(0);
+        if (result == long.class) return Long.valueOf(0L);
+        if (result == float.class) return Float.valueOf(0f);
+        if (result == double.class) return Double.valueOf(0d);
+        if (result == char.class) return Character.valueOf('\0');
+        if (result.isArray()) return Array.newInstance(result.getComponentType(), 0);
+        return null;
+    }
+
     /**
-     * Opt-in clipboard read protection. Writes remain untouched; reads are hidden only
-     * for a single-package process. Shared-package processes fail open to avoid
-     * blocking clipboard access for an unrelated package sharing the same process.
+     * Hide all supported methods on one clipboard data surface. The helper only
+     * hooks explicitly named readers; one-argument accessors are listed separately
+     * so unrelated overloads and write operations remain untouched.
+     */
+    private int installClipboardReadSurface(Class<?> type, String[] zeroArgNames,
+                                            String[] oneArgNames) {
+        if (type == null) return 0;
+        Set<String> zeroArg = new HashSet<>(Arrays.asList(zeroArgNames));
+        Set<String> oneArg = new HashSet<>(Arrays.asList(oneArgNames));
+        int installed = 0;
+        for (Method method : type.getDeclaredMethods()) {
+            String name = method.getName();
+            int parameterCount = method.getParameterTypes().length;
+            if ((parameterCount == 0 && !zeroArg.contains(name))
+                    || (parameterCount == 1 && !oneArg.contains(name))
+                    || parameterCount > 1
+                    || (parameterCount != 0 && parameterCount != 1)) continue;
+            if (Modifier.isStatic(method.getModifiers())) continue;
+            try {
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> shouldBlockClipboardReadNow()
+                                ? emptyClipboardReadResult(method) : chain.proceed());
+                installed++;
+            } catch (Throwable error) {
+                logFx(Log.DEBUG, "clipboard data accessor hook unavailable: "
+                        + type.getName() + "." + name);
+            }
+        }
+        return installed;
+    }
+
+    /**
+     * Opt-in clipboard read protection. Writes remain untouched; direct reads,
+     * metadata inspection, cached ClipData extraction and listener registration
+     * are blocked for a single-package process. Shared-package processes fail open.
      */
     private synchronized boolean installClipboardReadBlockHooks(final String pkg) {
         if (clipboardReadHooksInstalled) return true;
         int installed = 0;
         try {
-            Class<?> type = Class.forName("android.content.ClipboardManager", false, null);
-            for (String name : new String[]{"getPrimaryClip", "hasPrimaryClip", "getText"}) {
-                try {
-                    final Method method = type.getDeclaredMethod(name);
-                    final boolean booleanResult = "hasPrimaryClip".equals(name);
-                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                            .intercept(chain -> {
-                                String activePackage = currentPackage;
-                                UnifiedHookConfigParser.Target active = targets.get(activePackage);
-                                if (ClipboardPrivacyPolicy.shouldBlockRead(privacyEnabled, processPackages.size(),
-                                        activePackage, active)) {
-                                    return booleanResult ? Boolean.FALSE : null;
-                                }
-                                return chain.proceed();
-                            });
-                    installed++;
-                } catch (NoSuchMethodException missing) {
-                    logFx(Log.DEBUG, "clipboard API unavailable: " + name);
-                } catch (Throwable t) {
-                    logFx(Log.DEBUG, "clipboard hook unavailable: " + name);
-                }
+            Class<?> manager = Class.forName("android.content.ClipboardManager", false, null);
+            installed += installClipboardReadSurface(manager,
+                    new String[]{"getPrimaryClip", "getPrimaryClipDescription", "hasPrimaryClip",
+                            "hasText", "getText", "getPrimaryClipSource"},
+                    new String[]{"addPrimaryClipChangedListener"});
+            // ClipData may have been cached before a consumer reaches an Item.
+            // Blocking both the container and Item accessors closes that cached-object path.
+            try {
+                Class<?> clipData = Class.forName("android.content.ClipData", false, null);
+                installed += installClipboardReadSurface(clipData,
+                        new String[]{"getItemCount", "getDescription", "getMimeTypes"},
+                        new String[]{"getItemAt"});
+            } catch (Throwable error) {
+                logFx(Log.DEBUG, "ClipData accessors unavailable; manager protection remains active");
             }
-        } catch (Throwable t) {
-            logFx(Log.WARN, "clipboard manager unavailable: " + t.getClass().getSimpleName());
+            try {
+                Class<?> item = Class.forName("android.content.ClipData$Item", false, null);
+                installed += installClipboardReadSurface(item,
+                        new String[]{"getText", "getHtmlText", "getUri", "getIntent"},
+                        new String[]{"coerceToText", "coerceToStyledText", "coerceToHtmlText"});
+            } catch (Throwable error) {
+                logFx(Log.DEBUG, "ClipData.Item accessors unavailable; manager protection remains active");
+            }
+            try {
+                Class<?> description = Class.forName("android.content.ClipDescription", false, null);
+                installed += installClipboardReadSurface(description,
+                        new String[]{"getLabel", "getMimeTypeCount", "getTimestamp"},
+                        new String[]{"getMimeType", "hasMimeType", "filterMimeTypes"});
+            } catch (Throwable error) {
+                logFx(Log.DEBUG, "ClipDescription accessors unavailable; manager protection remains active");
+            }
+        } catch (Throwable error) {
+            logFx(Log.WARN, "clipboard manager unavailable: " + error.getClass().getSimpleName());
             return false;
         }
         clipboardReadHooksInstalled = installed > 0;
         logFx(installed > 0 ? Log.INFO : Log.WARN,
-                "opt-in clipboard read protection installed=" + installed + " for " + pkg);
+                "opt-in clipboard read protection installed=" + installed
+                        + " accessors across manager/data/item/description for " + pkg);
         return clipboardReadHooksInstalled;
     }
 
