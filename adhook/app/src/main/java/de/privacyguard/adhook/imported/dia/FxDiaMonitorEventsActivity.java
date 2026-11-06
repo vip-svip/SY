@@ -2,6 +2,7 @@ package de.privacyguard.adhook.imported.dia;
 
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -27,6 +28,8 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.io.OutputStream;
+import java.io.IOException;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -40,6 +43,8 @@ public final class FxDiaMonitorEventsActivity extends de.privacyguard.adhook.FxN
     public static final String EXTRA_TARGET_PACKAGE = "fx_dia_monitor_target_package";
     public static final String EXTRA_TARGET_NAME = "fx_dia_monitor_target_name";
     private static final int MAX_ROOT_OUTPUT = 512 * 1024;
+    private static final int REQUEST_EXPORT_EVENTS = 7104;
+    private static final int MAX_EXPORT_CHARS = 256 * 1024;
     private static final long REFRESH_INTERVAL_MS = 15000L;
     private static final int MAX_RESTORED_SEARCH_CHARS = 256;
     private static final String STATE_SEARCH = "fx_dia_monitor_state_search";
@@ -206,6 +211,8 @@ public final class FxDiaMonitorEventsActivity extends de.privacyguard.adhook.FxN
         actions.setGravity(Gravity.CENTER_VERTICAL);
         Button refresh = button("立即刷新", () -> loadEvents(true));
         actions.addView(refresh, new LinearLayout.LayoutParams(0, -2, 1));
+        Button export = button("导出筛选事件", this::beginExportEvents);
+        actions.addView(export, new LinearLayout.LayoutParams(0, -2, 1));
         autoRefreshSwitch = new Switch(this);
         autoRefreshSwitch.setTag("fx-switch-row");
         autoRefreshSwitch.setText("每 15 秒自动刷新");
@@ -300,27 +307,96 @@ public final class FxDiaMonitorEventsActivity extends de.privacyguard.adhook.FxN
         }
     }
 
-    private void renderEvents() {
-        if (rows == null || category == null || search == null || count == null) return;
-        rows.removeAllViews();
+    private List<FxDiaMonitorEventParser.Event> getFilteredEvents() {
+        ArrayList<FxDiaMonitorEventParser.Event> filtered = new ArrayList<>();
+        if (category == null || search == null) return filtered;
         String[] categories = FxDiaMonitorEventParser.getCategories();
         int selectedPosition = category.getSelectedItemPosition();
         String selected = selectedPosition <= 0 || selectedPosition > categories.length
                 ? "" : categories[selectedPosition - 1];
         String needle = search.getText() == null ? ""
                 : search.getText().toString().trim().toLowerCase(Locale.ROOT);
-        int matched = 0;
-        int shown = 0;
         for (FxDiaMonitorEventParser.Event event : events) {
             if (!selected.isEmpty() && !selected.equals(event.category)) continue;
             String display = event.toDisplayString();
             if (!needle.isEmpty() && !display.toLowerCase(Locale.ROOT).contains(needle)) continue;
-            matched++;
-            if (shown >= 120) continue;
+            filtered.add(event);
+        }
+        return filtered;
+    }
+
+    private void beginExportEvents() {
+        List<FxDiaMonitorEventParser.Event> filtered = getFilteredEvents();
+        if (filtered.isEmpty()) {
+            Toast.makeText(this, "当前筛选没有可导出的安全事件。", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Intent create = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        create.addCategory(Intent.CATEGORY_OPENABLE);
+        create.setType("text/plain");
+        create.putExtra(Intent.EXTRA_TITLE, "FX-Dia-Monitor-" + targetPackage + ".txt");
+        try {
+            startActivityForResult(create, REQUEST_EXPORT_EVENTS);
+        } catch (RuntimeException unavailable) {
+            Toast.makeText(this, "系统文件创建器不可用，未导出事件。", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private String buildFilteredExport() {
+        List<FxDiaMonitorEventParser.Event> filtered = getFilteredEvents();
+        if (filtered.isEmpty()) return "";
+        StringBuilder output = new StringBuilder();
+        output.append("FX Dia 结构化监控事件\n")
+                .append("目标：").append(targetName).append("\n")
+                .append("包名：").append(targetPackage).append("\n")
+                .append("导出时间：")
+                .append(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ROOT)
+                        .format(new Date())).append("\n")
+                .append("说明：仅包含内置监控模板解析出的白名单元数据，不含请求正文、SQL 文本、调用栈或自定义脚本原文。\n\n");
+        for (FxDiaMonitorEventParser.Event event : filtered) {
+            String item = event.toDisplayString();
+            if (output.length() + item.length() + 2 > MAX_EXPORT_CHARS) {
+                output.append("\n[导出达到 256 KiB 上限，后续事件已省略]\n");
+                break;
+            }
+            output.append(item).append("\n\n");
+        }
+        return output.toString();
+    }
+
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQUEST_EXPORT_EVENTS || resultCode != RESULT_OK
+                || data == null || data.getData() == null) return;
+        Uri destination = data.getData();
+        String content = buildFilteredExport();
+        if (content.isEmpty()) {
+            Toast.makeText(this, "筛选结果已变化，没有可导出的事件。", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        try (OutputStream stream = getContentResolver().openOutputStream(destination, "w")) {
+            if (stream == null) throw new IOException("无法打开目标文件");
+            stream.write(content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            stream.flush();
+            Toast.makeText(this, "已导出结构化事件：" + content.length() + " 字符。",
+                    Toast.LENGTH_LONG).show();
+        } catch (IOException | SecurityException failure) {
+            Toast.makeText(this, "导出失败，未能写入目标文件：" 
+                    + failure.getClass().getSimpleName(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void renderEvents() {
+        if (rows == null || category == null || search == null || count == null) return;
+        rows.removeAllViews();
+        List<FxDiaMonitorEventParser.Event> filtered = getFilteredEvents();
+        int shown = 0;
+        for (FxDiaMonitorEventParser.Event event : filtered) {
+            if (shown >= 120) break;
             LinearLayout row = new LinearLayout(this);
             row.setTag("fx-list-row");
             row.setOrientation(LinearLayout.VERTICAL);
-            TextView eventText = text(display, 12, 0xff263443, false);
+            TextView eventText = text(event.toDisplayString(), 12, 0xff263443, false);
             eventText.setTag("fx-list-subtitle");
             eventText.setPadding(dp(12), dp(8), dp(12), dp(8));
             row.addView(eventText);
@@ -335,9 +411,9 @@ public final class FxDiaMonitorEventsActivity extends de.privacyguard.adhook.FxN
             rows.addView(row, new LinearLayout.LayoutParams(-1, -2));
             shown++;
         }
-        count.setText("匹配事件：" + matched + " · 当前显示：" + shown
-                + (matched > shown ? "（列表最多显示 120 条，请缩小筛选范围）" : ""));
-        if (matched == 0) {
+        count.setText("匹配事件：" + filtered.size() + " · 当前显示：" + shown
+                + (filtered.size() > shown ? "（列表最多显示 120 条，请缩小筛选范围）" : ""));
+        if (filtered.isEmpty()) {
             TextView empty = text(events.isEmpty()
                             ? "当前目标没有可显示的内置监控事件。先在 Dia Frida 页面选择目标并注入相应监控模板，再返回刷新。"
                             : "没有符合条件的事件，请调整类型或搜索词。",
