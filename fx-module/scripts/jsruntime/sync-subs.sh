@@ -122,7 +122,7 @@ while IFS='|' read -r url note enabled; do
       if [ -z "$meta_type" ] || [ -z "$meta_match" ] || [ -z "$meta_requires_body" ]; then
         rm -f "$tmp"; pg_log "js-sub: invalid encoded trigger metadata for [subscription URL redacted]"; failed=$((failed+1)); continue
       fi
-      wrapped="$DEST/.wrap.$"
+      wrapped="$DEST/.wrap.$$"
       if ! {
         printf '// FX-SCRIPT-TYPE: %s\n// FX-SCRIPT-MATCH: %s\n' "$meta_type" "$meta_match"
         if [ "$meta_requires_body" = 1 ]; then printf '// FX-SCRIPT-REQUIRES-BODY: 1\n'; fi
