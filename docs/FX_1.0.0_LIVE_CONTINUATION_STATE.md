@@ -7602,3 +7602,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动文件：`adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdGeneralActivity.java`。
 - Tasker / 自动化设置新增“清除最近执行回执”，清除前二次确认；只删除最近动作、目标、请求状态、结果、退出码、详情和时间戳，不动发送方包名/签名固定、外部授权开关或 VPN/广告过滤状态。提交失败时保留原记录并提示；成功后刷新页面回执状态。
 - 本批未运行测试、静态检查、Gradle 构建、CI、安装或真机验证。
+
+
+## 2026-11-06 — Dia Frida 会话日志筛选分享
+
+- 本批代码提交：`4ca1e089273bfff5b68a41d90b1365269a2d866a`。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaSessionLogActivity.java`。
+- 运行日志页新增“分享筛选结果”，复用当前搜索过滤结果，通过 Android 系统分享面板发送纯文本；附带目标名称、包名、Frida/Gadget 类型和导出时间。
+- 分享内容按 UTF-8 字节数限制为 48 KiB，超限时按 Unicode 码点安全截断并附省略标记，避免将大日志直接塞入分享 Intent；空结果和系统分享面板不可用时明确提示。
+- 本批按用户要求未运行测试、静态检查、构建、CI 或真机验证；不能据此宣称分享链路已验收。
+- 下一批继续转向 Dia 其他原生功能页或 Hook 自定义规则页面，避免重复堆叠日志小功能。
