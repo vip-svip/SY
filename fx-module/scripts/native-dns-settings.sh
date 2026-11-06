@@ -87,7 +87,9 @@ status() {
   if [ -f "$CONF" ] && [ ! -L "$CONF" ] && [ -r "$CONF" ]; then
     _filter_counts=$(awk -F'|' '
       function valid_url(u) {
-        return length(u)<=2048 && u ~ /^https?:\\/\\// && u !~ /[[:space:]|]/
+        return length(u)<=2048 &&
+          (index(u,"http://")==1 || index(u,"https://")==1) &&
+          u !~ /[[:space:]|]/
       }
       $0=="[list:rule]" {section="rule"; next}
       /^\[/ {section=""; next}
@@ -97,8 +99,8 @@ status() {
       }
       END {printf "%d|%d\n", total+0, enabled+0}
     ' "$CONF")
-    _filter_total=\${_filter_counts%%|*}
-    _filter_enabled=\${_filter_counts#*|}
+    _filter_total=${_filter_counts%%|*}
+    _filter_enabled=${_filter_counts#*|}
     case "$_filter_total:$_filter_enabled" in *[!0-9:]*|:*) _filter_total=unknown; _filter_enabled=unknown ;; esac
   fi
   if [ -f "$MP/scripts/yulong-root-proxy.sh" ] && [ ! -L "$MP/scripts/yulong-root-proxy.sh" ]; then
