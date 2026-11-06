@@ -320,20 +320,58 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
             Toast.makeText(this, "筛选结果已变化，没有可导出的日志。", Toast.LENGTH_SHORT).show();
             return;
         }
-        if (filtered.length() > MAX_EXPORT_CHARS) {
-            filtered = filtered.substring(0, MAX_EXPORT_CHARS)
-                    + "\\n[导出达到 512 KiB 上限，后续内容已省略]\\n";
+        String header = "FX Dia 会话日志导出\\n"
+                + "目标：" + targetName + "\\n"
+                + "包名：" + targetPackage + "\\n"
+                + "日志类型：" + (gadgetLog ? "Gadget" : "Frida") + "\\n"
+                + "导出时间：" + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ROOT)
+                        .format(new Date()) + "\\n"
+                + "说明：日志可能包含脚本或目标应用输出的敏感信息，请妥善保管。\\n\\n";
+        String content = header + filtered;
+        boolean truncated = utf8Length(content) > MAX_EXPORT_CHARS;
+        if (truncated) {
+            String marker = "\\n[导出达到 512 KiB 上限，后续内容已省略]\\n";
+            content = truncateUtf8(content, MAX_EXPORT_CHARS - utf8Length(marker)) + marker;
         }
         try (OutputStream stream = getContentResolver().openOutputStream(data.getData(), "w")) {
             if (stream == null) throw new IOException("无法打开目标文件");
-            stream.write(filtered.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            byte[] bytes = content.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            stream.write(bytes);
             stream.flush();
-            Toast.makeText(this, "已导出筛选日志（" + filtered.length() + " 字符）。",
+            Toast.makeText(this, "已导出筛选日志（" + bytes.length + " 字节）。",
                     Toast.LENGTH_LONG).show();
         } catch (IOException | SecurityException failure) {
             Toast.makeText(this, "导出失败，未能写入目标文件："
                     + failure.getClass().getSimpleName(), Toast.LENGTH_LONG).show();
         }
+    }
+
+    private static int utf8Length(String value) {
+        if (value == null || value.isEmpty()) return 0;
+        int bytes = 0;
+        for (int i = 0; i < value.length();) {
+            int codePoint = value.codePointAt(i);
+            bytes += codePoint <= 0x7f ? 1 : codePoint <= 0x7ff ? 2
+                    : codePoint <= 0xffff ? 3 : 4;
+            i += Character.charCount(codePoint);
+        }
+        return bytes;
+    }
+
+    private static String truncateUtf8(String value, int maxBytes) {
+        if (value == null || maxBytes <= 0) return "";
+        StringBuilder bounded = new StringBuilder();
+        int bytes = 0;
+        for (int i = 0; i < value.length();) {
+            int codePoint = value.codePointAt(i);
+            int size = codePoint <= 0x7f ? 1 : codePoint <= 0x7ff ? 2
+                    : codePoint <= 0xffff ? 3 : 4;
+            if (bytes + size > maxBytes) break;
+            bounded.appendCodePoint(codePoint);
+            bytes += size;
+            i += Character.charCount(codePoint);
+        }
+        return bounded.toString();
     }
 
     private void restoreUiState(Bundle state) {
