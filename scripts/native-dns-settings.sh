@@ -413,12 +413,12 @@ status() {
     _querylog_header=$(printf '%s\n' "$_querylog_runtime" | sed -n '1p')
     _querylog_size=$(printf '%s\n' "$_querylog_runtime" | sed -n 's/^memory_size=//p')
     _querylog_max=$(printf '%s\n' "$_querylog_runtime" | sed -n 's/^memory_max=//p')
-    case "$_querylog_header:$_querylog_size:$_querylog_max" in
-      FXYULONGDNSQUERYLOG1:*[!0-9:]*|*:|*:) : ;;
-      FXYULONGDNSQUERYLOG1:*)
-        _querylog_memory_size=$_querylog_size
-        _querylog_memory_max=$_querylog_max
-        ;;
+    case "$_querylog_size:$_querylog_max" in
+      *[!0-9:]*|:|*:) : ;;
+      *) if [ "$_querylog_header" = FXYULONGDNSQUERYLOG1 ]; then
+           _querylog_memory_size=$_querylog_size
+           _querylog_memory_max=$_querylog_max
+         fi ;;
     esac
   fi
   _statistics_enabled=unknown
@@ -428,16 +428,23 @@ status() {
     _statistics_header=$(printf '%s\n' "$_statistics_runtime" | sed -n '1p')
     _statistics_flag=$(printf '%s\n' "$_statistics_runtime" | sed -n 's/^STATISTICS_ENABLED=//p')
     _statistics_period=$(printf '%s\n' "$_statistics_runtime" | sed -n 's/^STATISTICS_INTERVAL=//p')
-    case "$_statistics_flag" in 0|1)
-      case "$_statistics_period" in *h|*d)
-        case "$_statistics_period" in ''|*[!0-9hd]*) : ;;
-          *) [ "$_statistics_header" = FXYULONGDNSSTAT1 ] && {
-            _statistics_enabled=$_statistics_flag
-            _statistics_interval=$_statistics_period
-          } ;;
+    case "$_statistics_period" in
+      *h) _statistics_amount=${_statistics_period%h}; _statistics_max=8760 ;;
+      *d) _statistics_amount=${_statistics_period%d}; _statistics_max=365 ;;
+      *) _statistics_amount= ;;
+    esac
+    case "$_statistics_flag:$_statistics_amount" in
+      0:*|1:*)
+        case "$_statistics_amount" in ''|*[!0-9]*) : ;;
+          *)
+            if [ "$_statistics_header" = FXYULONGDNSSTAT1 ] &&
+               awk -v amount="$_statistics_amount" -v maximum="$_statistics_max"                  'BEGIN {exit !(amount+0>=1 && amount+0<=maximum && int(amount+0)==amount+0)}'; then
+              _statistics_enabled=$_statistics_flag
+              _statistics_interval=$_statistics_period
+            fi
+            ;;
         esac
         ;;
-      esac
     esac
   fi
   _local_dns_watchdog=unavailable
