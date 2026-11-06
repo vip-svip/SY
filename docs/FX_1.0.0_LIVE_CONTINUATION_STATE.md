@@ -7833,3 +7833,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - Ad → 过滤列表新增多行批量导入区域，格式为每行 `HTTPS或builtin来源|列表名称`；空行与 `#` 注释行忽略。
   - 前端预去重并限制 2000 项/64 KiB，确认后一次性调用后端事务；后端再次执行完整校验，已存在来源不会被覆盖。
 - 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或真机验证；本批尚未验收。
+
+
+## 2026-11-06 — Ad DNS 五项过滤策略一键批量控制
+
+- 后端提交：`09a94e50ecc278d9b765f9267c444a2fa9f20756`，文件 `scripts/yulong-ad-control.sh`。
+  - 新增 `dns-filter-policy-set QUIC DOT PLAIN_DNS IPV6 TRACKING`，五个参数均严格限制为 `0|1`。
+  - 五项策略（QUIC、DNS-over-TLS、明文 DNS、IPv6、跟踪域名保护）在同一 FX 配置锁与事务备份/回滚中更新，单次 apply；任一写入失败不留下部分策略。
+- UI 提交：`e18800c65e8f5b650b610c8316dd42559f2129db`，文件 `adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
+  - Ad → DNS → 过滤策略新增“一键启用全部过滤策略 / 一键关闭全部过滤策略”，均有二次确认。
+  - 两个入口统一修改五项策略；原有单项开关保留不变，成功后刷新页面。
+- 本批按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证；功能尚未验收。
