@@ -1524,6 +1524,38 @@ private boolean targetDeveloperOptIn(String packageName) {
                 logFx(Log.DEBUG, "notification API unavailable: " + className);
             }
         }
+        // A listener may already be bound before its settings string is hidden.
+        // Drop notification payload callbacks at the framework Binder wrapper so
+        // an existing NotificationListenerService cannot keep receiving content.
+        try {
+            Class<?> wrapper = Class.forName(
+                    "android.service.notification.NotificationListenerService$NotificationListenerWrapper",
+                    false, null);
+            Set<String> callbackNames = new HashSet<>(Arrays.asList(
+                    "onNotificationPosted", "onNotificationRemoved", "onNotificationRankingUpdate"));
+            for (final Method method : wrapper.getDeclaredMethods()) {
+                if (!callbackNames.contains(method.getName())
+                        || method.getReturnType() != void.class
+                        || notificationListenHookedMethods.contains(method)) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> {
+                                String activePackage = currentPackage;
+                                UnifiedHookConfigParser.Target active = targets.get(activePackage);
+                                if (NotificationPrivacyPolicy.shouldBlock(notificationListenEnabled,
+                                        processPackages.size(), activePackage, active)) return null;
+                                return chain.proceed();
+                            });
+                    notificationListenHookedMethods.add(method);
+                    installed++;
+                } catch (Throwable error) {
+                    logFx(Log.DEBUG, "notification listener Binder callback hook unavailable: "
+                            + method.getName());
+                }
+            }
+        } catch (Throwable error) {
+            logFx(Log.DEBUG, "NotificationListenerService Binder wrapper unavailable");
+        }
         // Legacy API-82 also masked Settings.Secure listener enumeration.
         // Preserve that behavior only for explicitly selected target packages.
         try {
