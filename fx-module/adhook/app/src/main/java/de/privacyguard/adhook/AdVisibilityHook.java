@@ -172,6 +172,7 @@ public final class AdVisibilityHook extends XposedModule {
     // can be retried on a later eligible package load without stacking hooks.
     private final Set<Method> clipboardReadHookedMethods = ConcurrentHashMap.newKeySet();
     private volatile boolean clipboardIsolationHooksInstalled;
+    private final Set<Method> clipboardIsolationHookedMethods = ConcurrentHashMap.newKeySet();
     private static volatile Object processClipboardShadow;
     private volatile boolean sensorHooksInstalled;
     private volatile boolean wifiScanHooksInstalled;
@@ -1363,34 +1364,40 @@ private boolean targetDeveloperOptIn(String packageName) {
      * Only single-package processes are hooked; shared processes fail open.
      */
     private synchronized boolean installClipboardIsolationHooks(final String pkg) {
-        if (clipboardIsolationHooksInstalled) return true;
         int installed = 0;
         try {
             Class<?> type = Class.forName("android.content.ClipboardManager", false, null);
             try {
                 Method set = type.getDeclaredMethod("setPrimaryClip", Class.forName("android.content.ClipData", false, null));
+                if (!clipboardIsolationHookedMethods.contains(set)) {
                 hook(set).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
                     Object clip = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
                     Object result = chain.proceed();
                     if (processPackages.size() <= 1 && clip != null) processClipboardShadow = clip;
                     return result;
                 });
+                clipboardIsolationHookedMethods.add(set);
                 installed++;
+                }
             } catch (Throwable t) { logFx(Log.DEBUG, "clipboard isolate write hook unavailable"); }
             for (String name : new String[]{"getPrimaryClip", "hasPrimaryClip"}) {
                 try {
                     Method read = type.getDeclaredMethod(name);
                     final boolean bool = "hasPrimaryClip".equals(name);
+                    if (clipboardIsolationHookedMethods.contains(read)) continue;
                     hook(read).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
                         if (processPackages.size() > 1) return chain.proceed();
                         return bool ? Boolean.valueOf(processClipboardShadow != null) : processClipboardShadow;
                     });
+                    clipboardIsolationHookedMethods.add(read);
                     installed++;
                 } catch (Throwable t) { logFx(Log.DEBUG, "clipboard isolate read hook unavailable: " + name); }
             }
         } catch (Throwable t) { logFx(Log.WARN, "clipboard isolate manager unavailable"); return false; }
-        clipboardIsolationHooksInstalled = installed == 3;
-        logFx(clipboardIsolationHooksInstalled ? Log.INFO : Log.WARN, "process-local clipboard isolation hooks=" + installed + " for " + pkg);
+        clipboardIsolationHooksInstalled = clipboardIsolationHookedMethods.size() == 3;
+        logFx(clipboardIsolationHooksInstalled ? Log.INFO : Log.WARN,
+                "process-local clipboard isolation hooks newly installed=" + installed
+                        + " total=" + clipboardIsolationHookedMethods.size() + " for " + pkg);
         return clipboardIsolationHooksInstalled;
     }
 
