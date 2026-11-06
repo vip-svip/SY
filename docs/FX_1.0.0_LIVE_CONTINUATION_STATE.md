@@ -8221,3 +8221,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 文件：`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`。
 - 在自定义 Hook 规则页增加“批量启用当前筛选 / 批量暂停当前筛选”，沿用已有分组与搜索条件；批量操作逐条校验规则描述符，非 debuggable 目标仅允许启用 OBSERVE，保留基础动作并通过一次 SharedPreferences commit 保存，提示用户之后仍需发布配置。
 - 此功能此前已存在于统一主应用，本次将缺失的批量管理能力补到 FX 模块源码；不覆盖模块中已有的原生脚本导入实现。按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证。
+
+
+### FX Hook 模块原生权限状态与系统设置入口补齐（2026-11-07）
+
+- 代码提交：`1df432d2e85747c0055f314662e7464b09f53ef7`。
+- 文件：`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`。
+- 将统一主应用已有的 17 个 Android 特殊访问辅助方法补入模块源码，供现有隐私状态面板调用：通知读取授权、FX 通知显示、悬浮窗、电池优化豁免、精确闹钟、勿扰模式、所有文件访问、使用情况访问的状态读取与对应系统设置跳转；并包含 Android 隐私面板入口及状态字段格式化。
+- 这次补齐模块状态面板引用但模块源码缺失的方法，未改动 Root / LSPosed / Accessibility 服务实现，也未更改权限自动授予行为。按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证。
