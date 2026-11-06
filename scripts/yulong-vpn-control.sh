@@ -36,6 +36,27 @@ status_json() {
   _fx_root_proxy_known=false
   _fx_private_dns_mode=unknown
   _fx_dns_filter_coverage=unknown
+  _fx_adguardhome_status=unavailable
+  _fx_unbound_status=unavailable
+  _fx_dns_stack_ready=false
+  if [ -f "$MP/scripts/adguardhome.sh" ] && [ ! -L "$MP/scripts/adguardhome.sh" ]; then
+    _fx_adguardhome_status=$(sh "$MP/scripts/adguardhome.sh" status "$MP" "$PG" 2>/dev/null) || :
+  fi
+  if [ -f "$MP/scripts/unbound.sh" ] && [ ! -L "$MP/scripts/unbound.sh" ]; then
+    _fx_unbound_status=$(sh "$MP/scripts/unbound.sh" status "$MP" "$PG" 2>/dev/null) || :
+  fi
+  case "$_fx_adguardhome_status" in ready|running-unhealthy|stopped) : ;; *) _fx_adguardhome_status=unavailable ;; esac
+  case "$_fx_unbound_status" in ready|running-unhealthy|stopped) : ;; *) _fx_unbound_status=unavailable ;; esac
+  if [ "$_fx_adguardhome_status" = ready ] && [ "$_fx_unbound_status" = ready ]; then
+    _fx_dns_stack_ready=true
+  fi
+  _fx_coexistence_json='{"ok":0,"verdict":"unknown","grade_cn":"探测不可用","exit":2,"route_probe":"unavailable","reasons":"coexistence arbiter unavailable"}'
+  if [ -x "$MP/scripts/fx-vpn-coexistence-arbiter.sh" ]; then
+    _fx_candidate=$(MP="$MP" PG="$PG" sh "$MP/scripts/fx-vpn-coexistence-arbiter.sh" 2>/dev/null || true)
+    case "$_fx_candidate" in
+      '{"ok":1,'*'}') _fx_coexistence_json=$_fx_candidate ;;
+    esac
+  fi
   if [ -x "$MP/scripts/yulong-root-proxy.sh" ]; then
     _fx_root_proxy_status=$(MP="$MP" PG="$PG" sh "$MP/scripts/yulong-root-proxy.sh" status 2>/dev/null) || {
       echo "Root Proxy status is unavailable; refusing to mutate an unknown network route" >&2
@@ -48,8 +69,8 @@ status_json() {
   fi
   case "$_fx_private_dns_mode" in off|opportunistic|hostname|unknown) : ;; *) _fx_private_dns_mode=unknown ;; esac
   case "$_fx_dns_filter_coverage" in port53_redirect_active|opportunistic_private_dns_may_bypass_redirect|strict_private_dns_bypasses_redirect|unknown) : ;; *) _fx_dns_filter_coverage=unknown ;; esac
-  printf '%s,"root_proxy_on":%s,"root_proxy_known":%s,"private_dns_mode":"%s","dns_filter_coverage":"%s"}\n' \
-    "$_fx_status" "$_fx_root_proxy_on" "$_fx_root_proxy_known" "$_fx_private_dns_mode" "$_fx_dns_filter_coverage"
+  printf '%s,"root_proxy_on":%s,"root_proxy_known":%s,"private_dns_mode":"%s","dns_filter_coverage":"%s","dns_adguardhome_status":"%s","dns_unbound_status":"%s","dns_stack_ready":%s,"vpn_coexistence":%s"}\n' \
+    "$_fx_status" "$_fx_root_proxy_on" "$_fx_root_proxy_known" "$_fx_private_dns_mode" "$_fx_dns_filter_coverage" "$_fx_adguardhome_status" "$_fx_unbound_status" "$_fx_dns_stack_ready" "$_fx_coexistence_json"
 }
 is_vpn_running() { printf '%s' "$1" | grep -Eq '"vpn_on"[[:space:]]*:[[:space:]]*true'; }
 is_root_proxy_running() { printf '%s' "$1" | grep -Eq '"root_proxy_on"[[:space:]]*:[[:space:]]*true'; }
@@ -114,8 +135,33 @@ trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+_ensure_control_log() {
+  # The control log is append-only state. Never let shell redirection follow
+  # a symlink or write through a FIFO/device planted at the expected path.
+  [ "$LOG" = "$PG/yulong-vpn-control.log" ] || return 1
+  if [ -L "$LOG" ]; then
+    echo "VPN control log is a symbolic link; refusing to write" >&2
+    return 1
+  fi
+  if [ -e "$LOG" ]; then
+    [ -f "$LOG" ] || {
+      echo "VPN control log is not a regular file; refusing to write" >&2
+      return 1
+    }
+  else
+    ( umask 077; set -C; : > "$LOG" ) 2>/dev/null || {
+      echo "cannot safely create VPN control log" >&2
+      return 1
+    }
+  fi
+  chmod 600 "$LOG" 2>/dev/null || {
+    echo "cannot secure VPN control log permissions" >&2
+    return 1
+  }
+}
 apply_mode() {
   target=$1
+  _ensure_control_log || return 1
   if [ "$target" = "direct" ]; then
     sh "$MP/scripts/apply.sh" fast >> "$LOG" 2>&1
   else
