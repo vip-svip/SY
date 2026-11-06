@@ -509,6 +509,15 @@ with_lock() {
 }
 mutate_transaction() {
   op="$1"; shift
+  # Re-resolve package ownership after acquiring the firewall lock. The CLI's
+  # earlier check is a fast-fail only; PackageManager state may change while
+  # this request waits behind another firewall transaction.
+  case "$op" in
+    set_item_value|set_rule_value)
+      [ "$#" -ge 2 ] || return 2
+      validate_package_uid "$1" "$2" >/dev/null || return $?
+      ;;
+  esac
   _FW_BACKUP=$(mktemp "$CONF.yulong-rollback.XXXXXX") || return 1
   backup="$_FW_BACKUP"
   if ! cp -p "$CONF" "$backup" || ! chmod 600 "$backup"; then
