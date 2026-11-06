@@ -86,16 +86,28 @@ function scan_record(line,    i,n,c,j,k,key,value,stack,valid,first,last,nextc,e
     }
   }
   if (stack!="") valid=0
-  return valid && query
+  return valid ? (query ? 1 : 0) : -1
 }
-BEGIN { queries=0; blocked=0 }
+BEGIN { queries=0; blocked=0; malformed=0 }
 {
-  if (scan_record($0)) {
+  if ($0 ~ /^[[:space:]]*$/) next
+  record_status=scan_record($0)
+  if (record_status < 0) {
+    malformed=1
+    next
+  }
+  if (record_status > 0) {
     queries++
     if (filtered) blocked++
   }
 }
 END {
+  # Never publish plausible-looking partial aggregates when the log contains
+  # a truncated or structurally malformed JSONL record.
+  if (malformed) {
+    print "DNS query log contains a malformed or truncated record" > "/dev/stderr"
+    exit 21
+  }
   if (queries == 0) {
     print "FXDNSLOG_EMPTY"
     exit
