@@ -78,6 +78,10 @@ status() {
   _unbound=$(service_status unbound)
   _root=unavailable
   _whitelist_count=unknown
+  _private_dns_mode=unknown
+  _dns_filter_coverage=unknown
+  _coexistence_verdict=unknown
+  _coexistence_route_probe=unavailable
   if [ -f "$MP/scripts/yulong-root-proxy.sh" ] && [ ! -L "$MP/scripts/yulong-root-proxy.sh" ]; then
     _root_output=$(MP="$MP" PG="$PG" sh "$MP/scripts/yulong-root-proxy.sh" status 2>/dev/null) || _root_output=
     if [ -n "$_root_output" ]; then
@@ -86,7 +90,18 @@ status() {
       fi
       _count=$(printf '%s\n' "$_root_output" | sed -n 's/^whitelist_count=//p' | head -1)
       case "$_count" in ''|*[!0-9]*) : ;; *) _whitelist_count=$_count ;; esac
+      _mode=$(printf '%s\n' "$_root_output" | sed -n 's/^private_dns_mode=//p' | head -1)
+      case "$_mode" in off|opportunistic|hostname) _private_dns_mode=$_mode ;; esac
+      _coverage=$(printf '%s\n' "$_root_output" | sed -n 's/^dns_filter_coverage=//p' | head -1)
+      case "$_coverage" in port53_redirect_active|opportunistic_private_dns_may_bypass_redirect|strict_private_dns_bypasses_redirect|unknown) _dns_filter_coverage=$_coverage ;; esac
     fi
+  fi
+  if [ -f "$MP/scripts/fx-vpn-coexistence-arbiter.sh" ] && [ ! -L "$MP/scripts/fx-vpn-coexistence-arbiter.sh" ]; then
+    _coexistence=$(MP="$MP" PG="$PG" sh "$MP/scripts/fx-vpn-coexistence-arbiter.sh" 2>/dev/null || :)
+    _verdict=$(printf '%s\n' "$_coexistence" | sed -n 's/.*"verdict":"\([^"]*\)".*/\1/p' | head -1)
+    case "$_verdict" in compatible|incompatible|unknown) _coexistence_verdict=$_verdict ;; esac
+    _route_probe=$(printf '%s\n' "$_coexistence" | sed -n 's/.*"route_probe":"\([^"]*\)".*/\1/p' | head -1)
+    case "$_route_probe" in passed|failed|unavailable|not_applicable) _coexistence_route_probe=$_route_probe ;; esac
   fi
   _ready=0
   [ "$_agh" = ready ] && [ "$_unbound" = ready ] && _ready=1
@@ -99,6 +114,10 @@ status() {
   printf 'unbound|%s\n' "$_unbound"
   printf 'root_proxy|%s\n' "$_root"
   printf 'rootproxy_whitelist_count|%s\n' "$_whitelist_count"
+  printf 'private_dns_mode|%s\n' "$_private_dns_mode"
+  printf 'dns_filter_coverage|%s\n' "$_dns_filter_coverage"
+  printf 'vpn_coexistence_verdict|%s\n' "$_coexistence_verdict"
+  printf 'vpn_route_probe|%s\n' "$_coexistence_route_probe"
   printf 'dns_stack_ready|%s\n' "$_ready"
 }
 mutate() {
