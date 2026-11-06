@@ -3439,6 +3439,7 @@ case "$cmd" in
   printf 'unbound_cache_min_ttl=%s\n' "$_diag_unbound_cache_min_ttl"
   printf 'unbound_serve_expired=%s\n' "$_diag_unbound_serve_expired"
   printf 'unbound_serve_expired_ttl=%s\n' "$_diag_unbound_serve_expired_ttl"
+  printf 'unbound_serve_expired_ttl_reset=%s\n' "$_diag_unbound_serve_expired_ttl_reset"
   printf 'unbound_serve_expired_reply_ttl=%s\n' "$_diag_unbound_serve_expired_reply_ttl"
   printf 'unbound_serve_expired_client_timeout=%s\n' "$_diag_unbound_serve_expired_client_timeout"
   printf 'unbound_prefetch=%s\n' "$_diag_unbound_prefetch"
