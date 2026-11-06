@@ -869,6 +869,30 @@ private void restoreDnsProfile(EditText input){
   for(String key:allowed)if(!preview.containsKey(key)){
     status.setText("快照缺少字段："+key+"；未提交。");return;
   }
+  for(String key:new String[]{"dns_engine_adguardhome","dns_forward","custom_dns","global_dns",
+      "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
+      "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled"}){
+    String value=preview.get(key);
+    if(!"0".equals(value)&&!"1".equals(value)){
+      status.setText("快照开关值非法："+key+"；未提交。");return;
+    }
+  }
+  for(String key:new String[]{"VPN_REMOTE","VPN_CN"}){
+    if(!isValidProfileIpv4(preview.get(key))){
+      status.setText("快照 VPN DNS 地址不是有效 IPv4："+key+"；未提交。");return;
+    }
+  }
+  String responseMode=preview.get("RESPONSE_MODE");
+  if(!"nxdomain".equals(responseMode)&&!"refused".equals(responseMode)&&!"custom_ip".equals(responseMode)){
+    status.setText("快照拦截响应模式非法；未提交。");return;
+  }
+  for(String key:new String[]{"CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS"}){
+    String value=preview.get(key);
+    boolean encrypted="CUSTOM_SERVERS".equals(key);
+    if(!isValidProfileDnsCsv(value,encrypted)){
+      status.setText("快照 DNS 上游格式非法或存在重复项："+key+"；未提交。");return;
+    }
+  }
   int enabled=0;
   for(String key:new String[]{"dns_engine_adguardhome","dns_forward","custom_dns","global_dns",
       "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
@@ -891,6 +915,44 @@ private void restoreDnsProfile(EditText input){
         if(r.exitCode==0){status.setText("DNS 配置快照已恢复并应用。");input.setText("");load();}
         else fxDialogBuilder().setTitle("DNS 快照恢复失败").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
       })).show()).show();
+}
+private boolean isValidProfileIpv4(String value){
+  if(value==null||!value.matches("[0-9]{1,3}(\\.[0-9]{1,3}){3}")||
+      "0.0.0.0".equals(value)||"255.255.255.255".equals(value))return false;
+  for(String part:value.split("\\.")){
+    try{if(Integer.parseInt(part)>255)return false;}catch(NumberFormatException e){return false;}
+  }
+  return true;
+}
+private boolean isValidProfileDnsCsv(String value,boolean encryptedAllowed){
+  if(value==null||value.isEmpty())return true;
+  String[] entries=value.split(",",-1);
+  if(entries.length>3)return false;
+  java.util.Set<String> seen=new java.util.HashSet<>();
+  for(String entry:entries){
+    if(entry.isEmpty()||!seen.add(entry.toLowerCase(java.util.Locale.ROOT)))return false;
+    if(isValidProfileIpv4(entry))continue;
+    if(!encryptedAllowed)return false;
+    String hostPort="[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?";
+    if(entry.startsWith("tls://")||entry.startsWith("quic://")){
+      String authority=entry.substring(entry.indexOf("://")+3);
+      if(!authority.matches(hostPort)||!validProfilePort(authority))return false;
+    }else if(entry.startsWith("https://")){
+      String rest=entry.substring(8);
+      int slash=rest.indexOf('/');
+      String authority=slash<0?rest:rest.substring(0,slash);
+      String path=slash<0?"":rest.substring(slash);
+      if(!authority.matches(hostPort)||!validProfilePort(authority)||
+          !path.matches("(/[A-Za-z0-9._~!$&()*+,;=:@%/?#-]*)?"))return false;
+    }else return false;
+  }
+  return true;
+}
+private boolean validProfilePort(String authority){
+  int colon=authority.lastIndexOf(':');
+  if(colon<0)return true;
+  try{int port=Integer.parseInt(authority.substring(colon+1));return port>=1&&port<=65535;}
+  catch(NumberFormatException e){return false;}
 }
 private int countDnsEndpoints(String value){
   if(value==null||value.trim().isEmpty())return 0;
