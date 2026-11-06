@@ -311,6 +311,7 @@ write_vpn_dns() {
 }
 m_dns_servers() { write_dns_section "$1" "$2"; }
 m_vpn_dns() { write_vpn_dns "$1" "$2"; }
+m_vpn_dns_reset() { write_vpn_dns remote_dns 1.1.1.1 && write_vpn_dns cn_dns 223.5.5.5; }
 dns_config_get() {
   echo FXYULONGDNS1
   echo "CUSTOM_ENABLED|$(pg_get custom_dns 0)"
@@ -780,6 +781,10 @@ case "$cmd" in
   case "$2" in remote_dns|cn_dns) ;; *) exit 2 ;; esac
   valid_ipv4 "$3" || { echo "VPN DNS must be an IPv4 literal" >&2; exit 2; }
   with_lock transaction m_vpn_dns "$2" "$3"
+  ;;
+ dns-vpn-reset)
+  [ "$#" -eq 1 ] || exit 2
+  with_lock transaction m_vpn_dns_reset
   ;;
  schedule-get)
   schedule_get
