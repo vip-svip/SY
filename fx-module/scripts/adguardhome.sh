@@ -338,7 +338,8 @@ _install_config() {
     _log 'unable to atomically publish AdGuard Home config'
     return 1
   fi
-  chmod 600 "$CFG" 2>/dev/null || return 1
+  # The rendered file was created by _new_private_temp (umask 077 + chmod 600);
+  # atomic rename preserves its private mode, so no post-publication chmod is needed.
   _log 'published loopback-only config with current Yulong and managed allow/block DNS rules'
 }
 
