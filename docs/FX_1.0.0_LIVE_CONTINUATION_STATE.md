@@ -8385,3 +8385,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 将规范脚本已有的 `set-many KEY 0|1 ...` 多项 DNS 设置事务能力移植到模块副本，支持一次提交多项设置、白名单键与声明值校验、重复键拒绝、依赖关系归一化、配置快照回滚及 apply 失败恢复。
 - 保留模块现有 `set`、`status`、`reconcile` 路径；未覆盖模块文件，也未执行该命令。
 - 按用户要求未运行测试、静态检查、构建、CI 或设备验证。
+
+### FX 模块 Yulong DNS/Hosts 规则集成脚本同步原生规则渲染保护（2026-11-07）
+
+- 代码提交：`8e711eae40ddb9a294c918c9d86d712b5b5fb528`。
+- 文件：`fx-module/scripts/integrate_yulong_ad_rules.py`。
+- 将规范集成脚本同步到模块副本；增加对 AdGuard Home 原生 managed `user_rules` 渲染链的识别。检测到原生 `_build_user_rules` / `_build_filter_sources` / `_render_managed_config` 路径时，不再重复插入旧版配置片段；旧版模块归档仍保留兼容补丁路径。
+- 保留 Yulong 通用 DNS/Hosts 规则与 FX 专用反诈 `[list:fx]` 数据隔离检查，以及规则文件完整性门槛和回归脚本复制步骤。
+- 模块脚本与规范脚本内容同步；按用户要求未运行集成脚本、测试、静态检查、构建、CI 或设备验证。
