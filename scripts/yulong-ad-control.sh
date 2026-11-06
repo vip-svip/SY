@@ -354,6 +354,17 @@ write_vpn_dns() {
 }
 m_dns_servers() { write_dns_section "$1" "$2"; }
 m_vpn_dns() { write_vpn_dns "$1" "$2"; }
+dns_vpn_set_many() {
+  _vpn_remote=$1; _vpn_cn=$2
+  valid_ipv4 "$_vpn_remote" || { echo "VPN remote DNS must be an IPv4 literal" >&2; return 2; }
+  valid_ipv4 "$_vpn_cn" || { echo "VPN China DNS must be an IPv4 literal" >&2; return 2; }
+  m_vpn_dns remote_dns "$_vpn_remote" &&
+    m_vpn_dns cn_dns "$_vpn_cn" || {
+      echo "unable to update both VPN DNS values" >&2
+      return 1
+    }
+  echo "vpn_dns=updated remote_dns=$_vpn_remote cn_dns=$_vpn_cn"
+}
 m_vpn_dns_reset() { write_vpn_dns remote_dns 1.1.1.1 && write_vpn_dns cn_dns 223.5.5.5; }
 dns_profile_get() {
   echo FXYULONGDNSPROFILE1
@@ -926,6 +937,10 @@ case "$cmd" in
   case "$2" in remote_dns|cn_dns) ;; *) exit 2 ;; esac
   valid_ipv4 "$3" || { echo "VPN DNS must be an IPv4 literal" >&2; exit 2; }
   with_lock transaction m_vpn_dns "$2" "$3"
+  ;;
+ dns-vpn-set-many)
+  [ "$#" -eq 3 ] || { echo "usage: $0 dns-vpn-set-many REMOTE_IPV4 CN_IPV4" >&2; exit 2; }
+  with_lock transaction dns_vpn_set_many "$2" "$3"
   ;;
  dns-vpn-reset)
   [ "$#" -eq 1 ] || exit 2
