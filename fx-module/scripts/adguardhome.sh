@@ -244,7 +244,12 @@ _render_managed_config() {
     rm -f "$_rules_file" "$_filters_file" "$_config_file" 2>/dev/null || :
     return 1
   fi
-  if ! awk -v rules_file="$_rules_file" -v filters_file="$_filters_file" '
+  _querylog_interval=$(awk '$0=="[conf:yulong_dns_querylog_retention]"{inside=1;next} /^\\[/{inside=0} inside&&/^interval=/{sub(/^interval=/,"");print;exit}' "$PG/settings.conf" 2>/dev/null)
+  case "$_querylog_interval" in 1d|3d|7d|30d) : ;; *) _querylog_interval=7d ;; esac
+  if ! awk -v querylog_interval="$_querylog_interval" -v rules_file="$_rules_file" -v filters_file="$_filters_file" '
+    /^querylog:[[:space:]]*$/ {in_querylog=1; print; next}
+    in_querylog && /^[^[:space:]]/ {in_querylog=0}
+    in_querylog && /^  interval:/ {print "  interval: " querylog_interval; next}
     /^filters:[[:space:]]*\[\][[:space:]]*$/ {
       if ((getline filter < filters_file) > 0) {
         print "filters:"
