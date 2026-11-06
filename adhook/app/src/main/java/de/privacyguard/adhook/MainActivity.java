@@ -2054,6 +2054,9 @@ public final class MainActivity extends ComponentActivity {
                 summary.append("\\n脚本环境变量：已配置");
             }
         }
+        if (fields.length > 5 && !fields[5].trim().isEmpty()) {
+            summary.append("\\n脚本参数：已配置");
+        }
         return summary.toString();
     }
     private static String nativeScriptMetadataWithName(String note, String displayName) {
