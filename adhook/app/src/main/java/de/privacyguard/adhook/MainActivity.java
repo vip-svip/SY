@@ -2446,48 +2446,100 @@ public final class MainActivity extends ComponentActivity {
             JSONArray entries = new JSONArray();
             java.util.Set<String> importedKeys = new java.util.HashSet<>();
             boolean inScript = false;
+            boolean inRewriteLocal = false;
             String[] lines = (payload == null ? "" : payload).split("\\r?\\n");
             for (int i = 0; i < lines.length; i++) {
                 String line = lines[i].trim();
                 if (line.isEmpty() || line.startsWith("#") || line.startsWith(";")) continue;
                 if (line.startsWith("[") && line.endsWith("]")) {
-                    inScript = "script".equalsIgnoreCase(line.substring(1, line.length() - 1).trim());
+                    String section = line.substring(1, line.length() - 1).trim();
+                    inScript = "script".equalsIgnoreCase(section);
+                    inRewriteLocal = "rewrite_local".equalsIgnoreCase(section);
                     continue;
                 }
-                if (!inScript) continue;
-                int equals = line.indexOf('=');
-                if (equals <= 0) continue;
-                String name = line.substring(0, equals).trim();
-                String options = line.substring(equals + 1).trim();
-                String scriptPath = scriptModuleOption(options, "script-path");
-                String type = scriptModuleOption(options, "type").toLowerCase(Locale.ROOT);
-                String pattern = scriptModuleOption(options, "pattern");
-                if (!scriptPath.regionMatches(true, 0, "https://", 0, 8)
-                        || pattern.isEmpty() || name.isEmpty()) continue;
-                // Treat trigger lists as sets: Surge/Loon variants commonly omit
-                // spaces after commas, and order is not semantically significant.
+                if (!inScript && !inRewriteLocal) continue;
+
+                String name;
+                String scriptPath;
+                String pattern;
                 boolean requestTrigger = false;
                 boolean responseTrigger = false;
-                for (String trigger : type.replaceAll("\\s+", "").split("[,;]")) {
-                    if ("http-request".equals(trigger)) requestTrigger = true;
-                    else if ("http-response".equals(trigger)) responseTrigger = true;
+                boolean actionRequiresBody = false;
+                String requiresBodyOption = "";
+
+                if (inScript) {
+                    int equals = line.indexOf('=');
+                    if (equals <= 0) continue;
+                    name = line.substring(0, equals).trim();
+                    String options = line.substring(equals + 1).trim();
+                    scriptPath = scriptModuleOption(options, "script-path");
+                    String type = scriptModuleOption(options, "type").toLowerCase(Locale.ROOT);
+                    pattern = scriptModuleOption(options, "pattern");
+                    requiresBodyOption = scriptModuleOption(options, "requires-body")
+                            .toLowerCase(Locale.ROOT);
+                    for (String trigger : type.replaceAll("\\s+", "").split("[,;]")) {
+                        if ("http-request".equals(trigger)) requestTrigger = true;
+                        else if ("http-response".equals(trigger)) responseTrigger = true;
+                    }
+                } else {
+                    // Quantumult X [rewrite_local] script actions use:
+                    // <URL regex> url <script action> <HTTPS script URL> [options]
+                    String lowerLine = line.toLowerCase(Locale.ROOT);
+                    int urlMarker = lowerLine.indexOf(" url ");
+                    if (urlMarker <= 0) continue;
+                    pattern = line.substring(0, urlMarker).trim();
+                    String[] ruleParts = line.substring(urlMarker + 5).trim().split("\\s+");
+                    if (ruleParts.length < 2) continue;
+                    String action = ruleParts[0].toLowerCase(Locale.ROOT);
+                    scriptPath = ruleParts[1];
+                    if (scriptPath.regionMatches(true, 0, "script-path=", 0, 12)) {
+                        scriptPath = scriptPath.substring(12);
+                    }
+                    switch (action) {
+                        case "script-request-header":
+                            requestTrigger = true;
+                            break;
+                        case "script-request-body":
+                            requestTrigger = true;
+                            actionRequiresBody = true;
+                            break;
+                        case "script-response-header":
+                            responseTrigger = true;
+                            break;
+                        case "script-response-body":
+                        case "script-analyze-echo-response":
+                            responseTrigger = true;
+                            actionRequiresBody = true;
+                            break;
+                        default:
+                            // Ordinary URL rewrite/reject actions are never treated as JS.
+                            continue;
+                    }
+                    name = "Quantumult X " + action;
+                    for (int option = 2; option < ruleParts.length; option++) {
+                        if (ruleParts[option].regionMatches(true, 0, "tag=", 0, 4)) {
+                            name = ruleParts[option].substring(4);
+                            break;
+                        }
+                    }
                 }
+
+                if (!scriptPath.regionMatches(true, 0, "https://", 0, 8)
+                        || pattern.isEmpty() || name.isEmpty()
+                        || !pattern.matches("(?is).*https?://.*")) continue;
                 String normalizedType = requestTrigger && responseTrigger ? "both"
                         : requestTrigger ? "request" : responseTrigger ? "response" : "";
                 if (normalizedType.isEmpty()) continue;
-                String requiresBodyOption = scriptModuleOption(options, "requires-body")
-                        .toLowerCase(Locale.ROOT);
                 if (!requiresBodyOption.isEmpty() && !"0".equals(requiresBodyOption)
                         && !"1".equals(requiresBodyOption) && !"true".equals(requiresBodyOption)
                         && !"false".equals(requiresBodyOption)) continue;
-                boolean requiresBody = responseTrigger && ("1".equals(requiresBodyOption)
-                        || "true".equals(requiresBodyOption));
+                boolean requiresBody = actionRequiresBody
+                        || ("1".equals(requiresBodyOption) || "true".equals(requiresBodyOption));
                 if (pattern.length() > 2048 || name.length() > 512) continue;
                 String safeName = name.replaceAll("[\\p{Cntrl}]", " ").trim();
                 if (safeName.isEmpty() || safeName.length() > 512) continue;
                 String bodyFlag = requiresBody ? "1" : "0";
-                // This payload is line-oriented after base64 decoding. Use real
-                // newline separators; a literal backslash-n breaks sync-subs.sh.
+                // FXMETA_B64 is line-oriented after decoding; use real newlines.
                 String metadata = normalizedType + "\n" + pattern + "\n" + bodyFlag + "\n" + safeName;
                 String encoded = "FXMETA_B64:" + Base64.encodeToString(
                         metadata.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
@@ -2500,7 +2552,7 @@ public final class MainActivity extends ComponentActivity {
                 entries.put(entry);
             }
             if (entries.length() == 0) {
-                throw new IllegalArgumentException("未找到可迁移的 HTTPS [Script] 请求/响应脚本；任务脚本、定时脚本和本地相对路径暂不自动导入");
+                throw new IllegalArgumentException("未找到可迁移的 HTTPS [Script] 或 Quantumult X [rewrite_local] 请求/响应脚本；普通 URL Rewrite、任务脚本、定时脚本和本地相对路径不会自动执行");
             }
             JSONObject document = new JSONObject();
             document.put("format", "FX-SCRIPT-LIST");
@@ -2508,7 +2560,7 @@ public final class MainActivity extends ComponentActivity {
             document.put("scripts", entries);
             importNativeScriptDocument(document.toString());
         } catch (Exception error) {
-            Toast.makeText(this, "Surge/Loon 脚本配置导入失败：" + error.getMessage(),
+            Toast.makeText(this, "脚本模块导入失败：" + error.getMessage(),
                     Toast.LENGTH_LONG).show();
         }
     }
@@ -5268,7 +5320,8 @@ public final class MainActivity extends ComponentActivity {
                 String lowerName = name == null ? "" : name.toLowerCase(Locale.ROOT);
                 boolean isJson = lowerName.endsWith(".json");
                 boolean isModuleConfig = lowerName.endsWith(".conf") || lowerName.endsWith(".ini")
-                        || lowerName.endsWith(".sgmodule") || lowerName.endsWith(".loon");
+                        || lowerName.endsWith(".sgmodule") || lowerName.endsWith(".loon")
+                        || lowerName.endsWith(".qxconf");
                 if (!isJson && !isModuleConfig) {
                     byte[] prefix = new byte[8192];
                     int count;
@@ -5277,7 +5330,9 @@ public final class MainActivity extends ComponentActivity {
                     }
                     String header = count > 0 ? new String(prefix, 0, count, StandardCharsets.UTF_8) : "";
                     isJson = header.contains("FX-SCRIPT-LIST");
-                    isModuleConfig = header.toLowerCase(Locale.ROOT).contains("[script]");
+                    String lowerHeader = header.toLowerCase(Locale.ROOT);
+                    isModuleConfig = lowerHeader.contains("[script]")
+                            || lowerHeader.contains("[rewrite_local]");
                 }
                 if (isModuleConfig && !isJson) {
                     try (InputStream input = new java.io.FileInputStream(staged);
