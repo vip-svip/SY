@@ -7291,3 +7291,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 主脚本与模块脚本同步修改：`scripts/native-dns-settings.sh`、`fx-module/scripts/native-dns-settings.sh`。
 - 代码提交：`6b813b743040c2dd517cd944c9979224caa5de4e`、`70257be07a648630d61aa92077c9de20f997ef5d`。
 - 按当前推进要求未运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-06 — Root Proxy 接管时间状态透传
+
+- 主 APK 与模块 APK 共用的 DNS 状态协议新增 `rootproxy_activated_at`，从 Root Proxy 活动元数据读取并仅接受纯数字 Unix 时间戳。
+- 主 APK 与模块 APK 的 DNS 详情增加接管启动时间戳，便于区分刚启动、长期运行及状态残留问题；不改变接管/回滚逻辑。
+- 提交：`a0a673a9846f263f7f9c2b49cfff3fe12519a0bb`、`677e5aa3df00e0183baf36ba5a44a56be457e8d6`、`8f9c4eb005141a2fe6cfca1630d89169316c765f`、`ec4b6bf4f6ed37c952d110145e19b23d01ba7060`。
+- 按当前推进要求未运行测试、静态检查、构建、CI 或真机验证。
