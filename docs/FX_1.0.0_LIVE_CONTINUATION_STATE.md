@@ -331,3 +331,14 @@
 - DNS 响应模式仅接受 `nxdomain`、`refused`、`custom_ip`；读取、写入和 AdGuard Home 配置渲染统一拒绝重复区段、重复键、缺失键、未知字段及非法值。
 - 完全缺少历史配置区段时仍使用兼容默认 `nxdomain`；已有但损坏的配置不再静默降级并掩盖问题。
 - 按要求未运行测试、静态检查、构建、CI 或设备验证。
+
+
+### FX DNS 上游服务器配置写入前完整性保护（2026-11-07）
+
+- 代码提交：`80bad0be92bd2fadd2dfb978b3ba4889cf480c5c`。
+- 文件：`fx-module/scripts/yulong-ad-control.sh`。
+- DNS 服务器区段写入前先检查现有配置：拒绝重复区段、重复服务器、未知字段、畸形 nameserver 记录及超过三条的名单。
+- 按区段分别复用现有端点校验：`custom_dns` 支持既有 IPv4/DoH/DoT/DoQ 格式；`global_dns` 与 `yulong_dns_fallback` 只接受既有 IPv4 DNS 格式。
+- 限定可写入的 DNS 区段名称，避免内部写入函数被错误区段参数调用。
+- 仅在现有区段完整合法时才进入原子配置替换流程，避免把损坏配置静默覆盖。
+- 按要求未运行测试、静态检查、构建、CI 或设备验证。
