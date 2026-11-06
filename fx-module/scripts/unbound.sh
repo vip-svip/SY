@@ -510,24 +510,6 @@ _anchor_status() {
   printf 'resolver_state=%s\n' "$_resolver_state"
   printf 'root_hints_state=%s\n' "$_root_hints_state"
   printf 'root_hints_bytes=%s\n' "$_root_hints_bytes"
-}  else
-      _root_hints_state=invalid
-    fi
-  fi
-  if [ -L "$EGRESS" ]; then
-    _refresh_route=unsafe
-  elif [ -e "$EGRESS" ]; then
-    if [ -f "$EGRESS" ]; then _refresh_route=vpn_bound; else _refresh_route=unsafe; fi
-  fi
-  if _p=$(_owned_pid 2>/dev/null); then _resolver_state=running; else _resolver_state=stopped; fi
-  echo FXYUNBOUNDANCHOR2
-  printf 'anchor_state=%s\n' "$_anchor_state"
-  printf 'anchor_bytes=%s\n' "$_anchor_bytes"
-  printf 'anchor_age=%s\n' "$_anchor_age"
-  printf 'refresh_route=%s\n' "$_refresh_route"
-  printf 'resolver_state=%s\n' "$_resolver_state"
-  printf 'root_hints_state=%s\n' "$_root_hints_state"
-  printf 'root_hints_bytes=%s\n' "$_root_hints_bytes"
 }
 _refresh_anchor() {
   _prepare_state_dirs || return 20
