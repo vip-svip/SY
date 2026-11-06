@@ -1039,7 +1039,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
 private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTtl,
       EditText msgCacheSize,EditText rrsetCacheSize,EditText keyCacheSize,EditText negCacheSize,
       Switch serveExpired,EditText serveExpiredTtl,EditText serveExpiredReplyTtl,
-      EditText serveExpiredClientTimeout,Switch prefetch,Switch prefetchKey,Switch qnameMinimisation,TextView state){
+      EditText serveExpiredClientTimeout,Switch prefetch,Switch prefetchKey,Switch qnameMinimisation,EditText numThreads,TextView state){
   root("unbound-runtime-get",result->{
     if(result.exitCode!=0){state.setText("读取 Unbound 递归缓存参数失败："+safe(result.output));return;}
     String raw=result.output==null?"":result.output;
@@ -1060,7 +1060,7 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
         "UNBOUND_SERVE_EXPIRED","UNBOUND_SERVE_EXPIRED_TTL",
         "UNBOUND_SERVE_EXPIRED_REPLY_TTL","UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT",
         "UNBOUND_PREFETCH","UNBOUND_PREFETCH_KEY","UNBOUND_QNAME_MINIMISATION",
-        "UNBOUND_MSG_CACHE_SIZE","UNBOUND_RRSET_CACHE_SIZE","UNBOUND_KEY_CACHE_SIZE","UNBOUND_NEG_CACHE_SIZE"};
+        "UNBOUND_MSG_CACHE_SIZE","UNBOUND_RRSET_CACHE_SIZE","UNBOUND_KEY_CACHE_SIZE","UNBOUND_NEG_CACHE_SIZE","UNBOUND_NUM_THREADS"};
     for(String key:required)if(!values.containsKey(key)){
       state.setText("Unbound 参数响应缺少字段："+key+"。");return;
     }
@@ -1081,6 +1081,9 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
       if(!isValidUnboundCacheSize(values.get(key))){
         state.setText("Unbound 内存缓存池大小无效："+key+"。");return;
       }
+    if(!isValidDnsRuntimeUint32(values.get("UNBOUND_NUM_THREADS"),false)){
+      state.setText("Unbound worker 线程数必须为正整数。");return;
+    }
     cacheMaxTtl.setText(values.get("UNBOUND_CACHE_MAX_TTL"));
     cacheMinTtl.setText(values.get("UNBOUND_CACHE_MIN_TTL"));
     serveExpired.setChecked("1".equals(values.get("UNBOUND_SERVE_EXPIRED")));
@@ -1094,7 +1097,8 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
     rrsetCacheSize.setText(values.get("UNBOUND_RRSET_CACHE_SIZE"));
     keyCacheSize.setText(values.get("UNBOUND_KEY_CACHE_SIZE"));
     negCacheSize.setText(values.get("UNBOUND_NEG_CACHE_SIZE"));
-    state.setText("已读取全部 Unbound 递归缓存与隐私参数。更改后会重新生成配置并重启 FX 自有 Unbound。");
+    numThreads.setText(values.get("UNBOUND_NUM_THREADS"));
+    state.setText("已读取全部 Unbound 递归缓存、CPU 自适应线程与隐私参数。更改后会重新生成配置并重启 FX 自有 Unbound。");
   });
 }
 
@@ -1223,6 +1227,10 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
   EditText unboundNegCacheSize=draftField("unbound_neg_cache_size");
   unboundNegCacheSize.setSingleLine(true);
   unboundNegCacheSize.setHint("否定响应缓存池大小，例如 2m");
+  EditText unboundNumThreads=draftField("unbound_num_threads");
+  unboundNumThreads.setSingleLine(true);
+  unboundNumThreads.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+  unboundNumThreads.setHint("正整数，不得超过当前在线 CPU 核心数");
   Switch unboundServeExpired=new Switch(this);
   unboundServeExpired.setText("上游故障时提供过期缓存答案");
   EditText unboundServeExpiredTtl=draftField("unbound_serve_expired_ttl");
@@ -1252,6 +1260,7 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
        txt("RRset 缓存池",12,0xff617080,true),unboundRrsetCacheSize,
        txt("DNSSEC Key 缓存池",12,0xff617080,true),unboundKeyCacheSize,
        txt("否定响应缓存池",12,0xff617080,true),unboundNegCacheSize,
+       txt("Unbound worker 线程数（在线 CPU 核心内）",12,0xff617080,true),unboundNumThreads,
        unboundServeExpired,
        txt("过期缓存最大年龄（秒）",12,0xff617080,true),unboundServeExpiredTtl,
        txt("过期答案返回 TTL（秒）",12,0xff617080,true),unboundServeExpiredReplyTtl,
@@ -1264,6 +1273,7 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
          String rrsetCache=unboundRrsetCacheSize.getText()==null?"":unboundRrsetCacheSize.getText().toString().trim();
          String keyCache=unboundKeyCacheSize.getText()==null?"":unboundKeyCacheSize.getText().toString().trim();
          String negCache=unboundNegCacheSize.getText()==null?"":unboundNegCacheSize.getText().toString().trim();
+         String numThreads=unboundNumThreads.getText()==null?"":unboundNumThreads.getText().toString().trim();
          String expiredTtl=unboundServeExpiredTtl.getText()==null?"":unboundServeExpiredTtl.getText().toString().trim();
          String replyTtl=unboundServeExpiredReplyTtl.getText()==null?"":unboundServeExpiredReplyTtl.getText().toString().trim();
          String clientTimeout=unboundServeExpiredClientTimeout.getText()==null?"":unboundServeExpiredClientTimeout.getText().toString().trim();
@@ -1273,7 +1283,8 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
              ||!isValidDnsRuntimeUint32(replyTtl,false)
              ||!isValidDnsRuntimeUint32(clientTimeout,true)
              ||!isValidUnboundCacheSize(msgCache)||!isValidUnboundCacheSize(rrsetCache)
-             ||!isValidUnboundCacheSize(keyCache)||!isValidUnboundCacheSize(negCache)){
+             ||!isValidUnboundCacheSize(keyCache)||!isValidUnboundCacheSize(negCache)
+             ||!isValidDnsRuntimeUint32(numThreads,false)){
            unboundRuntimeState.setText("Unbound TTL/时长必须为有效 uint32 秒数/毫秒，且缓存最小 TTL 不得大于最大 TTL；未提交。");
            return;
          }
@@ -1282,7 +1293,7 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
              +q(clientTimeout)+" "+(unboundPrefetch.isChecked()?"1":"0")+" "
              +(unboundPrefetchKey.isChecked()?"1":"0")+" "
              +(unboundQnameMinimisation.isChecked()?"1":"0")+" "
-             +q(msgCache)+" "+q(rrsetCache)+" "+q(keyCache)+" "+q(negCache);
+             +q(msgCache)+" "+q(rrsetCache)+" "+q(keyCache)+" "+q(negCache)+" "+q(numThreads);
          root(command,result->{
            if(result.exitCode==0){unboundRuntimeState.setText("Unbound 递归参数已保存并应用。");load();}
            else fxDialogBuilder().setTitle("Unbound 参数未应用").setMessage(safe(result.output)).setPositiveButton("关闭",null).show();
@@ -1292,7 +1303,7 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
   loadUnboundRuntimeControls(unboundCacheMaxTtl,unboundCacheMinTtl,
       unboundMsgCacheSize,unboundRrsetCacheSize,unboundKeyCacheSize,unboundNegCacheSize,
       unboundServeExpired,unboundServeExpiredTtl,unboundServeExpiredReplyTtl,unboundServeExpiredClientTimeout,
-      unboundPrefetch,unboundPrefetchKey,unboundQnameMinimisation,unboundRuntimeState);
+      unboundPrefetch,unboundPrefetchKey,unboundQnameMinimisation,unboundNumThreads,unboundRuntimeState);
 
     card("过滤策略","DNS 和网络策略开关；与 DNS 上游地址分开保存。批量操作会一次性更新以下五项策略。",
        dnsSwitch("阻止 QUIC","block_quic"),
@@ -1515,12 +1526,12 @@ private void restoreDnsProfile(EditText input){
   String[] allowed={"dns_engine_adguardhome","dns_forward","custom_dns","global_dns",
       "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
       "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled",
-      "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE","QUERYLOG_RETENTION","QUERYLOG_MEMORY_SIZE","STATISTICS_ENABLED","STATISTICS_INTERVAL","STATISTICS_IGNORED_ENABLED","STATISTICS_IGNORED","STATISTICS_IGNORED_ENABLED","STATISTICS_IGNORED","STATISTICS_IGNORED_ENABLED","STATISTICS_IGNORED",
+      "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE","QUERYLOG_RETENTION","QUERYLOG_MEMORY_SIZE","STATISTICS_ENABLED","STATISTICS_INTERVAL","STATISTICS_IGNORED_ENABLED","STATISTICS_IGNORED",
       "UPSTREAM_MODE","FASTEST_TIMEOUT","UPSTREAM_TIMEOUT","CACHE_SIZE","CACHE_ENABLED","CACHE_OPTIMISTIC","ENABLE_DNSSEC",
       "CACHE_TTL_MIN","CACHE_TTL_MAX","CACHE_OPTIMISTIC_ANSWER_TTL","CACHE_OPTIMISTIC_MAX_AGE",
       "UNBOUND_CACHE_MAX_TTL","UNBOUND_CACHE_MIN_TTL","UNBOUND_SERVE_EXPIRED","UNBOUND_SERVE_EXPIRED_TTL",
       "UNBOUND_SERVE_EXPIRED_REPLY_TTL","UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT","UNBOUND_PREFETCH","UNBOUND_PREFETCH_KEY","UNBOUND_QNAME_MINIMISATION",
-      "UNBOUND_MSG_CACHE_SIZE","UNBOUND_RRSET_CACHE_SIZE","UNBOUND_KEY_CACHE_SIZE","UNBOUND_NEG_CACHE_SIZE"};
+      "UNBOUND_MSG_CACHE_SIZE","UNBOUND_RRSET_CACHE_SIZE","UNBOUND_KEY_CACHE_SIZE","UNBOUND_NEG_CACHE_SIZE","UNBOUND_NUM_THREADS"};
   java.util.Set<String> keys=new java.util.HashSet<>(java.util.Arrays.asList(allowed));
   java.util.Map<String,String> preview=new java.util.LinkedHashMap<>();
   for(String line:raw.split("\\n")){
@@ -1533,7 +1544,7 @@ private void restoreDnsProfile(EditText input){
     }
     preview.put(key,line.substring(split+1));
   }
-  if(preview.size()!=allowed.length&&preview.size()!=46&&preview.size()!=44&&preview.size()!=43&&preview.size()!=39&&preview.size()!=38&&preview.size()!=30&&preview.size()!=26&&preview.size()!=19&&preview.size()!=18){
+  if(preview.size()!=allowed.length&&preview.size()!=48&&preview.size()!=46&&preview.size()!=44&&preview.size()!=43&&preview.size()!=39&&preview.size()!=38&&preview.size()!=30&&preview.size()!=26&&preview.size()!=19&&preview.size()!=18){
     status.setText("快照字段不完整（"+preview.size()+"/"+allowed.length+"），未提交。");return;
   }
   for(String key:allowed)if(!preview.containsKey(key)){
@@ -1567,6 +1578,7 @@ private void restoreDnsProfile(EditText input){
     else if("UNBOUND_RRSET_CACHE_SIZE".equals(key))preview.put(key,"16m");
     else if("UNBOUND_KEY_CACHE_SIZE".equals(key))preview.put(key,"4m");
     else if("UNBOUND_NEG_CACHE_SIZE".equals(key))preview.put(key,"2m");
+    else if("UNBOUND_NUM_THREADS".equals(key))preview.put(key,"1");
     else {status.setText("快照缺少字段："+key+"；未提交。");return;}
   }
   for(String key:new String[]{"dns_engine_adguardhome","dns_forward","custom_dns","global_dns",
@@ -1635,6 +1647,9 @@ private void restoreDnsProfile(EditText input){
     if(!isValidUnboundCacheSize(preview.get(key))){
       status.setText("快照 Unbound 内存缓存池大小无效："+key+"；未提交。");return;
     }
+  if(!isValidDnsRuntimeUint32(preview.get("UNBOUND_NUM_THREADS"),false)){
+    status.setText("快照 Unbound worker 线程数必须为正整数；未提交。");return;
+  }
   for(String key:new String[]{"CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS"}){
     String value=preview.get(key);
     boolean encrypted="CUSTOM_SERVERS".equals(key);
@@ -1689,12 +1704,12 @@ private void restoreDnsProfile(EditText input){
     String[] labels={"dns_engine_adguardhome","dns_forward","custom_dns","global_dns",
       "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
       "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled",
-      "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE","QUERYLOG_RETENTION","QUERYLOG_MEMORY_SIZE","STATISTICS_ENABLED","STATISTICS_INTERVAL",
+      "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE","QUERYLOG_RETENTION","QUERYLOG_MEMORY_SIZE","STATISTICS_ENABLED","STATISTICS_INTERVAL","STATISTICS_IGNORED_ENABLED","STATISTICS_IGNORED",
       "UPSTREAM_MODE","FASTEST_TIMEOUT","UPSTREAM_TIMEOUT","CACHE_SIZE","CACHE_ENABLED","CACHE_OPTIMISTIC","ENABLE_DNSSEC",
       "CACHE_TTL_MIN","CACHE_TTL_MAX","CACHE_OPTIMISTIC_ANSWER_TTL","CACHE_OPTIMISTIC_MAX_AGE",
       "UNBOUND_CACHE_MAX_TTL","UNBOUND_CACHE_MIN_TTL","UNBOUND_SERVE_EXPIRED","UNBOUND_SERVE_EXPIRED_TTL",
       "UNBOUND_SERVE_EXPIRED_REPLY_TTL","UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT","UNBOUND_PREFETCH","UNBOUND_PREFETCH_KEY","UNBOUND_QNAME_MINIMISATION",
-      "UNBOUND_MSG_CACHE_SIZE","UNBOUND_RRSET_CACHE_SIZE","UNBOUND_KEY_CACHE_SIZE","UNBOUND_NEG_CACHE_SIZE"};
+      "UNBOUND_MSG_CACHE_SIZE","UNBOUND_RRSET_CACHE_SIZE","UNBOUND_KEY_CACHE_SIZE","UNBOUND_NEG_CACHE_SIZE","UNBOUND_NUM_THREADS"};
     StringBuilder changes=new StringBuilder();
     for(String key:labels){
       String oldValue=current.get(key),newValue=preview.get(key);
