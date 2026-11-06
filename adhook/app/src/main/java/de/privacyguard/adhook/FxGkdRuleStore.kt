@@ -265,6 +265,25 @@ object FxGkdRuleStore {
         return if (writeRules(context, next)) updated else null
     }
 
+    /**
+     * Move a local rule by one position. Earlier rules are evaluated first by
+     * the runtime; no rule content or enabled state is changed.
+     */
+    @JvmStatic
+    @Synchronized
+    fun moveRule(context: Context, id: String, direction: Int): Boolean {
+        if (direction != -1 && direction != 1) return false
+        val rules = getRules(context).toMutableList()
+        val currentIndex = rules.indexOfFirst { it.id == id }
+        if (currentIndex < 0) return false
+        val targetIndex = currentIndex + direction
+        if (targetIndex !in rules.indices) return false
+        val current = rules[currentIndex]
+        rules[currentIndex] = rules[targetIndex]
+        rules[targetIndex] = current
+        return writeRules(context, rules)
+    }
+
     @JvmStatic
     @Synchronized
     fun setRuleEnabled(context: Context, id: String, enabled: Boolean): Boolean {
