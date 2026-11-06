@@ -1442,11 +1442,15 @@ _valid_ipv4() {
   '
 }
 _probe() {
-  # Use a random, uncached query and validate the DNS transaction itself.
-  # This checks the actual AdGuard listener and selected upstream/fallback
-  # path instead of allowing a cached example.com A record to mask failures.
-  "$PROBE" 127.0.0.1 53 5 >> "$LOG" 2>&1 || return 1
-  "$PROBE" ::1 53 5 >> "$LOG" 2>&1 || return 1
+  # Require fresh recursive replies over both transports on both IP families.
+  # The probe uses a random transaction/query label, so cached replies cannot
+  # mask a broken listener or selected upstream/fallback path.
+  # A UDP-only listener must not be reported ready.
+  for _probe_server in 127.0.0.1 ::1; do
+    for _probe_transport in udp tcp; do
+      "$PROBE" "$_probe_server" 53 5 "$_probe_transport" >> "$LOG" 2>&1 || return 1
+    done
+  done
   return 0
 }
 _stop() {
