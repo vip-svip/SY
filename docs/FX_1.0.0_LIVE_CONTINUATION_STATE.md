@@ -6832,3 +6832,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 - `adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`（`445b4a14`）为 Private DNS 模式、DNS 过滤覆盖、VPN 共存 verdict 和路由探测结果增加原生中文标签，Ad 页面不再直接向用户显示内部协议枚举值。
 - 本批未运行 Shell/Python/Gradle 检查、回归测试、构建、CI 或 Android 真机验证；本次只记录源码移植。
+
+## 2026-11-06 — Root Proxy 强制依赖 AdGuard Home 本地监听
+
+- 更新 `fx-module/scripts/yulong-root-proxy.sh`（`f2be5500`）：`_is_enabled()` 除第三方 VPN DNS 兼容开关和 Unbound 外，增加 `dns_engine_adguardhome=1` 条件。Root Proxy 的端口 53 重定向目标是 FX AdGuard Home；AdGuard 未启用时不再把 DNS 转发到未确认身份的本地监听服务。状态输出同时增加 `dns_engine_adguardhome`。
+- 更新 `scripts/native-dns-settings.sh`（`abce1bc2`）及模块运行路径 `fx-module/scripts/native-dns-settings.sh`（`cdd51da5`）：启用 Root Proxy 时在同一配置事务内启用 Unbound、AdGuard Home 和第三方 VPN 兼容；关闭 AdGuard Home 时先撤销 Root Proxy 开关，再关闭 AdGuard，Unbound 可继续作为独立本地递归 DNS 使用。
+- 保留关闭 Unbound 时同步关闭依赖它的 AdGuard 与 Root Proxy 的既有联动，配置 apply 失败仍通过原事务备份回滚。
+- 按用户要求未运行 Shell 检查、回归测试、构建、CI 或真机验证；本次是配置依赖闭环移植，不表示设备上的端口重定向已验证。
