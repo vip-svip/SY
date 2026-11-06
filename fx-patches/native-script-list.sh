@@ -119,6 +119,65 @@ case "$ACTION" in
         fi
         printf '%s|%s|%s\n' "$value" "$note" "$enabled" >> "$ROWS"
         ;;
+      add-batch)
+        [ "$#" -eq 1 ] || { echo "ERROR add-batch expects manifest_path"; exit 64; }
+        manifest=$1
+        case "$manifest" in
+          /data/user/[0-9]*/de.privacyguard.adhook/cache/fx-native-script-batch-*|/data/data/de.privacyguard.adhook/cache/fx-native-script-batch-*) ;;
+          *) echo "ERROR batch manifest is outside the approved app cache"; exit 65 ;;
+        esac
+        [ -f "$manifest" ] && [ ! -L "$manifest" ] || { echo "ERROR batch manifest is missing or unsafe"; exit 65; }
+        manifest_size=$(wc -c < "$manifest" 2>/dev/null | tr -d ' ')
+        case "$manifest_size" in ''|*[!0-9]*) manifest_size=0 ;; esac
+        [ "$manifest_size" -le 8388608 ] || { echo "ERROR batch manifest exceeds 8 MiB"; exit 65; }
+        batch_added=0
+        batch_duplicate=0
+        batch_failed=0
+        batch_lines=0
+        while IFS='|' read -r kind value64 note64 enabled extra; do
+          [ -n "$kind" ] || continue
+          batch_lines=$((batch_lines+1))
+          if [ "$batch_lines" -gt 512 ] || [ -n "$extra" ]; then
+            batch_failed=$((batch_failed+1))
+            continue
+          fi
+          case "$enabled" in 0|1) ;; *) batch_failed=$((batch_failed+1)); continue ;; esac
+          case "$kind" in
+            URL)
+              url=$(decode_b64 "$value64") || { batch_failed=$((batch_failed+1)); continue; }
+              note=$(decode_b64 "$note64") || { batch_failed=$((batch_failed+1)); continue; }
+              [ -n "$url" ] && [ "${#note}" -le 4096 ] || { batch_failed=$((batch_failed+1)); continue; }
+              case "$url" in
+                https://*) ;;
+                *) batch_failed=$((batch_failed+1)); continue ;;
+              esac
+              case "$url" in *[[:space:]]*) batch_failed=$((batch_failed+1)); continue ;; esac
+              value=$(encode_script_value "$url") || { batch_failed=$((batch_failed+1)); continue; }
+              note=$(sanitize_field "$note")
+              [ -n "$note" ] || note=$(printf '%s' "$value" | cut -c1-80)
+              if is_duplicate_pair "$value" "$note"; then
+                batch_duplicate=$((batch_duplicate+1))
+                continue
+              fi
+              printf '%s|%s|%s\\n' "$value" "$note" "$enabled" >> "$ROWS" || {
+                batch_failed=$((batch_failed+1)); continue;
+              }
+              batch_added=$((batch_added+1))
+              ;;
+            *)
+              batch_failed=$((batch_failed+1))
+              ;;
+          esac
+        done < "$manifest"
+        if [ "$batch_lines" -eq 0 ]; then
+          echo "ERROR batch manifest is empty or invalid"
+          exit 64
+        fi
+        if [ "$batch_added" -eq 0 ]; then
+          echo "OK added=0 duplicate=$batch_duplicate failed=$batch_failed"
+          exit 0
+        fi
+        ;;
       add-file)
         [ "$#" -eq 3 ] || { echo "ERROR add-file expects source_path note64 enabled"; exit 64; }
         source_path=$1
@@ -219,7 +278,11 @@ case "$ACTION" in
       chown 0:0 "$CONF" 2>/dev/null || { cp -p "$BACKUP" "$CONF"; echo "ERROR unable to restore settings ownership"; exit 1; }
     fi
     [ -f "$CONF" ] || { cp -p "$BACKUP" "$CONF"; echo "ERROR committed settings.conf missing"; exit 1; }
-    echo "OK"
+    if [ "$ACTION" = "add-batch" ]; then
+      echo "OK added=$batch_added duplicate=$batch_duplicate failed=$batch_failed"
+    else
+      echo "OK"
+    fi
     ;;
-  *) echo "ERROR usage: native-list.sh list|add|update|toggle|delete"; exit 64 ;;
+  *) echo "ERROR usage: native-list.sh list|add|add-file|add-batch|update|toggle|delete"; exit 64 ;;
 esac
