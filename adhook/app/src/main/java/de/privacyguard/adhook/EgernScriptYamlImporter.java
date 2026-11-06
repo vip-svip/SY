@@ -147,7 +147,7 @@ public final class EgernScriptYamlImporter {
                         }
                     }
                     break;
-                default: break;
+                default: unsupportedLimits = true; break;
             }
         }
 
