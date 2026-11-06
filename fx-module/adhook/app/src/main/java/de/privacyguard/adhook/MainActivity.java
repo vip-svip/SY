@@ -1191,6 +1191,11 @@ public final class MainActivity extends ComponentActivity {
                 if ("active".equals(value)) return "已接管";
                 if ("inactive".equals(value)) return "未接管";
                 return "状态未知";
+            case "rootproxy_route":
+                if ("verified".equals(value)) return "已验证";
+                if ("not_applicable".equals(value)) return "不适用";
+                if ("unavailable".equals(value)) return "不可用";
+                return "状态未知";
             case "rootproxy_redirects":
                 if ("attached".equals(value)) return "已挂载";
                 if ("detached".equals(value)) return "未挂载";
@@ -1213,6 +1218,8 @@ public final class MainActivity extends ComponentActivity {
                     case "ipv4_redirect_missing": return "IPv4 DNS 重定向缺失";
                     case "ipv6_redirect_missing": return "IPv6 DNS 重定向缺失";
                     case "local_dns_probe_failed": return "本地 DNS 探测失败";
+                    case "vpn_owner_unavailable": return "未找到可用的第三方 VPN 所有者";
+                    case "vpn_uid_mismatch": return "VPN UID 与接管记录不匹配";
                     case "unknown": return "尚无状态原因";
                     default: return "未识别原因：" + value;
                 }
