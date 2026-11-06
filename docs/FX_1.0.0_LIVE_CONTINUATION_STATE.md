@@ -1146,3 +1146,10 @@
 - 已同步 `adhook/app/.../FxYulongAdActivity.java` 与 `fx-module/adhook/app/.../FxYulongAdActivity.java` 两份正式源码。
 - 源码提交：`00bf11c0133afb4c2cd3b150324e812ff344ec64`。
 - 按用户当前要求未运行测试、静态检查、构建、CI 或 Android 真机验证；仅完成 GitHub 源码提交。
+## 2026-11-07 — DNS 查询日志排序与轮转清理反馈
+
+- DNS 查询日志列表在聚合活动 `querylog.json` 与所有轮转 `querylog.json.*` 后，按可识别的记录时间从新到旧稳定排序；无法识别时间的条目保留在列表末尾，不静默丢弃。
+- 清理确认说明同步为活动及全部轮转日志，清理成功后从后端 `files=` 返回值显示实际处理文件数；不修改 DNS 规则、Hosts 或系统日志。
+- 同步正式源码与模块源码：`fx-module/adhook/app/.../FxYulongDnsActivity.java`、`adhook/app/.../FxYulongDnsActivity.java`。
+- 代码提交：`207cb5b0669f41ad650f0eda2b2b575c814818d3`。
+- 按当前要求未运行测试、静态检查、构建、CI 或 Android 真机验证。
