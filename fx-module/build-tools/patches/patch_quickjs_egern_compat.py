@@ -220,8 +220,10 @@ def update_runner(path: Path) -> bool:
         if updated.count(old_cleanup) != 1:
             raise SystemExit("QuickJS runner cleanup anchor is ambiguous")
         updated = updated.replace(old_cleanup, new_cleanup, 1)
-    elif updated.count(new_cleanup) != 1:
-        raise SystemExit("QuickJS runner does not clean its Egern temporary source")
+    while new_cleanup + ' "$EGERN_SCRIPT"' in updated:
+        updated = updated.replace(new_cleanup + ' "$EGERN_SCRIPT"', new_cleanup)
+    if updated.count(new_cleanup) != 1:
+        raise SystemExit("QuickJS runner cleanup does not contain exactly one Egern temporary path")
     if updated != source:
         path.write_text(updated, encoding="utf-8")
         return True
