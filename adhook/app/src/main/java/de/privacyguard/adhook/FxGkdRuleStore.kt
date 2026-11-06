@@ -344,6 +344,22 @@ object FxGkdRuleStore {
         return writeRules(context, rules)
     }
 
+    /** Rename every rule in a group without changing order, selectors, actions or enabled state. */
+    @JvmStatic
+    @Synchronized
+    fun renameGroup(context: Context, oldGroup: String, newGroup: String): Int {
+        val source = oldGroup.trim()
+        val target = newGroup.trim()
+        if (source.isEmpty() || source.length > 40 || target.isEmpty() || target.length > 40 ||
+            target.any { it == '\\n' || it == '\\r' }) return -1
+        val rules = getRules(context)
+        val changed = rules.count { it.group == source }
+        if (changed == 0) return 0
+        if (source == target) return 0
+        val next = rules.map { if (it.group == source) it.copy(group = target) else it }
+        return if (writeRules(context, next)) changed else -1
+    }
+
     @JvmStatic
     @Synchronized
     fun setGroupEnabled(context: Context, group: String, enabled: Boolean): Boolean {
