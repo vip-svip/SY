@@ -819,10 +819,7 @@ block_set_many() {
     _set_line=$(printf '%s' "$_set_line" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
     [ -n "$_set_line" ] || continue
     _set_domain=$(valid_domain "$_set_line") || { echo "invalid domain in blacklist state list" >&2; return 2; }
-    if ! awk -F'|' -v d="$_set_domain" '$1==d{found=1} END{exit !found}' <<EOF_BLOCK_LIST
-$(pg_list block)
-EOF_BLOCK_LIST
-    then
+    if ! printf '%s\\n' "$(pg_list block)" | awk -F'|' -v d="$_set_domain" '$1==d{found=1} END{exit !found}'; then
       echo "blacklist domain no longer exists: $_set_domain" >&2
       return 3
     fi
