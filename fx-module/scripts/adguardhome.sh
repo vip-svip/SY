@@ -962,6 +962,17 @@ _config_contract() {
     /^dns:$/ {dns=1; next}
     dns && /^[^[:space:]]/ {dns=0}
     dns && /^  port:/ {dns_port=$2}
+    dns && /^  anonymize_client_ip:/ {runtime_anonymize_client_ip=$2; anonymize_client_ip_count++}
+    dns && /^  refuse_any:/ {runtime_refuse_any=$2; refuse_any_count++}
+    dns && /^  blocked_hosts:/ {blocked_hosts_section=1; blocked_hosts_section_count++; next}
+    dns && blocked_hosts_section && /^  [A-Za-z_][A-Za-z0-9_-]*:/ {blocked_hosts_section=0}
+    dns && blocked_hosts_section && /^  - / {
+      host=$2
+      if ((host!="version.bind" && host!="id.server" && host!="hostname.bind") ||
+          blocked_hosts_seen[host]++) unsafe_blocked_hosts=1
+      blocked_hosts_count++
+      next
+    }
     dns && /^  upstream_mode:/ {runtime_mode=$2}
     dns && /^  fastest_timeout:/ {runtime_fastest=$2}
     dns && /^  upstream_timeout:/ {runtime_timeout=$2}
@@ -1029,6 +1040,10 @@ _config_contract() {
     END {
       exit (http_loopback && dns_port=="53" &&
         hosts["127.0.0.1"] && hosts["::1"] && bind_count==2 &&
+        anonymize_client_ip_count==1 && runtime_anonymize_client_ip=="true" &&
+        refuse_any_count==1 && runtime_refuse_any=="true" &&
+        blocked_hosts_section_count==1 && blocked_hosts_count==3 &&
+        !unsafe_blocked_hosts && !blocked_hosts_section &&
         upstream_count>=1 && !unsafe_upstream &&
         (!local_upstream || (local_count==1 && upstream_count==1)) &&
         !unsafe_bootstrap && !unsafe_fallback &&
