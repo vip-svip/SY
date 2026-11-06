@@ -249,8 +249,8 @@ public final class FxDiaActivityBrowserActivity extends de.privacyguard.adhook.F
                 activitySearch, activityCount, activityRows, activityPager);
 
         if (!launcherOnly) {
-            card(body, "批量恢复 Activity 入口",
-                    "只处理当前搜索条件与当前页中已禁用的 Activity；不会启用整个应用，也不会修改其他分页。每次操作仍需明确确认。",
+            card(body, "批量管理 Activity 组件",
+                    "只处理当前搜索条件与当前页中的组件：可恢复已禁用项，也可停用已启用项。不会修改整个应用或其他分页；每次操作均需明确确认。",
                     button("启用当前页筛选中的已禁用 Activity", this::confirmEnableVisibleActivities),
                     button("禁用当前页筛选中的已启用 Activity", this::confirmDisableVisibleActivities));
         }
