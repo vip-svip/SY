@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
+import android.content.Intent;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -128,9 +129,10 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         }
         refreshButton = button("刷新", this::load);
         clearButton = button("清理本地查询日志", this::confirmClear);
+        Button shareButton = button("分享全部筛选结果", this::shareFilteredResults);
         card(body, "本机日志说明",
                 "查询日志默认关闭；启用后 AdGuard Home 按本机保留策略保存记录。这里只显示最近 500 条，不显示客户端 IP，也不会上传。",
-                status, refreshButton, clearButton);
+                status, refreshButton, clearButton, shareButton);
         cacheFlushButton = button("重启本地 DNS 并清理缓存", this::confirmCacheFlush);
         card(body, "DNS 缓存维护",
                 "只重启 FX 管理的本地 Unbound / AdGuard Home。DNS 可能短暂中断；不会清理系统 DNS 缓存、Hosts 或查询日志。",
@@ -264,6 +266,60 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
                 });
             }));
         }
+    }
+
+
+    /** Share all locally loaded rows matching the current query, independent of pagination. */
+    private void shareFilteredResults() {
+        if (data.isEmpty()) {
+            status.setText("当前没有可分享的 DNS 查询记录；请先刷新并确认本地日志已启用。");
+            return;
+        }
+        String query = search == null || search.getText() == null ? ""
+                : search.getText().toString().trim().toLowerCase(Locale.ROOT);
+        StringBuilder report = new StringBuilder();
+        report.append("FX Ad DNS query log\\n")
+                .append("filter=").append(query).append("\\n")
+                .append("scope=locally retained latest 500 parsed records\\n")
+                .append("time\\tdomain\\ttype\\tresult\\treason\\n");
+        int included = 0;
+        int omitted = 0;
+        final int maxBytes = 48 * 1024;
+        for (Entry item : data) {
+            if (!query.isEmpty() && !item.searchable().contains(query)) continue;
+            String row = cleanExportField(item.time) + "\\t"
+                    + cleanExportField(item.domain) + "\\t"
+                    + cleanExportField(item.type) + "\\t"
+                    + (item.blocked ? "blocked" : "allowed") + "\\t"
+                    + cleanExportField(item.reason) + "\\n";
+            int used = report.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+            int bytes = row.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+            if (used + bytes > maxBytes) { omitted++; continue; }
+            report.append(row);
+            included++;
+        }
+        if (included == 0) {
+            status.setText("当前搜索条件没有可分享的 DNS 查询记录。");
+            return;
+        }
+        if (omitted > 0) report.append("# omitted ").append(omitted)
+                .append(" matching rows at 48 KiB share limit\\n");
+        try {
+            Intent send = new Intent(Intent.ACTION_SEND);
+            send.setType("text/plain");
+            send.putExtra(Intent.EXTRA_SUBJECT, "FX Ad DNS 查询记录（筛选结果）");
+            send.putExtra(Intent.EXTRA_TEXT, report.toString());
+            startActivity(Intent.createChooser(send, "分享 DNS 查询记录"));
+            status.setText("已准备分享 " + included + " 条筛选匹配记录"
+                    + (omitted > 0 ? "；另有 " + omitted + " 条因 48 KiB 上限省略。" : "。"));
+        } catch (RuntimeException unavailable) {
+            status.setText("无法打开系统分享面板：" + safe(unavailable.getMessage()));
+        }
+    }
+
+    private static String cleanExportField(String value) {
+        return value == null ? "" : value.replace('\\t', ' ')
+                .replace('\\r', ' ').replace('\\n', ' ');
     }
 
     private void confirmCacheFlush() {
