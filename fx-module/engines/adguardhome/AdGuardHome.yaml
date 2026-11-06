@@ -24,6 +24,8 @@ dns:
   # No external forwarding resolver is configured here.
   upstream_dns:
   - 127.0.0.1:5353
+  # External resolvers are used only if the local recursive upstream fails.
+  fallback_dns: []
   cache_enabled: true
   cache_size: 4194304
   hostsfile_enabled: false
