@@ -339,31 +339,84 @@ reconcile_locked() {
   status
 }
 with_lock() {
+  _lock_pid=$$
+  case "$_lock_pid" in ''|0|*[!0-9]*) echo "cannot determine DNS lock owner PID" >&2; return 10 ;; esac
   _tries=0
-  while ! mkdir "$LOCK" 2>/dev/null; do
-    [ ! -L "$LOCK" ] && [ -d "$LOCK" ] || { echo "unsafe FX DNS settings lock" >&2; return 22; }
-    _tries=$((_tries+1))
-    [ "$_tries" -lt 20 ] || { echo "FX DNS settings are busy" >&2; return 75; }
+  _retries=${FX_DNS_LOCK_RETRIES:-20}
+  case "$_retries" in ''|*[!0-9]*|0) _retries=20 ;; esac
+  [ "$_retries" -le 120 ] 2>/dev/null || _retries=120
+  while :; do
+    [ ! -L "$LOCK" ] || { echo "unsafe FX DNS settings lock" >&2; return 22; }
+    if mkdir "$LOCK" 2>/dev/null; then
+      _lock_owner="$LOCK/owner"
+      if (umask 077; set -C; printf '%s\\n' "$_lock_pid" > "$_lock_owner") 2>/dev/null; then
+        _lock_release() {
+          if [ ! -L "$LOCK" ] && [ -d "$LOCK" ] &&
+              [ ! -L "$_lock_owner" ] && [ -f "$_lock_owner" ] &&
+              [ "$(cat "$_lock_owner" 2>/dev/null || true)" = "$_lock_pid" ]; then
+            _release="$LOCK.release.$_lock_pid"
+            _release_try=0
+            while { [ -e "$_release" ] || [ -L "$_release" ]; } && [ "$_release_try" -lt 20 ]; do
+              _release_try=$((_release_try + 1))
+              _release="$LOCK.release.$_lock_pid.$_release_try"
+            done
+            if [ ! -e "$_release" ] && [ ! -L "$_release" ] &&
+                mv "$LOCK" "$_release" 2>/dev/null; then
+              if [ ! -L "$_release/owner" ] && [ -f "$_release/owner" ] &&
+                  [ "$(cat "$_release/owner" 2>/dev/null || true)" = "$_lock_pid" ]; then
+                rm -f "$_release/owner" 2>/dev/null || :
+                rmdir "$_release" 2>/dev/null || :
+              elif [ ! -e "$LOCK" ] && [ ! -L "$LOCK" ]; then
+                mv "$_release" "$LOCK" 2>/dev/null || :
+              fi
+            fi
+          fi
+        }
+        trap _lock_release EXIT
+        trap 'exit 129' HUP
+        trap 'exit 130' INT
+        trap 'exit 143' TERM
+        "$@"
+        return $?
+      fi
+      rmdir "$LOCK" 2>/dev/null || :
+    else
+      [ ! -L "$LOCK" ] && [ -d "$LOCK" ] || { echo "unsafe FX DNS settings lock" >&2; return 22; }
+      _owner_file="$LOCK/owner"
+      if [ ! -L "$_owner_file" ] && [ -f "$_owner_file" ]; then
+        _owner=$(cat "$_owner_file" 2>/dev/null || :)
+        case "$_owner" in
+          ''|0|*[!0-9]*) : ;;
+          *)
+            if ! kill -0 "$_owner" 2>/dev/null; then
+              _owner2=$(cat "$_owner_file" 2>/dev/null || :)
+              if [ "$_owner2" = "$_owner" ] && ! kill -0 "$_owner2" 2>/dev/null; then
+                _stale="$LOCK.stale.$_lock_pid.$_tries"
+                if [ ! -e "$_stale" ] && [ ! -L "$_stale" ] &&
+                    mv "$LOCK" "$_stale" 2>/dev/null; then
+                  _moved_owner=$(cat "$_stale/owner" 2>/dev/null || :)
+                  if [ "$_moved_owner" = "$_owner" ] &&
+                      ! kill -0 "$_moved_owner" 2>/dev/null; then
+                    rm -f "$_stale/owner" 2>/dev/null || :
+                    rmdir "$_stale" 2>/dev/null || :
+                  elif [ ! -e "$LOCK" ] && [ ! -L "$LOCK" ]; then
+                    mv "$_stale" "$LOCK" 2>/dev/null || :
+                  fi
+                  continue
+                fi
+              fi
+            fi
+            ;;
+        esac
+      fi
+    fi
+    _tries=$((_tries + 1))
+    if [ "$_tries" -ge "$_retries" ]; then
+      echo "FX DNS settings are busy or lock owner cannot be verified" >&2
+      return 75
+    fi
     sleep 1
   done
-  _lock_owner="$LOCK/owner"
-  if ! (umask 077; set -C; printf '%s\n' "$$" > "$_lock_owner") 2>/dev/null; then
-    rmdir "$LOCK" 2>/dev/null || :
-    return 1
-  fi
-  _lock_release() {
-    if [ ! -L "$LOCK" ] && [ -d "$LOCK" ] &&
-        [ ! -L "$_lock_owner" ] && [ -f "$_lock_owner" ] &&
-        [ "$(cat "$_lock_owner" 2>/dev/null || true)" = "$$" ]; then
-      rm -f "$_lock_owner" 2>/dev/null || :
-      rmdir "$LOCK" 2>/dev/null || :
-    fi
-  }
-  trap _lock_release EXIT
-  trap 'exit 129' HUP
-  trap 'exit 130' INT
-  trap 'exit 143' TERM
-  "$@"
 }
 cmd=${1:-status}
 case "$cmd" in
