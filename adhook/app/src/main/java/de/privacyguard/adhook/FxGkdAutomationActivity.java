@@ -472,6 +472,18 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
         renderRules();
     }
 
+    private void setGroupEnabled(String group, boolean enabled) {
+        if (!FxGkdRuleStore.setGroupEnabled(this, group, enabled)) {
+            Toast.makeText(this, "规则组状态保存失败。", Toast.LENGTH_LONG).show();
+            return;
+        }
+        FxGkdAutomationRuntime.invalidateRules();
+        syncMasterSwitch();
+        FxAccessibilityService.requestReconfigure(this);
+        renderRules();
+        updateServiceState();
+    }
+
     private void updateRuleEnabled(FxGkdRule rule, Switch control, boolean enabled) {
         if (!FxGkdRuleStore.setRuleEnabled(this, rule.getId(), enabled)) {
             control.setOnCheckedChangeListener(null);
@@ -529,6 +541,8 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
             enabled.setOnCheckedChangeListener((button, checked) ->
                     updateRuleEnabled(rule, (Switch) button, checked));
             actions.addView(enabled, new LinearLayout.LayoutParams(0, -2, 1));
+            actions.addView(action("启用本组", () -> setGroupEnabled(rule.getGroup(), true)));
+            actions.addView(action("关闭本组", () -> setGroupEnabled(rule.getGroup(), false)));
             actions.addView(action("上移", () -> moveRule(rule, -1)));
             actions.addView(action("下移", () -> moveRule(rule, 1)));
             actions.addView(action("编辑", () -> showEditRuleDialog(rule)));
