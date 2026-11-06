@@ -1413,6 +1413,22 @@ public final class MainActivity extends ComponentActivity {
                                 });
                             })
                             .setPositiveButton("完成", null)
+                            .setNeutralButton("清理未安装应用", (dialog, which) -> {
+                                String prune = "MP=\\"$MP\\" PG=/data/adb/privacyguard sh "
+                                        + "\\"$MP/scripts/yulong-root-proxy.sh\\" whitelist-prune";
+                                runNativeModuleCommand(prune, 120000L, cleanup -> {
+                                    if (cleanup.exitCode == 0) {
+                                        Toast.makeText(this, "已清理未安装应用的 DNS 白名单记录："
+                                                + (cleanup.output == null ? "" : cleanup.output.trim()),
+                                                Toast.LENGTH_LONG).show();
+                                        showRootProxyDnsWhitelistDialog();
+                                    } else {
+                                        Toast.makeText(this, "清理未完成："
+                                                + (cleanup.output == null ? "unknown" : cleanup.output.trim()),
+                                                Toast.LENGTH_LONG).show();
+                                    }
+                                });
+                            })
                             .setNegativeButton("关闭", null)
                             .create();
                     FxNativeSkin.showDialog(this, whitelistDialog[0]);
