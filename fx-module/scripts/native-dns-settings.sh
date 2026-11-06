@@ -312,13 +312,21 @@ case "$cmd" in
     [ "$#" -eq 1 ] || exit 2
     status
     ;;
+  reconcile)
+    [ "$#" -eq 1 ] || { echo "usage: $0 reconcile" >&2; exit 2; }
+    sh "$MP/scripts/apply.sh" full || {
+      echo "DNS runtime reconciliation failed" >&2
+      exit 1
+    }
+    status
+    ;;
   set)
     [ "$#" -eq 3 ] || { echo "usage: $0 set KEY 0|1" >&2; exit 2; }
     valid_key "$2" || { echo "DNS setting is not allowlisted" >&2; exit 2; }
     with_lock mutate "$2" "$3"
     ;;
   *)
-    echo "usage: $0 status|set KEY 0|1" >&2
+    echo "usage: $0 status|reconcile|set KEY 0|1" >&2
     exit 2
     ;;
 esac
