@@ -694,6 +694,17 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
             actions.addView(action("上移", () -> moveRule(rule, -1)));
             actions.addView(action("下移", () -> moveRule(rule, 1)));
             actions.addView(action("编辑", () -> showEditRuleDialog(rule)));
+            actions.addView(action("复制为草稿", () -> {
+                FxGkdRule duplicate = FxGkdRuleStore.duplicateRule(this, rule.getId());
+                if (duplicate == null) {
+                    Toast.makeText(this, "复制失败：规则不存在、存储不可写或已达到 500 条上限。", Toast.LENGTH_LONG).show();
+                    return;
+                }
+                selectedRuleIds.clear();
+                FxGkdAutomationRuntime.invalidateRules();
+                renderRules();
+                Toast.makeText(this, "已复制为关闭状态的草稿，请检查后手动启用。", Toast.LENGTH_LONG).show();
+            }));
             actions.addView(action("删除", () -> new AlertDialog.Builder(this)
                     .setMessage("删除这条本地 GKD 规则？")
                     .setNegativeButton("取消", null)
