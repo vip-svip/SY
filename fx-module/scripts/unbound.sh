@@ -17,6 +17,7 @@ PROBE="$ROOT/fx-dns-probe"
 ROOT_HINTS="$ROOT/root.hints"
 ROOT_KEY_SEED="$ROOT/root.key.seed"
 STATE="$PG/unbound"
+LIFECYCLE_LOCK="$STATE/lifecycle.lock"
 CFG="$STATE/unbound.conf"
 WORK="$STATE/work"
 PIDFILE="$STATE/managed.pid"
@@ -380,10 +381,52 @@ _ensure() {
   return 1
 }
 
+
+_release_lifecycle_lock() {
+  [ -d "$LIFECYCLE_LOCK" ] && [ ! -L "$LIFECYCLE_LOCK" ] || return 0
+  _lock_owner_file="$LIFECYCLE_LOCK/owner"
+  [ -f "$_lock_owner_file" ] && [ ! -L "$_lock_owner_file" ] || return 0
+  _lock_owner=$(cat "$_lock_owner_file" 2>/dev/null) || return 0
+  [ "$_lock_owner" = "$" ] || return 0
+  rm -f "$_lock_owner_file" 2>/dev/null || return 1
+  rmdir "$LIFECYCLE_LOCK" 2>/dev/null || return 1
+  return 0
+}
+_with_lifecycle_lock() {
+  _locked_action=$1
+  _prepare_state_dirs || return 1
+  _wait=0
+  while ! mkdir "$LIFECYCLE_LOCK" 2>/dev/null; do
+    [ ! -L "$LIFECYCLE_LOCK" ] && [ -d "$LIFECYCLE_LOCK" ] || {
+      _log 'unsafe Unbound lifecycle lock path'
+      return 1
+    }
+    if [ "$_wait" -ge 35 ]; then
+      _log 'Unbound lifecycle operation is busy; refusing concurrent start/stop'
+      return 1
+    fi
+    sleep 1
+    _wait=$((_wait+1))
+  done
+  if ! printf '%s\\n' "$" > "$LIFECYCLE_LOCK/owner"; then
+    rmdir "$LIFECYCLE_LOCK" 2>/dev/null || :
+    _log 'unable to publish Unbound lifecycle lock owner'
+    return 1
+  fi
+  chmod 700 "$LIFECYCLE_LOCK" 2>/dev/null || {
+    rm -f "$LIFECYCLE_LOCK/owner" 2>/dev/null || :
+    rmdir "$LIFECYCLE_LOCK" 2>/dev/null || :
+    return 1
+  }
+  trap '_release_lifecycle_lock' EXIT
+  trap 'exit 1' HUP INT TERM
+  "$_locked_action"
+}
+
 case "$ACTION" in
   render-config) _render_config ;;
-  ensure) _ensure ;;
-  stop) _stop ;;
+  ensure) _with_lifecycle_lock _ensure ;;
+  stop) _with_lifecycle_lock _stop ;;
   status)
     if _p=$(_owned_pid 2>/dev/null); then
       if _probe; then echo ready; exit 0; fi
