@@ -192,7 +192,7 @@
     read(k){return globalThis.$persistentStore.read(k);},
     write(v,k){return globalThis.$persistentStore.write(v,k);}
   };
-  // FX_EGERN_COMPAT_V1_BEGIN
+    // FX_EGERN_COMPAT_V2_BEGIN
   function _fxEgernHeaders(source) {
     const values=Object.create(null);
     Object.keys(source||{}).forEach(name=>{
@@ -206,7 +206,12 @@
       set(name,value){const key=String(name).toLowerCase();if(!/^[!#$%&'*+.^_\x60|~0-9A-Za-z-]+$/.test(key)||/[\r\n]/.test(String(value)))throw new Error('invalid header');values[key]=[String(value)];},
       append(name,value){const key=String(name).toLowerCase();if(!/^[!#$%&'*+.^_\x60|~0-9A-Za-z-]+$/.test(key)||/[\r\n]/.test(String(value)))throw new Error('invalid header');(values[key]||(values[key]=[])).push(String(value));},
       delete(name){delete values[String(name).toLowerCase()];},
-      toJSON(){const out={};Object.keys(values).forEach(k=>{out[k]=values[k].length===1?values[k][0]:values[k].slice();});return out;}
+      entries(){return Object.keys(values).map(k=>[k,values[k].join(', ')]);},
+      keys(){return Object.keys(values)[Symbol.iterator]();},
+      values(){return Object.keys(values).map(k=>values[k].join(', '))[Symbol.iterator]();},
+      forEach(callback,thisArg){Object.keys(values).forEach(k=>callback.call(thisArg,values[k].join(', '),k,this));},
+      toJSON(){const out={};Object.keys(values).forEach(k=>{out[k]=values[k].length===1?values[k][0]:values[k].slice();});return out;},
+      [Symbol.iterator](){return this.entries()[Symbol.iterator]();}
     };
     return new Proxy(api,{
       get(target,key){if(typeof key!=='string'||Object.prototype.hasOwnProperty.call(target,key))return target[key];const v=values[key.toLowerCase()];return v?(v.length===1?v[0]:v.slice()):undefined;},
@@ -217,7 +222,7 @@
     });
   }
   function _fxEgernMessage(source,isResponse) {
-    const message=Object.assign({},source||{});
+    const message=source&&typeof source==='object'?source:{};
     message.headers=_fxEgernHeaders(message.headers||{});
     if(isResponse){
       message.status=Number(message.statusCode||message.status||200);
@@ -246,28 +251,47 @@
       return response;
     });
   }
-  const _fxEgernHttpApi={};
+  function _fxEgernFetch(input,options) {
+    let url='', settings={};
+    if(typeof input==='string'){
+      url=input;
+      settings=Object.assign({},options||{});
+    }else if(input&&typeof input==='object'){
+      url=String(input.url||input.uri||'');
+      settings=Object.assign({},input,options||{});
+    }else{
+      return Promise.reject(new Error('Egern HTTP input must be a URL or request object'));
+    }
+    const method=String(settings.method||'GET').toLowerCase();
+    return _fxEgernHttp(method,url,settings);
+  }
+  const _fxEgernHttpApi={fetch:_fxEgernFetch,request:_fxEgernFetch};
   for(const method of ['get','post','put','patch','delete','head','options']){
     _fxEgernHttpApi[method]=function(url,options){return _fxEgernHttp(method,url,options);};
   }
   const _fxEgernEnv=(_fxEvent.env&&typeof _fxEvent.env==='object')?_fxEvent.env:{};
+  const _fxEgernDevice=(_fxEvent.device&&typeof _fxEvent.device==='object')?_fxEvent.device:{};
+  const _fxEgernRequest=_fxEgernMessage(globalThis.$request,false);
+  const _fxEgernResponse=_fxEgernMessage(globalThis.$response,true);
   globalThis.ctx={
     script:Object.assign({},globalThis.$script),
     env:Object.assign({},_fxEgernEnv),
     app:{version:String(globalThis.$environment.version||''),language:String(globalThis.$environment.language||'')},
-    device:Object.assign({},(_fxEvent.device&&typeof _fxEvent.device==='object')?_fxEvent.device:{}),
-    request:_fxEgernMessage(globalThis.$request,false),
-    response:_fxEgernMessage(globalThis.$response,true),
+    device:Object.assign({},_fxEgernDevice),
+    request:_fxEgernRequest,
+    response:_fxEgernResponse,
     http:_fxEgernHttpApi,
     storage:{
-      get(key){const value=globalThis.$prefs.valueForKey(String(key));return value==null?null:(typeof value==='string'?value:JSON.stringify(value));},
-      set(key,value){globalThis.$prefs.setValueForKey(String(value),String(key));},
-      getJSON(key){const value=this.get(key);if(value==null)return null;try{return JSON.parse(value);}catch(_){return null;}}
+      get(key){return globalThis.$prefs.valueForKey(String(key));},
+      set(key,value){return globalThis.$prefs.setValueForKey(value,String(key));},
+      remove(key){return globalThis.$prefs.removeValueForKey(String(key));},
+      getJSON(key){const value=this.get(key);if(value==null)return null;if(typeof value==='object')return value;try{return JSON.parse(String(value));}catch(_){return null;}}
     },
-    notify(options){options=options||{};return _fxNotify(options.title||'',options.subtitle||'',options.body||'',options);}
+    notify(options){options=options||{};return _fxNotify(options.title||'',options.subtitle||'',options.body||'',options);},
+    log(){console.log.apply(console,arguments);}
   };
   globalThis.__fxEgernFail=function(error){if(!_fxDone)_fxSaveResult(false,error);};
-  // FX_EGERN_COMPAT_V1_END
+  // FX_EGERN_COMPAT_V2_END
   // Only publish the selected compatibility version key; absence means that
   // the native vendor runtime is not present. This is a compatibility profile,
   // not a claim that FX is the original client.
