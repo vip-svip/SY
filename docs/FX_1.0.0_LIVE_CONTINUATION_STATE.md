@@ -6751,3 +6751,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `3dfc6c1`: VPN controller now refuses symlink/non-regular log targets and creates its log with private permissions before append.
 - `b92027b` / `dfacf88`: controller status JSON now includes the live VPN coexistence arbiter report, preserving the arbiter's machine-readable `unknown`/`incompatible` result even when its exit code is non-zero. Corrected the JSON envelope match in the follow-up commit.
 - No checks, tests, build, CI, or device validation were run in this batch, per the current request.
+
+## 2026-11-06 — VPN 共存裁决器生产 UID 注入边界
+
+- 代码提交：`9b484b37fb11af875fe88542bf449c0140c37493`（`fx-module/scripts/fx-vpn-coexistence-arbiter.sh`）。
+- 将 `FX_ARB_SELF_UID` 环境变量注入限制为 `FX_ARB_TESTING=1` 的回归夹具；生产运行无条件清空该覆盖值，必须通过 Android 当前用户与包管理器解析 `de.privacyguard.adhook` 的真实 UID。
+- 这避免调用者通过伪造 FX UID，改变活动 VPN 的归属判断并误报为第三方 VPN 或 FX 自身 VPN。
+- 按用户要求，本批未运行测试、静态检查、构建、CI 或真机验证。
