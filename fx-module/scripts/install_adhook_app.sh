@@ -217,7 +217,7 @@ install_one(){
   cleanup_stage() {
     # Never recursively remove a path that may have been replaced.
     if [ -d "$_stage_dir" ] && [ ! -L "$_stage_dir" ]; then
-      [ ! -L "$_stage" ] && cleanup_stage || :
+      [ ! -L "$_stage" ] && rm -f "$_stage" 2>/dev/null || :
       rmdir "$_stage_dir" 2>/dev/null || :
     fi
   }
@@ -242,7 +242,8 @@ install_one(){
          ! chmod 0600 "$_marker.tmp.$$" 2>/dev/null ||
          ! mv -f "$_marker.tmp.$$" "$_marker" 2>/dev/null ||
          [ "$(cat "$_marker" 2>/dev/null)" != "$_actual" ]; then
-        rm -f "$_marker.tmp.$$" "$_stage" 2>/dev/null
+        rm -f "$_marker.tmp.$" 2>/dev/null
+        cleanup_stage
         log_msg "ERROR: APK installed but its digest ownership record could not be committed"
         return 1
       fi
@@ -251,7 +252,8 @@ install_one(){
            ! chmod 0600 "$_owned.tmp.$$" 2>/dev/null ||
            ! mv -f "$_owned.tmp.$$" "$_owned" 2>/dev/null ||
            [ "$(cat "$_owned" 2>/dev/null)" != "fx-managed-v1" ]; then
-          rm -f "$_owned.tmp.$$" "$_marker" "$_stage" 2>/dev/null
+          rm -f "$_owned.tmp.$" "$_marker" 2>/dev/null
+          cleanup_stage
           log_msg "ERROR: APK installed but FX ownership record could not be committed; leaving package untouched"
           return 1
         fi
