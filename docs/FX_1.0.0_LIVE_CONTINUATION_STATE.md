@@ -7199,3 +7199,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 应用 Hook 提交：`cb8ab18a9216a03f99b593061a649efee2bfa436`；模块 Hook 提交：`7dac274ba44c667bec51d10e03b20e90cfb61b1b`。
 - 与本批剪贴板、Wi-Fi 扫描及通知读取方法级重试共同构成隐私 Hook 的分层注册；策略仍保留按应用授权、系统/FX/LSPosed 保护名单及共享包进程 fail-open。
 - 固定 FX 1.0.0。按要求未运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-06 — QuickJS HTTP 请求头校验补强
+
+- `fx-module/scripts/jsruntime/host.js` 的 `$httpClient` / `$task.fetch` 入口现在校验请求头名称必须符合 HTTP token 字符集；此前仅拦截 CR/LF 与 Host、Content-Length、Transfer-Encoding 等受限字段，不能拒绝带空格或冒号的非法字段名。
+- 请求头值继续拒绝 CR/LF，保留现有受限字段保护、HTTP 方法白名单及 HTTP/HTTPS URL 限制。
+- 代码提交：`d2fb4d5d15861ca3f2d70b443b56554fca5f9e4a`。
+- 按用户要求未运行测试、静态检查、构建、CI 或真机验证。
