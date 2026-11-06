@@ -1474,3 +1474,11 @@
 - Release-source DNS patcher 要求 Root DIAG5 与启用/停用计数字段，防止仅恢复 DIAG4 旧控制器却错误通过完整迁移打包门。
 - 修改文件：两份 yulong-ad-control.sh、两份 FxYulongAdActivity.java、两份 patch_yulong_dns_upstreams.py、两份续接文档。
 - 按用户要求未运行测试、静态检查、构建、CI 或 Android 真机验证；本批仅提交源码。
+
+
+### 2026-11-07 — Unbound serve-expired TTL reset
+- Added the Unbound `serve-expired-ttl-reset` policy to the native DNS settings UI and Root control adapter.
+- The setting defaults to disabled (`0`) to preserve existing resolver behavior; it is validated as a strict boolean, persisted in `[conf:yulong_unbound_runtime]`, rendered into the live Unbound configuration as `yes/no`, and included in DNS profile import/export and diagnostics.
+- The UI sends the setting through the existing transactional `unbound-runtime-set` path, so the existing apply/rollback lifecycle remains in use.
+- Reference: NLnet Labs Unbound manual documents `serve-expired-ttl-reset` as resetting the stale record age after an upstream refresh failure; default is `no`.
+- No build, tests, or device validation were run in this migration pass, per current migration-speed preference.
