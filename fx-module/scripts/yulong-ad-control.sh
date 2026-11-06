@@ -1510,6 +1510,7 @@ dns_log_tail() {
     [ -s "$_dns_log_file" ] || continue
     _dns_log_found=1
     cat "$_dns_log_file" || return 31
+    printf '\n'
   done
   [ "$_dns_log_found" = 1 ] || echo FXDNSLOG_EMPTY
 }
