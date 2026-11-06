@@ -5574,6 +5574,9 @@ public final class MainActivity extends ComponentActivity {
                 if (isYamlFile && !isJson && !isEgernYaml && !isStashYaml) {
                     throw new IllegalArgumentException("无法识别 YAML 脚本配置：目前识别 Egern scriptings 与 Stash http.script + script-providers");
                 }
+                if ((isEgernYaml || isStashYaml) && staged.length() > 2L * 1024L * 1024L) {
+                    throw new IllegalArgumentException("YAML 脚本超过 2 MiB 导入上限");
+                }
                 if (isStashYaml && !isJson) {
                     try (InputStream input = new java.io.FileInputStream(staged);
                          ByteArrayOutputStream output = new ByteArrayOutputStream()) {
