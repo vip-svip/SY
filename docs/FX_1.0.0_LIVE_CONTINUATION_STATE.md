@@ -1263,3 +1263,11 @@
 - Root 控制接口新增 unbound-anchor-status 与 unbound-anchor-refresh；两个原生 Ad 页面新增 DNSSEC 根信任锚状态卡片与手动维护入口。正常运行中的 Unbound 继续通过 RFC5011 在线维护，不要求人为停止解析服务。
 - 修改文件：fx-module/scripts/unbound.sh、两份 scripts/yulong-ad-control.sh、两份 FxYulongAdActivity.java。
 - 按用户当前提速要求未运行 Shell/Java 测试、静态检查、构建、CI 或 Android 真机验证；本批仅完成源码移植及双源码同步。
+
+
+## 2026-11-07 — DNSSEC Root Hints 完整性与文件流式分享
+
+- Unbound 信任锚状态协议升级为 `FXYUNBOUNDANCHOR2`，在 root.key 的有效性/大小/陈旧状态之外，追加 Root Hints 文件状态与字节数；通过现有私有路径检查和 SHA-256 sidecar 校验判断 `root.hints` 的有效性、缺失、损坏或不安全状态。
+- 原生 DNSSEC 状态卡片同步展示 Root Hints 完整性，避免只看到 DNSKEY anchor 而忽略递归 DNS 根提示文件。
+- DNS 快照“分享”从 `Intent.EXTRA_TEXT` 改为系统 `ACTION_CREATE_DOCUMENT` 写入文件后，以 `EXTRA_STREAM` + `ClipData` URI 权限打开分享面板；完整配置不再进入 Binder 文本事务，保留另一个独立的“保存到文件”入口。
+- 按提速要求未运行测试、静态检查、构建、CI 或 Android 真机验证；本批仅完成源码修改及文档同步。

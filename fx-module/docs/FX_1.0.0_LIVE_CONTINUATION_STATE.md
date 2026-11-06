@@ -6893,3 +6893,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 正式 Root：`3f045d3b7826e3062917a72d2fd6b2c440d4a21c`；模块 Root：`350cc9f1c506d7aa53e1a6f5de1c20f77ec82be2`。正式 AGH renderer：`adf3f57f5b76aca7d3b36919f5663b02bf557364`、`bda12f4cbf58d0ad117929328f92e760c43e2093`；模块 AGH renderer：`43313869480b9c2ecc2ddc71194f9fd3bbcf7704`、`f1a183fe4a84cce7727ecedf5d3d63b193a0e6ab`。
 - 正式 App 的全局/备用输入提示与 DNS profile 导入双栈地址校验提交：`4f0c9f1e0eb621dd6f3366f2901d1bc561414abe`；模块 App：`f7ea2a080cc9783bf02e7abbe7e3d3c4ed7d2a9b`。
 - 按用户当前要求未运行测试、静态检查、Gradle/APK 构建、CI 或 Android 真机验证。
+
+## 2026-11-07 — DNSSEC Root Hints 完整性与文件流式分享
+
+- Unbound 信任锚状态协议升级为 `FXYUNBOUNDANCHOR2`，在 root.key 的有效性/大小/陈旧状态之外，追加 Root Hints 文件状态与字节数；通过现有私有路径检查和 SHA-256 sidecar 校验判断 `root.hints` 的有效性、缺失、损坏或不安全状态。
+- 原生 DNSSEC 状态卡片同步展示 Root Hints 完整性，避免只看到 DNSKEY anchor 而忽略递归 DNS 根提示文件。
+- DNS 快照“分享”从 `Intent.EXTRA_TEXT` 改为系统 `ACTION_CREATE_DOCUMENT` 写入文件后，以 `EXTRA_STREAM` + `ClipData` URI 权限打开分享面板；完整配置不再进入 Binder 文本事务，保留另一个独立的“保存到文件”入口。
+- 按提速要求未运行测试、静态检查、构建、CI 或 Android 真机验证；本批仅完成源码修改及文档同步。

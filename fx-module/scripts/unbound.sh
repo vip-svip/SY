@@ -465,6 +465,8 @@ _anchor_status() {
   _anchor_age=unknown
   _refresh_route=system_default
   _resolver_state=unknown
+  _root_hints_state=missing
+  _root_hints_bytes=0
   if [ -L "$STATE" ] || { [ -e "$STATE" ] && [ ! -d "$STATE" ]; }; then
     _anchor_state=unsafe
   elif [ -d "$STATE" ]; then
@@ -481,18 +483,51 @@ _anchor_status() {
       fi
     fi
   fi
+  if ! _safe_file_or_absent "$ROOT_HINTS" || ! _safe_file_or_absent "$ROOT/root.hints.sha256"; then
+    _root_hints_state=unsafe
+  elif [ ! -s "$ROOT_HINTS" ] || [ ! -s "$ROOT/root.hints.sha256" ]; then
+    _root_hints_state=missing
+  else
+    _root_hints_bytes=$(wc -c < "$ROOT_HINTS" 2>/dev/null | tr -d ' ')
+    case "$_root_hints_bytes" in ''|*[!0-9]*) _root_hints_bytes=unknown ;; esac
+    if _hash "$ROOT_HINTS" "$ROOT/root.hints.sha256"; then
+      _root_hints_state=valid
+    else
+      _root_hints_state=invalid
+    fi
+  fi
   if [ -L "$EGRESS" ]; then
     _refresh_route=unsafe
   elif [ -e "$EGRESS" ]; then
     if [ -f "$EGRESS" ]; then _refresh_route=vpn_bound; else _refresh_route=unsafe; fi
   fi
   if _p=$(_owned_pid 2>/dev/null); then _resolver_state=running; else _resolver_state=stopped; fi
-  echo FXYUNBOUNDANCHOR1
+  echo FXYUNBOUNDANCHOR2
   printf 'anchor_state=%s\n' "$_anchor_state"
   printf 'anchor_bytes=%s\n' "$_anchor_bytes"
   printf 'anchor_age=%s\n' "$_anchor_age"
   printf 'refresh_route=%s\n' "$_refresh_route"
   printf 'resolver_state=%s\n' "$_resolver_state"
+  printf 'root_hints_state=%s\n' "$_root_hints_state"
+  printf 'root_hints_bytes=%s\n' "$_root_hints_bytes"
+}  else
+      _root_hints_state=invalid
+    fi
+  fi
+  if [ -L "$EGRESS" ]; then
+    _refresh_route=unsafe
+  elif [ -e "$EGRESS" ]; then
+    if [ -f "$EGRESS" ]; then _refresh_route=vpn_bound; else _refresh_route=unsafe; fi
+  fi
+  if _p=$(_owned_pid 2>/dev/null); then _resolver_state=running; else _resolver_state=stopped; fi
+  echo FXYUNBOUNDANCHOR2
+  printf 'anchor_state=%s\n' "$_anchor_state"
+  printf 'anchor_bytes=%s\n' "$_anchor_bytes"
+  printf 'anchor_age=%s\n' "$_anchor_age"
+  printf 'refresh_route=%s\n' "$_refresh_route"
+  printf 'resolver_state=%s\n' "$_resolver_state"
+  printf 'root_hints_state=%s\n' "$_root_hints_state"
+  printf 'root_hints_bytes=%s\n' "$_root_hints_bytes"
 }
 _refresh_anchor() {
   _prepare_state_dirs || return 20

@@ -68,6 +68,7 @@ public final class FxYulongAdActivity extends de.privacyguard.adhook.FxNativeTab
   private long rootProxyStatusGeneration;
  private static final int DNS_PROFILE_OPEN_REQUEST=4202;
  private static final int DNS_PROFILE_SAVE_REQUEST=4203;
+ private static final int DNS_PROFILE_SHARE_REQUEST=4204;
  private EditText dnsProfileImportField;
  private String pendingDnsProfileExport="";
  private Bundle pendingRestoredDrafts;
@@ -1289,12 +1290,12 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
 }
 
   private void loadUnboundAnchorStatus(TextView target){
-  target.setText("正在读取 DNSSEC 根信任锚状态…");
+  target.setText("正在读取 DNSSEC 根信任锚与 Root Hints 状态…");
   root("unbound-anchor-status",result->{
-    if(result.exitCode!=0){target.setText("DNSSEC 信任锚状态读取失败："+safe(result.output));return;}
+    if(result.exitCode!=0){target.setText("DNSSEC 根信任锚状态读取失败："+safe(result.output));return;}
     String raw=result.output==null?"":result.output.trim();
     String[] lines=raw.split("\\r?\\n");
-    if(lines.length<6||!"FXYUNBOUNDANCHOR1".equals(lines[0].trim())){
+    if(lines.length<8||!"FXYUNBOUNDANCHOR2".equals(lines[0].trim())){
       target.setText("DNSSEC 信任锚状态协议错误，拒绝显示不完整信息。");return;
     }
     java.util.Map<String,String> values=new java.util.HashMap<>();
@@ -1304,25 +1305,30 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
       if(split<=0||split==line.length()-1){target.setText("DNSSEC 信任锚状态字段格式错误。");return;}
       String key=line.substring(0,split),value=line.substring(split+1);
       if(!"anchor_state".equals(key)&&!"anchor_bytes".equals(key)&&!"anchor_age".equals(key)
-          &&!"refresh_route".equals(key)&&!"resolver_state".equals(key)){
+          &&!"refresh_route".equals(key)&&!"resolver_state".equals(key)
+          &&!"root_hints_state".equals(key)&&!"root_hints_bytes".equals(key)){
         target.setText("DNSSEC 信任锚状态包含未知字段："+key);return;
       }
       if(values.put(key,value)!=null){target.setText("DNSSEC 信任锚状态包含重复字段："+key);return;}
     }
-    if(values.size()!=5){target.setText("DNSSEC 信任锚状态字段不完整。");return;}
+    if(values.size()!=7){target.setText("DNSSEC 信任锚状态字段不完整。");return;}
     String state=values.get("anchor_state"),age=values.get("anchor_age");
     String bytes=values.get("anchor_bytes"),route=values.get("refresh_route");
     String resolver=values.get("resolver_state");
+    String hintsState=values.get("root_hints_state"),hintsBytes=values.get("root_hints_bytes");
     if(!("valid".equals(state)||"missing".equals(state)||"invalid".equals(state)||"unsafe".equals(state))
         ||(!android.text.TextUtils.isDigitsOnly(bytes)&&!"unknown".equals(bytes))
         ||!("stale".equals(age)||"current".equals(age)||"unknown".equals(age))
         ||!("system_default".equals(route)||"vpn_bound".equals(route)||"unsafe".equals(route))
-        ||!("running".equals(resolver)||"stopped".equals(resolver)||"unknown".equals(resolver))){
-      target.setText("DNSSEC 信任锚状态值异常，拒绝显示。");return;
+        ||!("running".equals(resolver)||"stopped".equals(resolver)||"unknown".equals(resolver))
+        ||!("valid".equals(hintsState)||"missing".equals(hintsState)||"invalid".equals(hintsState)||"unsafe".equals(hintsState))
+        ||(!android.text.TextUtils.isDigitsOnly(hintsBytes)&&!"unknown".equals(hintsBytes))){
+      target.setText("DNSSEC 信任锚或 Root Hints 状态值异常，拒绝显示。");return;
     }
-    target.setText("信任锚："+state+"；文件大小："+bytes+" 字节；更新状态："+age
+    target.setText("DNSSEC 信任锚："+state+"；文件大小："+bytes+" 字节；更新状态："+age
         +"；Unbound："+resolver+"；刷新出口："+route
-        +("stale".equals(age)?"。信任锚超过 14 天未更新；在线 Unbound 会继续执行 RFC5011 维护。":"。"));
+        +("stale".equals(age)?"。信任锚超过 14 天未更新；在线 Unbound 会继续执行 RFC5011 维护。":"。")
+        +"\\nRoot Hints："+hintsState+"；文件大小："+hintsBytes+" 字节（SHA-256 完整性校验）。");
   });
 }
  private void renderDns(){
@@ -1667,16 +1673,17 @@ private void shareDnsProfile(){
     String raw=r.output==null?"":r.output.trim();
     if(!raw.startsWith("FXYULONGDNSPROFILE1")){status.setText("DNS 配置快照格式不受支持，未生成备份。");return;}
     String payload="FXYULONGDNSPROFILE1\n"+raw.substring("FXYULONGDNSPROFILE1".length()).trim()+"\n";
-    int bytes=payload.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+    pendingDnsProfileExport=payload;
     try{
-      Intent send=new Intent(Intent.ACTION_SEND);
-      send.setType("text/plain");
-      send.putExtra(Intent.EXTRA_SUBJECT,"FX Hook DNS 配置备份");
-      send.putExtra(Intent.EXTRA_TEXT,payload);
-      startActivity(Intent.createChooser(send,"分享 DNS 配置快照"));
-      status.setText("已准备 DNS 配置快照（"+bytes+" 字节）；请自行选择安全的保存位置。");
+      Intent create=new Intent(Intent.ACTION_CREATE_DOCUMENT);
+      create.addCategory(Intent.CATEGORY_OPENABLE);
+      create.setType("text/plain");
+      create.putExtra(Intent.EXTRA_TITLE,"FX-DNS-profile.txt");
+      startActivityForResult(create,DNS_PROFILE_SHARE_REQUEST);
+      status.setText("请选择临时分享文件的位置；保存后将通过文件 URI 打开系统分享面板，不再把完整 DNS 快照塞进跨进程文本参数。");
     }catch(RuntimeException unavailable){
-      status.setText("无法打开系统分享面板："+safe(unavailable.getMessage()));
+      pendingDnsProfileExport="";
+      status.setText("无法打开系统文件保存器："+safe(unavailable.getMessage()));
     }
   });
 }
@@ -1712,20 +1719,38 @@ private void openDnsProfileFile(){
 }
 @Override protected void onActivityResult(int requestCode,int resultCode,Intent data){
   super.onActivityResult(requestCode,resultCode,data);
-  if(requestCode==DNS_PROFILE_SAVE_REQUEST){
+  if(requestCode==DNS_PROFILE_SAVE_REQUEST||requestCode==DNS_PROFILE_SHARE_REQUEST){
+    boolean shareAfterSave=requestCode==DNS_PROFILE_SHARE_REQUEST;
     String payload=pendingDnsProfileExport;
     pendingDnsProfileExport="";
     if(resultCode!=Activity.RESULT_OK||data==null||data.getData()==null){
-      status.setText("已取消 DNS 快照文件保存。");return;
+      status.setText(shareAfterSave?"已取消 DNS 快照分享文件选择。":"已取消 DNS 快照文件保存。");return;
     }
     if(payload.isEmpty()){status.setText("DNS 快照导出内容已失效，请重新操作。");return;}
-    try(java.io.OutputStream stream=getContentResolver().openOutputStream(data.getData(),"w")){
+    android.net.Uri targetUri=data.getData();
+    try(java.io.OutputStream stream=getContentResolver().openOutputStream(targetUri,"w")){
       if(stream==null)throw new java.io.IOException("无法打开目标文件");
       stream.write(payload.getBytes(java.nio.charset.StandardCharsets.UTF_8));
       stream.flush();
-      status.setText("DNS 配置快照已保存到所选文件。");
     }catch(Exception failure){
       status.setText("DNS 快照文件保存失败："+safe(failure.getMessage()));
+      return;
+    }
+    if(shareAfterSave){
+      try{
+        Intent send=new Intent(Intent.ACTION_SEND);
+        send.setType("text/plain");
+        send.putExtra(Intent.EXTRA_SUBJECT,"FX Hook DNS 配置备份");
+        send.putExtra(Intent.EXTRA_STREAM,targetUri);
+        send.setClipData(android.content.ClipData.newUri(getContentResolver(),"FX DNS profile",targetUri));
+        send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        startActivity(Intent.createChooser(send,"分享 DNS 配置快照"));
+        status.setText("DNS 配置快照已写入文件并通过文件 URI 打开系统分享面板。");
+      }catch(RuntimeException unavailable){
+        status.setText("DNS 快照文件已保存，但无法打开系统分享面板："+safe(unavailable.getMessage()));
+      }
+    }else{
+      status.setText("DNS 配置快照已保存到所选文件。");
     }
     return;
   }
