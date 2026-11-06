@@ -79,12 +79,85 @@ public final class FxDiaScriptLibraryStore {
         }
     }
 
+    /** Copy a stored script to a new, unused name in one locked write. */
+    public static void copy(Context context, String sourceName, String newName) throws Exception {
+        if (context == null) throw new IllegalArgumentException("复制参数无效。");
+        String normalized = FxDiaScriptLibraryPolicy.normalizeName(newName);
+        String nameError = FxDiaScriptLibraryPolicy.validateName(normalized);
+        if (nameError != null) throw new IllegalArgumentException(nameError);
+        synchronized (LOCK) {
+            JSONObject scripts = readLocked(context);
+            if (!scripts.has(sourceName)) throw new IllegalArgumentException("源脚本已不存在，请刷新列表。");
+            if (scripts.has(normalized)) throw new IllegalArgumentException("目标名称已存在，请使用新名称。");
+            if (scripts.length() >= 500) throw new IllegalStateException("脚本库最多保存 500 个脚本。");
+            String source = scripts.getString(sourceName);
+            String sourceError = FxDiaScriptLibraryPolicy.validateSource(source);
+            if (sourceError != null) throw new IllegalArgumentException("源脚本内容无效：" + sourceError);
+            scripts.put(normalized, source);
+            writeLocked(context, scripts);
+        }
+    }
+
     public static void delete(Context context, String name) throws Exception {
         if (context == null || name == null) throw new IllegalArgumentException("删除参数无效。");
         synchronized (LOCK) {
             JSONObject scripts = readLocked(context);
             scripts.remove(name);
             writeLocked(context, scripts);
+        }
+    }
+
+    /** Rename a script without overwriting another entry. */
+    public static void rename(Context context, String oldName, String newName) throws Exception {
+        if (context == null || oldName == null) throw new IllegalArgumentException("重命名参数无效。");
+        String normalized = FxDiaScriptLibraryPolicy.normalizeName(newName);
+        String nameError = FxDiaScriptLibraryPolicy.validateName(normalized);
+        if (nameError != null) throw new IllegalArgumentException(nameError);
+        synchronized (LOCK) {
+            JSONObject scripts = readLocked(context);
+            if (!scripts.has(oldName)) throw new IllegalArgumentException("原脚本已不存在，请刷新列表。");
+            if (!oldName.equals(normalized) && scripts.has(normalized)) {
+                throw new IllegalArgumentException("新名称已被其他脚本占用。");
+            }
+            if (oldName.equals(normalized)) return;
+            String source = scripts.getString(oldName);
+            scripts.remove(oldName);
+            scripts.put(normalized, source);
+            writeLocked(context, scripts);
+        }
+    }
+
+    /** Delete a user-confirmed group of script names in one atomic preference write. */
+    public static int deleteMany(Context context, List<String> names) throws Exception {
+        if (context == null || names == null) throw new IllegalArgumentException("批量删除参数无效。");
+        synchronized (LOCK) {
+            JSONObject scripts = readLocked(context);
+            int removed = 0;
+            for (String name : names) {
+                if (name == null) continue;
+                if (scripts.has(name)) {
+                    scripts.remove(name);
+                    removed++;
+                }
+            }
+            if (removed > 0) writeLocked(context, scripts);
+            return removed;
+        }
+    }
+
+    /** Export only the supplied existing names while retaining the shared import schema. */
+    public static String exportJson(Context context, List<String> names) throws Exception {
+        if (context == null || names == null) throw new IllegalArgumentException("导出参数无效。");
+        synchronized (LOCK) {
+            JSONObject all = readLocked(context);
+            JSONObject selected = new JSONObject();
+            for (String name : names) {
+                if (name != null && all.has(name)) selected.put(name, all.getString(name));
+            }
+            JSONObject root = new JSONObject();
+            root.put("schema", SCHEMA);
+            root.put("scripts", selected);
+            return root.toString(2);
         }
     }
 
