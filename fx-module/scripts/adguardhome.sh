@@ -165,22 +165,35 @@ _build_user_rules() {
     ' "$_yulong_file" >> "$_output" || return 1
   fi
 
-  # User allow/block lists are translated to AdGuard syntax. Strict domain
-  # validation happens again here so corrupted settings cannot inject YAML.
-  awk -F'|' '
-    function valid(d) {
-      return d ~ /^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/
+  # Consume the same strict, duplicate-aware managed-list reader as the
+  # native UI. A malformed row must fail the complete render rather than be
+  # silently skipped and leave a partially applied allow/block policy.
+  _domain_rows=$(MP="$MODDIR" PG="$PG" sh "$MODDIR/scripts/native-managed-lists.sh" list domainList) || {
+    _log 'managed allowlist is invalid; refusing partial DNS rule render'
+    return 1
+  }
+  _block_rows=$(MP="$MODDIR" PG="$PG" sh "$MODDIR/scripts/native-managed-lists.sh" list blockList) || {
+    _log 'managed blocklist is invalid; refusing partial DNS rule render'
+    return 1
+  }
+  printf '%s\\n' "$_domain_rows" | awk -F'|' '
+    NR==1 {if($0!="FXLIST1") exit 2; next}
+    NF!=4 || $1 !~ /^[0-9]+$/ || $4 !~ /^[01]$/ {exit 2}
+    $4=="1" {
+      d=tolower($2)
+      if(d !~ /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/ || length(d)>253) exit 2
+      print "  - \\"@@||" d "^\\""
     }
-    $0=="[list:domain]" {section="domain"; next}
-    $0=="[list:block]" {section="block"; next}
-    /^\[/ {section=""; next}
-    section=="domain" && valid($1) && (NF<3 || $3=="1") {
-      print "  - \"@@||" tolower($1) "^\""
+  ' >> "$_output" || return 1
+  printf '%s\\n' "$_block_rows" | awk -F'|' '
+    NR==1 {if($0!="FXLIST1") exit 2; next}
+    NF!=4 || $1 !~ /^[0-9]+$/ || $4 !~ /^[01]$/ {exit 2}
+    $4=="1" {
+      d=tolower($2)
+      if(d !~ /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/ || length(d)>253) exit 2
+      print "  - \\"||" d "^\\""
     }
-    section=="block" && valid($1) && (NF<3 || $3=="1") {
-      print "  - \"||" tolower($1) "^\""
-    }
-  ' "$PG/settings.conf" >> "$_output" || return 1
+  ' >> "$_output" || return 1
 
   _unique=$(_new_private_temp "$STATE/user-rules.unique.XXXXXX") || return 1
   if ! awk '!seen[$0]++' "$_output" > "$_unique" || ! cat "$_unique" > "$_output"; then
