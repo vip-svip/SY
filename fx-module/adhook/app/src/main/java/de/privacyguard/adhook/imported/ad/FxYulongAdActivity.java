@@ -738,7 +738,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
     input.setText(currentSize);
     String detail="达到指定记录数后，AdGuard Home 会把缓冲记录写入本地文件。0 表示每条记录立即写盘；较大批量可减少写入频率，但日志页看到新记录的延迟会增加。当前设备动态上限："+maximum+"。";
     if(currentValue.compareTo(maximumValue)>0){
-      detail+="\\n当前保存值已超过本次读取的设备上限；请调低后保存。";
+      detail+="\n当前保存值已超过本次读取的设备上限；请调低后保存。";
     }
     fxDialogBuilder().setTitle("DNS 查询日志内存刷盘批量")
       .setMessage(detail)
