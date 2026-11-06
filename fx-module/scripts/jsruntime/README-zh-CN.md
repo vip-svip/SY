@@ -10,12 +10,12 @@
 - HTTP bridge 仅允许 `http://` 与 `https://`，单次 `$httpClient` 请求超时会限制在 1–20 秒、响应最多 8 MiB；为了防止不同 `wget` 实现的重定向协议限制不一致，HTTP bridge 没有 curl 时会失败关闭，不再回退到 wget。脚本订阅下载同样要求设备有 `curl`。
 - **安全边界（FX 加固版 QuickJS-NG）：** 宿主预加载可信桥接代码并捕获内部 `std` / `os` 引用后，运行时会在模块缓存查询之前拒绝 `qjs:std`、`qjs:os`、`qjs:bjson` 动态导入，并拒绝加载 `.so` 原生模块；全局别名仍会隐藏。回归探针验证了绕过路径被拦截，同时 `$task.fetch`、`$prefs`、`$done` 正常工作。此改动关闭的是这条特权模块导入路径，**不是 Android/内核级进程沙箱**：脚本仍能经 FX 暴露的 HTTP API 发请求并修改自身偏好设置，因此订阅脚本仍应只使用可信来源，不能把本改动描述成对任意恶意代码的完整隔离。
 
-## Egern 脚本兼容入口（首批）
+## Egern 脚本兼容入口（扩展子集）
 
-- 运行器识别 Egern 常见的顶层 `export default async function(ctx) { ... }` 形式，并在执行前转换为 FX QuickJS 函数入口。
-- 提供 `ctx.script`、`ctx.env`、`ctx.app`、`ctx.device`、`ctx.request`、`ctx.response`、`ctx.http`、`ctx.storage` 和 `ctx.notify`。`ctx.http` 支持 GET/POST/PUT/PATCH/DELETE/HEAD/OPTIONS，返回 Promise 响应对象及 `text()` / `json()`；超时按毫秒接收，并限制为 1–20 秒。
-- 请求/响应 Headers 提供大小写不敏感的 `get`、`getAll`、`has`、`set`、`append`、`delete` 与直接属性访问；请求头支持多值数组。环境变量和设备字段只透传事件中实际提供的值。
-- 当前为 Egern API 子集，不等于完整复刻：尚不支持 ESM import 依赖、ReadableStream/Blob/ArrayBuffer、SSH、`ctx.respond()`、`ctx.abort()` 和客户端策略/网络服务 API；底层 HTTP 仍为同步 bridge，Promise 兼容不代表非阻塞网络 I/O。
+- 运行器支持顶层默认导出的异步或同步函数，包括带函数名的形式，并在执行前转换为 FX QuickJS 函数入口。
+- 提供 ctx.script、ctx.env、ctx.app、ctx.device、ctx.request、ctx.response、ctx.http、ctx.storage、ctx.notify 和 ctx.log。HTTP 支持 GET/POST/PUT/PATCH/DELETE/HEAD/OPTIONS，以及 fetch/request 入口；响应提供 status、headers、text() 和 json()。
+- 请求与响应头大小写不敏感，支持 get、getAll、has、set、append、delete、entries 和迭代；ctx.storage 支持 get、set、remove、getJSON。超时按毫秒接收，并限制在 FX HTTP bridge 的安全范围内。
+- 环境和设备字段只透传事件实际提供的值，不伪造运营商或网络状态。当前是 Egern API 子集，不支持 ESM import 依赖、流、Blob/ArrayBuffer、SSH、ctx.respond()、ctx.abort() 或客户端策略/网络服务 API；底层 HTTP 仍为同步 bridge，Promise 兼容不代表非阻塞网络 I/O。
 
 ## 明确的能力边界
 
