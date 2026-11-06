@@ -6988,3 +6988,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 - `fx-module/scripts/jsruntime/sync-subs.sh`（`7a92d1d9fbadf0d3887d3dd61fb72f244b85df89`）修复元数据包装临时路径从 `.wrap.$$` 截断为 `.wrap.$` 的问题，恢复按进程 PID 隔离，避免并发订阅同步时覆盖共享临时文件。
 - 按当前推进要求未运行测试、静态检查、构建、CI 或设备验证。
+
+## 2026-11-06 — Egern YAML 脚本级环境变量接入
+
+- `EgernScriptYamlImporter.java` 扩展为读取 Egern `scriptings:` 下的扁平 env 字符串映射；限制 32 个键、键名 64 字符、单值 512 字符、序列化 JSON 2048 字符。嵌套对象/列表、无效结构和 binary_body 条目仍跳过；body_required 仅对 http_response 保留。
+- Egern 订阅元数据新增第 5 行 JSON env 对象；`sync-subs.sh` 将其写入 `FX-SCRIPT-ENV-JSON` 脚本头，保留旧四行元数据兼容；脚本环境值进入 QuickJS `ctx.env`，事件自身 env 在合并时具有更高优先级。
+- QuickJS `host.js`、根目录 `fx-patches/patch_quickjs_egern_compat.py` 和模块构建镜像 `fx-module/build-tools/patches/patch_quickjs_egern_compat.py` 已同步相同的 env 读取逻辑，避免 Release ZIP 恢复旧运行时后丢失实现。
+- 本批主要提交：应用 importer `bf87975e6e273636aee157db4bb6eb491a74e8a1`，模块 importer `b4ad41134f46bfdc6bdc3b002037e9c95eb16905`；同步器 `81ab18fcfad901f732f068ab2ca16b90e4300c22`；QuickJS host `6711849197bbdcd0883b51668c146f7266306a31`；根构建补丁 `53d816e5faff18132685d7bc9899ef276dd0ca69`；模块构建补丁 `c13a13616f1ed3a4c779de0cde3f1a3b79be28c8`；README `845ba5bb0f6540b401fbe4f2eaa396f71bdd5877`。
+- 另修复订阅元数据包装临时文件名，改为进程专属 `.wrap.$$`：`ba2540c082c4870b7977a3c7bf5c340fe283bb1c`。
+- 固定 FX 1.0.0；本批按要求未运行测试、静态检查、构建、CI 或真机验证。Egern YAML 仍是受限导入子集，不宣称完整 YAML/客户端兼容。
