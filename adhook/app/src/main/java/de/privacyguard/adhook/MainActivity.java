@@ -1937,6 +1937,8 @@ public final class MainActivity extends ComponentActivity {
         // Keep their native controls on the Privacy destination where users expect them.
         section("Android 系统隐私面板");
         addNativeActionCard("查看系统隐私信息中心", "打开 Android 系统隐私信息中心，查看近期摄像头、麦克风和位置信息访问记录。此处展示系统记录，不替代 FX 按应用 Hook 策略。", "打开系统面板", this::openAndroidPrivacyDashboard);
+        addNativeActionCard("通知读取授权", "管理允许哪些应用读取通知内容。FX 的通知监听策略只有在系统授予通知访问权限后才能工作。", "打开通知授权", () -> openAndroidSettingsPage(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS, "通知使用权设置"));
+        addNativeActionCard("应用使用情况访问", "管理应用使用情况访问权限；此权限独立于通知读取授权，也不会自动授予 Root 或 Hook 权限。", "打开使用情况授权", () -> openAndroidSettingsPage(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS, "使用情况访问设置"));
 
         section("高级隐私与系统防护");
         addNativeSettingsCategory("Root / 模块隐藏", "rootPanel");
@@ -1951,6 +1953,23 @@ public final class MainActivity extends ComponentActivity {
         addNativeSettingsCategory("通知与剪贴板", "notifyPanel");
         addNativeSettingsCategory("内核防护", "kernelPanel");
         addNativeSettingsCategory("其他系统隐私", "miscPanel");
+    }
+
+    private void openAndroidSettingsPage(String action, String label) {
+        Intent intent = new Intent(action);
+        if (intent.resolveActivity(getPackageManager()) == null) {
+            FxNativeSkin.builder(this).setTitle(label + "不可用")
+                    .setMessage("当前 Android 版本或系统设置应用未提供此授权页面。请在系统设置中手动查找对应权限。")
+                    .setPositiveButton("知道了", null).show();
+            return;
+        }
+        try {
+            startActivity(intent);
+        } catch (RuntimeException error) {
+            FxNativeSkin.builder(this).setTitle("无法打开" + label)
+                    .setMessage(error.getMessage() == null ? "系统拒绝打开该设置页面。" : error.getMessage())
+                    .setPositiveButton("关闭", null).show();
+        }
     }
 
     private void openAndroidPrivacyDashboard() {
