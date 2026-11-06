@@ -797,9 +797,57 @@ remove_domains() {
   _yad_remove_raw=
   echo "removed=$_remove_count"
 }
-m_allow_add(){ sh "$MP/scripts/whitelist.sh" add "$1" "$2"; }
-m_allow_remove(){ sh "$MP/scripts/whitelist.sh" remove "$1"; }
+write_allow() {
+  domain=$1; note=$2; state=$3; mode=$4
+  tmp=$(mktemp "$CONF.yulong-allow.XXXXXX") || return 1
+  _yad_conf_tmp=$tmp
+  awk -F'|' -v OFS='|' -v domain="$domain" -v note="$note" -v state="$state" -v mode="$mode" '
+    BEGIN{inside=0;found=0;done=0}
+    $0=="[list:domain]"{inside=1;found=1;print;next}
+    /^\\[/{if(inside&&mode=="add"&&!done){print domain,note,state;done=1}inside=0;print;next}
+    inside&&$0!~/^[[:space:]]*#/&&tolower($1)==domain{if(mode=="remove")next;if(!done){print domain,note,state;done=1}next}
+    {print}
+    END{if(inside&&mode=="add"&&!done){print domain,note,state;done=1}if(!found&&mode=="add"){print "";print "[list:domain]";print domain,note,state}if(!done&&mode=="set")exit 3}
+  ' "$CONF" > "$tmp" || { rm -f "$tmp"; _yad_conf_tmp=; return 1; }
+  if [ -s "$tmp" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"; then _yad_conf_tmp=; return 0; fi
+  rm -f "$tmp"; _yad_conf_tmp=; return 1
+}
+m_allow_add(){ write_allow "$1" "$2" 1 add; }
+m_allow_remove(){ write_allow "$1" "" 0 remove; }
+m_allow_set(){ old_note=$(pg_list domain|awk -F'|' -v d="$1" '$1==d{print $2;exit}'); [ -n "$old_note" ] || return 3; write_allow "$1" "$old_note" "$2" set; }
 m_allow_import(){ import_domains allow "$1"; }
+allow_set_many() {
+  _allow_enabled=$1; _allow_encoded=$2
+  case "$_allow_enabled" in 0|1) : ;; *) echo "whitelist state must be 0 or 1" >&2; return 2 ;; esac
+  case "$_allow_encoded" in ''|*[!A-Za-z0-9+/=]*) echo "invalid base64 whitelist state list" >&2; return 2 ;; esac
+  [ "${#_allow_encoded}" -le 87384 ] || { echo "whitelist state list exceeds 64 KiB" >&2; return 2; }
+  _yad_set_raw=$(mktemp "$PG/yulong-allow-set.XXXXXX") || return 1
+  _yad_set_clean=$(mktemp "$PG/yulong-allow-set-clean.XXXXXX") || return 1
+  chmod 600 "$_yad_set_raw" "$_yad_set_clean" || return 1
+  (umask 077; printf '%s' "$_allow_encoded" | base64 -d > "$_yad_set_raw") || { echo "unable to decode whitelist state list" >&2; return 2; }
+  _allow_bytes=$(wc -c < "$_yad_set_raw" | tr -d ' ')
+  [ "$_allow_bytes" -le 65536 ] || { echo "whitelist state list exceeds 64 KiB" >&2; return 2; }
+  _allow_count=0
+  while IFS= read -r _allow_line || [ -n "$_allow_line" ]; do
+    _allow_line=$(printf '%s' "$_allow_line" | tr -d '\\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    [ -n "$_allow_line" ] || continue
+    _allow_domain=$(valid_domain "$_allow_line") || { echo "invalid domain in whitelist state list" >&2; return 2; }
+    if ! pg_list domain | awk -F'|' -v d="$_allow_domain" '$1==d{found=1} END{exit !found}'; then
+      echo "whitelist domain no longer exists: $_allow_domain" >&2; return 3
+    fi
+    if ! grep -Fxq "$_allow_domain" "$_yad_set_clean"; then
+      printf '%s\\n' "$_allow_domain" >> "$_yad_set_clean" || return 1
+      _allow_count=$((_allow_count + 1))
+      [ "$_allow_count" -le 2000 ] || { echo "whitelist state list is limited to 2000 rows" >&2; return 2; }
+    fi
+  done < "$_yad_set_raw"
+  [ "$_allow_count" -gt 0 ] || { echo "no whitelist domains to update" >&2; return 2; }
+  while IFS= read -r _allow_domain; do
+    m_allow_set "$_allow_domain" "$_allow_enabled" || { echo "failed to update whitelist domain: $_allow_domain" >&2; return 1; }
+  done < "$_yad_set_clean"
+  rm -f "$_yad_set_raw" "$_yad_set_clean"; _yad_set_raw=; _yad_set_clean=
+  echo "updated=$_allow_count enabled=$_allow_enabled"
+}
 m_block_add(){ write_block "$1" "$2" 1 add; }
 m_block_set(){ old_note=$(pg_list block|awk -F'|' -v d="$1" '$1==d{print $2;exit}'); [ -n "$old_note" ] || return 3; write_block "$1" "$old_note" "$2" set; }
 block_set_many() {
@@ -1104,6 +1152,14 @@ case "$cmd" in
  allow-remove)
   [ "$#" -eq 2 ] || exit 2; d=$(valid_domain "$2") || exit 2
   with_lock transaction m_allow_remove "$d" ;;
+ allow-set)
+  [ "$#" -eq 3 ] || exit 2
+  d=$(valid_domain "$2") || exit 2
+  { [ "$3" = 0 ] || [ "$3" = 1 ]; } || exit 2
+  with_lock transaction m_allow_set "$d" "$3" ;;
+ allow-set-many)
+  [ "$#" -eq 3 ] || { echo "usage: $0 allow-set-many 0|1 base64-domain-list" >&2; exit 2; }
+  with_lock transaction allow_set_many "$2" "$3" ;;
  allow-import)
   [ "$#" -eq 2 ] || { echo "usage: $0 allow-import base64-domain-list" >&2; exit 2; }
   with_lock transaction m_allow_import "$2" ;;
