@@ -3073,6 +3073,11 @@ case "$cmd" in
   [ -x "$MP/scripts/unbound.sh" ] || { echo "Unbound lifecycle script is missing" >&2; exit 20; }
   MP="$MP" PG="$PG" sh "$MP/scripts/unbound.sh" anchor-status "$MP" "$PG"
   ;;
+ unbound-root-hints-refresh)
+  [ "$#" -eq 1 ] || exit 2
+  [ -x "$MP/scripts/unbound.sh" ] || { echo "Unbound lifecycle script is missing" >&2; exit 20; }
+  MP="$MP" PG="$PG" sh "$MP/scripts/unbound.sh" root-hints-refresh "$MP" "$PG"
+  ;;
  unbound-anchor-refresh)
   [ "$#" -eq 1 ] || exit 2
   [ -x "$MP/scripts/unbound.sh" ] || { echo "Unbound lifecycle script is missing" >&2; exit 20; }
