@@ -423,9 +423,27 @@ _remove_pid_marker_if_matches() {
   _expected=$1
   _safe_file_or_absent "$PIDFILE" || return 1
   [ -f "$PIDFILE" ] || return 0
-  _current=$(cat "$PIDFILE" 2>/dev/null)
+  _current=$(cat "$PIDFILE" 2>/dev/null) || return 1
   [ "$_current" = "$_expected" ] || return 0
-  rm -f "$PIDFILE" 2>/dev/null || :
+  # Isolate the marker before deletion, then verify the moved contents.
+  # This prevents a stale lifecycle operation from unlinking a newer PID.
+  _release="$PIDFILE.release.$$"
+  _n=0
+  while { [ -e "$_release" ] || [ -L "$_release" ]; } && [ "$_n" -lt 20 ]; do
+    _n=$((_n + 1))
+    _release="$PIDFILE.release.$$.\${_n}"
+  done
+  [ ! -e "$_release" ] && [ ! -L "$_release" ] || return 1
+  mv "$PIDFILE" "$_release" 2>/dev/null || return 1
+  _moved=$(cat "$_release" 2>/dev/null || true)
+  if [ "$_moved" = "$_expected" ] && [ ! -L "$_release" ] && [ -f "$_release" ]; then
+    rm -f "$_release" 2>/dev/null || return 1
+    return 0
+  fi
+  if [ ! -e "$PIDFILE" ] && [ ! -L "$PIDFILE" ]; then
+    mv "$_release" "$PIDFILE" 2>/dev/null || :
+  fi
+  return 1
 }
 _owned_pid() {
   _safe_file_or_absent "$PIDFILE" && [ -f "$PIDFILE" ] || return 1
