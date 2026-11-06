@@ -1295,6 +1295,7 @@ public final class MainActivity extends ComponentActivity {
                         + "\n接管接口 / VPN UID：" + state.getOrDefault("rootproxy_interface", "unknown")
                         + " / " + state.getOrDefault("rootproxy_vpn_uid", "unknown")
                         + "\nRoot Proxy 出口 IPv4：" + state.getOrDefault("rootproxy_egress_ipv4", "unknown")
+                        + "\nRoot Proxy 启动时间（Unix 秒）：" + state.getOrDefault("rootproxy_activated_at", "unknown")
                         + "\nRoot Proxy 状态原因：" + nativeDnsStatusLabel("rootproxy_reason", state.getOrDefault("rootproxy_reason", "unknown"))
                         + "\nRoot Proxy 残留规则清理：" + nativeDnsStatusLabel("rootproxy_cleanup", state.getOrDefault("rootproxy_cleanup", "not_required"))
                         + "\nDNS 重定向：" + nativeDnsStatusLabel("rootproxy_redirects", state.getOrDefault("rootproxy_redirects", "unknown"))
