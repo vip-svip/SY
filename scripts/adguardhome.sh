@@ -285,7 +285,8 @@ _build_dns_upstreams() {
   _section=$1
   _mode=$2
   _output=$3
-  awk -v section="$_section" -v mode="$_mode" '
+  _allow_empty=${4:-no}
+  awk -v section="$_section" -v mode="$_mode" -v allow_empty="$_allow_empty" '
     function valid_ipv4(v, n, a, i) {
       n=split(v,a,".")
       if(n!=4) return 0
@@ -355,6 +356,42 @@ _build_dns_upstreams() {
       return n==2 && valid_ipv4(a[1]) && a[2]~/^[0-9]+$/ &&
         a[2]+0>=1 && a[2]+0<=65535
     }
+    function routable_ipv6(v, words, pos, left, right, n, a, b, i, allzero, loopback, last) {
+      if(!valid_ipv6(v)) return 0
+      for(i=1;i<=8;i++) words[i]="0"
+      pos=index(v,"::")
+      if(pos) {
+        left=substr(v,1,pos-1); right=substr(v,pos+2)
+        if(left!="") { n=split(left,a,":"); for(i=1;i<=n;i++) words[i]=tolower(a[i]) }
+        if(right!="") { n=split(right,b,":"); for(i=1;i<=n;i++) words[9-n+i]=tolower(b[i]) }
+      } else {
+        n=split(v,a,":")
+        for(i=1;i<=8;i++) words[i]=tolower(a[i])
+      }
+      if(words[1]~/^fe[89ab]/ || words[1]~/^ff/) return 0
+      allzero=1; loopback=1
+      for(i=1;i<=8;i++) if(words[i]!~/^0+$/) allzero=0
+      for(i=1;i<=7;i++) if(words[i]!~/^0+$/) loopback=0
+      last=words[8]; sub(/^0+/,"",last)
+      if(allzero || (loopback && last=="1")) return 0
+      return 1
+    }
+    function routable_ipv6_port(v, close, host, tail, port) {
+      if(substr(v,1,1)!="[") return 0
+      close=index(v,"]")
+      if(close<3) return 0
+      host=substr(v,2,close-2); tail=substr(v,close+1)
+      if(!routable_ipv6(host)) return 0
+      if(tail=="") return 1
+      if(substr(tail,1,1)!=":") return 0
+      port=substr(tail,2)
+      return port~/^[0-9]+$/ && port+0>=1 && port+0<=65535
+    }
+    function valid_ip_endpoint(v, n, a) {
+      if(valid_ipv4(v) || valid_ipv4_port(v) || routable_ipv6(v) || routable_ipv6_port(v)) return 1
+      n=split(v,a,":")
+      return n==2 && valid_ipv4(a[1]) && a[2]~/^[0-9]+$/ && a[2]+0>=1 && a[2]+0<=65535
+    }
     function valid_endpoint(v, rest, parts, authority) {
       if(valid_ipv4(v) || valid_ipv4_port(v) || valid_ipv6(v) || valid_ipv6_port(v)) return 1
       if(substr(v,1,8)=="https://") {
@@ -383,7 +420,7 @@ _build_dns_upstreams() {
     inside {
       if(NF!=2 || $1!="nameserver") {bad=1; next}
       server=$2
-      if(mode=="ipv4" ? !(valid_ipv4(server) || valid_ipv4_port(server)) : !valid_endpoint(server)) {
+      if(mode=="ip" ? !valid_ip_endpoint(server) : !valid_endpoint(server)) {
         bad=1
         next
       }
@@ -392,7 +429,10 @@ _build_dns_upstreams() {
       print "  - \"" server "\""
       count++
     }
-    END { if(bad || sections!=1 || count<1) exit 1 }
+    END {
+      if(bad || sections>1 ||
+         (allow_empty!="yes" && (sections!=1 || count<1))) exit 1
+    }
   ' "$PG/settings.conf" > "$_output"
 }
 # FX_YULONG_UPSTREAMS_END
@@ -439,7 +479,7 @@ _render_managed_config() {
     return 1
   }
   if [ "$_global_dns_enabled" = 1 ]; then
-    _build_dns_upstreams global_dns ipv4 "$_upstream_file" || {
+    _build_dns_upstreams global_dns ip "$_upstream_file" || {
       _log 'global DNS is enabled but its complete upstream list is invalid'
       rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
       return 1
@@ -667,39 +707,7 @@ _render_managed_config() {
     rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
     return 1
   }
-  if ! awk '
-    function valid_ipv4(s, n,a,i) {
-      n=split(s,a,".")
-      if(n!=4) return 0
-      for(i=1;i<=4;i++) if(a[i]!~/^[0-9]+$/ || length(a[i])>3 || a[i]+0>255 || (a[i]!="0" && a[i]~/^0/)) return 0
-      # Fallback resolvers must be externally routable IPv4 endpoints.
-      # Loopback would send a failed query back into AdGuard itself, while
-      # link-local addresses are not stable upstream resolver destinations.
-      if(a[1]+0==0 || a[1]+0==127 || a[1]+0>=224) return 0
-      if(a[1]+0==169 && a[2]+0==254) return 0
-      return 1
-    }
-    function valid_ipv4_port(s,n,a) {
-      n=split(s,a,":")
-      return n==2 && valid_ipv4(a[1]) && a[2]~/^[0-9]+$/ &&
-        a[2]+0>=1 && a[2]+0<=65535
-    }
-    $0=="[conf:yulong_dns_fallback]" {sections++; if(sections>1) bad=1; inside=1; next}
-    /^\[/ {inside=0}
-    inside && /^[[:space:]]*#/ {next}
-    inside && /^[[:space:]]*$/ {next}
-    inside && /^[[:space:]]*[^#[:space:]]/ {
-      # Accept only complete nameserver key/value pairs; reject malformed,
-      # duplicate, unknown, or empty fallback entries instead of skipping them.
-      if(NF!=2 || $1!="nameserver") {bad=1; next}
-      server=$2
-      if(!valid_ipv4(server) && !valid_ipv4_port(server)) {bad=1; next}
-      if(seen[server]++) {bad=1; next}
-      count++
-      print "  - " server
-    }
-    END {if(bad || sections>1) exit 1}
-  ' "$PG/settings.conf" > "$_fallback_file"; then
+  if ! _build_dns_upstreams yulong_dns_fallback ip "$_fallback_file" yes; then
     rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
     _log 'saved fallback DNS list is invalid; refusing to render AdGuard config'
     return 1
