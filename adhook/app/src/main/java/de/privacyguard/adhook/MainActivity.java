@@ -1159,7 +1159,7 @@ public final class MainActivity extends ComponentActivity {
                 java.util.Map<String, String> state = parseNativeDnsState(result.output);
                 target.setText("AdGuard Home：" + state.getOrDefault("adguardhome", "unknown")
                         + " · Unbound：" + state.getOrDefault("unbound", "unknown")
-                        + "\\nRoot Proxy：" + state.getOrDefault("root_proxy", "unknown")
+                        + "\nRoot Proxy：" + state.getOrDefault("root_proxy", "unknown")
                         + " · DNS 链路就绪：" + ("1".equals(state.get("dns_stack_ready")) ? "是" : "否"));
             } catch (Exception error) {
                 target.setText("DNS 状态暂不可用：" + (error.getMessage() == null ? "unknown" : error.getMessage()));
@@ -1182,10 +1182,10 @@ public final class MainActivity extends ComponentActivity {
                     items[i] = names[i] + (enabled ? "（当前开启，点击关闭）" : "（当前关闭，点击开启）");
                 }
                 String detail = "AdGuard Home：" + state.getOrDefault("adguardhome", "unknown")
-                        + "\\nUnbound：" + state.getOrDefault("unbound", "unknown")
-                        + "\\nRoot Proxy：" + state.getOrDefault("root_proxy", "unknown")
-                        + "\\nDNS 链路就绪：" + ("1".equals(state.get("dns_stack_ready")) ? "是" : "否")
-                        + "\\n\\nRoot Proxy 只在第三方 VPN 所有者、出口路由和 DNS 引擎条件满足时接管 DNS，不会创建第二个 Android VPN。";
+                        + "\nUnbound：" + state.getOrDefault("unbound", "unknown")
+                        + "\nRoot Proxy：" + state.getOrDefault("root_proxy", "unknown")
+                        + "\nDNS 链路就绪：" + ("1".equals(state.get("dns_stack_ready")) ? "是" : "否")
+                        + "\n\nRoot Proxy 只在第三方 VPN 所有者、出口路由和 DNS 引擎条件满足时接管 DNS，不会创建第二个 Android VPN。";
                 FxNativeSkin.builder(this).setTitle("DNS 引擎管理").setMessage(detail)
                         .setItems(items, (dialog, which) -> {
                             boolean enabled = "1".equals(state.get(keys[which]));
