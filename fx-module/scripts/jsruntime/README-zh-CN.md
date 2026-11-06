@@ -45,13 +45,6 @@
 - `schedule`、`generic`、`network` 不会转换为 HTTP Hook；仅接收 HTTPS 脚本 URL。Egern 的 `timeout`、`max_size`、`update_interval` 等参数不假定已经映射为 FX 控制项。
 - 该导入器仅覆盖上述 HTTP YAML 子集，不是通用 YAML 解析器，也不代表 Egern 全功能运行时。
 
-## Stash HTTP 脚本 YAML 导入
-
-- 脚本中心提供“导入 Stash YAML HTTP 脚本”，通用文件导入器也会识别 `http.script` / `script-providers` 结构；可导入 `.yaml` / `.yml`，单个文件上限 2 MiB。
-- 从 `http.script` 读取 `match`、`name`、`type: request|response`、`require-body`、`disabled`，并通过 `script-providers.<name>.url` 解析 HTTPS 脚本 URL，转换到统一 `FX-SCRIPT-LIST` / `FXMETA_B64` 元数据。
-- `require-body` 映射为 `FX-SCRIPT-REQUIRES-BODY`；正文仍受 FX 未压缩文本类型与 1 MiB 编辑上限约束。Provider `interval` 只接受默认 86400 秒。
-- 非 HTTPS Provider、未知 Provider 选项、非默认 `timeout` / `max-size`、非 `auto` 引擎、非空 `argument` 或 `binary-mode: true` 不会被伪装成可用脚本；这些配置当前无法无损映射到 FX URL Hook。
-- 该导入器仅覆盖 Stash 的 HTTP request/response 子集，不迁移 schedule / DNS / rewrite action，也不是完整 Stash 运行时。
 ## Stash HTTP YAML 脚本导入
 
 - 脚本中心可导入 Stash YAML：读取顶层 `http.script` 与 `script-providers`，按 provider 名称解析 `url`，仅迁移 HTTPS request/response 脚本并写入统一 `[list:script]`。
