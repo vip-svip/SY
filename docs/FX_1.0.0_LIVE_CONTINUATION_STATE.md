@@ -6773,3 +6773,5 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 更新 `fx-module/scripts/yulong-vpn-control.sh`（`80acf500`），并同步 canonical source `scripts/yulong-vpn-control.sh`（`c48c03f6`）。VPN 状态 JSON 新增 `dns_adguardhome_status`、`dns_unbound_status` 与 `dns_stack_ready`；状态值限定为 `ready/running-unhealthy/stopped/unavailable`，由各自引擎 lifecycle 脚本返回，不再只依赖 Root Proxy 是否 active 推测 DNS 引擎健康。
 - 更新 `.github/workflows/build-fx-kernelsu.yml`（`a43e0d4e`），确保打包恢复 Release 模块源码后，仍使用仓库当前 canonical VPN 控制器覆盖模块内版本，保留上述 DNS 状态字段。
 - 本批未执行测试、静态检查、构建、CI 或真机验证。
+
+- 后续补充：`48f31931` / `579d70f2` 将管理端监听检查放宽为“仅允许 127.0.0.1、端口为合法数字（含系统分配的临时端口）”，不把 AdGuard Home 启动后可能写回的 ephemeral port 固定为 0；仍拒绝任何非 loopback 管理监听。
