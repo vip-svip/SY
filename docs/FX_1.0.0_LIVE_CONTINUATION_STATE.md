@@ -7929,3 +7929,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - 保留原有单独白名单/黑名单导入入口，不改变内置规则源、DNS 上游与其他模块设置。
 - 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证；合并恢复与回滚行为尚未验收。
 - UI 续补修正提交：`6f481decbc8c0ef167afe23bb2b8a0a097b3ed12`，将合并恢复载荷的行分隔符修正为真实换行，确保每条域名记录按独立行传给后端；未改动原有格式与事务语义。
+
+
+## 2026-11-06 — Ad DNS 缓存按引擎定向刷新
+
+- 后端提交：`bd17013c70ad6e063557f4dc540bb6dfa412c626`，文件 `scripts/yulong-ad-control.sh`。
+  - 将 `cache-flush` 扩展为可选目标 `all|adguardhome|unbound`；保留无参数时刷新全部已启用的 FX DNS 引擎。
+  - 定向刷新只停止并重新拉起指定且已启用的 FX 自有解析服务；请求未启用的引擎会明确拒绝，不会误操作另一引擎或第三方 VPN。
+  - 继续使用并发锁、生命周期 helper 与 fast apply；只有停止、ensure 和路由重新应用全部成功才返回成功标记。
+- UI 提交：`724f90ede817e3d1db317af23114e2dfba895ddf`，文件 `adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
+  - DNS 缓存卡新增 AdGuard Home、Unbound、全部本地 DNS 三个独立刷新入口；每项均有影响说明与二次确认，并展示后端执行结果。
+- 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证；本批功能尚未验收。
