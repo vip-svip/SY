@@ -74,6 +74,9 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
     }
     private String shell(String args) {
         if (!"dns-log-tail".equals(args) && !"cache-flush".equals(args)
+                && !"cache-flush adguardhome".equals(args)
+                && !"cache-flush unbound".equals(args)
+                && !"cache-flush all".equals(args)
                 && !"dns-log-clear".equals(args)) {
             throw new IllegalArgumentException("Unsupported Yulong DNS operation.");
         }
@@ -133,10 +136,12 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         card(body, "本机日志说明",
                 "查询日志默认关闭；启用后 AdGuard Home 按本机保留策略保存记录。这里只显示最近 500 条，不显示客户端 IP，也不会上传。",
                 status, refreshButton, clearButton, shareButton);
-        cacheFlushButton = button("重启本地 DNS 并清理缓存", this::confirmCacheFlush);
+        cacheFlushButton = button("刷新全部本地 DNS 缓存", () -> confirmCacheFlush("all", "全部本地 DNS"));
+        Button aghFlushButton = button("仅刷新 AdGuard Home", () -> confirmCacheFlush("adguardhome", "AdGuard Home"));
+        Button unboundFlushButton = button("仅刷新 Unbound", () -> confirmCacheFlush("unbound", "Unbound"));
         card(body, "DNS 缓存维护",
-                "只重启 FX 管理的本地 Unbound / AdGuard Home。DNS 可能短暂中断；不会清理系统 DNS 缓存、Hosts 或查询日志。",
-                cacheFlushButton);
+                "可单独刷新 FX 管理的 AdGuard Home 或 Unbound，也可刷新全部已启用引擎。所选服务会短暂重启；不会清理系统 DNS 缓存、Hosts 或查询日志。",
+                aghFlushButton, unboundFlushButton, cacheFlushButton);
         card(body, "搜索", "输入域名、查询类型或拦截原因", search);
         rows = new LinearLayout(this); rows.setOrientation(1); body.addView(rows);
         search.addTextChangedListener(new TextWatcher() {
@@ -322,24 +327,27 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
                 .replace('\\r', ' ').replace('\\n', ' ');
     }
 
-    private void confirmCacheFlush() {
-        fxDialogBuilder().setTitle("清理本机 DNS 缓存")
-                .setMessage("将停止并重新启动 FX 管理的本地 Unbound / AdGuard Home，以清空它们的进程内缓存。期间 DNS 可能短暂中断。不会清理 Android 系统 DNS 缓存、Hosts 或查询日志。")
+    private void confirmCacheFlush(String target, String label) {
+        fxDialogBuilder().setTitle("刷新" + label + "缓存")
+                .setMessage("将只停止并重新启动 FX 管理的 " + label
+                        + " 服务，以清空其进程内缓存。期间相关 DNS 查询可能短暂中断。"
+                        + "不会操作第三方 VPN、Android 系统 DNS 缓存、Hosts 或查询日志。"
+                        + "若所选引擎未启用，FX 会拒绝操作。是否继续？")
                 .setNegativeButton("取消", null)
-                .setPositiveButton("重启并清理", (dialog, which) -> {
+                .setPositiveButton("刷新", (dialog, which) -> {
                     loadGeneration.incrementAndGet();
                     if (refreshButton != null) refreshButton.setEnabled(true);
                     if (cacheFlushButton != null) cacheFlushButton.setEnabled(false);
-                    status.setText("正在重启 FX 本地 DNS 服务并清理缓存…");
-                    root(shell("cache-flush"), 120000L, result -> {
+                    status.setText("正在刷新 " + label + " 缓存…");
+                    root(shell("cache-flush " + target), 120000L, result -> {
                         if (cacheFlushButton != null) cacheFlushButton.setEnabled(true);
                         String output = result.output == null ? "" : result.output;
                         if (result.exitCode == 0 && output.contains("cache=flushed")) {
-                            status.setText("本地 DNS 缓存已清理，FX DNS 服务重启完成。");
+                            status.setText(label + " 缓存已刷新，FX DNS 服务重启完成。");
                         } else if (result.exitCode == 0 && output.contains("dns-engine-disabled")) {
                             status.setText("FX 本地 DNS 引擎当前未启用，无需清理。");
                         } else {
-                            status.setText("DNS 缓存清理未完成：" + safe(output));
+                            status.setText(label + " 缓存刷新未完成：" + safe(output));
                         }
                     });
                 }).show();
