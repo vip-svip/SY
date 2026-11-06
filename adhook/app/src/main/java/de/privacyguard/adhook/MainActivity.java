@@ -1170,6 +1170,11 @@ public final class MainActivity extends ComponentActivity {
                 if ("active".equals(value)) return "已接管";
                 if ("inactive".equals(value)) return "未接管";
                 return "状态未知";
+            case "rootproxy_route":
+                if ("verified".equals(value)) return "已验证";
+                if ("not_applicable".equals(value)) return "不适用";
+                if ("unavailable".equals(value)) return "不可用";
+                return "状态未知";
             case "rootproxy_redirects":
                 if ("attached".equals(value)) return "已挂载";
                 if ("detached".equals(value)) return "未挂载";
@@ -1258,6 +1263,7 @@ public final class MainActivity extends ComponentActivity {
                         + "\n接管接口 / VPN UID：" + state.getOrDefault("rootproxy_interface", "unknown")
                         + " / " + state.getOrDefault("rootproxy_vpn_uid", "unknown")
                         + " · 出口 IPv4：" + state.getOrDefault("rootproxy_egress_ipv4", "unknown")
+                        + "\nRoot Proxy 路由验证：" + nativeDnsStatusLabel("rootproxy_route", state.getOrDefault("rootproxy_route", "unknown"))
                         + "\nDNS 重定向：" + nativeDnsStatusLabel("rootproxy_redirects", state.getOrDefault("rootproxy_redirects", "unknown"))
                         + " · DNS 探测：" + nativeDnsStatusLabel("vpn_route_probe", state.getOrDefault("rootproxy_dns_probe", "unavailable"))
                         + "\nDNS 订阅源：" + state.getOrDefault("dns_filter_sources_enabled", "unknown")
@@ -1298,6 +1304,7 @@ public final class MainActivity extends ComponentActivity {
                         + "\nRoot Proxy 启动时间（Unix 秒）：" + state.getOrDefault("rootproxy_activated_at", "unknown")
                         + "\nRoot Proxy 状态原因：" + nativeDnsStatusLabel("rootproxy_reason", state.getOrDefault("rootproxy_reason", "unknown"))
                         + "\nRoot Proxy 残留规则清理：" + nativeDnsStatusLabel("rootproxy_cleanup", state.getOrDefault("rootproxy_cleanup", "not_required"))
+                        + "\nRoot Proxy 路由验证：" + nativeDnsStatusLabel("rootproxy_route", state.getOrDefault("rootproxy_route", "unknown"))
                         + "\nDNS 重定向：" + nativeDnsStatusLabel("rootproxy_redirects", state.getOrDefault("rootproxy_redirects", "unknown"))
                         + " · DNS 探测：" + nativeDnsStatusLabel("vpn_route_probe", state.getOrDefault("rootproxy_dns_probe", "unavailable"))
                         + "\nDNS 订阅源：" + state.getOrDefault("dns_filter_sources_enabled", "unknown")
