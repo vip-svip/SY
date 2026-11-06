@@ -270,7 +270,13 @@ status() {
   _configured=0
   _ready=0
   _readiness_reason=disabled
-  if [ "$_agh_enabled" = 1 ] || [ "$_unbound_enabled" = 1 ]; then
+  if [ "$_agh_enabled" = unknown ] || [ "$_unbound_enabled" = unknown ]; then
+    # An unreadable/duplicated engine flag is not equivalent to disabled.
+    # Surface the stack as configured-but-not-ready instead of silently
+    # reporting a healthy disabled state.
+    _configured=1
+    _readiness_reason=dns_engine_flag_unknown
+  elif [ "$_agh_enabled" = 1 ] || [ "$_unbound_enabled" = 1 ]; then
     _configured=1
     _ready=1
     if [ "$_unbound_enabled" = 1 ] && [ "$_unbound" != ready ]; then
@@ -284,6 +290,30 @@ status() {
       elif [ "$_agh" != ready ]; then
         _ready=0
         _readiness_reason="adguardhome_$_agh"
+      fi
+      # An engine process being alive is insufficient when its selected
+      # upstream configuration is incomplete or could not be interpreted.
+      if [ "$_ready" = 1 ]; then
+        case "$_dns_upstream_state" in
+          missing_primary)
+            _ready=0
+            _readiness_reason=dns_upstream_missing_primary
+            ;;
+          unknown)
+            _ready=0
+            _readiness_reason=dns_upstream_config_unknown
+            ;;
+        esac
+      fi
+      # Encrypted upstream bootstrap and implicit local fallback both depend
+      # on the same healthy local recursive listener. Never mark this stack
+      # ready if the setting flags say that listener is unavailable.
+      if [ "$_ready" = 1 ] &&
+         { [ "$_dns_bootstrap_mode" = local_unbound ] ||
+           [ "$_dns_fallback_mode" = local_unbound ]; } &&
+         { [ "$_unbound_enabled" != 1 ] || [ "$_unbound" != ready ]; }; then
+        _ready=0
+        _readiness_reason=dns_local_recursive_dependency_unready
       fi
     fi
     [ "$_ready" = 1 ] && _readiness_reason=ready
