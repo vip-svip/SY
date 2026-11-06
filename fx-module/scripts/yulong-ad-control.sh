@@ -199,6 +199,22 @@ valid_ipv4_dns_csv() {
     END{exit bad}
   '
 }
+valid_fallback_dns_csv() {
+  printf '%s\n' "$1" | awk -F, '
+    {
+      if(NF<1||NF>3){bad=1;exit}
+      for(i=1;i<=NF;i++){
+        if($i!~/^[0-9.]+$/){bad=1;exit}
+        n=split($i,a,".")
+        if(n!=4){bad=1;exit}
+        for(j=1;j<=4;j++)if(a[j]==""||a[j]!~/^[0-9]+$/||length(a[j])>3||a[j]+0>255){bad=1;exit}
+        if($i=="0.0.0.0"||$i=="255.255.255.255" ||
+           a[1]+0==127 || (a[1]+0==169 && a[2]+0==254)){bad=1;exit}
+      }
+    }
+    END{exit bad}
+  '
+}
 valid_dns_csv() {
   printf '%s\n' "$1" | awk -F, '
     function ipv4(v, n, a, j) {
@@ -390,7 +406,7 @@ dns_config_set_many() {
     valid_ipv4_dns_csv "$_many_global" || { echo "global DNS requires 1..3 IPv4 literals" >&2; return 2; }
   fi
   if [ "$_many_fallback" != "-" ]; then
-    valid_ipv4_dns_csv "$_many_fallback" || { echo "fallback DNS requires 1..3 IPv4 literals" >&2; return 2; }
+    valid_fallback_dns_csv "$_many_fallback" || { echo "fallback DNS requires 1..3 IPv4 literals" >&2; return 2; }
   fi
   if [ "$_many_custom" = "-" ]; then m_dns_section_clear custom_dns || return 1
   else m_dns_servers custom_dns "$_many_custom" || return 1; fi
@@ -562,7 +578,7 @@ dns_profile_restore() {
         ;;
       FALLBACK_SERVERS)
         _profile_fallback=$_profile_value
-        [ -z "$_profile_fallback" ] || valid_ipv4_dns_csv "$_profile_fallback" || { echo "invalid fallback DNS servers" >&2; return 2; }
+        [ -z "$_profile_fallback" ] || valid_fallback_dns_csv "$_profile_fallback" || { echo "invalid fallback DNS servers" >&2; return 2; }
         ;;
       VPN_REMOTE|VPN_CN)
         valid_ipv4 "$_profile_value" || { echo "invalid VPN DNS address: $_profile_key" >&2; return 2; }
@@ -1523,7 +1539,7 @@ case "$cmd" in
       ;;
     fallback)
       section=yulong_dns_fallback
-      valid_ipv4_dns_csv "$servers" || { echo "fallback DNS requires 1..3 IPv4 literals" >&2; exit 2; }
+      valid_fallback_dns_csv "$servers" || { echo "fallback DNS requires 1..3 routable IPv4 literals" >&2; exit 2; }
       ;;
     *) exit 2 ;;
   esac
