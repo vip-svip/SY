@@ -107,6 +107,26 @@ public final class FxDiaScriptLibraryStore {
         }
     }
 
+    /** Rename a script without overwriting another entry. */
+    public static void rename(Context context, String oldName, String newName) throws Exception {
+        if (context == null || oldName == null) throw new IllegalArgumentException("重命名参数无效。");
+        String normalized = FxDiaScriptLibraryPolicy.normalizeName(newName);
+        String nameError = FxDiaScriptLibraryPolicy.validateName(normalized);
+        if (nameError != null) throw new IllegalArgumentException(nameError);
+        synchronized (LOCK) {
+            JSONObject scripts = readLocked(context);
+            if (!scripts.has(oldName)) throw new IllegalArgumentException("原脚本已不存在，请刷新列表。");
+            if (!oldName.equals(normalized) && scripts.has(normalized)) {
+                throw new IllegalArgumentException("新名称已被其他脚本占用。");
+            }
+            if (oldName.equals(normalized)) return;
+            String source = scripts.getString(oldName);
+            scripts.remove(oldName);
+            scripts.put(normalized, source);
+            writeLocked(context, scripts);
+        }
+    }
+
     /** Delete a user-confirmed group of script names in one atomic preference write. */
     public static int deleteMany(Context context, List<String> names) throws Exception {
         if (context == null || names == null) throw new IllegalArgumentException("批量删除参数无效。");
