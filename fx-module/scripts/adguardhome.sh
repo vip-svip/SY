@@ -678,35 +678,24 @@ _render_managed_config() {
     rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
     return 1
   fi
-  _dns_response_mode=$(awk '
-    BEGIN { inside=0; sections=0; modes=0; value=""; bad=0 }
-    $0=="[conf:yulong_dns_response]" {
-      sections++
-      if (inside) bad=1
-      inside=1
-      next
-    }
-    /^\\[/ { inside=0 }
-    inside && /^[[:space:]]*#/ { next }
-    inside && /^[[:space:]]*$/ { next }
-    inside && /^mode=/ {
-      modes++
-      value=substr($0,6)
-      if (value!="nxdomain" && value!="refused" && value!="custom_ip") bad=1
-      next
-    }
-    inside { bad=1 }
-    END {
-      if (sections>1 || modes>1 || bad) exit 1
-      if (sections==0) print "nxdomain"
-      else if (modes==1) print value
-      else exit 1
-    }
-  ' "$PG/settings.conf" 2>/dev/null) || {
-    _log 'saved DNS blocking response mode is ambiguous or invalid; refusing to render AdGuard config'
+  _dns_response_output=$(MP="$MODDIR" PG="$PG" sh "$MODDIR/scripts/yulong-ad-control.sh" dns-response-get 2>/dev/null) || {
+    _log 'saved DNS blocking response configuration is invalid; refusing to render AdGuard config'
     rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
     return 1
   }
+  [ "$(printf '%s\n' "$_dns_response_output" | sed -n '1p')" = FXYULONGDNSRESP1 ] || {
+    _log 'DNS blocking response configuration protocol is invalid'
+    return 1
+  }
+  _dns_response_mode=$(printf '%s\n' "$_dns_response_output" | sed -n 's/^mode=//p')
+  _dns_blocking_ipv4=$(printf '%s\n' "$_dns_response_output" | sed -n 's/^blocking_ipv4=//p')
+  _dns_blocking_ipv6=$(printf '%s\n' "$_dns_response_output" | sed -n 's/^blocking_ipv6=//p')
+  _dns_blocked_response_ttl=$(printf '%s\n' "$_dns_response_output" | sed -n 's/^blocked_response_ttl=//p')
+  [ -n "$_dns_response_mode" ] && [ -n "$_dns_blocking_ipv4" ] &&
+    [ -n "$_dns_blocking_ipv6" ] && [ -n "$_dns_blocked_response_ttl" ] || {
+      _log 'DNS blocking response configuration is incomplete'
+      return 1
+    }
   if ! _build_dns_upstreams yulong_dns_fallback ip "$_fallback_file" yes; then
     rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
     _log 'saved fallback DNS list is invalid; refusing to render AdGuard config'
@@ -728,7 +717,7 @@ _render_managed_config() {
     rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_rewrites_file" "$_config_file" 2>/dev/null || :
     return 1
   fi
-  if ! awk -v querylog_interval="$_querylog_interval" -v querylog_memory_size="$_querylog_memory_size" -v querylog_enabled="$_dns_querylog_enabled" -v querylog_ignored_enabled="$_querylog_ignored_enabled" -v querylog_ignored="$_querylog_ignored" -v statistics_enabled="$_statistics_enabled" -v statistics_interval="$_statistics_interval" -v statistics_ignored_enabled="$_statistics_ignored_enabled" -v statistics_ignored="$_statistics_ignored" -v dns_response_mode="$_dns_response_mode" -v upstream_mode="$_dns_runtime_upstream_mode" -v fastest_timeout="$_dns_runtime_fastest_timeout" -v upstream_timeout="$_dns_runtime_upstream_timeout" -v cache_size="$_dns_runtime_cache_size" -v cache_ttl_min="$_dns_runtime_cache_ttl_min" -v cache_ttl_max="$_dns_runtime_cache_ttl_max" -v optimistic_answer_ttl="$_dns_runtime_optimistic_answer_ttl" -v optimistic_max_age="$_dns_runtime_optimistic_max_age" -v cache_enabled="$_dns_runtime_cache_enabled" -v cache_optimistic="$_dns_runtime_cache_optimistic" -v dnssec="$_dns_runtime_dnssec" -v rules_file="$_rules_file" -v filters_file="$_filters_file" -v fallback_file="$_fallback_file" -v upstream_file="$_upstream_file" -v bootstrap_file="$_bootstrap_file" -v rewrites_file="$_rewrites_file" '
+  if ! awk -v querylog_interval="$_querylog_interval" -v querylog_memory_size="$_querylog_memory_size" -v querylog_enabled="$_dns_querylog_enabled" -v querylog_ignored_enabled="$_querylog_ignored_enabled" -v querylog_ignored="$_querylog_ignored" -v statistics_enabled="$_statistics_enabled" -v statistics_interval="$_statistics_interval" -v statistics_ignored_enabled="$_statistics_ignored_enabled" -v statistics_ignored="$_statistics_ignored" -v dns_response_mode="$_dns_response_mode" -v blocking_ipv4="$_dns_blocking_ipv4" -v blocking_ipv6="$_dns_blocking_ipv6" -v blocked_response_ttl="$_dns_blocked_response_ttl" -v upstream_mode="$_dns_runtime_upstream_mode" -v fastest_timeout="$_dns_runtime_fastest_timeout" -v upstream_timeout="$_dns_runtime_upstream_timeout" -v cache_size="$_dns_runtime_cache_size" -v cache_ttl_min="$_dns_runtime_cache_ttl_min" -v cache_ttl_max="$_dns_runtime_cache_ttl_max" -v optimistic_answer_ttl="$_dns_runtime_optimistic_answer_ttl" -v optimistic_max_age="$_dns_runtime_optimistic_max_age" -v cache_enabled="$_dns_runtime_cache_enabled" -v cache_optimistic="$_dns_runtime_cache_optimistic" -v dnssec="$_dns_runtime_dnssec" -v rules_file="$_rules_file" -v filters_file="$_filters_file" -v fallback_file="$_fallback_file" -v upstream_file="$_upstream_file" -v bootstrap_file="$_bootstrap_file" -v rewrites_file="$_rewrites_file" '
     /^querylog:[[:space:]]*$/ {in_querylog=1; print; next}
     in_querylog && /^[^[:space:]]/ {in_querylog=0}
     in_querylog && /^  enabled:/ {
@@ -802,11 +791,12 @@ _render_managed_config() {
     /^  blocking_mode:/ {
       print "  blocking_mode: " dns_response_mode
       if (dns_response_mode=="custom_ip") {
-        print "  blocking_ipv4: \"0.0.0.0\""
-        print "  blocking_ipv6: \"::\""
+        print "  blocking_ipv4: \"" blocking_ipv4 "\""
+        print "  blocking_ipv6: \"" blocking_ipv6 "\""
       }
       next
     }
+    /^  blocked_response_ttl:/ {print "  blocked_response_ttl: " blocked_response_ttl; next}
     /^  upstream_dns:[[:space:]]*$/ {
       print
       while ((getline upstream < upstream_file) > 0) print upstream

@@ -509,68 +509,142 @@ m_dns_section_clear() {
 }
 
 
-validate_dns_response_config() {
-  awk '
-    BEGIN { inside=0; sections=0; modes=0; bad=0; value="" }
+dns_response_values() {
+  awk -F= '
+    function valid_ipv4(v,n,a,i) {
+      n=split(v,a,".")
+      if(n!=4)return 0
+      for(i=1;i<=4;i++)
+        if(a[i]!~/^[0-9]+$/ || length(a[i])>3 || a[i]+0>255 ||
+           (a[i]!="0" && a[i]~/^0/))return 0
+      return 1
+    }
+    function valid_ipv6(v,pos,left,right,count,i,n,a,b) {
+      if(v=="" || v !~ /^[0-9A-Fa-f:]+$/ || v~/:::/)return 0
+      pos=index(v,"::")
+      if(pos && index(substr(v,pos+2),"::"))return 0
+      count=0
+      if(pos) {
+        left=substr(v,1,pos-1); right=substr(v,pos+2)
+        if(left!="") {
+          n=split(left,a,":")
+          for(i=1;i<=n;i++)
+            if(a[i]!~/^[0-9A-Fa-f][0-9A-Fa-f]?[0-9A-Fa-f]?[0-9A-Fa-f]?$/)return 0
+          count+=n
+        }
+        if(right!="") {
+          n=split(right,b,":")
+          for(i=1;i<=n;i++)
+            if(b[i]!~/^[0-9A-Fa-f][0-9A-Fa-f]?[0-9A-Fa-f]?[0-9A-Fa-f]?$/)return 0
+          count+=n
+        }
+        return count<8
+      }
+      n=split(v,a,":")
+      if(n!=8)return 0
+      for(i=1;i<=n;i++)
+        if(a[i]!~/^[0-9A-Fa-f][0-9A-Fa-f]?[0-9A-Fa-f]?[0-9A-Fa-f]?$/)return 0
+      return 1
+    }
+    BEGIN {
+      inside=0; sections=0; bad=0
+      mode_count=0; ipv4_count=0; ipv6_count=0; ttl_count=0
+      mode="nxdomain"; ipv4="0.0.0.0"; ipv6="::"; ttl="10"
+    }
     $0=="[conf:yulong_dns_response]" {
       sections++
-      if (inside || sections>1) bad=1
+      if(inside || sections>1)bad=1
       inside=1
       next
     }
-    /^\[/ { inside=0 }
-    inside && /^[[:space:]]*#/ { next }
-    inside && /^[[:space:]]*$/ { next }
-    inside && /^mode=/ {
-      modes++
-      value=substr($0,6)
-      if (value!="nxdomain" && value!="refused" && value!="custom_ip") bad=1
-      next
+    /^\[/ {inside=0}
+    inside && /^[[:space:]]*#/ {next}
+    inside && /^[[:space:]]*$/ {next}
+    inside {
+      if(index($0,"=")<2){bad=1;next}
+      key=substr($0,1,index($0,"=")-1)
+      value=substr($0,index($0,"=")+1)
+      if(key=="mode") {
+        mode_count++; mode=value
+        if(value!="nxdomain" && value!="refused" && value!="custom_ip")bad=1
+      } else if(key=="blocking_ipv4") {
+        ipv4_count++; ipv4=value
+        if(!valid_ipv4(value))bad=1
+      } else if(key=="blocking_ipv6") {
+        ipv6_count++; ipv6=value
+        if(!valid_ipv6(value))bad=1
+      } else if(key=="blocked_response_ttl") {
+        ttl_count++; ttl=value
+        if(value!~/^[0-9]+$/ || value+0>4294967295 || int(value+0)!=value+0)bad=1
+      } else bad=1
     }
-    inside { bad=1 }
     END {
-      if (sections>1 || modes>1 || bad) exit 1
-      if (sections==0) exit 0
-      if (modes!=1) exit 1
+      if(sections>1 || bad || mode_count>1 || ipv4_count>1 || ipv6_count>1 || ttl_count>1)exit 1
+      if(sections>0 && mode_count!=1)exit 1
+      printf "mode=%s\nblocking_ipv4=%s\nblocking_ipv6=%s\nblocked_response_ttl=%s\n",mode,ipv4,ipv6,ttl
     }
   ' "$CONF"
 }
-write_dns_response() {
-  mode=$1
-  case "$mode" in nxdomain|refused|custom_ip) : ;; *) return 2 ;; esac
+validate_dns_response_config() {
+  dns_response_values >/dev/null
+}
+write_dns_response_settings() {
+  _response_mode=$1; _response_ipv4=$2; _response_ipv6=$3; _response_ttl=$4
+  case "$_response_mode" in nxdomain|refused|custom_ip) : ;; *) echo "invalid DNS response mode" >&2; return 2 ;; esac
+  valid_dns_rewrite_ipv4 "$_response_ipv4" || { echo "DNS blocking IPv4 address is invalid" >&2; return 2; }
+  valid_dns_rewrite_ipv6 "$_response_ipv6" || { echo "DNS blocking IPv6 address is invalid" >&2; return 2; }
+  valid_dns_runtime_uint32 "$_response_ttl" 1 || { echo "blocked response TTL must be an unsigned 32-bit integer" >&2; return 2; }
   validate_dns_response_config || {
     echo "existing DNS response-mode section is ambiguous or malformed" >&2
     return 22
   }
-  tmp=$(mktemp "$CONF.yulong-dns-response.XXXXXX") || return 1
-  _yad_conf_tmp=$tmp
-  if ! awk -v mode="$mode" '
-    BEGIN { inside=0; seen=0; written=0 }
+  _response_tmp=$(mktemp "$CONF.yulong-dns-response.XXXXXX") || return 1
+  _yad_conf_tmp=$_response_tmp
+  if ! awk -v mode="$_response_mode" -v ipv4="$_response_ipv4" -v ipv6="$_response_ipv6" -v ttl="$_response_ttl" '
+    function emit() {
+      print "mode=" mode
+      print "blocking_ipv4=" ipv4
+      print "blocking_ipv6=" ipv6
+      print "blocked_response_ttl=" ttl
+    }
     $0=="[conf:yulong_dns_response]" {
-      inside=1; seen=1; print; next
+      if(seen++)bad=1
+      print
+      emit()
+      inside=1
+      written=1
+      next
     }
-    /^\[/ {
-      if (inside && !written) { print "mode=" mode; written=1 }
-      inside=0; print; next
-    }
-    inside && /^mode=/ {
-      if (!written) print "mode=" mode
-      written=1; next
-    }
-    { print }
+    /^\[/ {inside=0;print;next}
+    inside {next}
+    {print}
     END {
-      if (inside && !written) print "mode=" mode
-      if (!seen) { print ""; print "[conf:yulong_dns_response]"; print "mode=" mode }
+      if(bad)exit 1
+      if(!written){print "";print "[conf:yulong_dns_response]";emit()}
     }
-  ' "$CONF" > "$tmp"; then
-    rm -f "$tmp"; _yad_conf_tmp=; return 1
+  ' "$CONF" > "$_response_tmp"; then
+    rm -f "$_response_tmp"; _yad_conf_tmp=
+    echo "unable to stage DNS response settings" >&2
+    return 1
   fi
-  if [ -s "$tmp" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"; then
-    _yad_conf_tmp=; return 0
+  if [ -s "$_response_tmp" ] && chmod 600 "$_response_tmp" && mv -f "$_response_tmp" "$CONF"; then
+    _yad_conf_tmp=
+    return 0
   fi
-  rm -f "$tmp"; _yad_conf_tmp=; return 1
+  rm -f "$_response_tmp"; _yad_conf_tmp=
+  return 1
 }
-m_dns_response() { write_dns_response "$1"; }
+m_dns_response() {
+  _response_current=$(dns_response_values) || return $?
+  _response_ipv4=$(printf '%s\n' "$_response_current" | sed -n 's/^blocking_ipv4=//p')
+  _response_ipv6=$(printf '%s\n' "$_response_current" | sed -n 's/^blocking_ipv6=//p')
+  _response_ttl=$(printf '%s\n' "$_response_current" | sed -n 's/^blocked_response_ttl=//p')
+  write_dns_response_settings "$1" "$_response_ipv4" "$_response_ipv6" "$_response_ttl"
+}
+m_dns_response_config() {
+  write_dns_response_settings "$1" "$2" "$3" "$4"
+}
+
 dns_config_set_many() {
   _many_custom=$(normalize_dns_csv "$1")
   _many_global=$(normalize_dns_csv "$2")
@@ -1181,6 +1255,11 @@ dns_profile_get() {
     echo "DNS profile contains an ambiguous or malformed response-mode section" >&2
     return 22
   }
+  _profile_response_record=$(dns_response_values) || return $?
+  _profile_mode=$(printf '%s\n' "$_profile_response_record" | sed -n 's/^mode=//p')
+  _profile_response_ipv4=$(printf '%s\n' "$_profile_response_record" | sed -n 's/^blocking_ipv4=//p')
+  _profile_response_ipv6=$(printf '%s\n' "$_profile_response_record" | sed -n 's/^blocking_ipv6=//p')
+  _profile_response_ttl=$(printf '%s\n' "$_profile_response_record" | sed -n 's/^blocked_response_ttl=//p')
   _retention_record=$(dns_querylog_retention_get) || return $?
   case "$_retention_record" in
     querylog_retention=*) _profile_retention=\${_retention_record#querylog_retention=} ;;
@@ -1213,9 +1292,10 @@ dns_profile_get() {
   done
   printf 'VPN_REMOTE=%s\n' "$(pg_conf vpn 2>/dev/null | sed -n 's/^remote_dns=//p' | head -n1)"
   printf 'VPN_CN=%s\n' "$(pg_conf vpn 2>/dev/null | sed -n 's/^cn_dns=//p' | head -n1)"
-  mode=$(awk '$0=="[conf:yulong_dns_response]"{inside=1;next} /^\[/{inside=0} inside&&/^mode=/{sub(/^mode=/,"");print;exit}' "$CONF" 2>/dev/null)
-  [ -n "$mode" ] || mode=nxdomain
-  printf 'RESPONSE_MODE=%s\n' "$mode"
+  printf 'RESPONSE_MODE=%s\n' "$_profile_mode"
+  printf 'RESPONSE_IPV4=%s\n' "$_profile_response_ipv4"
+  printf 'RESPONSE_IPV6=%s\n' "$_profile_response_ipv6"
+  printf 'RESPONSE_TTL=%s\n' "$_profile_response_ttl"
   printf 'QUERYLOG_RETENTION=%s\n' "$_profile_retention"
   printf 'QUERYLOG_MEMORY_SIZE=%s\n' "$_profile_querylog_memory_size"
   printf 'QUERYLOG_IGNORED_ENABLED=%s\n' "$_profile_querylog_ignored_enabled"
@@ -1243,7 +1323,7 @@ dns_profile_restore() {
       if(index($0,"=")<2 || $0 ~ /\r/){bad=1;next}
       key=substr($0,1,index($0,"=")-1)
       value=substr($0,index($0,"=")+1)
-      if(key !~ /^(dns_engine_adguardhome|dns_forward|custom_dns|global_dns|block_quic|block_dot|block_plain_dns|block_ipv6|block_track_domains|vpn_external_dns_proxy|vpn_external_compat|dns_querylog_enabled|CUSTOM_SERVERS|GLOBAL_SERVERS|FALLBACK_SERVERS|VPN_REMOTE|VPN_CN|RESPONSE_MODE|QUERYLOG_RETENTION|QUERYLOG_MEMORY_SIZE|QUERYLOG_IGNORED_ENABLED|QUERYLOG_IGNORED|DNS_REWRITES|STATISTICS_ENABLED|STATISTICS_INTERVAL|STATISTICS_IGNORED_ENABLED|STATISTICS_IGNORED|UPSTREAM_MODE|FASTEST_TIMEOUT|UPSTREAM_TIMEOUT|CACHE_SIZE|CACHE_TTL_MIN|CACHE_TTL_MAX|CACHE_OPTIMISTIC_ANSWER_TTL|CACHE_OPTIMISTIC_MAX_AGE|CACHE_ENABLED|CACHE_OPTIMISTIC|ENABLE_DNSSEC|UNBOUND_CACHE_MAX_TTL|UNBOUND_CACHE_MIN_TTL|UNBOUND_SERVE_EXPIRED|UNBOUND_SERVE_EXPIRED_TTL|UNBOUND_SERVE_EXPIRED_REPLY_TTL|UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT|UNBOUND_PREFETCH|UNBOUND_PREFETCH_KEY|UNBOUND_QNAME_MINIMISATION|UNBOUND_MSG_CACHE_SIZE|UNBOUND_RRSET_CACHE_SIZE|UNBOUND_KEY_CACHE_SIZE|UNBOUND_NEG_CACHE_SIZE|UNBOUND_NUM_THREADS)$/)bad=1
+      if(key !~ /^(dns_engine_adguardhome|dns_forward|custom_dns|global_dns|block_quic|block_dot|block_plain_dns|block_ipv6|block_track_domains|vpn_external_dns_proxy|vpn_external_compat|dns_querylog_enabled|CUSTOM_SERVERS|GLOBAL_SERVERS|FALLBACK_SERVERS|VPN_REMOTE|VPN_CN|RESPONSE_MODE|RESPONSE_IPV4|RESPONSE_IPV6|RESPONSE_TTL|QUERYLOG_RETENTION|QUERYLOG_MEMORY_SIZE|QUERYLOG_IGNORED_ENABLED|QUERYLOG_IGNORED|DNS_REWRITES|STATISTICS_ENABLED|STATISTICS_INTERVAL|STATISTICS_IGNORED_ENABLED|STATISTICS_IGNORED|UPSTREAM_MODE|FASTEST_TIMEOUT|UPSTREAM_TIMEOUT|CACHE_SIZE|CACHE_TTL_MIN|CACHE_TTL_MAX|CACHE_OPTIMISTIC_ANSWER_TTL|CACHE_OPTIMISTIC_MAX_AGE|CACHE_ENABLED|CACHE_OPTIMISTIC|ENABLE_DNSSEC|UNBOUND_CACHE_MAX_TTL|UNBOUND_CACHE_MIN_TTL|UNBOUND_SERVE_EXPIRED|UNBOUND_SERVE_EXPIRED_TTL|UNBOUND_SERVE_EXPIRED_REPLY_TTL|UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT|UNBOUND_PREFETCH|UNBOUND_PREFETCH_KEY|UNBOUND_QNAME_MINIMISATION|UNBOUND_MSG_CACHE_SIZE|UNBOUND_RRSET_CACHE_SIZE|UNBOUND_KEY_CACHE_SIZE|UNBOUND_NEG_CACHE_SIZE|UNBOUND_NUM_THREADS)$/)bad=1
       if(seen[key]++)bad=1
     }
     END {
@@ -1252,6 +1332,9 @@ dns_profile_restore() {
       if (bad) exit 1
     }
   ' "$_yad_profile_raw" || { echo "DNS profile has unknown, duplicate, missing, or malformed fields" >&2; return 2; }
+  _profile_response_ipv4=0.0.0.0
+  _profile_response_ipv6=::
+  _profile_response_ttl=10
   _profile_querylog_retention=7d
   _profile_querylog_memory_size=1000
   _profile_querylog_ignored_enabled=0
@@ -1310,6 +1393,18 @@ dns_profile_restore() {
         ;;
       RESPONSE_MODE)
         case "$_profile_value" in nxdomain|refused|custom_ip) : ;; *) echo "invalid DNS response mode" >&2; return 2 ;; esac
+        ;;
+      RESPONSE_IPV4)
+        valid_dns_rewrite_ipv4 "$_profile_value" || { echo "invalid DNS blocking IPv4 address" >&2; return 2; }
+        _profile_response_ipv4=$_profile_value
+        ;;
+      RESPONSE_IPV6)
+        valid_dns_rewrite_ipv6 "$_profile_value" || { echo "invalid DNS blocking IPv6 address" >&2; return 2; }
+        _profile_response_ipv6=$_profile_value
+        ;;
+      RESPONSE_TTL)
+        valid_dns_runtime_uint32 "$_profile_value" 1 || { echo "invalid blocked DNS response TTL" >&2; return 2; }
+        _profile_response_ttl=$_profile_value
         ;;
       QUERYLOG_RETENTION)
         valid_dns_querylog_retention "$_profile_value" || { echo "invalid DNS query-log retention" >&2; return 2; }
@@ -1450,6 +1545,7 @@ dns_profile_restore() {
       VPN_REMOTE) _profile_remote=$_profile_value ;;
       VPN_CN) _profile_cn=$_profile_value ;;
       RESPONSE_MODE) _profile_mode=$_profile_value ;;
+      RESPONSE_IPV4|RESPONSE_IPV6|RESPONSE_TTL) : ;;
     esac
   done < "$_yad_profile_raw"
   # An enabled upstream list must be present before any live setting changes.
@@ -1503,7 +1599,7 @@ dns_profile_restore() {
   else m_dns_section_clear yulong_dns_fallback || return 1; fi
   m_vpn_dns remote_dns "$_profile_remote" &&
     m_vpn_dns cn_dns "$_profile_cn" &&
-    m_dns_response "$_profile_mode" || return 1
+    m_dns_response_config "$_profile_mode" "$_profile_response_ipv4" "$_profile_response_ipv6" "$_profile_response_ttl" || return 1
   printf 'dns_profile=restored native_agh=%s native_forward=%s native_compat=%s native_proxy=%s\n' "$_profile_agh" "$_profile_forward" "$_profile_compat" "$_profile_proxy"
 }
 dns_profile_transaction() {
@@ -3026,18 +3122,16 @@ case "$cmd" in
 
  dns-response-get)
   echo FXYULONGDNSRESP1
-  if ! validate_dns_response_config; then
-    echo "mode=unknown"
-    exit 22
-  fi
-  mode=$(awk '$0=="[conf:yulong_dns_response]"{inside=1;next} /^\[/{inside=0} inside&&/^mode=/{sub(/^mode=/,"");print;exit}' "$CONF" 2>/dev/null)
-  [ -n "$mode" ] || mode=nxdomain
-  echo "mode=$mode"
+  dns_response_values || exit $?
   ;;
  dns-response-set)
   [ "$#" -eq 2 ] || { echo "usage: $0 dns-response-set nxdomain|refused|custom_ip" >&2; exit 2; }
   case "$2" in nxdomain|refused|custom_ip) ;; *) exit 2 ;; esac
   with_lock transaction m_dns_response "$2"
+  ;;
+ dns-response-config-set)
+  [ "$#" -eq 5 ] || { echo "usage: $0 dns-response-config-set MODE IPV4 IPV6 TTL" >&2; exit 2; }
+  with_lock transaction m_dns_response_config "$2" "$3" "$4" "$5"
   ;;
 
  dns-config-clear)
