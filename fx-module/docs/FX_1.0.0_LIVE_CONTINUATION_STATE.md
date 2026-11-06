@@ -6795,3 +6795,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 正式引擎模板、FX runtime 配置模板、GitHub workflow 配置模板和模块内模板同步写入相同默认值，避免开发模板与安装配置漂移。
 - 本批代码提交：运行配置校验器 `cd15c6e38bb5b2a30fe6239dfc5e920781f27319` / module mirror `f0258759884fde653de4b49106de1f6cc99679c3`；模板同步 `0227c670ec1d64c6137dcd016a4cbf2bc4b1cb48`、`dd4983cf3b71c2fc600e914a08ea0bf1a17d5719`、`8c84baac052fec6194de757fe1f343a3b9861d73`、`f11b61cf5a2d124969b602eabc6a66348aec0282`；Activity 文案同步 `b108255f9ca242f9e7b8a5fa2b6ebc3e7b55914f` / `8233afc8904ff8027f6c54e90b13e59a4a0b786b`。
 - 按当前要求未运行测试、静态检查、构建、CI 或 Android 真机验证。该记录说明源码已提交，不代表设备端运行验收。
+
+## 2026-11-07 — AdGuard 查询日志空排除列表渲染修复
+
+- 修复 AdGuard Home 配置生成器在处理 `querylog.ignored: []` 默认空列表时的 AWK 正则表达式：将空方括号改为转义后的字面量匹配，避免把它作为无效/空字符类解析。
+- 同步修复规范构建源码 `scripts/adguardhome.sh` 与 KernelSU 模块源码 `fx-module/scripts/adguardhome.sh`；两个文件更新后的 blob SHA 相同。
+- 本轮未运行脚本、测试、静态检查、构建、CI 或 Android 真机验证；仅按用户要求提交源码修正。
