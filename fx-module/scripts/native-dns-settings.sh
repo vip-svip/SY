@@ -288,15 +288,20 @@ status() {
     *) _dns_fallback_mode=explicit ;;
   esac
   _local_dns_watchdog=unavailable
-  if [ -f "$MP/scripts/localdns-watchdog.sh" ] && [ ! -L "$MP/scripts/localdns-watchdog.sh" ]; then
-    _watchdog_status=$(sh "$MP/scripts/localdns-watchdog.sh" status "$MP" "$PG" 2>/dev/null) || _watchdog_status=stopped
+  if [ -L "$PG/localdns-watchdog.pid" ] || [ -L "$MP/scripts/localdns-watchdog.sh" ]; then
+    _local_dns_watchdog=unsafe
+  elif [ -f "$MP/scripts/localdns-watchdog.sh" ]; then
+    _watchdog_status=$(sh "$MP/scripts/localdns-watchdog.sh" status "$MP" "$PG" 2>/dev/null || :)
     case "$_watchdog_status" in
       running\ pid=*) _local_dns_watchdog=running ;;
-      stopped|stopped\ *) _local_dns_watchdog=stopped ;;
+      stopped|stopped\ *|stopped\ stale-pid=*) _local_dns_watchdog=stopped ;;
+      invalid) _local_dns_watchdog=invalid ;;
+      unsafe) _local_dns_watchdog=unsafe ;;
+      identity_unknown\ *) _local_dns_watchdog=identity_unknown ;;
       *) _local_dns_watchdog=unknown ;;
     esac
-  elif [ -L "$MP/scripts/localdns-watchdog.sh" ]; then
-    _local_dns_watchdog=unsafe
+  elif [ -e "$MP/scripts/localdns-watchdog.sh" ] || [ -e "$PG/localdns-watchdog.pid" ]; then
+    _local_dns_watchdog=unknown
   fi
   _configured=0
   _ready=0
