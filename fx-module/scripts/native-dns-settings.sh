@@ -79,6 +79,7 @@ status() {
   _root=unavailable
   _whitelist_count=unknown
   _root_reason=unknown
+  _root_cleanup=not_required
   _private_dns_mode=unknown
   _dns_filter_coverage=unknown
   _coexistence_verdict=unknown
@@ -123,6 +124,8 @@ status() {
       case "$_count" in ''|*[!0-9]*) : ;; *) _whitelist_count=$_count ;; esac
       _reason=$(printf '%s\n' "$_root_output" | sed -n 's/^reason=//p' | head -1)
       case "$_reason" in ''|*[!A-Za-z0-9_.:-]*) : ;; *) _root_reason=$_reason ;; esac
+      _cleanup=$(printf '%s\n' "$_root_output" | sed -n 's/^cleanup=//p' | head -1)
+      case "$_cleanup" in complete|failed) _root_cleanup=$_cleanup ;; esac
 
       # Preserve the live route proof in the public status response. The
       # Root Proxy status command only emits these values after all route,
@@ -174,6 +177,7 @@ status() {
   printf 'unbound|%s\n' "$_unbound"
   printf 'root_proxy|%s\n' "$_root"
   printf 'rootproxy_reason|%s\n' "$_root_reason"
+  printf 'rootproxy_cleanup|%s\n' "$_root_cleanup"
   printf 'rootproxy_interface|%s\n' "$_root_interface"
   printf 'rootproxy_vpn_uid|%s\n' "$_root_vpn_uid"
   printf 'rootproxy_egress_ipv4|%s\n' "$_root_egress_ipv4"
