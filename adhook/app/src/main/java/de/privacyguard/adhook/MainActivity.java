@@ -1942,6 +1942,7 @@ public final class MainActivity extends ComponentActivity {
         addNativeActionCard("应用使用情况访问", "管理应用使用情况访问权限；此权限独立于通知读取授权，也不会自动授予 Root 或 Hook 权限。", "打开使用情况授权", () -> openAndroidSettingsPage(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS, "使用情况访问设置"));
         addNativeActionCard("悬浮窗显示权限", "管理 FX 是否可以在其他应用上层显示内容；此系统权限不等于无障碍或 Hook 授权。", "打开悬浮窗设置", this::openOverlayPermissionSettings);
         addNativeActionCard("电池优化例外", "查看并管理 FX 是否被系统电池优化限制。豁免可能增加后台耗电，请按实际需要设置。", "打开电池优化设置", () -> openAndroidSettingsPage(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS, "电池优化设置"));
+        addNativeActionCard("所有文件访问", "管理 FX 是否拥有 Android 的特殊文件管理访问权限。此权限范围较大，仅在确实需要管理共享存储文件时授予。", "管理所有文件访问", this::openAllFilesAccessSettings);
         addNativeActionCard("精确闹钟访问", "管理 FX 是否可安排精确时间闹钟。仅在确实需要准时触发任务时授予；Android 12 及以上才提供此特殊访问权限。", "管理精确闹钟访问", this::openExactAlarmSettings);
         addNativeActionCard("勿扰模式访问", "管理 FX 是否可读取或更改勿扰模式策略。仅在使用通知静默/勿扰联动功能时授予。", "管理勿扰模式访问", this::openNotificationPolicySettings);
 
@@ -2095,6 +2096,23 @@ public final class MainActivity extends ComponentActivity {
         }
     }
 
+    private void openAllFilesAccessSettings() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            FxNativeSkin.builder(this).setTitle("无需所有文件访问特殊权限")
+                    .setMessage("当前 Android 版本不提供 Android 11 的所有文件访问特殊权限。")
+                    .setPositiveButton("知道了", null).show();
+            return;
+        }
+        Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                Uri.parse("package:" + getPackageName()));
+        openAndroidIntent(intent, "所有文件访问设置");
+    }
+
+    private String allFilesAccessStatus() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return "当前系统无需此特殊访问";
+        return android.os.Environment.isExternalStorageManager() ? "已授予" : "未授予";
+    }
+
     private String exactAlarmAccessStatus() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return "当前系统无需此特殊访问";
         android.app.AlarmManager alarms = (android.app.AlarmManager)
@@ -2151,6 +2169,7 @@ public final class MainActivity extends ComponentActivity {
                         + " · 电池优化：" + batteryOptimizationStatus()
                         + " · 精确闹钟访问：" + exactAlarmAccessStatus()
                         + " · 勿扰模式访问：" + notificationPolicyAccessStatus()
+                        + " · 所有文件访问：" + allFilesAccessStatus()
                         + "\nRemote Files：" + json.optString("hook_remote_status", "unknown")
                         + " · 已发布目标：" + json.optInt("hook_native_targets", 0)
                         + "\n隐私目标：" + json.optInt("hook_native_privacy_targets", 0)
