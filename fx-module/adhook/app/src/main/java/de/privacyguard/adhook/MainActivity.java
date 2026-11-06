@@ -1230,6 +1230,11 @@ public final class MainActivity extends ComponentActivity {
                         + " · Unbound：" + nativeDnsStatusLabel("unbound", state.getOrDefault("unbound", "unknown"))
                         + "\nRoot Proxy：" + nativeDnsStatusLabel("root_proxy", state.getOrDefault("root_proxy", "unknown"))
                         + " · DNS 白名单应用：" + state.getOrDefault("rootproxy_whitelist_count", "unknown")
+                        + "\n接管接口 / VPN UID：" + state.getOrDefault("rootproxy_interface", "unknown")
+                        + " / " + state.getOrDefault("rootproxy_vpn_uid", "unknown")
+                        + " · 出口 IPv4：" + state.getOrDefault("rootproxy_egress_ipv4", "unknown")
+                        + "\nDNS 重定向：" + state.getOrDefault("rootproxy_redirects", "unknown")
+                        + " · DNS 探测：" + nativeDnsStatusLabel("vpn_route_probe", state.getOrDefault("rootproxy_dns_probe", "unavailable"))
                         + "\nDNS 订阅源：" + state.getOrDefault("dns_filter_sources_enabled", "unknown")
                         + "/" + state.getOrDefault("dns_filter_sources_total", "unknown") + " 已启用"
                         + "\nPrivate DNS：" + nativeDnsStatusLabel("private_dns_mode", state.getOrDefault("private_dns_mode", "unknown"))
