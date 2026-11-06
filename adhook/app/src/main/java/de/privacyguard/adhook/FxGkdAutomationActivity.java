@@ -705,6 +705,21 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
                 renderRules();
                 Toast.makeText(this, "已复制为关闭状态的草稿，请检查后手动启用。", Toast.LENGTH_LONG).show();
             }));
+            actions.addView(action("复制规则 JSON", () -> {
+                String json = FxGkdRuleStore.exportRuleJson(this, rule.getId());
+                if (json == null) {
+                    Toast.makeText(this, "规则已不存在，无法导出。", Toast.LENGTH_LONG).show();
+                    return;
+                }
+                android.content.ClipboardManager clipboard =
+                        (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                if (clipboard == null) {
+                    Toast.makeText(this, "系统剪贴板不可用。", Toast.LENGTH_LONG).show();
+                    return;
+                }
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("FX GKD Rule JSON", json));
+                Toast.makeText(this, "单条规则 JSON 已复制；可粘贴到支持 FX-GKD-LOCAL-RULES 格式的文件中。", Toast.LENGTH_LONG).show();
+            }));
             actions.addView(action("删除", () -> new AlertDialog.Builder(this)
                     .setMessage("删除这条本地 GKD 规则？")
                     .setNegativeButton("取消", null)
