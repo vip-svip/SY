@@ -7552,3 +7552,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 结构化监控事件页新增“导出筛选事件”，复用当前类型与搜索条件，使用 Android 系统文档创建器保存为 UTF-8 纯文本；导出包含目标标识、时间和解析后的事件字段。
 - 导出仅取 FxDiaMonitorEventParser 已允许的安全元数据，最大 256 KiB；不导出原始 Frida 日志、请求/SQL 正文、调用栈或自定义脚本原文。空筛选结果不创建文件，写入失败明确提示。
 - 按当前提速要求未运行测试、静态检查、Gradle 构建、CI、安装或真机验证。
+
+
+## 2026-11-06 — Dia 单条结构化监控事件复制
+
+- 代码提交：`7189607b5a23fbaaf811ac6f75ea38c60daf298e`。
+- 改动文件：`adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaMonitorEventsActivity.java`。
+- 监控事件详情弹窗新增“复制事件”，仅复制解析器输出的当前单条白名单元数据；剪贴板不可用时明确提示，不影响事件列表和原始日志。
+- 本批未运行测试、静态检查、Gradle 构建、CI、安装或真机验证。
