@@ -343,5 +343,5 @@ case "$ACTION" in
     exit 1
     ;;
   watch) [ "$#" -eq 3 ] || exit 2; _watch ;;
-  *) echo "usage: localdns-watchdog.sh {start|stop|status} MODULE_DIR STATE_DIR" >&2; exit 64 ;;
+  *) echo "usage: localdns-watchdog.sh {start|stop|repair|status} MODULE_DIR STATE_DIR" >&2; exit 64 ;;
 esac

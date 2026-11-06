@@ -6900,3 +6900,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 原生 DNSSEC 状态卡片同步展示 Root Hints 完整性，避免只看到 DNSKEY anchor 而忽略递归 DNS 根提示文件。
 - DNS 快照“分享”从 `Intent.EXTRA_TEXT` 改为系统 `ACTION_CREATE_DOCUMENT` 写入文件后，以 `EXTRA_STREAM` + `ClipData` URI 权限打开分享面板；完整配置不再进入 Binder 文本事务，保留另一个独立的“保存到文件”入口。
 - 按提速要求未运行测试、静态检查、构建、CI 或 Android 真机验证；本批仅完成源码修改及文档同步。
+
+
+## 2026-11-07 — DNS 全链路只读诊断面板
+
+- Root 控制命令新增 `dns-diagnose`，读取原生 DNS 栈状态并执行本地回环 DNS 查询：Unbound `127.0.0.1:5353`、AdGuard Home `127.0.0.1:53` 与 `[::1]:53`。只对已启用的解析服务执行相应探测；组件未启用时返回 disabled，探测器缺失时返回 unavailable。
+- 诊断同时汇总 DNS 栈就绪标志/原因、本地 DNS watchdog 状态、VPN 共存判定、VPN 路由探测与 Android 私有 DNS 模式。响应使用 `FXYULONGDNSDIAG1` 固定字段协议，不包含域名查询明细、客户端 IP 或私有 DNS 主机名。
+- 原生 Ad 页面新增“执行完整 DNS 链路诊断”入口，严格检查协议头、字段白名单、重复/缺失字段和枚举值。诊断不修改配置、不重启服务、不操作第三方 VPN 或改写路由。
+- 同步正式/模块 Root 脚本、两套 APK 原生页面和 watchdog 使用说明。
+- 按用户要求未运行 Shell/Java 测试、静态检查、构建、CI 或真机验证；本轮仅完成源码移植与提交。

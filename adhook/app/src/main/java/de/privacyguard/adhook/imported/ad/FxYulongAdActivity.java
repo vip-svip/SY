@@ -1337,6 +1337,7 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
   TextView dnsRuntimeState=txt("DNS 运行状态尚未读取。",12,0xff617080,false);
   card("DNS 引擎运行状态","读取 AdGuard Home、Unbound、第三方 VPN Root Proxy、DNS 过滤覆盖范围与 VPN 共存判定。此操作只读取状态，不会更改服务或网络路由。",dnsRuntimeState,
        btn("刷新 DNS 运行状态",()->loadDnsRuntimeStatus(dnsRuntimeState)),
+       btn("执行完整 DNS 链路诊断",()->runDnsDiagnostics()),
        btn("立即尝试修复 DNS 服务",()->fxDialogBuilder().setTitle("恢复 FX 本地 DNS 服务")
          .setMessage("将按当前开关和上游配置，尝试恢复 FX 自有 Unbound 与 AdGuard Home。不会改写 DNS 配置、接管第三方 VPN、修改 Android 私有 DNS 或清理查询日志。恢复过程中的 DNS 查询可能短暂重试。是否继续？")
          .setNegativeButton("取消",null)
@@ -2155,6 +2156,98 @@ private int countDnsEndpoints(String value){
   for(String endpoint:value.split(",",-1))if(!endpoint.trim().isEmpty())count++;
   return count;
 }
+private void runDnsDiagnostics(){
+  status.setText("正在执行只读 DNS 链路诊断…");
+  root("dns-diagnose",result->{
+    if(result.exitCode!=0){
+      fxDialogBuilder().setTitle("DNS 链路诊断不可用")
+        .setMessage(safe(result.output))
+        .setPositiveButton("关闭",null).show();
+      return;
+    }
+    String raw=result.output==null?"":result.output.trim();
+    String[] lines=raw.split("\\r?\\n");
+    if(lines.length<12||!"FXYULONGDNSDIAG1".equals(lines[0].trim())){
+      status.setText("DNS 诊断响应版本或字段数量错误，拒绝显示不完整报告。");
+      return;
+    }
+    String[] allowed={"dns_stack_ready","dns_stack_readiness_reason",
+      "unbound_process","unbound_probe","adguardhome_process",
+      "adguardhome_ipv4_probe","adguardhome_ipv6_probe","localdns_watchdog",
+      "vpn_coexistence_verdict","vpn_route_probe","private_dns_mode"};
+    java.util.Set<String> keys=new java.util.HashSet<>(java.util.Arrays.asList(allowed));
+    java.util.Map<String,String> values=new java.util.LinkedHashMap<>();
+    for(int i=1;i<lines.length;i++){
+      String line=lines[i].trim();
+      if(line.isEmpty())continue;
+      int split=line.indexOf('=');
+      if(split<=0||split==line.length()-1){
+        status.setText("DNS 诊断响应字段格式错误。");return;
+      }
+      String key=line.substring(0,split),value=line.substring(split+1);
+      if(!keys.contains(key)||values.put(key,value)!=null){
+        status.setText("DNS 诊断响应包含未知或重复字段："+key);return;
+      }
+    }
+    if(values.size()!=allowed.length){
+      status.setText("DNS 诊断响应字段不完整（"+values.size()+"/"+allowed.length+"）。");return;
+    }
+    for(String key:allowed){
+      String value=values.get(key);
+      boolean valid;
+      switch(key){
+        case "dns_stack_ready": valid="0".equals(value)||"1".equals(value)||"unknown".equals(value);break;
+        case "dns_stack_readiness_reason": valid=value.matches("[A-Za-z0-9_.:-]+");break;
+        case "unbound_process":
+        case "adguardhome_process": valid="ready".equals(value)||"running_unhealthy".equals(value)
+            ||"stopped".equals(value)||"disabled".equals(value)||"unknown".equals(value);break;
+        case "unbound_probe":
+        case "adguardhome_ipv4_probe":
+        case "adguardhome_ipv6_probe": valid="passed".equals(value)||"failed".equals(value)
+            ||"disabled".equals(value)||"unavailable".equals(value);break;
+        case "localdns_watchdog": valid="running".equals(value)||"stopped".equals(value)
+            ||"invalid".equals(value)||"unsafe".equals(value)||"identity_unknown".equals(value)
+            ||"unknown".equals(value)||"unavailable".equals(value);break;
+        case "vpn_coexistence_verdict": valid="compatible".equals(value)||"incompatible".equals(value)||"unknown".equals(value);break;
+        case "vpn_route_probe": valid="passed".equals(value)||"failed".equals(value)
+            ||"unavailable".equals(value)||"not_applicable".equals(value)||"unknown".equals(value);break;
+        case "private_dns_mode": valid="off".equals(value)||"opportunistic".equals(value)
+            ||"hostname".equals(value)||"unknown".equals(value);break;
+        default: valid=false;
+      }
+      if(!valid){status.setText("DNS 诊断字段值非法："+key);return;}
+    }
+    StringBuilder report=new StringBuilder();
+    report.append("DNS 栈就绪：").append("1".equals(values.get("dns_stack_ready"))?"是":"0".equals(values.get("dns_stack_ready"))?"否":"未知").append('\n');
+    report.append("未就绪原因：").append(values.get("dns_stack_readiness_reason")).append('\n');
+    report.append("Unbound 进程：").append(dnsDiagnosticLabel(values.get("unbound_process"))).append('\n');
+    report.append("Unbound 回环查询：").append(dnsDiagnosticLabel(values.get("unbound_probe"))).append('\n');
+    report.append("AdGuard Home 进程：").append(dnsDiagnosticLabel(values.get("adguardhome_process"))).append('\n');
+    report.append("AdGuard Home IPv4 查询：").append(dnsDiagnosticLabel(values.get("adguardhome_ipv4_probe"))).append('\n');
+    report.append("AdGuard Home IPv6 查询：").append(dnsDiagnosticLabel(values.get("adguardhome_ipv6_probe"))).append('\n');
+    report.append("本地 DNS 自动恢复守护：").append(dnsDiagnosticLabel(values.get("localdns_watchdog"))).append('\n');
+    report.append("VPN 共存判定：").append(dnsDiagnosticLabel(values.get("vpn_coexistence_verdict"))).append('\n');
+    report.append("VPN 路由探测：").append(dnsDiagnosticLabel(values.get("vpn_route_probe"))).append('\n');
+    report.append("Android 私有 DNS：").append(dnsDiagnosticLabel(values.get("private_dns_mode"))).append("\n\n");
+    report.append("本报告只读本地状态并探测回环监听，不会修改 DNS 配置、重启解析器或更改 VPN 路由。");
+    fxDialogBuilder().setTitle("FX DNS 链路诊断报告")
+      .setMessage(report.toString())
+      .setPositiveButton("关闭",null).show();
+  });
+}
+private String dnsDiagnosticLabel(String value){
+  if("ready".equals(value)||"passed".equals(value)||"compatible".equals(value)||"running".equals(value))return "正常 / 通过";
+  if("failed".equals(value)||"incompatible".equals(value)||"unsafe".equals(value)||"invalid".equals(value))return "失败 / 异常";
+  if("running_unhealthy".equals(value))return "进程存在但健康探测失败";
+  if("stopped".equals(value))return "未运行";
+  if("disabled".equals(value)||"off".equals(value)||"not_applicable".equals(value))return "未启用 / 不适用";
+  if("opportunistic".equals(value))return "自动模式";
+  if("hostname".equals(value))return "严格主机名模式";
+  if("unavailable".equals(value))return "不可用";
+  if("identity_unknown".equals(value))return "进程身份无法确认";
+  return "未知";
+}
+
 private void loadDnsRuntimeStatus(TextView target){
   target.setText("正在读取 DNS 服务状态…");
   root("dns-runtime-status",r->{

@@ -3093,6 +3093,102 @@ case "$cmd" in
   [ -x "$MP/scripts/native-dns-settings.sh" ] || { echo "native DNS dependency manager is missing" >&2; exit 20; }
   MP="$MP" PG="$PG" sh "$MP/scripts/native-dns-settings.sh" status
   ;;
+ dns-diagnose)
+  [ "$#" -eq 1 ] || exit 2
+  [ -x "$MP/scripts/native-dns-settings.sh" ] || { echo "native DNS dependency manager is missing" >&2; exit 20; }
+  _diag_status=$(MP="$MP" PG="$PG" sh "$MP/scripts/native-dns-settings.sh" status 2>/dev/null) || {
+    echo "unable to obtain native DNS status" >&2
+    exit 20
+  }
+  [ "$(printf '%s\n' "$_diag_status" | sed -n '1p')" = FXDNS1 ] || {
+    echo "native DNS status response is malformed" >&2
+    exit 21
+  }
+  _diag_value() {
+    printf '%s\n' "$1" | awk -F'|' -v wanted="$2" '
+      $1==wanted {count++; value=$2}
+      END {if(count==1) print value; else exit 1}
+    '
+  }
+  _diag_forward=$(_diag_value "$_diag_status" dns_forward 2>/dev/null) || _diag_forward=unknown
+  _diag_agh=$(_diag_value "$_diag_status" dns_engine_adguardhome 2>/dev/null) || _diag_agh=unknown
+  _diag_ready=$(_diag_value "$_diag_status" dns_stack_ready 2>/dev/null) || _diag_ready=unknown
+  _diag_reason=$(_diag_value "$_diag_status" dns_stack_readiness_reason 2>/dev/null) || _diag_reason=unknown
+  _diag_watchdog=$(_diag_value "$_diag_status" localdns_watchdog 2>/dev/null) || _diag_watchdog=unknown
+  _diag_coexist=$(_diag_value "$_diag_status" vpn_coexistence_verdict 2>/dev/null) || _diag_coexist=unknown
+  _diag_route=$(_diag_value "$_diag_status" vpn_route_probe 2>/dev/null) || _diag_route=unknown
+  _diag_private_dns=$(_diag_value "$_diag_status" private_dns_mode 2>/dev/null) || _diag_private_dns=unknown
+  case "$_diag_ready" in 0|1) : ;; *) _diag_ready=unknown ;; esac
+  case "$_diag_reason" in ''|*[!A-Za-z0-9_.:-]*) _diag_reason=unknown ;; esac
+  case "$_diag_watchdog" in running|stopped|invalid|unsafe|identity_unknown|unknown|unavailable) : ;; *) _diag_watchdog=unknown ;; esac
+  case "$_diag_coexist" in compatible|incompatible|unknown) : ;; *) _diag_coexist=unknown ;; esac
+  case "$_diag_route" in passed|failed|unavailable|not_applicable|unknown) : ;; *) _diag_route=unknown ;; esac
+  case "$_diag_private_dns" in off|opportunistic|hostname|unknown) : ;; *) _diag_private_dns=unknown ;; esac
+  _diag_probe="$MP/engines/unbound/fx-dns-probe"
+  _diag_probe_available=0
+  if [ -f "$_diag_probe" ] && [ -x "$_diag_probe" ] && [ ! -L "$_diag_probe" ]; then
+    _diag_probe_available=1
+  fi
+  _diag_unbound_process=disabled
+  _diag_unbound_probe=disabled
+  if [ "$_diag_forward" = 1 ] || [ "$_diag_agh" = 1 ]; then
+    _diag_unbound_raw=$(MP="$MP" PG="$PG" sh "$MP/scripts/unbound.sh" status "$MP" "$PG" 2>/dev/null || :)
+    case "$_diag_unbound_raw" in
+      ready) _diag_unbound_process=ready ;;
+      running-unhealthy) _diag_unbound_process=running_unhealthy ;;
+      stopped) _diag_unbound_process=stopped ;;
+      *) _diag_unbound_process=unknown ;;
+    esac
+    if [ "$_diag_probe_available" = 1 ]; then
+      if "$_diag_probe" 127.0.0.1 5353 5 >/dev/null 2>&1; then
+        _diag_unbound_probe=passed
+      else
+        _diag_unbound_probe=failed
+      fi
+    else
+      _diag_unbound_probe=unavailable
+    fi
+  fi
+  _diag_agh_process=disabled
+  _diag_agh_ipv4=disabled
+  _diag_agh_ipv6=disabled
+  if [ "$_diag_agh" = 1 ]; then
+    _diag_agh_raw=$(MP="$MP" PG="$PG" sh "$MP/scripts/adguardhome.sh" status "$MP" "$PG" 2>/dev/null || :)
+    case "$_diag_agh_raw" in
+      ready) _diag_agh_process=ready ;;
+      running-unhealthy) _diag_agh_process=running_unhealthy ;;
+      stopped) _diag_agh_process=stopped ;;
+      *) _diag_agh_process=unknown ;;
+    esac
+    if [ "$_diag_probe_available" = 1 ]; then
+      if "$_diag_probe" 127.0.0.1 53 5 >/dev/null 2>&1; then
+        _diag_agh_ipv4=passed
+      else
+        _diag_agh_ipv4=failed
+      fi
+      if "$_diag_probe" ::1 53 5 >/dev/null 2>&1; then
+        _diag_agh_ipv6=passed
+      else
+        _diag_agh_ipv6=failed
+      fi
+    else
+      _diag_agh_ipv4=unavailable
+      _diag_agh_ipv6=unavailable
+    fi
+  fi
+  echo FXYULONGDNSDIAG1
+  printf 'dns_stack_ready=%s\n' "$_diag_ready"
+  printf 'dns_stack_readiness_reason=%s\n' "$_diag_reason"
+  printf 'unbound_process=%s\n' "$_diag_unbound_process"
+  printf 'unbound_probe=%s\n' "$_diag_unbound_probe"
+  printf 'adguardhome_process=%s\n' "$_diag_agh_process"
+  printf 'adguardhome_ipv4_probe=%s\n' "$_diag_agh_ipv4"
+  printf 'adguardhome_ipv6_probe=%s\n' "$_diag_agh_ipv6"
+  printf 'localdns_watchdog=%s\n' "$_diag_watchdog"
+  printf 'vpn_coexistence_verdict=%s\n' "$_diag_coexist"
+  printf 'vpn_route_probe=%s\n' "$_diag_route"
+  printf 'private_dns_mode=%s\n' "$_diag_private_dns"
+  ;;
  dns-repair)
   [ "$#" -eq 1 ] || exit 2
   [ -x "$MP/scripts/localdns-watchdog.sh" ] || { echo "local DNS watchdog is missing" >&2; exit 20; }
