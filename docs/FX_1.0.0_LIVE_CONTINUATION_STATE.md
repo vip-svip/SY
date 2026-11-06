@@ -8246,3 +8246,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 文件：`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`。
 - 在模块原生脚本中心补出“导入 Surge / Loon / Quantumult X 配置”入口，复用现有 `pickNativeScriptFile` 文件选择及格式识别/导入流程，不新增另一套解析器，也不改变脚本执行行为。
 - 该入口此前已在统一主应用脚本中心显示，模块页面遗漏；本次只补齐 UI 入口。按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证。
+
+
+### FX 模块 DNS 查询日志页同步完整筛选与域名管理功能（2026-11-07）
+
+- 代码提交：`f7e1c0fe327d19c4f4700307d00554e6faaab495`。
+- 文件：`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongDnsActivity.java`。
+- 将统一主应用中较完整的 DNS 查询日志页实现同步到模块源码：增加拦截/放行状态筛选、时间范围筛选、DNS RR 类型筛选、响应码筛选；筛选条件与分页、匹配计数、列表和导出共用；支持筛选域名复制、筛选域名批量加入白名单/黑名单，以及当前筛选结果分享导出。
+- 保留原有本地 DNS 日志读取、缓存刷新、日志清理和页面状态保存；同步时直接以主应用同路径文件为完整源，模块文件原先缺少上述筛选与域名管理实现。
+- 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证。
