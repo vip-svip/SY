@@ -2228,6 +2228,135 @@ public final class MainActivity extends ComponentActivity {
         }
     }
 
+
+    private static String stripEgernYamlComment(String line) {
+        boolean single = false, dual = false, escaped = false;
+        for (int i=0;i<line.length();i++) {
+            char c=line.charAt(i);
+            if (dual) {
+                if (escaped) escaped=false;
+                else if (c=='\\') escaped=true;
+                else if (c=='"') dual=false;
+            } else if (single) {
+                if (c=='\'' && i+1<line.length() && line.charAt(i+1)=='\'') i++;
+                else if (c=='\'') single=false;
+            } else if (c=='"') dual=true;
+            else if (c=='\'') single=true;
+            else if (c=='#' && (i==0 || Character.isWhitespace(line.charAt(i-1)))) return line.substring(0,i);
+        }
+        return line;
+    }
+
+    private static String egernYamlScalar(String raw) {
+        if (raw==null) return "";
+        String value=raw.trim();
+        if (value.length()>=2 && value.charAt(0)=='"' && value.charAt(value.length()-1)=='"') {
+            StringBuilder out=new StringBuilder();
+            for (int i=1;i<value.length()-1;i++) {
+                char c=value.charAt(i);
+                if (c=='\\' && i+1<value.length()-1) {
+                    char n=value.charAt(++i);
+                    switch(n){case 'n':out.append('\n');break;case 'r':out.append('\r');break;case 't':out.append('\t');break;default:out.append(n);}
+                } else out.append(c);
+            }
+            return out.toString().trim();
+        }
+        if (value.length()>=2 && value.charAt(0)=='\'' && value.charAt(value.length()-1)=='\'')
+            return value.substring(1,value.length()-1).replace("''","'").trim();
+        if (value.startsWith("[")||value.startsWith("{")||value.startsWith("|")||value.startsWith(">")) return "";
+        return value;
+    }
+
+    private static boolean egernYamlTrue(String value) {
+        return "true".equalsIgnoreCase(value)||"yes".equalsIgnoreCase(value)||"1".equals(value);
+    }
+
+    private static boolean egernYamlDefaultNumber(String value,int expected) {
+        if(value==null||value.trim().isEmpty())return true;
+        try{return Integer.parseInt(value.trim())==expected;}catch(NumberFormatException ignored){return false;}
+    }
+
+    private void appendEgernYamlHttpEntry(JSONArray entries,java.util.Set<String> seen,
+            String kind,String name,String match,String scriptUrl,boolean disabled,
+            boolean bodyRequired,boolean binaryBody,boolean hasEnvironment,boolean unsupportedLimits)
+            throws org.json.JSONException {
+        if(!"http_request".equals(kind)&&!"http_response".equals(kind))return;
+        if(name==null||name.trim().isEmpty()||name.length()>512||match==null||match.isEmpty()
+                ||match.length()>2048||scriptUrl==null||!scriptUrl.regionMatches(true,0,"https://",0,8))return;
+        if(binaryBody||hasEnvironment||unsupportedLimits||!isSupportedNativeScriptValue(scriptUrl))return;
+        String type="http_request".equals(kind)?"request":"response";
+        String safeName=name.replaceAll("[\\p{Cntrl}]"," ").trim();
+        if(safeName.isEmpty())return;
+        String bodyFlag=bodyRequired?"1":"0";
+        String metadata=type+"\n"+match+"\n"+bodyFlag+"\n"+safeName;
+        String duplicateKey=scriptUrl+"\n"+type+"\n"+match+"\n"+bodyFlag;
+        if(!seen.add(duplicateKey))return;
+        JSONObject entry=new JSONObject();
+        entry.put("value",scriptUrl);
+        entry.put("name","FXMETA_B64:"+Base64.encodeToString(metadata.getBytes(StandardCharsets.UTF_8),Base64.NO_WRAP));
+        entry.put("enabled",!disabled);
+        entries.put(entry);
+    }
+
+    /** Import the Egern HTTP subset; scheduled, generic and network events are not HTTP hooks. */
+    private void importNativeEgernScriptConfig(String payload) {
+        try {
+            JSONArray entries=new JSONArray();
+            java.util.Set<String> seen=new java.util.HashSet<>();
+            boolean inScriptings=false;
+            String kind="",name="",match="",scriptUrl="";
+            boolean disabled=false,bodyRequired=false,binaryBody=false,hasEnvironment=false,unsupportedLimits=false;
+            String[] lines=(payload==null?"":payload).split("\\r?\\n");
+            for(String sourceLine:lines) {
+                String uncommented=stripEgernYamlComment(sourceLine);
+                if(uncommented.trim().isEmpty())continue;
+                int indent=0;
+                while(indent<uncommented.length()&&(uncommented.charAt(indent)==' '||uncommented.charAt(indent)=='\t'))indent++;
+                String line=uncommented.trim();
+                if(indent==0) {
+                    if("scriptings:".equalsIgnoreCase(line)){inScriptings=true;continue;}
+                    if(inScriptings)appendEgernYamlHttpEntry(entries,seen,kind,name,match,scriptUrl,disabled,bodyRequired,binaryBody,hasEnvironment,unsupportedLimits);
+                    inScriptings=false;kind="";
+                    continue;
+                }
+                if(!inScriptings)continue;
+                java.util.regex.Matcher item=java.util.regex.Pattern.compile("^-\\s*(http_request|http_response|schedule|generic|network)\\s*:\\s*$").matcher(line);
+                if(item.matches()) {
+                    appendEgernYamlHttpEntry(entries,seen,kind,name,match,scriptUrl,disabled,bodyRequired,binaryBody,hasEnvironment,unsupportedLimits);
+                    kind=item.group(1);name="";match="";scriptUrl="";
+                    disabled=false;bodyRequired=false;binaryBody=false;hasEnvironment=false;unsupportedLimits=false;
+                    continue;
+                }
+                if(kind.isEmpty())continue;
+                int colon=line.indexOf(':');if(colon<=0)continue;
+                String key=line.substring(0,colon).trim().toLowerCase(Locale.ROOT);
+                String value=egernYamlScalar(line.substring(colon+1));
+                switch(key){
+                    case "name":name=value;break;
+                    case "match":match=value;break;
+                    case "script_url":scriptUrl=value;break;
+                    case "disabled":disabled=egernYamlTrue(value);break;
+                    case "body_required":bodyRequired=egernYamlTrue(value);break;
+                    case "binary_body":binaryBody=egernYamlTrue(value);break;
+                    case "env":hasEnvironment=true;break;
+                    case "timeout":unsupportedLimits|=!egernYamlDefaultNumber(value,10);break;
+                    case "max_size":unsupportedLimits|=!egernYamlDefaultNumber(value,1048576);break;
+                    case "update_interval":unsupportedLimits|=!egernYamlDefaultNumber(value,86400);break;
+                    default:break;
+                }
+            }
+            appendEgernYamlHttpEntry(entries,seen,kind,name,match,scriptUrl,disabled,bodyRequired,binaryBody,hasEnvironment,unsupportedLimits);
+            if(entries.length()==0)throw new IllegalArgumentException("没有可安全迁移的 Egern HTTP 脚本；schedule/generic/network、env、binary_body 和非默认资源选项暂不支持");
+            JSONObject document=new JSONObject();
+            document.put("format","FX-SCRIPT-LIST");
+            document.put("version",1);
+            document.put("scripts",entries);
+            importNativeScriptDocument(document.toString());
+        } catch(Exception error) {
+            Toast.makeText(this,"Egern YAML 导入失败："+error.getMessage(),Toast.LENGTH_LONG).show();
+        }
+    }
+
     private void importNativeScriptDocument(String payload) {
         try {
             JSONObject document = new JSONObject(payload);
@@ -2288,7 +2417,7 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private static String nativeScriptImportKey(String value, String name) {
-        return nativeScriptSha256((value == null ? "" : value) + "\\n"
+        return nativeScriptSha256((value == null ? "" : value) + "\n"
                 + (name == null ? "" : name.trim()));
     }
 
@@ -4982,10 +5111,11 @@ public final class MainActivity extends ComponentActivity {
                 String name = uri.getLastPathSegment();
                 String lowerName = name == null ? "" : name.toLowerCase(Locale.ROOT);
                 boolean isJson = lowerName.endsWith(".json");
+                boolean isEgernYaml = lowerName.endsWith(".yaml") || lowerName.endsWith(".yml");
                 boolean isModuleConfig = lowerName.endsWith(".conf") || lowerName.endsWith(".ini")
                         || lowerName.endsWith(".sgmodule") || lowerName.endsWith(".loon")
                         || lowerName.endsWith(".qxconf");
-                if (!isJson && !isModuleConfig) {
+                if (!isJson && !isModuleConfig && !isEgernYaml) {
                     byte[] prefix = new byte[8192];
                     int count;
                     try (InputStream probe = new java.io.FileInputStream(staged)) {
@@ -4996,8 +5126,18 @@ public final class MainActivity extends ComponentActivity {
                     String lowerHeader = header.toLowerCase(Locale.ROOT);
                     isModuleConfig = lowerHeader.contains("[script]")
                             || lowerHeader.contains("[rewrite_local]");
+                    isEgernYaml = lowerHeader.contains("scriptings:");
                 }
-                if (isModuleConfig && !isJson) {
+                if (isEgernYaml && !isJson) {
+                    try (InputStream input = new java.io.FileInputStream(staged);
+                         ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+                        byte[] buffer = new byte[64 * 1024];
+                        int count;
+                        while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
+                        importNativeEgernScriptConfig(new String(output.toByteArray(), StandardCharsets.UTF_8));
+                    }
+                    staged.delete();
+                } else if (isModuleConfig && !isJson) {
                     try (InputStream input = new java.io.FileInputStream(staged);
                          ByteArrayOutputStream output = new ByteArrayOutputStream()) {
                         byte[] buffer = new byte[64 * 1024];
