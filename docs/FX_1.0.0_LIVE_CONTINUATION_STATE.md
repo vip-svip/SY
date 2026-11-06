@@ -8229,3 +8229,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 文件：`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`。
 - 将统一主应用已有的 17 个 Android 特殊访问辅助方法补入模块源码，供现有隐私状态面板调用：通知读取授权、FX 通知显示、悬浮窗、电池优化豁免、精确闹钟、勿扰模式、所有文件访问、使用情况访问的状态读取与对应系统设置跳转；并包含 Android 隐私面板入口及状态字段格式化。
 - 这次补齐模块状态面板引用但模块源码缺失的方法，未改动 Root / LSPosed / Accessibility 服务实现，也未更改权限自动授予行为。按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证。
+
+
+### FX 模块脚本中心补齐批量启停与自动订阅调度控制（2026-11-07）
+
+- 代码提交：`f8fc44add4661bc8d6a4273a0cb71165f459726a`。
+- 文件：`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`。
+- 将统一主应用已有的脚本中心管理能力补入模块原生 UI：增加全部启用/全部停用脚本入口，调用既有 `native-list.sh toggle-all` 批量事务并刷新列表与运行时。
+- 增加 QuickJS HTTPS 订阅调度器状态读取、启动和停止入口，调用模块已有 `native-script-scheduler.sh`；明确订阅轮询只同步启用的 HTTPS 订阅，不会自动执行本地 JavaScript。
+- 本次补齐主应用与模块脚本中心的 UI 功能差异，不改动脚本执行权限或订阅存储格式。按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证。
