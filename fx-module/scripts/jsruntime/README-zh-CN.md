@@ -17,6 +17,8 @@
 - HTTP 支持 GET/POST/PUT/PATCH/DELETE/HEAD/OPTIONS；响应提供 status、headers、text() 和 json()。请求头支持多值；存储支持 get、set、getJSON、setJSON 和 delete；HTTP 超时按毫秒接收并由 FX 限制。
 - 环境、设备、cron 和 widget 字段仅透传事件实际提供的值。通知目前写入 FX 脚本日志，不会调用 Android 通知栏。
 - 当前是 Egern 兼容子集：不支持 ESM import、流/二进制正文、SSH、lookupIP、压缩、ctx.respond()、ctx.abort()、重定向策略、代理策略和 Egern 私有网络服务；HTTP 底层同步执行，只提供 Promise 兼容层。
+- 文件导入器识别 `.yaml` / `.yml` 的 `scriptings:`：只迁移 `http_request` / `http_response` 的 HTTPS `script_url`，支持 `name`、`match`、`disabled` 与 `body_required`；重复项按 URL/类型/匹配式/正文标记去重。
+- `schedule`、`generic`、`network` 不会伪装成 MITM HTTP Hook；带 `env`、`binary_body: true`、或非默认 `timeout` / `max_size` / `update_interval` 的记录会跳过，因为当前订阅协议不能无损保存这些配置。`body_required` 会编码为 FX 元数据并由订阅同步器生成 `FX-SCRIPT-REQUIRES-BODY` 标记。
 
 ## 明确的能力边界
 
