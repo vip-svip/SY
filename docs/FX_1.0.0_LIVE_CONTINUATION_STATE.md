@@ -7168,3 +7168,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 该功能只隐藏查询结果，不撤销真实运行时授权、不阻止应用调用 NotificationManager 发通知，也不等于拦截 NotificationListenerService 授权。
 - 应用 Hook 提交：`1cdfbbe61104e51b4820275665a7a358e837dbec`；模块 Hook 提交：`eafc1fecdff04460b8134881d2f2f7c8a11a5466`。
 - 按要求未运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-06 — 隐私 API 部分注册失败可重试
+
+- 剪贴板读取 Hook 从单一 `clipboardReadHooksInstalled` 早退标志改为逐个 `Method` 记录成功项：只对成功注册的方法去重，部分 ART/OEM API hook 失败时不会阻止其他入口继续安装，也不会重复叠加已成功的 Hook。覆盖 ClipboardManager、ClipData、ClipData.Item、ClipDescription 现有读取面，继续保留单包进程策略和系统/FX/LSPosed 保护名单。
+- 应用剪贴板 Hook：`dcd0237f2bb258ce407b1fbe42a2116e18e6ca94`；模块剪贴板 Hook：`0060e27b45ce0e69028193e395de33eb891f3623`。
+- Wi-Fi 扫描与通知读取 Hook 同样增加 `Method` 粒度的成功登记及缺失项重试；WifiManager/WifiScanner 与 NotificationManager/NotificationListenerService/Settings.Secure 不再因为其中一个 API 已注册就永久跳过其余失败方法。已成功安装的方法保持去重。
+- 应用 Wi-Fi/通知 Hook：`2de7e8659509d32e1b7bb4c41041364748e0f1e1`；模块 Wi-Fi/通知 Hook：`2a884613751381c9ddcb6054031fa37f01f7abeb`。
+- 固定 FX 1.0.0。按要求未运行测试、静态检查、构建、CI 或真机验证。
