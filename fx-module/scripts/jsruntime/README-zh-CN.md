@@ -31,7 +31,9 @@
 - 在脚本中心使用“从文件导入脚本”，选择 `.conf`、`.ini`、`.sgmodule` 或 `.loon` 文件。
 - 导入器只迁移 HTTPS `script-path` 且声明 `http-request` / `http-response`、`pattern` 的条目，转为 FX `FXMETA_B64` 触发元数据并写入统一脚本列表。
 - 元数据按真实换行编码为四个字段：触发类型、URL 正则、是否需要响应正文、脚本显示名称；旧的两字段元数据仍可读取。同步器会输出 FX-SCRIPT-REQUIRES-BODY 与 FX-SCRIPT-NAME 头，导入名称可在列表中显示和编辑而不丢失原触发条件。导入器只迁移 `[Script]` 中具有 HTTPS `script-path`、`type=http-request|http-response` 与 `pattern` 的 HTTP 触发脚本，并将触发类型与 URL 匹配表达式封装为 FX 元数据。
-- 定时/任务类脚本、相对路径、本地脚本引用、非 HTTPS 地址及缺少触发条件的条目会被跳过；这不是 Surge/Loon 完整模块转换器。
+- Surge/Loon 仅导入带 HTTP 触发类型与 URL 匹配条件的 HTTPS 脚本；不自动导入任务、定时任务、本地相对路径或非 HTTPS 脚本。
+- 同一导入器也识别 Quantumult X `[rewrite_local]` 中的 `script-request-header`、`script-request-body`、`script-response-header`、`script-response-body` 与 `script-analyze-echo-response`，转换为 FX 请求/响应阶段元数据；仅接受 HTTPS 脚本 URL，普通 URL Rewrite / reject 动作不会被当作脚本执行。
+- 响应正文与请求正文动作会保留正文需求标记；脚本名称、触发阶段、URL 正则和正文需求可在列表中展示/编辑。支持从 `.qxconf` 文件导入。
 
 ## 本地实时钩子脚本示例
 
