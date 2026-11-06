@@ -427,8 +427,46 @@ dns_filter_policy_set() {
   echo "policy=updated quic=$_policy_quic dot=$_policy_dot plain_dns=$_policy_plain ipv6=$_policy_ipv6 tracking=$_policy_track"
 }
 
+validate_existing_vpn_dns() {
+  awk '
+    BEGIN { inside=0; sections=0; remote=0; cn=0; bad=0 }
+    $0=="[conf:vpn]" {
+      sections++
+      if (inside || sections>1) bad=1
+      inside=1
+      next
+    }
+    /^\[/ { inside=0 }
+    inside && /^remote_dns=/ {
+      remote++
+      value=substr($0,12)
+      if (value !~ /^[0-9.]+$/) bad=1
+      n=split(value,a,".")
+      if (n!=4) bad=1
+      for(i=1;i<=n;i++) if(a[i]=="" || a[i]!~/^[0-9]+$/ || length(a[i])>3 || a[i]+0>255) bad=1
+      next
+    }
+    inside && /^cn_dns=/ {
+      cn++
+      value=substr($0,8)
+      if (value !~ /^[0-9.]+$/) bad=1
+      n=split(value,a,".")
+      if (n!=4) bad=1
+      for(i=1;i<=n;i++) if(a[i]=="" || a[i]!~/^[0-9]+$/ || length(a[i])>3 || a[i]+0>255) bad=1
+      next
+    }
+    END { if (sections>1 || remote>1 || cn>1 || bad) exit 1 }
+  ' "$CONF"
+}
 write_vpn_dns() {
-  key=$1; value=$2; tmp=$(mktemp "$CONF.yulong-vpn-dns.XXXXXX") || return 1
+  key=$1; value=$2
+  case "$key" in remote_dns|cn_dns) : ;; *) return 2 ;; esac
+  valid_ipv4 "$value" || return 2
+  validate_existing_vpn_dns || {
+    echo "existing VPN DNS section or target keys are ambiguous or malformed" >&2
+    return 22
+  }
+  tmp=$(mktemp "$CONF.yulong-vpn-dns.XXXXXX") || return 1
   _yad_conf_tmp=$tmp
   awk -v key="$key" -v value="$value" '
     BEGIN{inside=0;seen=0;written=0}
