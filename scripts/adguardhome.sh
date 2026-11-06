@@ -698,7 +698,7 @@ _render_managed_config() {
       print "  ignored_enabled: " (statistics_ignored_enabled=="1" ? "true" : "false")
       next
     }
-    in_statistics && /^  ignored: \\[\\]$/ {
+    in_statistics && /^  ignored: \[\]$/ {
       if (statistics_ignored=="") {
         print "  ignored: []"
       } else {
@@ -1042,7 +1042,7 @@ _config_contract() {
         valid_duration(runtime_optimistic_max_age) &&
         statistics_enabled_count==1 && statistics_interval_count==1 &&
         statistics_ignored_enabled_count==1 && statistics_ignored_count==1 &&
-        !unsafe_statistics_ignored &&
+        !unsafe_statistics_ignored && !ignored_sequence &&
         (runtime_statistics_enabled=="true" || runtime_statistics_enabled=="false") &&
         (runtime_statistics_ignored_enabled=="true" || runtime_statistics_ignored_enabled=="false") &&
         valid_statistics_interval(runtime_statistics_interval) &&
