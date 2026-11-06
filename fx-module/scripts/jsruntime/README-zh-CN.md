@@ -26,6 +26,11 @@
 
 实时钩子会下载已启用的脚本 URL；模块转换器支持识别常见 Surge/Loon 风格 `[Script]` 中的 `type=http-request|http-response`、`pattern`、`script-path=https://...`，并将触发条件编码为 FX 元数据。`#!url`、`#!name`、`#!desc` 等模块头信息会忽略；`requires-body=1` 的响应脚本会触发对匹配请求的 `Accept-Encoding: identity` 协商，尽力提供可编辑正文。脚本仍必须通过安全下载与元数据校验；缺少有效 FX 元数据或支持的 URL glob 的脚本会被跳过。请求/响应正文编辑限制为未压缩、可识别的文本/JSON/XML/form 类型且正文不超过 1 MiB；二进制、压缩正文或超限正文不做正文改写。MITM 脚本执行目前采用 25 秒单脚本硬时限，并受 30 秒共享阶段总时限约束；多个脚本匹配同一 URL 时执行耗时会累加，不再以 32 个为固定加载上限。若多个脚本同时匹配同一 URL，执行耗时会累加，因此应避免大量重复匹配。MITM 本身仍只支持 TCP/443、TLS HTTP/1.1，不支持 QUIC/HTTP3、证书固定绕过、客户端证书或自定义 TLS 栈。`$task.fetch` 返回原生 Promise，QuickJS 会处理常规 Promise job；但网络请求在 Promise 创建前同步执行，因此不具备真正的非阻塞网络 I/O。`$notify` / `$notification.post` 当前将通知写入 FX 的 `notifications.jsonl`，并不调用 Android 系统通知栏；`$surge` / `$loon` / `$stash` / `$rocket` 只是有限别名，不含各客户端全部模块、策略组、数据库、脚本配置和 UI API。定时器、WebSocket、二进制流与客户端私有 API 仍不保证兼容。第三方脚本需逐个适配与真机验证，不能宣称 Shadowrocket / Surge / Loon / Stash 全量兼容。
 
+## Surge/Loon [Script] 模块导入
+
+- 在脚本中心使用“从文件导入脚本”，选择 `.conf`、`.ini`、`.sgmodule` 或 `.loon` 文件。导入器只迁移 `[Script]` 中具有 HTTPS `script-path`、`type=http-request|http-response` 与 `pattern` 的 HTTP 触发脚本，并将触发类型与 URL 匹配表达式封装为 FX 元数据。
+- 定时/任务类脚本、相对路径、本地脚本引用、非 HTTPS 地址及缺少触发条件的条目会被跳过；这不是 Surge/Loon 完整模块转换器。
+
 ## 本地实时钩子脚本示例
 
 ```javascript
