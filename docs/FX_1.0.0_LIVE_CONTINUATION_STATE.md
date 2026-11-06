@@ -1,5 +1,16 @@
 
 
+### FX DNS/域名名单导出容量与换行协议修复（2026-11-07）
+
+- 代码提交：`08c3cbd77d883c7396399b8494cc3d06d2edebeb`。
+- 文件：`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
+- 移除白/黑名单合并分享的 64 KiB 导出门槛，完整序列化所选名单；保留域名自身 253 字符 DNS 协议长度边界。
+- 修复黑名单筛选批量启停将分隔符写成字面量反斜杠-n 的问题；修复名单分享头部和记录行的换行序列化，导出文本可按真实行读取。
+- 清除过滤订阅分享中遗留的未定义 `omitted` 变量引用，并修复分享成功提示的相邻字符串拼接问题。
+- 移除过滤订阅名称 256 字符、域名备注 160/180 字符应用层限制；继续拒绝备注字段中的换行并保留分隔符、域名格式校验。
+- 按用户要求未运行测试、静态检查、构建、CI 或设备验证。
+
+
 ### FX DNS 上游数量上限最后两道校验清理（2026-11-07）
 
 - 文件：`fx-module/scripts/adguardhome.sh`、`fx-module/scripts/yulong-ad-control.sh`。
