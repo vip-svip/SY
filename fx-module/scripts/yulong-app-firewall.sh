@@ -326,17 +326,76 @@ apply_rules() {
   current="$(cat "$ACTIVE" 2>/dev/null || echo FXYUL_A)"
   case "$current" in FXYUL_A) next=FXYUL_B; old=FXYUL_A ;; FXYUL_B) next=FXYUL_A; old=FXYUL_B ;; *) clear_all || return 12; next=FXYUL_A; old=FXYUL_B ;; esac
   resolved=""
-  while IFS='|' read -r pkg stored_uid state block_wifi block_mobile schedule start end; do
-    [ "$state" = 1 ] || continue
-    uid_rc=0
-    uid="$(resolve_uid "$pkg" "$uid_snapshot")" || uid_rc=$?
-    if [ "$uid_rc" -eq 2 ]; then echo "selected package is no longer installed; stale UID excluded: $pkg" >&2; continue
-    elif [ "$uid_rc" -ne 0 ]; then echo "cannot resolve current UID for $pkg; old firewall kept" >&2; return 5; fi
+  # Join selected firewall rows with one PackageManager snapshot in a single
+  # AWK pass. The previous implementation rescanned the complete package
+  # inventory for every selected app.
+  resolved_map=$(
+    {
+      printf '%s\n' "$rows"
+      printf '%s\n' "__FX_FIREWALL_UID_SNAPSHOT__"
+      printf '%s\n' "$uid_snapshot"
+    } | awk -F'|' '
+      $0=="__FX_FIREWALL_UID_SNAPSHOT__" {phase=1; next}
+      !phase {
+        if (NF>=8 && $1 ~ /^[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+$/) {
+          count++
+          row_pkg[count]=$1
+          row_data[count]=$0
+          wanted[$1]=1
+        }
+        next
+      }
+      {
+        line=$0
+        sub(/^[ \t]+/, "", line)
+        sub(/[ \t]+$/, "", line)
+        n=split(line, field, /[ \t]+/)
+        if (field[1] ~ /^package:[A-Za-z0-9_.-]+$/) {
+          snapshot_rows++
+          package=substr(field[1],9)
+          if (package in wanted) {
+            snapshot_seen[package]=1
+            for (i=2;i<=n;i++) if (field[i] ~ /^uid:[0-9]+$/) {
+              uid=substr(field[i],5)
+              if (uid ~ /^[0-9]+$/ && uid!="0") package_uid[package]=uid
+              else package_uid[package]="__INVALID__"
+              break
+            }
+          }
+        }
+      }
+      END {
+        if (snapshot_rows==0) exit 3
+        for (i=1;i<=count;i++) {
+          package=row_pkg[i]
+          if (!(package in snapshot_seen)) print package "|__MISSING__"
+          else if (!(package in package_uid) || package_uid[package]=="") print package "|__INVALID__"
+          else if (package_uid[package]=="__INVALID__") print package "|__INVALID__"
+          else print package "|" package_uid[package] "|" row_data[i]
+        }
+      }
+    '
+  ) || {
+    echo "cannot parse installed package UID snapshot; old firewall kept" >&2
+    return 5
+  }
+  while IFS='|' read -r pkg uid state block_wifi block_mobile schedule start end; do
+    [ -n "$pkg" ] || continue
+    case "$uid" in
+      __MISSING__)
+        echo "selected package is no longer installed; stale UID excluded: $pkg" >&2
+        continue
+        ;;
+      __INVALID__|'')
+        echo "cannot resolve current UID for $pkg; old firewall kept" >&2
+        return 5
+        ;;
+    esac
     [ -n "$resolved" ] && resolved="$resolved
 "
     resolved="${resolved}${pkg}|${uid}|${state}|${block_wifi}|${block_mobile}|${schedule}|${start}|${end}"
   done <<EOF
-$rows
+$resolved_map
 EOF
   if [ -z "$resolved" ]; then
     clear_all || return 12; echo "firewall=1"; echo "blocked_packages=0"
