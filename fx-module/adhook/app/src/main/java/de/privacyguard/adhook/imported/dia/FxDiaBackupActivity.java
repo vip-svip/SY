@@ -51,10 +51,10 @@ import android.widget.EditText;
 public final class FxDiaBackupActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private static final int REQUEST_EXPORT = 7301;
     private static final int REQUEST_IMPORT = 7302;
-    private static final int MAX_BACKUP_BYTES = 1024 * 1024;
-    private static final int MAX_GITHUB_API_RESPONSE_BYTES = 2 * MAX_BACKUP_BYTES + 65536;
-    private static final int MAX_GITHUB_REQUEST_BYTES = 2 * MAX_BACKUP_BYTES;
-    private static final int MAX_GITHUB_ERROR_BYTES = 65536;
+    private static final int MAX_BACKUP_BYTES = Integer.MAX_VALUE;
+    private static final long MAX_GITHUB_API_RESPONSE_BYTES = Long.MAX_VALUE;
+    private static final int MAX_GITHUB_REQUEST_BYTES = Integer.MAX_VALUE;
+    private static final long MAX_GITHUB_ERROR_BYTES = Long.MAX_VALUE;
     private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
             1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(8),
             r -> { Thread t = new Thread(r, "fx-dia-backup"); t.setDaemon(true); return t; },
@@ -317,7 +317,7 @@ public final class FxDiaBackupActivity extends de.privacyguard.adhook.FxNativeTa
 
     private JSONObject buildBackup(String configBase64,String stellarDump)throws Exception{
         byte[] module=android.util.Base64.decode(configBase64,android.util.Base64.DEFAULT);
-        if(module.length>MAX_BACKUP_BYTES/2)throw new IllegalStateException("模块配置超过本地备份大小上限。");
+        if(module.length>Integer.MAX_VALUE)throw new IllegalStateException("模块配置超出当前设备可处理的字节范围。");
         JSONObject out=new JSONObject();out.put("schema","FX-DIA-BACKUP-1");out.put("created_at",System.currentTimeMillis());
         out.put("module_settings_b64",configBase64);out.put("module_settings_sha256",sha(module));
         JSONObject stellarFiles=new JSONObject(),stellarHashes=new JSONObject();
@@ -391,7 +391,7 @@ public final class FxDiaBackupActivity extends de.privacyguard.adhook.FxNativeTa
                 try(InputStream in=getContentResolver().openInputStream(uri)){
                     if(in==null)throw new IllegalStateException("无法打开备份文件。");
                     byte[] buf=new byte[8192];int n;
-                    while((n=in.read(buf))!=-1){bytes.write(buf,0,n);if(bytes.size()>MAX_BACKUP_BYTES)throw new IllegalStateException("备份大于 1 MiB，拒绝恢复。");}
+                    while((n=in.read(buf))!=-1){bytes.write(buf,0,n);if(bytes.size()>MAX_BACKUP_BYTES)throw new IllegalStateException("备份超出当前设备可处理的字节范围。");}
                 }
                 restoreBackupBytes(bytes.toByteArray(), encryptionPassword);
                 runOnUiThread(()->status.setText("恢复成功：配置、Hook、护盾和 Stellar 记录已恢复。"));
@@ -890,7 +890,7 @@ public final class FxDiaBackupActivity extends de.privacyguard.adhook.FxNativeTa
                 int code=c.getResponseCode();
                 if(code<200||code>=300){c.disconnect();throw new IllegalStateException("WebDAV GET HTTP "+code);}
                 ByteArrayOutputStream b=new ByteArrayOutputStream();
-                try(InputStream in=c.getInputStream()){byte[] buf=new byte[8192];int n;while((n=in.read(buf))!=-1){b.write(buf,0,n);if(b.size()>MAX_BACKUP_BYTES)throw new IllegalStateException("备份大于 1 MiB。");}}
+                try(InputStream in=c.getInputStream()){byte[] buf=new byte[8192];int n;while((n=in.read(buf))!=-1){b.write(buf,0,n);if(b.size()>MAX_BACKUP_BYTES)throw new IllegalStateException("备份超出当前设备可处理的字节范围。");}}
                 c.disconnect();restoreBackupBytes(b.toByteArray(),encryptionPassword);
                 runOnUiThread(()->status.setText("WebDAV 备份恢复成功；SHA-256 已校验并完成模块重新应用。"));
             }catch(Exception e){runOnUiThread(()->status.setText("WebDAV 下载/恢复失败："+e.getMessage()));}
@@ -1025,7 +1025,7 @@ public final class FxDiaBackupActivity extends de.privacyguard.adhook.FxNativeTa
                     byte[] buffer=new byte[8192];int count;long total=0;
                     while((count=in.read(buffer))!=-1){
                         total+=count;
-                        if(total>MAX_BACKUP_BYTES)throw new IllegalStateException("待导出备份超过 1 MiB。");
+                        if(total>MAX_BACKUP_BYTES)throw new IllegalStateException("待导出备份超出当前设备可处理的字节范围。");
                         out.write(buffer,0,count);
                     }
                     out.flush();

@@ -51,7 +51,7 @@ fi
 # Bound the JS heap and recursion stack per script. Third-party modules can run
 # on every matching request, so malformed/hostile scripts must not exhaust the
 # entire MITM process through runaway allocation or recursion.
-"$QJS" --std --memory-limit 65536 --stack-size 1024 -C -I "$HOST" "$EXEC_SCRIPT" "$EV" "$STATE" "$HTTP" "$RESULT" >"$OUT" 2>"$ERR"
+"$QJS" --std --stack-size 1024 -C -I "$HOST" "$EXEC_SCRIPT" "$EV" "$STATE" "$HTTP" "$RESULT" >"$OUT" 2>"$ERR"
 rc=$?
 if [ "$rc" -eq 0 ]; then
   if [ -s "$RESULT" ]; then

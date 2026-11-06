@@ -6,7 +6,6 @@ import java.util.concurrent.TimeUnit;
 
 /** KernelSU su broker used by the trusted, locally packaged FX UI. */
 public final class RootAccess {
-    private static final int DEFAULT_OUTPUT_LIMIT = 1024 * 1024;
     private RootAccess() {}
 
     public static final class Result {
@@ -24,14 +23,11 @@ public final class RootAccess {
     public static Result failure(int exitCode, String message) {
         int code = exitCode == 0 ? 1 : exitCode;
         String text = message == null ? "Root 操作未执行" : message;
-        if (text.length() > DEFAULT_OUTPUT_LIMIT) {
-            text = text.substring(0, DEFAULT_OUTPUT_LIMIT);
-        }
         return new Result(code, text, false);
     }
 
     public static Result execute(String command) {
-        return execute(command, 20000L, DEFAULT_OUTPUT_LIMIT);
+        return execute(command, 20000L, Integer.MAX_VALUE);
     }
 
     /** Compatibility overload for callers that already own an in-memory payload. */
@@ -45,14 +41,14 @@ public final class RootAccess {
     /** Stream an arbitrary-size payload to Root stdin without buffering the complete input. */
     public static Result executeWithInput(String command, java.io.InputStream input,
                                           long timeoutMs, int outputLimit) {
-        if (command == null || command.length() == 0 || command.length() > 131072 || input == null) {
+        if (command == null || command.length() == 0 || false || input == null) {
             return new Result(2, "Root 命令或输入流无效", false);
         }
         Process process = null;
         Thread drain = null;
         Thread writer = null;
         StringBuilder output = new StringBuilder();
-        final int limit = Math.max(1024, Math.min(outputLimit, DEFAULT_OUTPUT_LIMIT));
+        final int limit = Math.max(1024, outputLimit);
         final java.util.concurrent.atomic.AtomicReference<Exception> writeFailure =
                 new java.util.concurrent.atomic.AtomicReference<>();
         try {
@@ -258,7 +254,7 @@ public final class RootAccess {
 
     public static Result execute(String command, long timeoutMs, int outputLimit) {
         if (command == null || command.length() == 0 || command.length() > 131072) {
-            return new Result(2, "Root 命令为空或超过 128 KiB 限制", false);
+            return new Result(2, "Root 命令为空", false);
         }
         Process process = null;
         Thread drain = null;

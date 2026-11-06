@@ -42,7 +42,6 @@ import java.util.zip.ZipFile;
  */
 public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private static final int PICK_TREE = 7511, PICK_IMPORT = 7512, PICK_EXPORT = 7513;
-    private static final int MAX_PREVIEW = 512 * 1024;
     private static final String STATE_PATH_STACK = "fx_dia_file_path_stack";
     private static final String STATE_DIRECTORY_QUERY = "fx_dia_file_query";
     private static final String STATE_DISPLAYED_ENTRIES = "fx_dia_file_displayed_entries";
@@ -58,7 +57,6 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
     private int pendingRestoreScrollY;
     private TextView fileStatus, location, soStatus, soResults;
     private static final int DIRECTORY_PAGE_SIZE = 100;
-    private static final int MAX_DIRECTORY_ENTRIES = 5000;
     private final ThreadPoolExecutor ioWorker = new ThreadPoolExecutor(2, 2, 30L,
             TimeUnit.SECONDS, new ArrayBlockingQueue<>(8),
             r -> new Thread(r, "fx-dia-file-io"), new ThreadPoolExecutor.AbortPolicy());
@@ -246,7 +244,6 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
         submitIo("读取目录", () -> {
             List<Entry> found = new ArrayList<>();
             Throwable failure = null;
-            boolean truncated = false;
             String[] projection = { DocumentsContract.Document.COLUMN_DOCUMENT_ID,
                     DocumentsContract.Document.COLUMN_DISPLAY_NAME, DocumentsContract.Document.COLUMN_MIME_TYPE,
                     DocumentsContract.Document.COLUMN_SIZE };
@@ -259,10 +256,6 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
                     int cs = c.getColumnIndex(DocumentsContract.Document.COLUMN_SIZE);
                     if (ci < 0 || cn < 0 || cm < 0) throw new IllegalStateException("目录提供方缺少必要字段。");
                     while (c.moveToNext()) {
-                        if (found.size() >= MAX_DIRECTORY_ENTRIES) {
-                            truncated = true;
-                            break;
-                        }
                         found.add(new Entry(c.getString(ci), c.getString(cn), c.getString(cm),
                                 cs < 0 ? -1 : c.getLong(cs)));
                     }
@@ -271,7 +264,6 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
                 failure = error;
             }
             final Throwable readFailure = failure;
-            final boolean wasTruncated = truncated;
             postUi(() -> {
                 if (request != directoryRequestId || !selectedTree.equals(treeUri)
                         || pathStack.isEmpty() || !id.equals(pathStack.get(pathStack.size() - 1))) return;
@@ -281,7 +273,7 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
                 }
                 directoryEntries.clear();
                 directoryEntries.addAll(found);
-                directoryTruncated = wasTruncated;
+                directoryTruncated = false;
                 if (pendingRestoreDisplayedEntries >= 0) {
                     int restoreCount = Math.min(pendingRestoreDisplayedEntries,
                             filteredDirectoryEntries().size());
@@ -327,10 +319,6 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
             files.addView(loadMoreButton);
         }
         String summary = "匹配 " + visible.size() + " 项，已显示 " + displayedEntries + " 项。";
-        if (directoryTruncated) {
-            summary += " 目录超过 " + MAX_DIRECTORY_ENTRIES + " 项；为避免内存和界面卡顿，本次只读取前 "
-                    + MAX_DIRECTORY_ENTRIES + " 项。";
-        }
         fileStatus.setText(summary);
     }
 
@@ -440,7 +428,6 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
     }
 
     private void preview(Entry entry) {
-        if (entry.size > MAX_PREVIEW) { fileStatus.setText("文件超过 512 KiB，仅显示元数据。"); return; }
         final Uri source = docUri(entry);
         final String name = entry.name;
         submitIo("预览文件", () -> {
@@ -449,7 +436,6 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
                 if (in == null) throw new IllegalStateException("无法读取文件。");
                 byte[] buffer = new byte[8192]; int count;
                 while ((count = in.read(buffer)) != -1) {
-                    if (out.size() > MAX_PREVIEW - count) throw new IllegalArgumentException("预览超过 512 KiB。");
                     out.write(buffer, 0, count);
                 }
                 String content = new String(out.toByteArray(), StandardCharsets.UTF_8);
@@ -558,8 +544,6 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
                     .append("APK：").append(app.sourceDir).append('\n')
                     .append("Native Library Dir：").append(app.nativeLibraryDir).append("\n\n");
             int count = 0;
-            boolean truncated = false;
-            final int maxSoEntries = 2000;
             List<String> apks = new ArrayList<>();
             apks.add(app.sourceDir);
             if (app.splitSourceDirs != null) java.util.Collections.addAll(apks, app.splitSourceDirs);
@@ -570,7 +554,6 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
                         ZipEntry entry = entries.nextElement();
                         if (!entry.isDirectory() && entry.getName().startsWith("lib/")
                                 && entry.getName().endsWith(".so")) {
-                            if (count >= maxSoEntries) { truncated = true; break; }
                             out.append(entry.getName()).append(" · ")
                                     .append(entry.getSize() < 0 ? "大小未知" : bytes(entry.getSize())).append('\n');
                             count++;
@@ -579,7 +562,6 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
                 } catch (Throwable error) {
                     out.append("APK 库目录不可读取：").append(apk).append('\n');
                 }
-                if (truncated) break;
             }
             out.append("\n已安装 Native 目录：\n");
             try {
@@ -589,7 +571,6 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
                     out.append("当前进程无权列出目录；APK 中的 SO 条目仍如上显示。\n");
                 } else {
                     for (File lib : libs) {
-                        if (count >= maxSoEntries) { truncated = true; break; }
                         out.append(lib.getName()).append(" · ").append(bytes(lib.length())).append('\n');
                         count++;
                     }
@@ -602,7 +583,7 @@ public final class FxDiaFileActivity extends de.privacyguard.adhook.FxNativeTabA
             final int total = count;
             postUi(() -> {
                 soResults.setText(report);
-                soStatus.setText("只读列出 " + total + " 个 SO 条目" + (report.contains("SO 条目过多") ? "（已限制显示）" : "") + "；不执行、不注入、不修改。");
+                soStatus.setText("只读列出 " + total + " 个 SO 条目" + "；不执行、不注入、不修改。");
             });
         });
     }
