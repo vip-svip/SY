@@ -106,6 +106,22 @@ public final class FxDiaScriptLibraryStore {
         }
     }
 
+    /** Export only the supplied existing names while retaining the shared import schema. */
+    public static String exportJson(Context context, List<String> names) throws Exception {
+        if (context == null || names == null) throw new IllegalArgumentException("导出参数无效。");
+        synchronized (LOCK) {
+            JSONObject all = readLocked(context);
+            JSONObject selected = new JSONObject();
+            for (String name : names) {
+                if (name != null && all.has(name)) selected.put(name, all.getString(name));
+            }
+            JSONObject root = new JSONObject();
+            root.put("schema", SCHEMA);
+            root.put("scripts", selected);
+            return root.toString(2);
+        }
+    }
+
     public static String exportJson(Context context) throws Exception {
         if (context == null) throw new IllegalArgumentException("Context 为空。");
         synchronized (LOCK) {
