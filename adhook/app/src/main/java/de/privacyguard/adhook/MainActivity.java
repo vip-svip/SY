@@ -2005,6 +2005,52 @@ public final class MainActivity extends ComponentActivity {
         return new String(Base64.decode(value, Base64.DEFAULT), StandardCharsets.UTF_8);
     }
 
+    private static String nativeScriptMetadataText(String note) {
+        if (note == null || !note.startsWith("FXMETA_B64:")) return "";
+        try {
+            String decoded = new String(Base64.decode(note.substring("FXMETA_B64:".length()),
+                    Base64.DEFAULT), StandardCharsets.UTF_8);
+            // Normalize the early importer format that stored literal backslash-n.
+            return decoded.replace("\\n", "\n");
+        } catch (RuntimeException ignored) {
+            return "";
+        }
+    }
+
+    private static String nativeScriptMetadataDisplayName(String note) {
+        String decoded = nativeScriptMetadataText(note);
+        if (decoded.isEmpty()) return note == null ? "" : note;
+        String[] fields = decoded.split("\n", -1);
+        if (fields.length > 3 && !fields[3].trim().isEmpty()) return fields[3].trim();
+        if (fields.length > 0) return "HTTP " + fields[0].trim() + " 脚本";
+        return "HTTP 订阅脚本";
+    }
+
+    private static String nativeScriptMetadataSummary(String note) {
+        String decoded = nativeScriptMetadataText(note);
+        if (decoded.isEmpty()) return "";
+        String[] fields = decoded.split("\n", -1);
+        if (fields.length < 2) return "";
+        String trigger = "request".equals(fields[0]) ? "请求"
+                : "response".equals(fields[0]) ? "响应"
+                : "both".equals(fields[0]) ? "请求 + 响应" : fields[0];
+        boolean requiresBody = fields.length > 2 && "1".equals(fields[2]);
+        return "触发阶段：" + trigger + "\nURL 匹配：" + fields[1]
+                + "\n需要响应正文：" + (requiresBody ? "是" : "否");
+    }
+
+    private static String nativeScriptMetadataWithName(String note, String displayName) {
+        String decoded = nativeScriptMetadataText(note);
+        if (decoded.isEmpty()) return displayName;
+        String[] fields = decoded.split("\n", -1);
+        if (fields.length < 2) return displayName;
+        String bodyFlag = fields.length > 2 && "1".equals(fields[2]) ? "1" : "0";
+        String updated = fields[0] + "\n" + fields[1] + "\n" + bodyFlag + "\n"
+                + (displayName == null ? "" : displayName.trim());
+        return "FXMETA_B64:" + Base64.encodeToString(
+                updated.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
+    }
+
     private static String decodeNativeScriptValue(String value) {
         String decoded = decodeNativeScriptArgument(value);
         if (decoded.startsWith("FXSRC_B64:")) {
@@ -2066,6 +2112,8 @@ public final class MainActivity extends ComponentActivity {
                     final int index = count++;
                     final String valueText = decodeNativeScriptValue(fields[0]);
                     final String note = decodeNativeScriptArgument(fields[1]);
+                    final String displayNote = nativeScriptMetadataDisplayName(note);
+                    final String metadataSummary = nativeScriptMetadataSummary(note);
                     final boolean on = "1".equals(fields[2]);
                     if (on) enabled++;
                     LinearLayout row = new LinearLayout(this);
@@ -2073,7 +2121,7 @@ public final class MainActivity extends ComponentActivity {
                     row.setPadding(dp(14), dp(10), dp(14), dp(8));
                     row.setBackground(uiPanelDrawable());
                     TextView name = new TextView(this);
-                    name.setText(note.isEmpty() ? valueText : note);
+                    name.setText(displayNote.isEmpty() ? valueText : displayNote);
                     name.setTextColor(0xff17212b);
                     name.setTextSize(14);
                     name.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
@@ -2094,8 +2142,12 @@ public final class MainActivity extends ComponentActivity {
                             setNativeScriptEnabled(index, checked, rows, status, enabledSwitch, on));
                     ops.addView(enabledSwitch, new LinearLayout.LayoutParams(0, -2, 1));
                     row.setOnClickListener(v -> FxNativeSkin.builder(this)
-                            .setTitle(note.isEmpty() ? "脚本详情" : note)
-                            .setMessage(valueText).setPositiveButton("关闭", null).show());
+                            .setTitle(displayNote.isEmpty() ? "脚本详情" : displayNote)
+                            .setMessage((metadataSummary.isEmpty() ? "" : metadataSummary + "
+
+")
+                                    + "来源：" + valueText)
+                            .setPositiveButton("关闭", null).show());
                     if (!valueText.startsWith("https://")) {
                         Button run = nativeAction("运行", () -> confirmRunNativeLocalScript(index, note, valueText, rows, status));
                         run.setEnabled(on);
@@ -2210,7 +2262,7 @@ public final class MainActivity extends ComponentActivity {
         value.setGravity(Gravity.TOP | Gravity.START);
         value.setHint("HTTPS 订阅 URL 或本地 JavaScript 源码");
         EditText note = new EditText(this);
-        note.setText(oldNote);
+        note.setText(nativeScriptMetadataDisplayName(oldNote));
         note.setSingleLine(true);
         note.setHint("脚本名称（可选）");
         LinearLayout panel = new LinearLayout(this);
@@ -2231,6 +2283,9 @@ public final class MainActivity extends ComponentActivity {
                     }
                     if (updatedNote.isEmpty()) updatedNote = updatedValue.length() > 80
                             ? updatedValue.substring(0, 80) : updatedValue;
+                    if (oldNote != null && oldNote.startsWith("FXMETA_B64:")) {
+                        updatedNote = nativeScriptMetadataWithName(oldNote, updatedNote);
+                    }
                     String command = nativeScriptStoreCommand("update", String.valueOf(index + 1),
                             encodeNativeScriptArgument(updatedValue), encodeNativeScriptArgument(updatedNote));
                     runNativeModuleCommand(command, 30000L, result -> {
@@ -2403,11 +2458,23 @@ public final class MainActivity extends ComponentActivity {
                 String normalizedType = requestTrigger && responseTrigger ? "both"
                         : requestTrigger ? "request" : responseTrigger ? "response" : "";
                 if (normalizedType.isEmpty()) continue;
+                String requiresBodyOption = scriptModuleOption(options, "requires-body")
+                        .toLowerCase(Locale.ROOT);
+                if (!requiresBodyOption.isEmpty() && !"0".equals(requiresBodyOption)
+                        && !"1".equals(requiresBodyOption) && !"true".equals(requiresBodyOption)
+                        && !"false".equals(requiresBodyOption)) continue;
+                boolean requiresBody = responseTrigger && ("1".equals(requiresBodyOption)
+                        || "true".equals(requiresBodyOption));
                 if (pattern.length() > 2048 || name.length() > 512) continue;
-                String metadata = normalizedType + "\\n" + pattern;
+                String safeName = name.replaceAll("[\\p{Cntrl}]", " ").trim();
+                if (safeName.isEmpty() || safeName.length() > 512) continue;
+                String bodyFlag = requiresBody ? "1" : "0";
+                // This payload is line-oriented after base64 decoding. Use real
+                // newline separators; a literal backslash-n breaks sync-subs.sh.
+                String metadata = normalizedType + "\n" + pattern + "\n" + bodyFlag + "\n" + safeName;
                 String encoded = "FXMETA_B64:" + Base64.encodeToString(
                         metadata.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
-                String duplicateKey = scriptPath + "\\n" + metadata;
+                String duplicateKey = scriptPath + "\n" + normalizedType + "\n" + pattern + "\n" + bodyFlag;
                 if (!importedKeys.add(duplicateKey)) continue;
                 JSONObject entry = new JSONObject();
                 entry.put("value", scriptPath);
