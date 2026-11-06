@@ -1,5 +1,23 @@
 
 
+### FX DNS 上游列表移除三条业务数量上限并扩展完整快照（2026-11-07）
+
+- 代码提交：`c3c9d41de079f6b797a5427ea43dacbe033a5dee`。
+- 文件：`fx-module/scripts/yulong-ad-control.sh`、`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
+- 自定义 DNS（IPv4/DoH/DoT/DoQ）、全局 DNS 与备用 DNS 列表移除最多 3 条的应用层数量门槛；继续逐条验证端点格式、端口、重复项和 IPv4 合法性。
+- DNS 配置快照增加查询日志保留期限字段；新快照写入并恢复该字段，后端同时接受旧 18 字段格式与新 19 字段格式，旧快照缺少该字段时采用 7d 默认值。
+- DNS 主控制页的 Root 命令输出不再限定为 512 KiB，应用层缓冲上限提升为 `Integer.MAX_VALUE`；设备内存、Binder/系统参数和 Java 运行时仍属于平台边界。
+- 按用户要求未运行测试、静态检查、构建、CI 或设备验证。
+
+### FX AdGuard Home 备用 DNS 列表运行契约移除三条上限（2026-11-07）
+
+- 代码提交：`63a4a36b6edf065ff18381adb553dbef82e7e4da`。
+- 文件：`fx-module/scripts/adguardhome.sh`。
+- 删除 AdGuard Home 配置契约中的 `fallback_count<=3` 条件，避免前后端已允许的备用 DNS 列表在引擎运行前又被第二道数量门槛拒绝。
+- 保留每条备用 IPv4 地址的格式、可路由性及重复项校验；没有放宽监听地址和本地 Unbound 唯一上游约束。
+- 按用户要求未运行测试、静态检查、构建、CI 或设备验证。
+
+
 ### FX DNS 缓存刷新控制器恢复与查询日志入口统一（2026-11-07）
 
 - 代码提交：待提交。
