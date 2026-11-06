@@ -7073,3 +7073,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - README 将 Egern `body_required: true` 的实际映射范围更正为 `http_request` 与 `http_response` 两个阶段；正文仍受现有 FX 未压缩文本正文和 1 MiB 限制，`binary_body` 仍跳过。
 - 提交：`75d41471dad57fe47a96a602d8f8cf8e92667140`。
 - 按要求未运行测试、静态检查、构建、CI 或设备验证。
+
+## 2026-11-06 — Yulong 应用广告过滤白名单批量清理
+
+- `fx-module/scripts/yulong-app-whitelist.sh` 新增 `prune`：验证一次 PackageManager 包/UID 快照，生成去重应用集合，对 `[list:yulong_app_whitelist]` 执行单次 AWK 过滤和单次 `settings.conf` 原子替换，随后只调用一次 `apply.sh fast`；应用失败时恢复原配置并回退运行时。提交：61b5b1e7215c7385bb3b42acdb756af32261605f。
+- 应用与模块两份 `FxYulongAppWhitelistActivity.java` 增加“清理未安装应用”入口，清理后重新读取后端名单并刷新显示。提交：686d9dae7cdd418f39146d471adb5d329ced4e9f、6e4086a264e1547c0265fe9288c127b203fbb712。
+- 应用与模块两份 `FxYulongFirewallPackageReceiver.java` 包生命周期命令在 settings.conf 可用时先清理 Yulong 应用广告过滤白名单，再调用 Root Proxy 的 `package-event` 统一处理独立 DNS 白名单与路由重协调。提交：68a7878162da582d1934f6d19fc5cf433f1cdec4、8e5cb75b6ef7c3bc9b97eb249db01193d75c2973。
+- 本批按要求未运行测试、静态检查、构建、CI 或真机验证。
