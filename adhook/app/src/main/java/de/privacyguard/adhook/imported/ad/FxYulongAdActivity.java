@@ -673,6 +673,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
   globalServers.setHint("例如：8.8.8.8,1.1.1.1");
   card("自定义/全局/备用 DNS 服务器",
        "自定义 DNS 最多 3 个上游，可混合 IPv4、DoH、DoT、DoQ；备用 DNS 只支持 IPv4。加密上游只在 FX 本地 AdGuard Home 过滤引擎运行时生效；启用“阻止 DoT/QUIC”会阻断对应传输协议。",
+       btn("一次性保存三组 DNS 上游",()->saveDnsServerLists(customServers,globalServers,fallbackServers)),
        txt("自定义 DNS 上游",12,0xff617080,true),customServers,
        btn("保存自定义 DNS",()->saveDnsServerList("custom",customServers)),
        btn("清除自定义 DNS",()->clearDnsSection("custom",customServers)),
@@ -810,6 +811,19 @@ private void setDnsFilterPolicy(boolean enabled){
       .setPositiveButton("确认", (dialog,which)->root("dns-filter-policy-set "+(enabled?"1":"0")+" "+(enabled?"1":"0")+" "+(enabled?"1":"0")+" "+(enabled?"1":"0")+" "+(enabled?"1":"0"),r->{
         if(r.exitCode==0){status.setText("五项 DNS 过滤策略已统一"+action+"并应用。");load();}
         else fxDialogBuilder().setTitle("DNS 策略未更新").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
+      })).show();
+}
+private void saveDnsServerLists(EditText custom,EditText global,EditText fallback){
+  String customValue=custom.getText()==null?"":custom.getText().toString().trim();
+  String globalValue=global.getText()==null?"":global.getText().toString().trim();
+  String fallbackValue=fallback.getText()==null?"":fallback.getText().toString().trim();
+  String command="dns-config-set-many "+q(customValue.isEmpty()?"-":customValue)+" "+q(globalValue.isEmpty()?"-":globalValue)+" "+q(fallbackValue.isEmpty()?"-":fallbackValue);
+  new AlertDialog.Builder(this).setTitle("一次性保存三组 DNS 上游")
+      .setMessage("三组服务器将先统一校验，再在同一配置事务中写入并应用。任一组留空表示清除该组服务器段；不会自动关闭对应开关。是否继续？")
+      .setNegativeButton("取消",null)
+      .setPositiveButton("保存",(dialog,which)->root(command,r->{
+        if(r.exitCode==0){status.setText("自定义、全局与备用 DNS 上游已在同一事务中保存并应用。");load();}
+        else fxDialogBuilder().setTitle("DNS 上游未更新").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
       })).show();
 }
 private void saveDnsServerList(String kind,EditText input){
