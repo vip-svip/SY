@@ -65,7 +65,7 @@ case "$ACTION" in
       printf '%s|%s|%s\n' "$value64" "$note64" "$enabled"
     done
     ;;
-  add|add-file|update|toggle|delete)
+  add|add-file|add-batch|update|toggle|delete)
     [ -f "$CONF" ] || { echo "ERROR settings.conf missing"; exit 1; }
     LOCK="$PG/jsruntime/native-script-list.lock"
     tries=0
