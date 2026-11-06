@@ -272,3 +272,12 @@
 - DNS 状态响应新增 `dns_stack_readiness_reason`：区分 `disabled`、`ready`、Unbound 不可用/未启用，以及 AdGuard Home 不可用等状态。
 - 原生 DNS 状态页展示该原因，便于区分配置未启用和服务未就绪；未更改 DNS 引擎启停、上游或路由策略。
 - 按用户要求未运行测试、静态检查、构建、CI 或设备验证。
+
+
+### FX DNS 定向缓存刷新命令参数修正（2026-11-07）
+
+- 代码提交：`42287d27362cfe81aeda368fd46e998f8dcccd64`。
+- 文件：`fx-module/scripts/yulong-ad-control.sh`。
+- 修正 `cache-flush` 命令分发：允许可选的目标参数，并将 `adguardhome`、`unbound` 或 `all` 传入既有缓存刷新事务。
+- 修复原分发器只接受一个参数且始终调用默认 `all` 的问题；此前 UI 发出的定向刷新命令会被拒绝，现可进入既有的指定引擎停止、重启和路由协调流程。
+- 未运行测试、静态检查、构建、CI 或设备验证。
