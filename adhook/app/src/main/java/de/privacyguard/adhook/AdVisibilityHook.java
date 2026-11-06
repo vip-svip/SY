@@ -168,6 +168,9 @@ public final class AdVisibilityHook extends XposedModule {
     private volatile boolean privacyIdentifierHookInstalled;
     private volatile boolean telephonyIdentifierHooksInstalled;
     private volatile boolean clipboardReadHooksInstalled;
+    // Track each successful accessor independently so partial ART hook failures
+    // can be retried on a later eligible package load without stacking hooks.
+    private final Set<Method> clipboardReadHookedMethods = ConcurrentHashMap.newKeySet();
     private volatile boolean clipboardIsolationHooksInstalled;
     private static volatile Object processClipboardShadow;
     private volatile boolean sensorHooksInstalled;
@@ -1283,10 +1286,12 @@ private boolean targetDeveloperOptIn(String packageName) {
                     || parameterCount > 1
                     || (parameterCount != 0 && parameterCount != 1)) continue;
             if (Modifier.isStatic(method.getModifiers())) continue;
+            if (clipboardReadHookedMethods.contains(method)) continue;
             try {
                 hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                         .intercept(chain -> shouldBlockClipboardReadNow()
                                 ? emptyClipboardReadResult(method) : chain.proceed());
+                clipboardReadHookedMethods.add(method);
                 installed++;
             } catch (Throwable error) {
                 logFx(Log.DEBUG, "clipboard data accessor hook unavailable: "
@@ -1302,7 +1307,9 @@ private boolean targetDeveloperOptIn(String packageName) {
      * are blocked for a single-package process. Shared-package processes fail open.
      */
     private synchronized boolean installClipboardReadBlockHooks(final String pkg) {
-        if (clipboardReadHooksInstalled) return true;
+        // Do not use a single all-or-nothing boolean as an early return: ART may
+        // reject one accessor while the remaining methods register successfully.
+        // Keep successful Method hooks and retry only missing methods next time.
         int installed = 0;
         try {
             Class<?> manager = Class.forName("android.content.ClipboardManager", false, null);
@@ -1340,10 +1347,11 @@ private boolean targetDeveloperOptIn(String packageName) {
             logFx(Log.WARN, "clipboard manager unavailable: " + error.getClass().getSimpleName());
             return false;
         }
-        clipboardReadHooksInstalled = installed > 0;
+        clipboardReadHooksInstalled = !clipboardReadHookedMethods.isEmpty();
         logFx(installed > 0 ? Log.INFO : Log.WARN,
-                "opt-in clipboard read protection installed=" + installed
-                        + " accessors across manager/data/item/description for " + pkg);
+                "opt-in clipboard read protection newly installed=" + installed
+                        + " total=" + clipboardReadHookedMethods.size()
+                        + " across manager/data/item/description for " + pkg);
         return clipboardReadHooksInstalled;
     }
 
