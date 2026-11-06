@@ -7578,3 +7578,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 导出文件增加目标名称、包名、Frida/Gadget 类型、导出时间和敏感日志保管提示。
 - 将原先按 Java 字符数截断改为按 UTF-8 实际字节数限制，文件内容（含头部与截断标记）不超过 512 KiB，并按 Unicode 码点截断，避免切断代理对。
 - 本批未运行测试、静态检查、Gradle 构建、CI、安装或真机验证。
+
+
+## 2026-11-06 — Dia 监控事件类别字段补全
+
+- 代码提交：`06a2f9fcb9d6a9eb84221996634d685429f83be7`。
+- 改动文件：`adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaMonitorEventParser.java`。
+- 为原本已识别类别但字段被全部丢弃的 `FRAGMENT`、`STACK`、`RUNTIME`、`MEMORY` 事件补充严格字段白名单；新增调用深度数值字段展示。仍只接受预定义键名和安全值格式，不放开任意日志正文。
+- 本批未运行测试、静态检查、Gradle 构建、CI、安装或真机验证。
