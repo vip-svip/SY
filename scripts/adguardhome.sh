@@ -542,6 +542,43 @@ _render_managed_config() {
     return 1
     ;;
   esac
+  _querylog_ignored_output=$(MP="$MODDIR" PG="$PG" sh "$MODDIR/scripts/yulong-ad-control.sh" dns-querylog-ignored-get 2>/dev/null) || {
+    _log 'unable to read DNS query-log ignored-domain settings'
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
+    return 1
+  }
+  [ "$(printf '%s\n' "$_querylog_ignored_output" | sed -n '1p')" = FXYULONGDNSQIGNORE1 ] || {
+    _log 'DNS query-log ignored-domain response has an unsupported format'
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
+    return 1
+  }
+  _querylog_ignored_enabled=$(printf '%s\n' "$_querylog_ignored_output" | sed -n 's/^QUERYLOG_IGNORED_ENABLED=//p')
+  _querylog_ignored=$(printf '%s\n' "$_querylog_ignored_output" | sed -n 's/^QUERYLOG_IGNORED=//p')
+  case "$_querylog_ignored_enabled" in 0|1) : ;; *)
+    _log 'DNS query-log ignored-domain flag is malformed'
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
+    return 1
+    ;;
+  esac
+  if ! printf '%s\n' "$_querylog_ignored" | awk -F, '
+    function valid_domain(v,n,a,i) {
+      if(v=="" || length(v)>253 || v~/\.\./ || v~/^[.]|[.]$/ || v~/[^A-Za-z0-9.-]/) return 0
+      n=split(v,a,".")
+      for(i=1;i<=n;i++)
+        if(length(a[i])<1 || length(a[i])>63 ||
+           a[i]!~/^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$/) return 0
+      return 1
+    }
+    {
+      if($0=="") exit 0
+      for(i=1;i<=NF;i++)
+        if(!valid_domain($i) || seen[tolower($i)]++) exit 1
+    }
+  '; then
+    _log 'DNS query-log ignored-domain list is malformed or duplicated'
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
+    return 1
+  fi
   _statistics_output=$(MP="$MODDIR" PG="$PG" sh "$MODDIR/scripts/yulong-ad-control.sh" dns-statistics-get 2>/dev/null) || {
     _log 'unable to read local DNS statistics settings'
     rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
@@ -674,7 +711,7 @@ _render_managed_config() {
      { [ "$_custom_dns_enabled" = 1 ] || [ "$_global_dns_enabled" = 1 ]; }; then
     printf '  - 127.0.0.1:5353\n' > "$_fallback_file" || return 1
   fi
-  if ! awk -v querylog_interval="$_querylog_interval" -v querylog_memory_size="$_querylog_memory_size" -v querylog_enabled="$_dns_querylog_enabled" -v statistics_enabled="$_statistics_enabled" -v statistics_interval="$_statistics_interval" -v statistics_ignored_enabled="$_statistics_ignored_enabled" -v statistics_ignored="$_statistics_ignored" -v dns_response_mode="$_dns_response_mode" -v upstream_mode="$_dns_runtime_upstream_mode" -v fastest_timeout="$_dns_runtime_fastest_timeout" -v upstream_timeout="$_dns_runtime_upstream_timeout" -v cache_size="$_dns_runtime_cache_size" -v cache_ttl_min="$_dns_runtime_cache_ttl_min" -v cache_ttl_max="$_dns_runtime_cache_ttl_max" -v optimistic_answer_ttl="$_dns_runtime_optimistic_answer_ttl" -v optimistic_max_age="$_dns_runtime_optimistic_max_age" -v cache_enabled="$_dns_runtime_cache_enabled" -v cache_optimistic="$_dns_runtime_cache_optimistic" -v dnssec="$_dns_runtime_dnssec" -v rules_file="$_rules_file" -v filters_file="$_filters_file" -v fallback_file="$_fallback_file" -v upstream_file="$_upstream_file" -v bootstrap_file="$_bootstrap_file" '
+  if ! awk -v querylog_interval="$_querylog_interval" -v querylog_memory_size="$_querylog_memory_size" -v querylog_enabled="$_dns_querylog_enabled" -v querylog_ignored_enabled="$_querylog_ignored_enabled" -v querylog_ignored="$_querylog_ignored" -v statistics_enabled="$_statistics_enabled" -v statistics_interval="$_statistics_interval" -v statistics_ignored_enabled="$_statistics_ignored_enabled" -v statistics_ignored="$_statistics_ignored" -v dns_response_mode="$_dns_response_mode" -v upstream_mode="$_dns_runtime_upstream_mode" -v fastest_timeout="$_dns_runtime_fastest_timeout" -v upstream_timeout="$_dns_runtime_upstream_timeout" -v cache_size="$_dns_runtime_cache_size" -v cache_ttl_min="$_dns_runtime_cache_ttl_min" -v cache_ttl_max="$_dns_runtime_cache_ttl_max" -v optimistic_answer_ttl="$_dns_runtime_optimistic_answer_ttl" -v optimistic_max_age="$_dns_runtime_optimistic_max_age" -v cache_enabled="$_dns_runtime_cache_enabled" -v cache_optimistic="$_dns_runtime_cache_optimistic" -v dnssec="$_dns_runtime_dnssec" -v rules_file="$_rules_file" -v filters_file="$_filters_file" -v fallback_file="$_fallback_file" -v upstream_file="$_upstream_file" -v bootstrap_file="$_bootstrap_file" '
     /^querylog:[[:space:]]*$/ {in_querylog=1; print; next}
     in_querylog && /^[^[:space:]]/ {in_querylog=0}
     in_querylog && /^  enabled:/ {
@@ -687,6 +724,20 @@ _render_managed_config() {
     }
     in_querylog && /^  interval:/ {print "  interval: " querylog_interval; next}
     in_querylog && /^  size_memory:/ {print "  size_memory: " querylog_memory_size; next}
+    in_querylog && /^  ignored_enabled:/ {
+      print "  ignored_enabled: " (querylog_ignored_enabled=="1" ? "true" : "false")
+      next
+    }
+    in_querylog && /^  ignored: []$/ {
+      if (querylog_ignored=="") {
+        print "  ignored: []"
+      } else {
+        count=split(querylog_ignored, ignored_domains, ",")
+        print "  ignored:"
+        for (i=1;i<=count;i++) print "    - " ignored_domains[i]
+      }
+      next
+    }
     /^statistics:[[:space:]]*$/ {in_statistics=1; print; next}
     in_statistics && /^[^[:space:]]/ {in_statistics=0}
     in_statistics && /^  enabled:/ {
@@ -938,6 +989,25 @@ _config_contract() {
       if (http_parts[1]=="127.0.0.1" && http_parts[2] ~ /^[0-9]+$/ &&
           http_parts[2]>=0 && http_parts[2]<=65535) http_loopback=1
     }
+    /^querylog:[[:space:]]*$/ {querylog=1; next}
+    querylog && /^[^[:space:]]/ {querylog=0; querylog_ignored_sequence=0}
+    querylog && querylog_ignored_sequence && /^  [A-Za-z_][A-Za-z0-9_-]*:/ {querylog_ignored_sequence=0}
+    querylog && /^  ignored_enabled:/ {runtime_querylog_ignored_enabled=$2; querylog_ignored_enabled_count++}
+    querylog && /^  ignored:/ {
+      querylog_ignored_count++
+      if(NF==2 && $2=="[]") {querylog_ignored_empty=1; next}
+      if(NF==1) {querylog_ignored_sequence=1; next}
+      unsafe_querylog_ignored=1
+      next
+    }
+    querylog && querylog_ignored_sequence && /^    - / {
+      domain=$2
+      if(!valid_statistics_domain(domain) || querylog_ignored_domains_seen[tolower(domain)]++)
+        unsafe_querylog_ignored=1
+      querylog_ignored_domains_count++
+      next
+    }
+    querylog && querylog_ignored_sequence {unsafe_querylog_ignored=1; next}
     /^statistics:[[:space:]]*$/ {statistics=1; next}
     statistics && /^[^[:space:]]/ {statistics=0}
     statistics && ignored_sequence && /^  [A-Za-z_][A-Za-z0-9_-]*:/ {ignored_sequence=0}
@@ -1050,6 +1120,9 @@ _config_contract() {
         (runtime_mode=="load_balance" || runtime_mode=="parallel" || runtime_mode=="fastest_addr") &&
         valid_duration(runtime_fastest) && valid_duration(runtime_timeout) &&
         runtime_querylog_memory_size~/^[0-9]+$/ &&
+        querylog_ignored_enabled_count==1 && querylog_ignored_count==1 &&
+        (runtime_querylog_ignored_enabled=="true" || runtime_querylog_ignored_enabled=="false") &&
+        !unsafe_querylog_ignored && !querylog_ignored_sequence &&
         valid_uint32(runtime_cache_size,0) &&
         valid_uint32(runtime_cache_ttl_min,1) && valid_uint32(runtime_cache_ttl_max,1) &&
         runtime_cache_ttl_min+0<=runtime_cache_ttl_max+0 &&
