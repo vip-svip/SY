@@ -175,7 +175,10 @@ public final class EgernScriptYamlImporter {
         if (!"http_request".equals(kind) && !"http_response".equals(kind)) return;
         if (name == null || name.trim().isEmpty() || name.trim().length() > 512
                 || match == null || match.isEmpty() || match.length() > 2048
-                || scriptUrl == null || !scriptUrl.regionMatches(true, 0, "https://", 0, 8)) return;
+                || match.matches("(?s).*\\\\p{Cntrl}.*")
+                || scriptUrl == null || scriptUrl.length() > 2048
+                || !scriptUrl.regionMatches(true, 0, "https://", 0, 8)
+                || scriptUrl.matches("(?s).*\\\\p{Cntrl}.*")) return;
         if (binaryBody || invalidEnvironment || unsupportedLimits) return;
 
         Uri uri = Uri.parse(scriptUrl);
