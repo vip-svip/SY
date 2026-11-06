@@ -1935,6 +1935,9 @@ public final class MainActivity extends ComponentActivity {
 
         // These are privacy/security policies, not application preferences.
         // Keep their native controls on the Privacy destination where users expect them.
+        section("Android 系统隐私面板");
+        addNativeActionCard("查看系统隐私信息中心", "打开 Android 系统隐私信息中心，查看近期摄像头、麦克风和位置信息访问记录。此处展示系统记录，不替代 FX 按应用 Hook 策略。", "打开系统面板", this::openAndroidPrivacyDashboard);
+
         section("高级隐私与系统防护");
         addNativeSettingsCategory("Root / 模块隐藏", "rootPanel");
         addNativeSettingsCategory("高级网络防护", "advPanel");
@@ -1948,6 +1951,23 @@ public final class MainActivity extends ComponentActivity {
         addNativeSettingsCategory("通知与剪贴板", "notifyPanel");
         addNativeSettingsCategory("内核防护", "kernelPanel");
         addNativeSettingsCategory("其他系统隐私", "miscPanel");
+    }
+
+    private void openAndroidPrivacyDashboard() {
+        Intent intent = new Intent("android.settings.PRIVACY_SETTINGS");
+        if (intent.resolveActivity(getPackageManager()) == null) {
+            FxNativeSkin.builder(this).setTitle("系统隐私面板不可用")
+                    .setMessage("当前 Android 版本或系统设置应用未提供隐私信息中心。可在系统设置中手动查找“隐私”或“隐私信息中心”。")
+                    .setPositiveButton("知道了", null).show();
+            return;
+        }
+        try {
+            startActivity(intent);
+        } catch (RuntimeException error) {
+            FxNativeSkin.builder(this).setTitle("无法打开系统隐私面板")
+                    .setMessage(error.getMessage() == null ? "系统拒绝打开隐私信息中心。" : error.getMessage())
+                    .setPositiveButton("关闭", null).show();
+        }
     }
 
     private void refreshNativePrivacyStatus(TextView target) {
