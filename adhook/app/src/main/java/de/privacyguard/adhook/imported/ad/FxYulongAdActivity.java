@@ -1047,7 +1047,9 @@ private void saveVpnDns(String key,EditText input){
       "搜索同时匹配域名与备注；下面两项批量移除只作用于当前搜索命中的对应名单。",
       domainSearch,
       btn("批量移除筛选命中的白名单",()->removeFilteredDomains("ALLOW")),
-      btn("批量移除筛选命中的黑名单",()->removeFilteredDomains("BLOCK")));
+      btn("批量移除筛选命中的黑名单",()->removeFilteredDomains("BLOCK")),
+      btn("启用筛选命中的黑名单",()->setFilteredBlocks(true)),
+      btn("停用筛选命中的黑名单",()->setFilteredBlocks(false)));
   entries=new LinearLayout(this); entries.setOrientation(1); body.addView(entries);
  }
 
@@ -1076,6 +1078,25 @@ private void saveVpnDns(String key,EditText input){
   removeDomains("ALLOW".equals(kind)?"allow":"block",values);
  }
 
+ private void setFilteredBlocks(boolean enabled){
+  String filter=domainSearch==null||domainSearch.getText()==null?"":domainSearch.getText().toString().trim().toLowerCase(Locale.ROOT);
+  List<String> selected=new ArrayList<>();
+  for(Row row:rows("BLOCK")){
+   if(filter.isEmpty()||(row.value+" "+row.title).toLowerCase(Locale.ROOT).contains(filter))selected.add(row.value);
+  }
+  if(selected.isEmpty()){status.setText("当前筛选条件下没有匹配的黑名单条目。");return;}
+  if(selected.size()>2000){status.setText("单次最多批量切换 2000 条黑名单，请缩小筛选范围。");return;}
+  String payload=String.join("\\n",selected);
+  byte[] bytes=payload.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+  if(bytes.length>65536){status.setText("批量状态数据超过 64 KiB，请缩小筛选范围。");return;}
+  String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);
+  String action=enabled?"启用":"停用";
+  fxDialogBuilder().setTitle(action+"筛选命中的黑名单")
+      .setMessage("将"+action+"当前筛选命中的 "+selected.size()+" 条黑名单域名。记录及备注会保留；后端会再次确认条目仍存在，并在单次 FX 配置事务中统一应用，失败会回滚。")
+      .setNegativeButton("取消",null)
+      .setPositiveButton(action,(dialog,which)->apply("block-set-many "+(enabled?"1":"0")+" "+q(encoded),"批量黑名单状态"))
+      .show();
+ }
  private void shareDomainList(String kind){
   if(snapshot==null||snapshot.isEmpty()){
    status.setText("尚未读取设备端域名名单；请先刷新页面。");
