@@ -31,6 +31,7 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
     private Switch masterSwitch;
     private String selectedGroupFilter = "全部分组";
     private String selectedStatusFilter = "全部状态";
+    private String selectedTextFilter = "";
 
     private int dp(float value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
@@ -67,8 +68,8 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
 
         TextView intro = text(
-                "已接入 GKD-XA v1.4.8 原生 selector/parser、限额 Accessibility 节点快照、本地规则匹配与 Click 执行。\n" +
-                "尚未接入：上游订阅源、规则组/排除项、AI 服务商、触发历史、云同步与上游备份格式。", 0xff66727e, 13);
+                "已接入 GKD-XA v1.4.8 selector/parser、本地规则组、排除选择器、单击/长按、冷却与本地导入导出。\n" +
+                "当前规则仅在本机运行；上游订阅源、AI 服务商、云同步和上游备份格式仍未接入。", 0xff66727e, 13);
         card(intro);
 
         TextView privacy = text(
@@ -576,6 +577,25 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
         filters.addView(statusFilter, new LinearLayout.LayoutParams(0, -2, 1));
         body.addView(filters);
 
+        LinearLayout searchRow = new LinearLayout(this);
+        searchRow.setOrientation(LinearLayout.HORIZONTAL);
+        searchRow.setPadding(dp(12), dp(0), dp(12), dp(6));
+        EditText searchInput = new EditText(this);
+        searchInput.setSingleLine(true);
+        searchInput.setTextSize(14);
+        searchInput.setHint("筛选包名、选择器、排除条件或分组");
+        searchInput.setText(selectedTextFilter);
+        searchRow.addView(searchInput, new LinearLayout.LayoutParams(0, -2, 1));
+        searchRow.addView(action("应用筛选", () -> {
+            selectedTextFilter = searchInput.getText().toString().trim();
+            renderRules();
+        }));
+        searchRow.addView(action("清除", () -> {
+            selectedTextFilter = "";
+            renderRules();
+        }));
+        body.addView(searchRow);
+
         android.widget.AdapterView.OnItemSelectedListener filterListener =
                 new android.widget.AdapterView.OnItemSelectedListener() {
                     @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view,
@@ -598,6 +618,7 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
             if (!"全部分组".equals(selectedGroupFilter) && !selectedGroupFilter.equals(rule.getGroup())) continue;
             if ("仅启用".equals(selectedStatusFilter) && !rule.getEnabled()) continue;
             if ("仅关闭".equals(selectedStatusFilter) && rule.getEnabled()) continue;
+            if (!matchesTextFilter(rule, selectedTextFilter)) continue;
             shown++;
         }
         TextView count = text("当前筛选显示 " + shown + " / " + rules.size() + " 条规则", 0xff66727e, 12);
@@ -611,6 +632,7 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
             if (!"全部分组".equals(selectedGroupFilter) && !selectedGroupFilter.equals(rule.getGroup())) continue;
             if ("仅启用".equals(selectedStatusFilter) && !rule.getEnabled()) continue;
             if ("仅关闭".equals(selectedStatusFilter) && rule.getEnabled()) continue;
+            if (!matchesTextFilter(rule, selectedTextFilter)) continue;
             LinearLayout row = new LinearLayout(this);
             row.setOrientation(LinearLayout.VERTICAL);
             row.setPadding(dp(14), dp(8), dp(14), dp(8));
@@ -654,5 +676,14 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
             params.setMargins(dp(12), dp(4), dp(12), dp(5));
             body.addView(row, params);
         }
+    }
+
+    private boolean matchesTextFilter(FxGkdRule rule, String query) {
+        if (query == null || query.trim().isEmpty()) return true;
+        String needle = query.trim().toLowerCase(java.util.Locale.ROOT);
+        return rule.getPackageName().toLowerCase(java.util.Locale.ROOT).contains(needle)
+                || rule.getSelector().toLowerCase(java.util.Locale.ROOT).contains(needle)
+                || rule.getExcludeSelector().toLowerCase(java.util.Locale.ROOT).contains(needle)
+                || rule.getGroup().toLowerCase(java.util.Locale.ROOT).contains(needle);
     }
 }
