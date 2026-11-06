@@ -1243,3 +1243,14 @@
 - DNS 地址重写贯通 Root 持久化、AdGuard Home `filtering.rewrites` 运行时渲染、原生编辑/清空入口、DNS 快照导出/导入/预览/恢复；规则数量不设应用层上限，由 Root 后端整批校验和原子写入。
 - 同步正式源码与模块打包源码，并更新两份续接记录。
 - 按当前提速要求未运行测试、静态检查、Gradle/APK 构建、CI 或 Android 真机验证；本批仅完成源码提交。
+
+
+## 2026-11-07 — Root Proxy VPN egress 周期重验证与同接口自动重绑
+
+- 扩展现有 yulong-root-proxy-package-watch.sh，不新增第二个并行 watcher：每个既有 watcher 周期除检查应用包名/UID 集合外，还调用 Root Proxy 的 reconcile-route。
+- Root Proxy 新增 reconcile-route 锁内路径：验证当前记录的 VPN 接口、UID、egress IPv4、活动双栈 NAT OUTPUT 跳转、链内 root/VPN UID/白名单 UID/loopback/UDP+TCP 53 规则及本地 DNS 探测。
+- 同一 VPN 接口的 egress 地址发生变化时，重新运行完整 _ensure_locked，更新 Unbound outgoing-interface 与 VPN egress marker，并轮换双栈 DNS 重定向链；未变化且所有链路仍符合预期时仅回报 rebind=unchanged，不反复重启解析器或重建规则。
+- 路由不可证明、DNS 探测失败或链条不完整时，走现有 fail-open/事务恢复路径；不能确认当前接口身份时不会猜测并接管另一个接口。该机制覆盖同一已验证接口上的地址/路由变化，不把未知新接口当作已验证 VPN。
+- canonical/module Root 控制脚本均新增 rootproxy-reconcile-route；原生“VPN 与 Root Proxy”页新增手动重验证/重绑入口与状态回显。
+- 修改：fx-module/scripts/yulong-root-proxy.sh、fx-module/scripts/yulong-root-proxy-package-watch.sh、两份 scripts/yulong-ad-control.sh、两份 FxYulongAdActivity.java。
+- 按用户提速要求未运行测试、Shell/Java 静态检查、构建、CI 或 Android 真机验证；源码提交不代表实际 VPN 路由或设备验收。

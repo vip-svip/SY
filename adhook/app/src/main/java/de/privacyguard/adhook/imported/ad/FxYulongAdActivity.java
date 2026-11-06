@@ -1596,7 +1596,8 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
   card("第三方 VPN DNS 过滤回退",
        "只有在系统确认唯一活动第三方 VPN、接口/所属 UID/出口路由有效，且 Unbound/AdGuard Home 健康探测通过后才接管明文 DNS。失败会撤销 FX 自有规则并保留第三方 VPN DNS。",
        dnsSwitch("第三方 VPN 下启用 Root DNS 过滤","vpn_external_dns_proxy"),
-       btn("刷新 Root Proxy 状态",()->root("rootproxy-status",r->{fxDialogBuilder().setTitle("Root Proxy 状态").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();})));
+       btn("刷新 Root Proxy 状态",()->root("rootproxy-status",r->{fxDialogBuilder().setTitle("Root Proxy 状态").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();})),
+       btn("立即检查并重绑 VPN DNS 路由",()->root("rootproxy-reconcile-route",r->{fxDialogBuilder().setTitle(r.exitCode==0?"VPN DNS 路由检查完成":"VPN DNS 路由检查未完成").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();})));
   loadDnsLists(customServers,globalServers,fallbackServers,remoteDns,cnDns);
 }
  private void refreshDnsCache(String target,String label){

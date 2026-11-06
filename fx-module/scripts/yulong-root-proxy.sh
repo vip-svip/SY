@@ -975,6 +975,97 @@ _reconcile_locked() {
   _valid_if "$_iface" && _valid_uid "$_uid" || { _stop_locked; _log "invalid active metadata during package event"; return 1; }
   _ensure_locked "$_iface" "$_uid"
 }
+_root_proxy_chain_contract() {
+  _family=$1; _chain=$2; _uid=$3; _whitelist_uids=$4
+  if [ "$_family" = 4 ]; then
+    _bin=iptables; _loopback=127.0.0.0/8
+    _udp_destination=127.0.0.1:53; _tcp_destination=127.0.0.1:53
+  else
+    _bin=ip6tables; _loopback=::1/128
+    _udp_destination='[::1]:53'; _tcp_destination='[::1]:53'
+  fi
+  "$_bin" -t nat -C "$_chain" -m owner --uid-owner 0 -j RETURN >/dev/null 2>&1 || return 1
+  "$_bin" -t nat -C "$_chain" -m owner --uid-owner "$_uid" -j RETURN >/dev/null 2>&1 || return 1
+  while IFS= read -r _whitelist_uid; do
+    [ -n "$_whitelist_uid" ] || continue
+    _valid_uid "$_whitelist_uid" || return 1
+    "$_bin" -t nat -C "$_chain" -m owner --uid-owner "$_whitelist_uid" -j RETURN >/dev/null 2>&1 || return 1
+  done <<EOF_ROOT_PROXY_UIDS
+$_whitelist_uids
+EOF_ROOT_PROXY_UIDS
+  "$_bin" -t nat -C "$_chain" -d "$_loopback" -j RETURN >/dev/null 2>&1 || return 1
+  "$_bin" -t nat -C "$_chain" -p udp --dport 53 -j DNAT --to-destination "$_udp_destination" >/dev/null 2>&1 || return 1
+  "$_bin" -t nat -C "$_chain" -p tcp --dport 53 -j DNAT --to-destination "$_tcp_destination" >/dev/null 2>&1 || return 1
+  return 0
+}
+_reconcile_route_locked() {
+  if ! _is_enabled; then
+    if ! _stop_locked; then
+      _log "route reconcile: proxy disabled but owned cleanup is incomplete"
+      return 1
+    fi
+    echo "active=0"
+    echo "reason=disabled"
+    return 0
+  fi
+  if [ ! -e "$ACTIVE_META" ]; then
+    _reconcile_locked
+    return $?
+  fi
+  [ -f "$ACTIVE_META" ] && [ ! -L "$ACTIVE_META" ] || {
+    _stop_locked
+    _log "route reconcile: active metadata is unsafe; fail-open"
+    return 1
+  }
+  _iface=$(sed -n '1p' "$ACTIVE_META" 2>/dev/null || :)
+  _uid=$(sed -n '2p' "$ACTIVE_META" 2>/dev/null || :)
+  _meta_egress=$(sed -n '3p' "$ACTIVE_META" 2>/dev/null || :)
+  _valid_if "$_iface" && _valid_uid "$_uid" && _valid_ipv4 "$_meta_egress" || {
+    _stop_locked
+    _log "route reconcile: active VPN identity is invalid; fail-open"
+    return 1
+  }
+  _current_egress=$(_resolve_vpn_egress "$_iface") || {
+    _log "route reconcile: stored VPN interface $_iface no longer proves a valid egress; fail-open cleanup"
+    _ensure_locked "$_iface" "$_uid"
+    return $?
+  }
+  _stored_egress=$(tr -d '\r\n' < "$EGRESS" 2>/dev/null || :)
+  if [ "$_current_egress" != "$_meta_egress" ] || [ "$_stored_egress" != "$_meta_egress" ]; then
+    _log "route reconcile: VPN egress changed on $_iface ($_meta_egress -> $_current_egress); rebinding Unbound and DNS redirects"
+    _ensure_locked "$_iface" "$_uid"
+    return $?
+  fi
+  _active4=$(sed -n '1p' "$ACTIVE" 2>/dev/null || :)
+  _active6=$(sed -n '2p' "$ACTIVE" 2>/dev/null || :)
+  case "$_active4" in FXYRP4_A|FXYRP4_B) : ;; *) _active4= ;; esac
+  case "$_active6" in FXYRP6_A|FXYRP6_B) : ;; *) _active6= ;; esac
+  _whitelist_uids=$(_resolve_whitelist_uids) || {
+    _log "route reconcile: current DNS exception UID set is unavailable; rebuilding through fail-open path"
+    _ensure_locked "$_iface" "$_uid"
+    return $?
+  }
+  _contract_ok=1
+  [ -n "$_active4" ] && [ -n "$_active6" ] || _contract_ok=0
+  if [ "$_contract_ok" = 1 ]; then
+    iptables -t nat -C OUTPUT -j "$_active4" >/dev/null 2>&1 || _contract_ok=0
+    ip6tables -t nat -C OUTPUT -j "$_active6" >/dev/null 2>&1 || _contract_ok=0
+    _root_proxy_chain_contract 4 "$_active4" "$_uid" "$_whitelist_uids" || _contract_ok=0
+    _root_proxy_chain_contract 6 "$_active6" "$_uid" "$_whitelist_uids" || _contract_ok=0
+  fi
+  if [ "$_contract_ok" = 1 ] && _local_dns_probe; then
+    echo "active=1"
+    echo "interface=$_iface"
+    echo "vpn_uid=$_uid"
+    echo "egress_ipv4=$_current_egress"
+    echo "route=verified"
+    echo "revalidated=1"
+    echo "rebind=unchanged"
+    return 0
+  fi
+  _log "route reconcile: DNS redirect generation or local DNS probe is incomplete; rebuilding current VPN binding"
+  _ensure_locked "$_iface" "$_uid"
+}
 _package_event_locked() {
   _prune_rc=0
   _whitelist_prune_locked 0 || _prune_rc=$?
@@ -1024,6 +1115,9 @@ case "$cmd" in
   reconcile)
     with_lock _reconcile_locked
     ;;
+  reconcile-route)
+    with_lock _reconcile_route_locked
+    ;;
   package-event)
     [ "$#" -eq 1 ] || { echo "usage: yulong-root-proxy.sh package-event" >&2; exit 2; }
     with_lock _package_event_locked
@@ -1031,5 +1125,5 @@ case "$cmd" in
   uninstall)
     with_lock _stop_locked
     ;;
-  *) echo 'usage: yulong-root-proxy.sh {ensure|stop|enable|disable|status|whitelist-list|whitelist-set|whitelist-prune|reconcile|uninstall}' >&2; exit 64 ;;
+  *) echo 'usage: yulong-root-proxy.sh {ensure|stop|enable|disable|status|whitelist-list|whitelist-set|whitelist-prune|reconcile|reconcile-route|uninstall}' >&2; exit 64 ;;
 esac

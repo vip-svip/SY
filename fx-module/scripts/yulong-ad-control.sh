@@ -3072,6 +3072,9 @@ case "$cmd" in
     echo "status=not-installed"
   fi ;;
 
+ rootproxy-reconcile-route)
+  [ -x "$MP/scripts/yulong-root-proxy.sh" ] || { echo "Root Proxy is not installed" >&2; exit 20; }
+  sh "$MP/scripts/yulong-root-proxy.sh" reconcile-route ;;
  trusted-status)
   sh "$MP/scripts/yulong-trusted-network.sh" status ;;
  trusted-refresh)

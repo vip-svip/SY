@@ -146,6 +146,9 @@ package_snapshot_hash() {
 run_package_event() {
   MP="$MP" PG="$PG" CONF="$PG/settings.conf" sh "$ROOT_PROXY" package-event
 }
+run_route_reconcile() {
+  MP="$MP" PG="$PG" CONF="$PG/settings.conf" sh "$ROOT_PROXY" reconcile-route
+}
 current_snapshot() {
   [ ! -L "$SNAPSHOT" ] && [ -f "$SNAPSHOT" ] || return 1
   [ "$(sed -n '1p' "$SNAPSHOT" 2>/dev/null)" = "FXYRP-PACKAGES1" ] || return 1
@@ -168,7 +171,8 @@ watch_loop() {
   trap 'exit 129' HUP
   trap 'exit 130' INT
   trap 'exit 143' TERM
-  # Reconcile once at boot, then only when the installed package/UID set changes.
+  # Reconcile package/UID policy once at boot. The periodic loop below also
+  # revalidates the active VPN route/egress even when package inventory is unchanged.
   if run_package_event >> "$LOG" 2>&1; then
     _new=$(package_snapshot_hash 2>/dev/null || true)
     [ -z "$_new" ] || write_snapshot "$_new" || log "unable to persist initial PackageManager snapshot"
@@ -178,15 +182,21 @@ watch_loop() {
   while [ -f "$MP/module.prop" ] && [ -d "$PG" ] && [ ! -L "$PG" ]; do
     sleep "$INTERVAL"
     _new=$(package_snapshot_hash 2>/dev/null || true)
-    [ -n "$_new" ] || { log "PackageManager snapshot unavailable; retaining last-known snapshot"; continue; }
-    _known=$(current_snapshot 2>/dev/null || true)
-    if [ "$_new" != "$_known" ]; then
-      if run_package_event >> "$LOG" 2>&1; then
-        write_snapshot "$_new" || log "package set reconciled but new snapshot marker could not be committed"
-        log "installed package/UID set changed; Root Proxy whitelist and routes reconciled"
-      else
-        log "package-event reconciliation failed; retrying on next package snapshot interval"
+    if [ -z "$_new" ]; then
+      log "PackageManager snapshot unavailable; retaining last-known package snapshot"
+    else
+      _known=$(current_snapshot 2>/dev/null || true)
+      if [ "$_new" != "$_known" ]; then
+        if run_package_event >> "$LOG" 2>&1; then
+          write_snapshot "$_new" || log "package set reconciled but new snapshot marker could not be committed"
+          log "installed package/UID set changed; Root Proxy whitelist and routes reconciled"
+        else
+          log "package-event reconciliation failed; retrying on next package snapshot interval"
+        fi
       fi
+    fi
+    if ! run_route_reconcile >> "$LOG" 2>&1; then
+      log "periodic VPN DNS route/egress reconciliation failed; owned redirects fail open or remain retryable"
     fi
   done
 }
