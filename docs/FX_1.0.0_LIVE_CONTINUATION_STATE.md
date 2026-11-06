@@ -1161,3 +1161,9 @@
 - 同步文件：`scripts/yulong-ad-control.sh`、`fx-module/scripts/yulong-ad-control.sh`、`scripts/adguardhome.sh`、`fx-module/scripts/adguardhome.sh`、两个源码树中的 `FxYulongAdActivity.java`。
 - 本批提交：`f30b3d5e4cbad8ed8c6257c01225d84813dd5925`、`ea9bf037cae0ac37d93a4f8295dbd8d8dadf724f`、`e924227716cf6e8c8396927f2e380c288a44cfc5`、`6aea643681d284b92c82c430ded3cdc1102503ef`、`39cebb0f00fd12fe395f871d55c397fa5390b63e`、`49ace88241568722cec75b56ae8c1838eeebb122`。
 - 按当前要求未运行测试、静态检查、构建、CI 或 Android 真机验证；仅确认 GitHub 文件写入返回成功并进行了源码回读。
+## 2026-11-07 — DNS 上游完整校验与备用配置歧义拒绝
+
+- `native-dns-settings.sh` 的 DNS 区段读取由简单行数统计升级为完整端点校验：custom 支持 IPv4、IPv4:port、DoH、DoT、DoQ；global 与 fallback 只接受可路由 IPv4 / IPv4:port。校验重复区段、重复端点、空值、未知字段、非法域名/端口及格式错误；状态接口不再把结构上像 nameserver、实际上无法被运行时接受的配置报为正常数量。
+- `adguardhome.sh` 的备用 DNS 渲染器拒绝重复 fallback 区段、缺失值、额外字段、未知字段及重复/非法端点，避免静默忽略错误配置。
+- 同步修改仓库脚本源与 `fx-module/scripts` 实际模块脚本；代码提交包括 `b072182ecd1fd4884a8226b1b929fad15d42716d`、`8029e862b0dbf19c870fdacd75c772991c212eda`、`74e0768bef6f5ffcefb5ca30a2902a47f2b52e58`、`78cb484a491425bcf99287747f8af8db38b1a660`。
+- 按当前提速要求未运行测试、静态检查、构建、CI 或设备验证；以上为源码提交，不代表运行验收。
