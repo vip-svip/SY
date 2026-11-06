@@ -260,7 +260,7 @@ mutate_batch_transaction() {
       if(inlist) emit_missing()
       inlist=1; seen=1; print; next
     }
-    /^[/ {
+    /^\\[/ {
       if(inlist) emit_missing()
       inlist=0; print; next
     }
@@ -286,7 +286,7 @@ mutate_batch_transaction() {
     echo "unable to stage batch app whitelist update; configuration unchanged" >&2
     return 1
   fi
-  if [ ! -s "$_YW_TEMP" ] || [ -f "$_YW_TEMP" ] == false; then
+  if [ ! -s "$_YW_TEMP" ] || [ ! -f "$_YW_TEMP" ] || [ -L "$_YW_TEMP" ]; then
     rm -f "$_YW_TEMP" "$_YW_BACKUP" "$_YW_PACKAGES"
     _YW_TEMP=; _YW_BACKUP=; _YW_PACKAGES=
     echo "batch app whitelist output is invalid" >&2
