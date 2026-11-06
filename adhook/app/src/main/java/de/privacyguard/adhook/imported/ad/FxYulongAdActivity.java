@@ -667,6 +667,27 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
    .show();
  }
  private void renderRules(){EditText url=draftField("rule_url");url.setSingleLine(true);url.setHint("https://… 或 builtin://…");EditText name=draftField("rule_name");name.setSingleLine(true);name.setHint("列表名称");card("添加过滤列表","仅允许 HTTPS 订阅及 FX 本地资源。",url,name,btn("添加并应用",()->{String u=url.getText().toString().trim(),n=name.getText().toString().trim();if(!u.isEmpty()&&!n.isEmpty())apply("rule-add "+q(u)+" "+q(n)+" 1","规则添加");}));EditText ruleImport=draftField("rule_import_text");ruleImport.setSingleLine(false);ruleImport.setMinLines(4);ruleImport.setHint("每行：HTTPS或builtin来源|列表名称");card("批量导入过滤列表","支持多行来源|名称；空行和 # 注释行忽略。新订阅默认启用，已存在来源不会被覆盖。",ruleImport,btn("批量导入",()->importRuleSubscriptions(ruleImport)),btn("分享全部过滤订阅",()->shareRuleSubscriptions()));search=draftField("rule_search");search.setSingleLine(true);search.setHint("搜索过滤列表");card("搜索","输入来源或列表名称",search,btn("启用当前筛选全部列表",()->setFilteredRules(true)),btn("暂停当前筛选全部列表",()->setFilteredRules(false)),btn("移除当前筛选全部列表",()->removeFilteredRules()));search.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int st,int c,int a){}public void onTextChanged(CharSequence s,int st,int be,int co){bind();}public void afterTextChanged(Editable e){}});entries=new LinearLayout(this);entries.setOrientation(1);body.addView(entries);}
+ private void chooseDnsQueryLogRetention(){
+  final String[] values={"1d","3d","7d","30d"};
+  final String[] labels={"保留 1 天","保留 3 天","保留 7 天","保留 30 天"};
+  root("dns-querylog-retention-get",current->{
+    String selectedValue="7d";
+    if(current.exitCode==0&&current.output!=null)
+      for(String line:current.output.split("\\r?\\n"))
+        if(line.startsWith("querylog_retention="))selectedValue=line.substring("querylog_retention=".length()).trim();
+    int selected=2;
+    for(int i=0;i<values.length;i++)if(values[i].equals(selectedValue))selected=i;
+    final int initial=selected;
+    new AlertDialog.Builder(this).setTitle("DNS 查询日志保留期限")
+      .setSingleChoiceItems(labels,initial,(dialog,which)->{
+        dialog.dismiss();
+        root("dns-querylog-retention-set "+values[which],result->{
+          if(result.exitCode==0)status.setText("DNS 查询日志保留期限已更新为 "+values[which]+"；AdGuard Home 将按新期限轮转日志。");
+          else fxDialogBuilder().setTitle("保留期限未更新").setMessage(safe(result.output)).setPositiveButton("关闭",null).show();
+        });
+      }).setNegativeButton("取消",null).show();
+  });
+ }
  private void renderDns(){
   EditText dnsProfileImport=draftField("dns_profile_import");dnsProfileImport.setSingleLine(false);dnsProfileImport.setMinLines(5);dnsProfileImport.setHint("粘贴完整 FXYULONGDNSPROFILE1 快照文本");
  private void refreshDnsCache(String target,String label){
@@ -776,8 +797,9 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
            if(r.exitCode==0){remoteDns.setText("1.1.1.1");cnDns.setText("223.5.5.5");status.setText("VPN DNS 默认值已恢复。");load();}
            else fxDialogBuilder().setTitle("恢复失败").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
          })).show()));
-  card("DNS 查询日志","默认关闭。仅本机保存最近 7 天 DNS 查询记录，不会上传查询记录。",
+  card("DNS 查询日志","默认关闭。启用后仅在本机保存查询记录；可单独设置日志保留期限，不会上传查询记录。",
        dnsSwitch("启用本地 DNS 查询日志","dns_querylog_enabled"),
+       btn("设置日志保留期限",()->chooseDnsQueryLogRetention()),
        btn("查看 DNS 查询日志",()->startActivity(new Intent(this,FxYulongDnsActivity.class))));
   card("DNS 缓存管理","可分别刷新 FX 自有 AdGuard Home 或 Unbound，也可同时刷新两者。所选解析服务会短暂重启；第三方 VPN 和它的规则不会被停止。",
        btn("刷新 AdGuard Home 缓存",()->refreshDnsCache("adguardhome","AdGuard Home")),
