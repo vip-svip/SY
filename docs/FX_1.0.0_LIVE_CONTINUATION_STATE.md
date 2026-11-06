@@ -6775,3 +6775,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 本批未执行测试、静态检查、构建、CI 或真机验证。
 
 - 后续补充：`48f31931` / `579d70f2` 将管理端监听检查放宽为“仅允许 127.0.0.1、端口为合法数字（含系统分配的临时端口）”，不把 AdGuard Home 启动后可能写回的 ephemeral port 固定为 0；仍拒绝任何非 loopback 管理监听。
+
+## 2026-11-06 — Ad 页面原生 DNS 引擎设置与状态管理入口
+
+- 新增原生 DNS 设置后端 `scripts/native-dns-settings.sh`（`6b431c6b`），并同步到模块路径 `fx-module/scripts/native-dns-settings.sh`（`112a19c4`）。提供 `FXDNS1` 稳定状态输出，展示 AdGuard Home、Unbound、Root Proxy 和完整 DNS 栈状态。
+- 设置后端只允许修改四个既有布尔配置：`dns_engine_adguardhome`、`dns_forward`、`vpn_external_compat`、`vpn_external_dns_proxy`；写入前确认键在模块默认配置中声明，采用事务备份、模块配置写入和完整 apply，apply 失败时恢复旧配置并重新协调。
+- 更新 KernelSU 打包流程 `.github/workflows/build-fx-kernelsu.yml`（`1066437d`），将新的原生 DNS 设置脚本纳入模块打包。
+- 更新 `adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`（`9365713e`）：Ad 页面增加“本地 DNS 引擎”状态区和 DNS 设置入口，可查看两套 DNS 引擎状态及 Root Proxy 状态，并切换上述四项开关。
+- 继续沿用此前 VPN 控制器已经提供的 `dns_adguardhome_status`、`dns_unbound_status`、`dns_stack_ready` 状态字段；本轮没有重复改写其既有实现。
+- 按用户要求，没有运行 Gradle、Shell 检查、测试、构建、CI 或真机验证；本批记录的是源码接线，不代表开关变更在设备上的真实路由效果已验证。
