@@ -723,3 +723,14 @@
 - 对旧版 PID-only 文件保留受限兼容：只有精确 argv 证明目标是本 watcher 时才升级记录或发停止信号；身份不匹配时拒绝向该 PID 发送信号。
 - 保留现有 Profile 计划调度、运行锁、TERM/KILL 等待和日志行为。
 - 按用户要求未运行测试、静态检查、构建、CI 或设备验证。
+
+
+### FX Yulong Ad 定时任务 PID 身份绑定与精确 watcher 识别（2026-11-07）
+
+- 代码提交：待提交。
+- 文件：`fx-module/scripts/yulong-ad-schedule.sh`。
+- watcher PID 文件改为记录 PID 与 `/proc/PID/stat` 启动时钟；状态查询、重复启动识别及停止流程绑定进程启动身份，避免 PID 重用误判。
+- watcher 命令行识别改为按 NUL 分隔 argv 精确确认脚本路径与 `watch` 参数，不再依赖扁平命令行子串。
+- 对旧版 PID-only 记录保留受限兼容；只有精确识别为本 watcher 后才允许升级记录或发送 TERM/KILL，身份不符时拒绝信号。
+- 保留现有运行锁、时间计划计算、规则 apply 与失败回滚行为。
+- 按用户要求未运行测试、静态检查、构建、CI 或设备验证。

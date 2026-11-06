@@ -206,24 +206,46 @@ evaluate_locked() {
 }
 evaluate() { with_runtime_lock evaluate_locked; }
 watch() { log "watcher started"; while :; do evaluate || :; sleep 60; done; }
-process_running() {
-  kill -0 "$1" 2>/dev/null || return 1
-  _process_state=$(awk '{print $3}' "/proc/$1/stat" 2>/dev/null || :)
-  [ "$_process_state" != Z ]
+process_start_time() {
+  _pid=$1
+  case "$_pid" in ''|*[!0-9]*) return 1 ;; esac
+  [ -r "/proc/$_pid/stat" ] || return 1
+  _tail=$(sed 's/^.*) //' "/proc/$_pid/stat" 2>/dev/null) || return 1
+  _state=$(printf '%s\n' "$_tail" | awk '{print $1}')
+  _start=$(printf '%s\n' "$_tail" | awk '{print $20}')
+  case "$_state" in Z|X|'') return 1 ;; esac
+  case "$_start" in ''|*[!0-9]*) return 1 ;; esac
+  printf '%s\n' "$_start"
 }
+process_running() { process_start_time "$1" >/dev/null 2>&1; }
 is_our_watcher() {
   _watch_pid=$1
+  _expected_start=${2:-}
+  _live_start=$(process_start_time "$_watch_pid" 2>/dev/null) || return 1
+  [ -z "$_expected_start" ] || [ "$_live_start" = "$_expected_start" ] || return 1
   [ -r "/proc/$_watch_pid/cmdline" ] || return 1
-  _watch_cmd=$(tr '\000' ' ' < "/proc/$_watch_pid/cmdline" 2>/dev/null) || return 1
-  case "$_watch_cmd" in
-    *"$SCRIPT"*' watch '*) return 0 ;;
-  esac
-  return 1
+  tr '\000' '\n' < "/proc/$_watch_pid/cmdline" 2>/dev/null |
+    awk -v script="$SCRIPT" '
+      $0 == script { found=1; next }
+      found && $0 == "watch" { exit 0 }
+      END { if (!found) exit 1 }
+    '
+}
+read_watcher_record() {
+  [ -f "$PIDFILE" ] && [ ! -L "$PIDFILE" ] || return 1
+  _record=$(cat "$PIDFILE" 2>/dev/null) || return 1
+  _record_pid=$(printf '%s\n' "$_record" | sed -n '1p')
+  _record_start=$(printf '%s\n' "$_record" | sed -n '2p')
+  case "$_record_pid" in ''|*[!0-9]*) return 2 ;; esac
+  case "$_record_start" in ''|*[!0-9]*) return 2 ;; esac
+  [ -z "$(printf '%s\n' "$_record" | sed -n '3p')" ] || return 2
+  printf '%s|%s\n' "$_record_pid" "$_record_start"
 }
 write_pidfile() {
   _pid_to_write=$1
+  _start_to_write=$(process_start_time "$_pid_to_write" 2>/dev/null) || return 1
   _pid_tmp=$(mktemp "$PG/yulong-ad-schedule.pid.XXXXXX") || return 1
-  if (umask 077; printf '%s\n' "$_pid_to_write" > "$_pid_tmp" && chmod 600 "$_pid_tmp" && mv -f "$_pid_tmp" "$PIDFILE"); then
+  if (umask 077; printf '%s\n%s\n' "$_pid_to_write" "$_start_to_write" > "$_pid_tmp" && chmod 600 "$_pid_tmp" && mv -f "$_pid_tmp" "$PIDFILE"); then
     return 0
   fi
   rm -f "$_pid_tmp" 2>/dev/null || :
@@ -235,10 +257,19 @@ start_locked() {
     echo "schedule-disabled"
     return 0
   fi
-  if [ -f "$PIDFILE" ] && [ ! -L "$PIDFILE" ]; then
-    old=$(cat "$PIDFILE" 2>/dev/null)
+  if _old_record=$(read_watcher_record); then
+    old=${_old_record%%|*}
+    _old_start=${_old_record#*|}
+    if is_our_watcher "$old" "$_old_start"; then
+      echo "already-running pid=$old"
+      return 0
+    fi
+  elif [ -f "$PIDFILE" ] && [ ! -L "$PIDFILE" ]; then
+    # Upgrade a legacy PID-only pointer only after exact argv identity is known.
+    old=$(sed -n '1p' "$PIDFILE" 2>/dev/null)
     case "$old" in ''|*[!0-9]*) old= ;; esac
-    if [ -n "$old" ] && process_running "$old" && is_our_watcher "$old"; then
+    if [ -n "$old" ] && is_our_watcher "$old"; then
+      write_pidfile "$old" || return 1
       echo "already-running pid=$old"
       return 0
     fi
@@ -258,36 +289,38 @@ start() { with_runtime_lock start_locked "$@"; }
 stop_locked() {
   _uninstall_mode=
   [ "$#" -lt 4 ] || _uninstall_mode=$4
-  if [ -f "$PIDFILE" ] && [ ! -L "$PIDFILE" ]; then
-    pid=$(cat "$PIDFILE" 2>/dev/null)
+  if _record=$(read_watcher_record); then
+    pid=${_record%%|*}
+    _expected_start=${_record#*|}
+    is_our_watcher "$pid" "$_expected_start" || {
+      log "watcher PID identity no longer matches its published record; refusing signal"
+      return 1
+    }
+    kill -TERM "$pid" 2>/dev/null || :
+    _stop_wait=0
+    while [ "$_stop_wait" -lt 10 ] && is_our_watcher "$pid" "$_expected_start"; do
+      sleep 0.2; _stop_wait=$((_stop_wait + 1))
+    done
+    if is_our_watcher "$pid" "$_expected_start"; then
+      is_our_watcher "$pid" "$_expected_start" || { log "PID $pid changed identity; refusing SIGKILL"; return 1; }
+      kill -KILL "$pid" 2>/dev/null || :
+      _stop_wait=0
+      while [ "$_stop_wait" -lt 10 ] && is_our_watcher "$pid" "$_expected_start"; do
+        sleep 0.2; _stop_wait=$((_stop_wait + 1))
+      done
+    fi
+    is_our_watcher "$pid" "$_expected_start" && { log "could not confirm watcher PID $pid stopped"; return 1; }
+  elif [ -f "$PIDFILE" ] && [ ! -L "$PIDFILE" ]; then
+    pid=$(sed -n '1p' "$PIDFILE" 2>/dev/null)
     case "$pid" in ''|*[!0-9]*) pid= ;; esac
-    if [ -n "$pid" ] && process_running "$pid"; then
-      if is_our_watcher "$pid"; then
-        kill -TERM "$pid" 2>/dev/null || :
-        _stop_wait=0
-        while [ "$_stop_wait" -lt 10 ] && process_running "$pid"; do
-          sleep 0.2
-          _stop_wait=$((_stop_wait + 1))
-        done
-        if process_running "$pid"; then
-          if ! is_our_watcher "$pid"; then
-            log "PID $pid changed identity during shutdown; refusing SIGKILL"
-            return 1
-          fi
-          kill -KILL "$pid" 2>/dev/null || :
-          _stop_wait=0
-          while [ "$_stop_wait" -lt 10 ] && process_running "$pid"; do
-            sleep 0.2
-            _stop_wait=$((_stop_wait + 1))
-          done
-        fi
-        if process_running "$pid"; then
-          log "could not confirm watcher PID $pid stopped"
-          return 1
-        fi
-      else
-        log "refusing to signal PID $pid: process identity does not match this watcher; removing stale PID pointer"
-      fi
+    if [ -n "$pid" ] && is_our_watcher "$pid"; then
+      _legacy_start=$(process_start_time "$pid" 2>/dev/null) || return 1
+      kill -TERM "$pid" 2>/dev/null || :
+      _stop_wait=0
+      while [ "$_stop_wait" -lt 10 ] && is_our_watcher "$pid" "$_legacy_start"; do
+        sleep 0.2; _stop_wait=$((_stop_wait + 1))
+      done
+      is_our_watcher "$pid" "$_legacy_start" && { log "legacy watcher did not stop"; return 1; }
     fi
   fi
   rm -f "$PIDFILE"
@@ -315,10 +348,14 @@ status() {
   echo "days=$(read_value days)"
   echo "active=$(pg_get yulong_ad_schedule_active 1)"
   watcher=0
-  if [ -f "$PIDFILE" ] && [ ! -L "$PIDFILE" ]; then
-    pid=$(cat "$PIDFILE" 2>/dev/null)
+  if _record=$(read_watcher_record); then
+    pid=${_record%%|*}
+    _start=${_record#*|}
+    if is_our_watcher "$pid" "$_start"; then watcher=1; fi
+  elif [ -f "$PIDFILE" ] && [ ! -L "$PIDFILE" ]; then
+    pid=$(sed -n '1p' "$PIDFILE" 2>/dev/null)
     case "$pid" in ''|*[!0-9]*) pid= ;; esac
-    if [ -n "$pid" ] && process_running "$pid" && is_our_watcher "$pid"; then watcher=1; fi
+    if [ -n "$pid" ] && is_our_watcher "$pid"; then watcher=1; fi
   fi
   echo "watcher=$watcher"
 }
