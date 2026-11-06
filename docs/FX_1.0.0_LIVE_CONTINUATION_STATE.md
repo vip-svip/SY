@@ -6926,3 +6926,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 修正 `fx-patches/patch_quickjs_egern_compat.py` 的标记块换行裁剪和无标记源码插入锚点转义，重复应用时直接替换 V1/V2 标记块而不叠加换行；README Egern 段落现在以中文兼容边界描述稳定覆盖。
 - 构建工具镜像新增 `fx-module/build-tools/patches/patch_quickjs_egern_compat.py`，与根目录构建补丁保持一致：`e55be482bb7c0d1028d392b251471e9b894a6462`。根目录修正提交：`107a6c120478c1af3daecd1ae25ea9f2322b76ef`。
 - 本批未运行测试、构建、CI 或设备验证；FX 1.0.0 版本保持不变。
+
+## 2026-11-06 — Egern runner 临时源清理补丁同步
+
+- 跟进并行提交后的最新 QuickJS runner：运行时清理命令已归一为只删除一次当前进程专属的 Egern 临时源文件（egern-$$.js），不覆盖并行开发者的 runner 改动。
+- 将根目录 Egern 构建补丁中的清理归一逻辑同步到实际模块构建补丁 `fx-module/build-tools/patches/patch_quickjs_egern_compat.py`，确保重复运行补丁时也会消除重复临时文件参数，并要求最终清理项恰好出现一次。
+- 模块构建补丁提交：4963e04be74b14868073b23fc15b7167a8ea0f80。
+- 本轮按要求未执行测试、脚本检查、构建、CI 或设备验证。
