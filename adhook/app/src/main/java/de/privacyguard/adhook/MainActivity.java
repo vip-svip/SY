@@ -1100,14 +1100,7 @@ public final class MainActivity extends ComponentActivity {
         dnsActions.addView(nativeAction("DNS 引擎与 VPN DNS 设置", this::showNativeDnsSettingsDialog));
         dnsActions.addView(nativeAction("应用 DNS 白名单", this::showRootProxyDnsWhitelistDialog));
         dnsActions.addView(nativeAction("刷新本地 DNS 缓存", this::flushNativeDnsCache));
-        dnsActions.addView(nativeAction("刷新本地 DNS 缓存", () ->
-                runNativeModuleCommand("sh \\"$MP/scripts/yulong-ad-control.sh\\" cache-flush", 180000L, result -> {
-                    String message = result.output == null ? "" : result.output.trim();
-                    FxNativeSkin.builder(this).setTitle(result.exitCode == 0 ? "DNS 缓存已刷新" : "DNS 缓存刷新未完成")
-                            .setMessage(message.isEmpty() ? (result.exitCode == 0 ? "本地 DNS 引擎已重新协调。" : "请查看 FX boot.log 和 DNS 引擎日志。") : message)
-                            .setPositiveButton("确定", null).show();
-                    refreshNativeDnsStatus(dnsStatus);
-                })));
+        dnsActions.addView(nativeAction("刷新 DNS 状态", () -> refreshNativeDnsStatus(dnsStatus)));
         addNativeActionGroup(dnsActions);
         refreshNativeDnsStatus(dnsStatus);
 
