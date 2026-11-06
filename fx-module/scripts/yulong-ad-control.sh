@@ -185,7 +185,7 @@ normalize_dns_csv() { printf '%s' "$1" | tr -d '[:space:]'; }
 valid_ipv4_dns_csv() {
   printf '%s\n' "$1" | awk -F, '
     {
-      if(NF<1||NF>3){bad=1;exit}
+      if(NF<1){bad=1;exit}
       for(i=1;i<=NF;i++){
         if($i!~/^[0-9.]+$/){bad=1;exit}
         n=split($i,a,".")
@@ -200,7 +200,7 @@ valid_ipv4_dns_csv() {
 valid_fallback_dns_csv() {
   printf '%s\n' "$1" | awk -F, '
     {
-      if(NF<1||NF>3){bad=1;exit}
+      if(NF<1){bad=1;exit}
       for(i=1;i<=NF;i++){
         if($i!~/^[0-9.]+$/){bad=1;exit}
         n=split($i,a,".")
@@ -245,7 +245,7 @@ valid_dns_csv() {
       return 0
     }
     {
-      if(NF<1||NF>3){bad=1;exit}
+      if(NF<1){bad=1;exit}
       for(i=1;i<=NF;i++) if(!endpoint($i)){bad=1;exit}
     }
     END{exit bad}
@@ -457,13 +457,13 @@ dns_config_set_many() {
   _many_global=$(normalize_dns_csv "$2")
   _many_fallback=$(normalize_dns_csv "$3")
   if [ "$_many_custom" != "-" ]; then
-    valid_dns_csv "$_many_custom" || { echo "custom DNS accepts 1..3 IPv4, https:// DoH, tls:// DoT, or quic:// DoQ endpoints" >&2; return 2; }
+    valid_dns_csv "$_many_custom" || { echo "custom DNS accepts one or more IPv4, https:// DoH, tls:// DoT, or quic:// DoQ endpoints" >&2; return 2; }
   fi
   if [ "$_many_global" != "-" ]; then
-    valid_ipv4_dns_csv "$_many_global" || { echo "global DNS requires 1..3 IPv4 literals" >&2; return 2; }
+    valid_ipv4_dns_csv "$_many_global" || { echo "global DNS requires one or more IPv4 literals" >&2; return 2; }
   fi
   if [ "$_many_fallback" != "-" ]; then
-    valid_fallback_dns_csv "$_many_fallback" || { echo "fallback DNS requires 1..3 IPv4 literals" >&2; return 2; }
+    valid_fallback_dns_csv "$_many_fallback" || { echo "fallback DNS requires one or more IPv4 literals" >&2; return 2; }
   fi
   write_dns_sections_many "$_many_custom" "$_many_global" "$_many_fallback" || return 1
   echo "dns_servers=updated custom=$_many_custom global=$_many_global fallback=$_many_fallback"
@@ -628,6 +628,11 @@ dns_profile_get() {
     echo "DNS profile contains an ambiguous or malformed response-mode section" >&2
     return 22
   }
+  _retention_record=$(dns_querylog_retention_get) || return $?
+  case "$_retention_record" in
+    querylog_retention=*) _profile_retention=\${_retention_record#querylog_retention=} ;;
+    *) echo "DNS query-log retention is unavailable" >&2; return 22 ;;
+  esac
   echo FXYULONGDNSPROFILE1
   for key in dns_engine_adguardhome dns_forward custom_dns global_dns block_quic block_dot block_plain_dns block_ipv6 block_track_domains vpn_external_dns_proxy vpn_external_compat dns_querylog_enabled; do
     printf '%s=%s\n' "$key" "$(pg_get "$key" 0)"
@@ -642,6 +647,7 @@ dns_profile_get() {
   mode=$(awk '$0=="[conf:yulong_dns_response]"{inside=1;next} /^\[/{inside=0} inside&&/^mode=/{sub(/^mode=/,"");print;exit}' "$CONF" 2>/dev/null)
   [ -n "$mode" ] || mode=nxdomain
   printf 'RESPONSE_MODE=%s\n' "$mode"
+  printf 'QUERYLOG_RETENTION=%s\n' "$_profile_retention"
 }
 
 dns_profile_restore() {
@@ -658,13 +664,13 @@ dns_profile_restore() {
       if(index($0,"=")<2 || $0 ~ /\r/){bad=1;next}
       key=substr($0,1,index($0,"=")-1)
       value=substr($0,index($0,"=")+1)
-      if(key !~ /^(dns_engine_adguardhome|dns_forward|custom_dns|global_dns|block_quic|block_dot|block_plain_dns|block_ipv6|block_track_domains|vpn_external_dns_proxy|vpn_external_compat|dns_querylog_enabled|CUSTOM_SERVERS|GLOBAL_SERVERS|FALLBACK_SERVERS|VPN_REMOTE|VPN_CN|RESPONSE_MODE)$/)bad=1
+      if(key !~ /^(dns_engine_adguardhome|dns_forward|custom_dns|global_dns|block_quic|block_dot|block_plain_dns|block_ipv6|block_track_domains|vpn_external_dns_proxy|vpn_external_compat|dns_querylog_enabled|CUSTOM_SERVERS|GLOBAL_SERVERS|FALLBACK_SERVERS|VPN_REMOTE|VPN_CN|RESPONSE_MODE|QUERYLOG_RETENTION)$/)bad=1
       if(seen[key]++)bad=1
       count++
     }
-    END{if(bad||count!=18)exit 1}
+    END{if(bad||(count!=18&&count!=19))exit 1}
   ' "$_yad_profile_raw" || { echo "DNS profile has unknown, duplicate, missing, or malformed fields" >&2; return 2; }
-  _profile_seen='|'
+  _profile_querylog_retention=7d
   while IFS= read -r _profile_line || [ -n "$_profile_line" ]; do
     [ "$_profile_line" = FXYULONGDNSPROFILE1 ] && continue
     _profile_key=${_profile_line%%=*}; _profile_value=${_profile_line#*=}
@@ -689,6 +695,9 @@ dns_profile_restore() {
         ;;
       RESPONSE_MODE)
         case "$_profile_value" in nxdomain|refused|custom_ip) : ;; *) echo "invalid DNS response mode" >&2; return 2 ;; esac
+        ;;
+      QUERYLOG_RETENTION)
+        case "$_profile_value" in 1d|3d|7d|30d) _profile_querylog_retention=$_profile_value ;; *) echo "invalid DNS query-log retention" >&2; return 2 ;; esac
         ;;
     esac
     case "$_profile_key" in
@@ -728,6 +737,7 @@ dns_profile_restore() {
     pg_set block_ipv6 "$_profile_ipv6" &&
     pg_set block_track_domains "$_profile_track" &&
     pg_set dns_querylog_enabled "$_profile_querylog" || return 1
+  write_dns_querylog_retention "$_profile_querylog_retention" || return 1
   if [ -n "$_profile_custom" ]; then m_dns_servers custom_dns "$_profile_custom" || return 1
   else m_dns_section_clear custom_dns || return 1; fi
   if [ -n "$_profile_global" ]; then m_dns_servers global_dns "$_profile_global" || return 1
@@ -1603,15 +1613,15 @@ case "$cmd" in
   case "$2" in
     custom)
       section=custom_dns
-      valid_dns_csv "$servers" || { echo "custom DNS accepts 1..3 IPv4, https:// DoH, tls:// DoT, or quic:// DoQ endpoints" >&2; exit 2; }
+      valid_dns_csv "$servers" || { echo "custom DNS accepts one or more IPv4, https:// DoH, tls:// DoT, or quic:// DoQ endpoints" >&2; exit 2; }
       ;;
     global)
       section=global_dns
-      valid_ipv4_dns_csv "$servers" || { echo "global DNS requires 1..3 IPv4 literals" >&2; exit 2; }
+      valid_ipv4_dns_csv "$servers" || { echo "global DNS requires one or more IPv4 literals" >&2; exit 2; }
       ;;
     fallback)
       section=yulong_dns_fallback
-      valid_fallback_dns_csv "$servers" || { echo "fallback DNS requires 1..3 routable IPv4 literals" >&2; exit 2; }
+      valid_fallback_dns_csv "$servers" || { echo "fallback DNS requires one or more routable IPv4 literals" >&2; exit 2; }
       ;;
     *) exit 2 ;;
   esac

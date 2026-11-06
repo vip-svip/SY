@@ -97,7 +97,7 @@ public final class FxYulongAdActivity extends de.privacyguard.adhook.FxNativeTab
   final long requestGeneration=pageGeneration;
   final String requestPage=page;
   Runnable task=()->{
-   RootAccess.Result result=RootAccess.execute(cmd(args),90000L,512*1024);
+   RootAccess.Result result=RootAccess.execute(cmd(args),90000L,Integer.MAX_VALUE);
    runOnUiThread(()->{
     if(isFinishing()||isDestroyed()||requestGeneration!=pageGeneration
        ||!requestPage.equals(page))return;
@@ -135,7 +135,7 @@ public final class FxYulongAdActivity extends de.privacyguard.adhook.FxNativeTab
        return;
       }
      }
-     result=RootAccess.execute(cmd(args),90000L,512*1024);
+     result=RootAccess.execute(cmd(args),90000L,Integer.MAX_VALUE);
     }catch(Throwable failure){
      runOnUiThread(()->{if(!isFinishing()&&!isDestroyed()
         &&requestGeneration==pageGeneration&&requestPage.equals(page))
@@ -761,7 +761,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
   globalServers.setSingleLine(false);globalServers.setMinLines(2);
   globalServers.setHint("例如：8.8.8.8,1.1.1.1");
   card("自定义/全局/备用 DNS 服务器",
-       "自定义 DNS 最多 3 个上游，可混合 IPv4、DoH、DoT、DoQ；备用 DNS 只支持 IPv4。加密上游只在 FX 本地 AdGuard Home 过滤引擎运行时生效；启用“阻止 DoT/QUIC”会阻断对应传输协议。",
+       "自定义 DNS 支持任意多条上游地址（保留逐条格式与协议校验，不设置应用层条数上限），可混合 IPv4、DoH、DoT、DoQ；备用 DNS 只支持 IPv4。加密上游只在 FX 本地 AdGuard Home 过滤引擎运行时生效；启用“阻止 DoT/QUIC”会阻断对应传输协议。",
        btn("一次性保存三组 DNS 上游",()->saveDnsServerLists(customServers,globalServers,fallbackServers)),
        txt("自定义 DNS 上游",12,0xff617080,true),customServers,
        btn("保存自定义 DNS",()->saveDnsServerList("custom",customServers)),
@@ -913,7 +913,7 @@ private void restoreDnsProfile(EditText input){
   String[] allowed={"dns_engine_adguardhome","dns_forward","custom_dns","global_dns",
       "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
       "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled",
-      "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE"};
+      "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE","QUERYLOG_RETENTION"};
   java.util.Set<String> keys=new java.util.HashSet<>(java.util.Arrays.asList(allowed));
   java.util.Map<String,String> preview=new java.util.LinkedHashMap<>();
   for(String line:raw.split("\\n")){
@@ -926,11 +926,15 @@ private void restoreDnsProfile(EditText input){
     }
     preview.put(key,line.substring(split+1));
   }
-  if(preview.size()!=allowed.length){
+  if(preview.size()!=allowed.length&&preview.size()!=allowed.length-1){
     status.setText("快照字段不完整（"+preview.size()+"/"+allowed.length+"），未提交。");return;
   }
   for(String key:allowed)if(!preview.containsKey(key)){
-    status.setText("快照缺少字段："+key+"；未提交。");return;
+    if("QUERYLOG_RETENTION".equals(key)){
+      preview.put(key,"7d");
+    }else{
+      status.setText("快照缺少字段："+key+"；未提交。");return;
+    }
   }
   for(String key:new String[]{"dns_engine_adguardhome","dns_forward","custom_dns","global_dns",
       "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
@@ -949,6 +953,11 @@ private void restoreDnsProfile(EditText input){
   if(!"nxdomain".equals(responseMode)&&!"refused".equals(responseMode)&&!"custom_ip".equals(responseMode)){
     status.setText("快照拦截响应模式非法；未提交。");return;
   }
+  String querylogRetention=preview.get("QUERYLOG_RETENTION");
+  if(!"1d".equals(querylogRetention)&&!"3d".equals(querylogRetention)
+      &&!"7d".equals(querylogRetention)&&!"30d".equals(querylogRetention)){
+    status.setText("快照 DNS 查询日志保留期限非法；未提交。");return;
+  }
   for(String key:new String[]{"CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS"}){
     String value=preview.get(key);
     boolean encrypted="CUSTOM_SERVERS".equals(key);
@@ -961,12 +970,12 @@ private void restoreDnsProfile(EditText input){
       "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
       "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled"})
     if("1".equals(preview.get(key)))enabled++;
-  String summary="快照包含 18 项字段、12 个开关（启用 "+enabled+" 项）。\\n"
+  String summary="快照包含 19 项字段、12 个开关（启用 "+enabled+" 项）。\\n"
       +"自定义上游："+countDnsEndpoints(preview.get("CUSTOM_SERVERS"))+" 条；"
       +"全局上游："+countDnsEndpoints(preview.get("GLOBAL_SERVERS"))+" 条；"
       +"备用上游："+countDnsEndpoints(preview.get("FALLBACK_SERVERS"))+" 条。\\n"
       +"VPN 远端 DNS："+preview.get("VPN_REMOTE")+"；国内 DNS："+preview.get("VPN_CN")+"。\\n"
-      +"拦截响应模式："+preview.get("RESPONSE_MODE")+"。\\n\\n"
+      +"拦截响应模式："+preview.get("RESPONSE_MODE")+"；查询日志保留："+querylogRetention+"。\\n\\n"
       +"这是本地结构预览，不代表端点及配置语义已通过后端校验；继续后仍由 FX Root 后端完整校验。";
   String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);
   root("dns-profile-get",currentResult->{
@@ -988,7 +997,7 @@ private void restoreDnsProfile(EditText input){
     String[] labels={"dns_engine_adguardhome","dns_forward","custom_dns","global_dns",
       "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
       "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled",
-      "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE"};
+      "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE","QUERYLOG_RETENTION"};
     StringBuilder changes=new StringBuilder();
     for(String key:labels){
       String oldValue=current.get(key),newValue=preview.get(key);
@@ -1002,7 +1011,7 @@ private void restoreDnsProfile(EditText input){
       .setMessage(summary+"\\n\\n"+changeText)
       .setNegativeButton("取消",null)
       .setPositiveButton("继续恢复",(d,w)->fxDialogBuilder().setTitle("确认完整替换 DNS 配置")
-        .setMessage("将完整替换当前 DNS 引擎开关、过滤策略、上游服务器、VPN DNS 与拦截响应模式。后端会再次校验全部字段；恢复应用失败会回滚原配置。不会修改 VPN 节点或其他 FX 模块设置。")
+        .setMessage("将完整替换当前 DNS 引擎开关、过滤策略、全部上游服务器、VPN DNS、拦截响应模式与查询日志保留期限。后端会再次校验全部字段；恢复应用失败会回滚原配置。不会修改 VPN 节点或其他 FX 模块设置。")
         .setNegativeButton("取消",null)
         .setPositiveButton("恢复",(dialog,which)->root("dns-profile-restore "+encoded,r->{
           if(r.exitCode==0){status.setText("DNS 配置快照已恢复并应用。");input.setText("");load();}
@@ -1020,7 +1029,6 @@ v4(String value){
 private boolean isValidProfileDnsCsv(String value,boolean encryptedAllowed){
   if(value==null||value.isEmpty())return true;
   String[] entries=value.split(",",-1);
-  if(entries.length>3)return false;
   java.util.Set<String> seen=new java.util.HashSet<>();
   for(String entry:entries){
     if(entry.isEmpty()||!seen.add(entry.toLowerCase(java.util.Locale.ROOT)))return false;
@@ -1678,7 +1686,7 @@ private String dnsValue(String key){for(String line:snapshot.split("\\r?\\n")){S
   final long requestGeneration=pageGeneration;
   final String requestPage=page;
   Runnable task=()->{
-   RootAccess.Result result=RootAccess.execute(profileCmd(args),90000L,512*1024);
+   RootAccess.Result result=RootAccess.execute(profileCmd(args),90000L,Integer.MAX_VALUE);
    runOnUiThread(()->{
     if(isFinishing()||isDestroyed()||requestGeneration!=pageGeneration
        ||!requestPage.equals(page))return;
