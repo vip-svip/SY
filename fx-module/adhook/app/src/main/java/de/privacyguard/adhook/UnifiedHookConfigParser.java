@@ -34,6 +34,8 @@ public final class UnifiedHookConfigParser {
         public final boolean clipboardReadBlock;
         public final boolean clipboardIsolate;
         public final boolean sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx;
+        /** Additional opt-in Android sensor families assigned by the config parser. */
+        public boolean sensorEnvironment, sensorFusion, sensorGesture, sensorBiometric;
         public final boolean sensorRateLimit;
         public final boolean wifiScanBlock;
         public final boolean notificationListenBlock;
@@ -290,7 +292,7 @@ public final class UnifiedHookConfigParser {
             if (!validPackage(pkg) || NEVER.contains(pkg) || targets.containsKey(pkg))
                 throw new IllegalArgumentException("invalid, protected or duplicate package");
             boolean splash = false, feed = false, overlay = false, member = false, targetPrivacy = false, exifStrip = false, clipboardReadBlock = false, clipboardIsolate = false;
-            boolean sensorAccel=false, sensorGyro=false, sensorLight=false, sensorMagnet=false, sensorPressure=false, sensorProx=false, sensorRateLimit=false, wifiScanBlock=false, notificationListenBlock=false, notificationPermissionHideTarget=false, microphoneSilence=false, cameraAccessBlock=false, locationAccessBlock=false, microphoneAccessBlock=false, mediaStoreQueryBlock=false, adIdUnify=false, locationProviderEnabledSimulation=false;
+            boolean sensorAccel=false, sensorGyro=false, sensorLight=false, sensorMagnet=false, sensorPressure=false, sensorProx=false, sensorRateLimit=false, sensorEnvironment=false, sensorFusion=false, sensorGesture=false, sensorBiometric=false, wifiScanBlock=false, notificationListenBlock=false, notificationPermissionHideTarget=false, microphoneSilence=false, cameraAccessBlock=false, locationAccessBlock=false, microphoneAccessBlock=false, mediaStoreQueryBlock=false, adIdUnify=false, locationProviderEnabledSimulation=false;
             boolean wifiSimulation=false;
             String simulatedWifiSsid=null, simulatedWifiBssid=null;
             boolean networkTypeSimulation=false;
@@ -491,6 +493,10 @@ public final class UnifiedHookConfigParser {
                     case "sensor_magnet": sensorMagnet = on; break;
                     case "sensor_pressure": sensorPressure = on; break;
                     case "sensor_prox": sensorProx = on; break;
+                    case "sensor_environment": sensorEnvironment = on; break;
+                    case "sensor_fusion": sensorFusion = on; break;
+                    case "sensor_gesture": sensorGesture = on; break;
+                    case "sensor_biometric": sensorBiometric = on; break;
                     case "sensor_rate_limit": sensorRateLimit = on; break;
                     case "wifi_scan_block": wifiScanBlock = on; break;
                     case "wifi_simulate": wifiSimulation = on; break;
@@ -513,6 +519,10 @@ public final class UnifiedHookConfigParser {
             }
             if (clipboardReadBlock && clipboardIsolate) throw new IllegalArgumentException("clipboard isolation conflicts with read block");
             Target parsedTarget = new Target(splash, feed, overlay, member, targetPrivacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanBlock, notificationListenBlock, notificationPermissionHideTarget, clipboardIsolate, microphoneSilence, cameraAccessBlock, locationAccessBlock, microphoneAccessBlock, mediaStoreQueryBlock, adIdUnify);
+            parsedTarget.sensorEnvironment = sensorEnvironment;
+            parsedTarget.sensorFusion = sensorFusion;
+            parsedTarget.sensorGesture = sensorGesture;
+            parsedTarget.sensorBiometric = sensorBiometric;
             parsedTarget.developerVipMethod = developerVipMethod;
             parsedTarget.developerLoginMethod = developerLoginMethod;
             parsedTarget.developerHideUpdateMethod = developerHideUpdateMethod;
