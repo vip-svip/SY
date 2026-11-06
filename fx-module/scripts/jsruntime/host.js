@@ -293,8 +293,24 @@
     }
     return {};
   }
+  function _fxReadEgernScriptName() {
+    const scriptPath=String(scriptArgs[0]||'');
+    if(!scriptPath) return '';
+    const source=_fxRead(scriptPath,'');
+    const prefix='// FX-SCRIPT-NAME: ';
+    const lines=source.split(/\\r?\\n/);
+    for(let i=0;i<lines.length&&i<16;i++){
+      if(lines[i].indexOf(prefix)!==0) continue;
+      const name=lines[i].slice(prefix.length).replace(/[\\x00-\\x1f\\x7f]/g,' ').trim();
+      return name.length<=512?name:name.slice(0,512);
+    }
+    return '';
+  }
   const _fxEgernEventEnv=(_fxEvent.env&&typeof _fxEvent.env==='object')?_fxEvent.env:{};
   const _fxEgernEnv=Object.assign({},_fxReadEgernScriptEnv(),_fxEgernEventEnv);
+  const _fxEgernScriptName=_fxReadEgernScriptName();
+  const _fxEgernScript=Object.assign({},globalThis.$script);
+  if(_fxEgernScriptName) _fxEgernScript.name=_fxEgernScriptName;
   const _fxEgernDevice=(_fxEvent.device&&typeof _fxEvent.device==='object')?_fxEvent.device:{};
   const _fxEgernStage=String(_fxEvent.stage||'').toLowerCase();
   const _fxEgernHasRequest=['request','response','http-request','http-response'].indexOf(_fxEgernStage)>=0;
@@ -302,7 +318,7 @@
   const _fxEgernRequest=_fxEgernHasRequest?_fxEgernMessage(globalThis.$request,false):undefined;
   const _fxEgernResponse=_fxEgernHasResponse?_fxEgernMessage(globalThis.$response,true):undefined;
   globalThis.ctx={
-    script:Object.assign({},globalThis.$script),
+    script:_fxEgernScript,
     env:Object.assign({},_fxEgernEnv),
     app:{version:String(globalThis.$environment.version||''),language:String(globalThis.$environment.language||'')},
     device:Object.assign({},_fxEgernDevice),
