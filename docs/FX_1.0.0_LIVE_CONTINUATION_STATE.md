@@ -7675,3 +7675,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 对 Manifest 标记为 exported 的 Activity 增加显式启动入口。启动前再次确认目标包仍为当前选择，并从已读取组件清单确认该 Activity 仍为 exported 且当前启用；显示组件声明权限及启动影响说明后才调用显式 ComponentName Intent。Android 权限拒绝、组件状态变化和其他启动异常分别反馈。
 - 不向非 exported 组件提供启动入口，不绕过组件权限或 Android 导出规则。
 - 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或真机验证；启动能力仍待设备侧确认。
+
+## 2026-11-06 — Activity 组件当前页批量启停补齐
+
+- 代码提交：`8bce7fc07b2e0b13d55a70acf59f45b36d3f2574`
+- 文件：`adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaActivityBrowserActivity.java`
+- Activity 管理页在现有“当前筛选当前页批量启用已禁用组件”之外，新增“当前筛选当前页批量禁用已启用组件”。
+- 两个操作都严格使用当前搜索结果和当前分页，不扩展到其他页或整个应用；只收集状态与筛选匹配的组件，并在 Root 操作前显示数量、目标包和明确确认。
+- 禁用通过当前 Android 用户的 `pm disable-user` 逐组件执行，保留成功/失败计数并在操作后重新读取 PackageManager 状态；不会停用整个应用。
+- 本批未运行测试、静态检查、Gradle 构建、CI、安装或真机验证。
