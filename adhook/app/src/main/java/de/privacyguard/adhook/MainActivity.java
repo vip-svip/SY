@@ -1087,6 +1087,7 @@ public final class MainActivity extends ComponentActivity {
         dnsActions.setOrientation(LinearLayout.VERTICAL);
         dnsActions.addView(nativeAction("DNS 引擎与 VPN DNS 设置", this::showNativeDnsSettingsDialog));
         dnsActions.addView(nativeAction("应用 DNS 白名单", this::showRootProxyDnsWhitelistDialog));
+        dnsActions.addView(nativeAction("刷新本地 DNS 缓存", this::flushNativeDnsCache));
         dnsActions.addView(nativeAction("刷新本地 DNS 缓存", () ->
                 runNativeModuleCommand("sh \\"$MP/scripts/yulong-ad-control.sh\\" cache-flush", 180000L, result -> {
                     String message = result.output == null ? "" : result.output.trim();
@@ -1134,6 +1135,21 @@ public final class MainActivity extends ComponentActivity {
             if (parts.length == 2) values.put(parts[0], parts[1]);
         }
         return values;
+    }
+
+    private void flushNativeDnsCache() {
+        runNativeModuleCommand("sh \"$MP/scripts/yulong-ad-control.sh\" cache-flush", 180000L, result -> {
+            String detail = result.output == null ? "" : result.output.trim();
+            if (result.exitCode == 0 && detail.contains("cache=flushed")) {
+                Toast.makeText(this, "本地 DNS 缓存已刷新", Toast.LENGTH_LONG).show();
+                showNativeDnsSettingsDialog();
+            } else {
+                FxNativeSkin.builder(this).setTitle("DNS 缓存刷新未完成")
+                        .setMessage(detail.isEmpty() ? "DNS 引擎未返回刷新结果。" : detail)
+                        .setPositiveButton("重试", (d, w) -> flushNativeDnsCache())
+                        .setNegativeButton("关闭", null).show();
+            }
+        });
     }
 
     private void refreshNativeDnsStatus(TextView target) {
@@ -1273,13 +1289,13 @@ public final class MainActivity extends ComponentActivity {
                     for (ApplicationInfo info : installed) {
                         packages.add(info.packageName);
                         names.add(labels.getOrDefault(info.packageName, info.packageName)
-                                + "\\n" + info.packageName);
+                                + "\n" + info.packageName);
                     }
                     // Keep stale selections visible so removed/uninstalled apps can be cleared.
                     for (String pkg : selectedPackages) {
                         if (!packages.contains(pkg)) {
                             packages.add(pkg);
-                            names.add("未安装应用\\n" + pkg);
+                            names.add("未安装应用\n" + pkg);
                         }
                     }
                     boolean[] checked = new boolean[packages.size()];
@@ -1290,6 +1306,7 @@ public final class MainActivity extends ComponentActivity {
                             .setMultiChoiceItems(names.toArray(new String[0]), checked, (dialog, which, enabled) -> {
                                 String pkg = packages.get(which);
                                 android.widget.ListView listView = ((AlertDialog) dialog).getListView();
+                                listView.setEnabled(false);
                                 for (int n = 0; n < listView.getChildCount(); n++) {
                                     View row = listView.getChildAt(n);
                                     if (row != null) row.setEnabled(false);
@@ -1308,6 +1325,7 @@ public final class MainActivity extends ComponentActivity {
                                                 (apply.output == null ? "unknown" : apply.output.trim()),
                                                 Toast.LENGTH_LONG).show();
                                     }
+                                    listView.setEnabled(true);
                                     for (int n = 0; n < listView.getChildCount(); n++) {
                                         View row = listView.getChildAt(n);
                                         if (row != null) row.setEnabled(true);
