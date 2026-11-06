@@ -7130,3 +7130,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 提交：同步器参数接线 c45c05f071d4be60573e1127b3d8f3c2fd3e2be2；同步器重复字段/头收敛 44fe43736d513625c72eb236e195f4b64797850b；应用 UI b230cead26cc59ea98b5cfb1dda0b587673c1d69；模块 UI 40b314cf12fdd33aff6c250efb720841e8bd9da4；运行时说明 c063325163dea55f705204b6a631f60f61684fd3。
 - QuickJS host 以及根/模块两份 Egern 构建恢复补丁的参数读取桥接已存在于最新分支；这部分由并行改动提交，本轮重新接入并保留，没有覆盖其 SHA。
 - 固定 FX 1.0.0；依照当前移植节奏，没有运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-06 — Wi-Fi 扫描请求与回调面扩展
+
+- Wi-Fi 扫描隐私从 `WifiManager.getScanResults()` 扩展到 `startScan()`；命中按应用策略时既隐藏扫描结果，也阻止目标应用主动排队发起新扫描。`isScanAlwaysAvailable()` 继续按原有策略返回不可用。
+- 新增可选的 `WifiScanner` 系统服务覆盖：拦截 `startScan` / `startPnoScan`、`getSingleScanResults` / `getPnoScanResults` / `getScanResults`，并阻止注册 `registerScanListener` / `registerScanResultsCallback`。卸载监听器等清理接口不拦截。
+- 所有路径统一复用 `WifiScanPrivacyPolicy.shouldBlock()`；单包进程及显式按应用开关条件不变，系统或共享包进程仍 fail-open。WifiScanner 不存在时，WifiManager 公共 API 钩子仍独立保留。
+- 应用 Hook 提交：`e2d57586bd23022e25ffceab6bb3b88f5c332d4f`；模块 Hook 提交：`0fdc9c966f9ce881687618588298a42f8d2f5e25`。
+- 按当前要求未运行测试、静态检查、构建、CI 或真机验证。
