@@ -130,7 +130,10 @@ int main(int argc,char **argv) {
     }
     query[n++]=0; put16(query+n,1u); n+=2; put16(query+n,1u); n+=2;
     fd=socket(AF_INET,SOCK_DGRAM,0); if(fd<0) { perror("socket"); return 70; }
-    if(setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&tv,sizeof(tv))!=0) { perror("SO_RCVTIMEO"); close(fd); return 70; }
+    if(setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&tv,sizeof(tv))!=0 ||
+       setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&tv,sizeof(tv))!=0) {
+        perror("DNS probe socket timeout"); close(fd); return 70;
+    }
     if(connect(fd,(struct sockaddr *)&server,sizeof(server))!=0) { perror("connect"); close(fd); return 70; }
     if(send(fd,query,n,0)!=(ssize_t)n) { perror("send"); close(fd); return 71; }
     ssize_t udp_got=recv(fd,reply,sizeof(reply),0);
