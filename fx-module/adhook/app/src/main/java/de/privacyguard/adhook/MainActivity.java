@@ -233,6 +233,16 @@ public final class MainActivity extends ComponentActivity {
             boolean replacing = intent.getBooleanExtra(Intent.EXTRA_REPLACING, false);
             if (replacing && (added || removed)) return;
 
+            // Keep Root Proxy's installed-package snapshot aligned with Android package lifecycle events.
+            // The module command owns its lock, atomic whitelist prune and VPN-route reconciliation.
+            runNativeModuleCommand("MP=\"$MP\" PG=/data/adb/privacyguard sh "
+                    + "\"$MP/scripts/yulong-root-proxy.sh\" package-event", 120000L, reconcile -> {
+                if (reconcile.exitCode != 0) {
+                    android.util.Log.w("FXHook", "Root Proxy package-event reconciliation did not complete: "
+                            + (reconcile.output == null ? "unknown" : reconcile.output.trim()));
+                }
+            });
+
             if (hookTargetVisible && packageName.equals(selectedPackage) && removed) {
                 Toast.makeText(MainActivity.this,
                         "当前 Hook 目标应用已卸载，已保留其配置并返回应用列表。",
