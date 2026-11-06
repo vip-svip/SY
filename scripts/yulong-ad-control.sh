@@ -815,6 +815,7 @@ write_allow() {
 m_allow_add(){ write_allow "$1" "$2" 1 add; }
 m_allow_remove(){ write_allow "$1" "" 0 remove; }
 m_allow_set(){ old_note=$(pg_list domain|awk -F'|' -v d="$1" '$1==d{print $2;exit}'); [ -n "$old_note" ] || return 3; write_allow "$1" "$old_note" "$2" set; }
+m_allow_note(){ old_state=$(pg_list domain|awk -F"|" -v d="$1" '$1==d{print $3;exit}'); [ -n "$old_state" ] || return 3; write_allow "$1" "$2" "$old_state" set; }
 m_allow_import(){ import_domains allow "$1"; }
 allow_set_many() {
   _allow_enabled=$1; _allow_encoded=$2
@@ -848,6 +849,7 @@ allow_set_many() {
   rm -f "$_yad_set_raw" "$_yad_set_clean"; _yad_set_raw=; _yad_set_clean=
   echo "updated=$_allow_count enabled=$_allow_enabled"
 }
+m_block_note(){ old_state=$(pg_list block|awk -F"|" -v d="$1" '$1==d{print $3;exit}'); [ -n "$old_state" ] || return 3; write_block "$1" "$2" "$old_state" set; }
 m_block_add(){ write_block "$1" "$2" 1 add; }
 m_block_set(){ old_note=$(pg_list block|awk -F'|' -v d="$1" '$1==d{print $2;exit}'); [ -n "$old_note" ] || return 3; write_block "$1" "$old_note" "$2" set; }
 block_set_many() {
@@ -1152,6 +1154,10 @@ case "$cmd" in
  allow-remove)
   [ "$#" -eq 2 ] || exit 2; d=$(valid_domain "$2") || exit 2
   with_lock transaction m_allow_remove "$d" ;;
+ allow-note)
+  [ "$#" -eq 3 ] || exit 2
+  d=$(valid_domain "$2") || exit 2; valid_text "$3" || exit 2
+  with_lock transaction m_allow_note "$d" "$3" ;;
  allow-set)
   [ "$#" -eq 3 ] || exit 2
   d=$(valid_domain "$2") || exit 2
@@ -1181,6 +1187,10 @@ case "$cmd" in
   [ "$#" -ge 2 ] && [ "$#" -le 3 ] || exit 2
   d=$(valid_domain "$2") || exit 2; note=$3; [ -n "$note" ] || note="FX 黑名单"; valid_text "$note" || exit 2
   with_lock transaction m_block_add "$d" "$note" ;;
+ block-note)
+  [ "$#" -eq 3 ] || exit 2
+  d=$(valid_domain "$2") || exit 2; valid_text "$3" || exit 2
+  with_lock transaction m_block_note "$d" "$3" ;;
  block-set)
   [ "$#" -eq 3 ] || exit 2
   d=$(valid_domain "$2") || exit 2
