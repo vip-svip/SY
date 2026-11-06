@@ -245,3 +245,12 @@
 - 文件：`fx-module/scripts/yulong-root-proxy-package-watch.sh`。
 - 修正新增解析器的 Shell/awk 转义，恢复逐行分隔与标准空白字符匹配。
 - 保留整份快照完整性门槛；本轮未运行测试、静态检查、构建、CI 或设备验证。
+
+
+### FX DNS 原生状态页补齐 Root Proxy 运行诊断字段（2026-11-07）
+
+- 代码提交：`d2c5ef5c6b4d3a6ae708a4f08b64a6c1b147aaca`。
+- 文件：`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
+- DNS 运行状态页新增显示 AdGuard Home/Unbound 与第三方 VPN 兼容开关、Root Proxy 原因及清理状态、VPN 接口/UID/出口 IPv4、启动时间、DNS 重定向、DNS/路由探测、Android 私有 DNS 模式和 Root Proxy 白名单数量。
+- 字段直接来自原生 DNS 状态命令的既有键值，不新增网络操作或更改 DNS/VPN 配置行为。
+- 按用户要求未运行测试、静态检查、构建、CI 或设备验证。
