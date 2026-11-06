@@ -70,8 +70,6 @@ public final class FxYulongAdActivity extends de.privacyguard.adhook.FxNativeTab
  private static final int DNS_PROFILE_SAVE_REQUEST=4203;
  private EditText dnsProfileImportField;
  private String pendingDnsProfileExport="";
- private static final int BULK_DRAFT_MAX_CHARS=48*1024;
- private static final int TEXT_DRAFT_MAX_CHARS=4096;
  private Bundle pendingRestoredDrafts;
  private Bundle retainedDrafts=new Bundle();
  private static final class Row {String kind,value,title;boolean enabled;Row(String k,String v,String t,boolean e){kind=k;value=v;title=t;enabled=e;}}
@@ -81,8 +79,6 @@ public final class FxYulongAdActivity extends de.privacyguard.adhook.FxNativeTab
  private EditText draftField(String key){
   EditText field=new EditText(this);
   field.setTag("fx-yulong-ad-draft:"+key);
-  int maxChars=key.endsWith("_bulk")?BULK_DRAFT_MAX_CHARS:TEXT_DRAFT_MAX_CHARS;
-  field.setFilters(new InputFilter[]{new InputFilter.LengthFilter(maxChars)});
   draftFields.put(key,field);
   return field;
  }
@@ -571,7 +567,6 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
    if(filter.isEmpty()||(row.value+" "+row.title).toLowerCase(Locale.ROOT).contains(filter))sources.add(row.value);
   }
   if(sources.isEmpty()){status.setText("当前筛选没有可批量更新的过滤列表。");return;}
-  if(sources.size()>2000){status.setText("当前筛选超过 2000 个列表，请缩小筛选范围。");return;}
   StringBuilder lines=new StringBuilder();
   for(String source:sources)lines.append(source).append('\n');
   String encoded=android.util.Base64.encodeToString(lines.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8),android.util.Base64.NO_WRAP);
@@ -1290,7 +1285,7 @@ private void saveVpnDns(String key,EditText input){
       btn("清空全部白名单",()->clearAllDomains("allow")));
   EditText allowBulk=draftField("allow_bulk"); allowBulk.setGravity(Gravity.TOP|Gravity.START);
   allowBulk.setMinLines(4); allowBulk.setHint("每行一个域名；可选格式：example.com|备注");
-  card("批量导入白名单","最多 2000 条、48 Ki 字符（导入字节仍限制为 64 KiB）。整批验证并通过一次 FX apply 事务；失败会回滚。",
+  card("批量导入白名单","不限制名单条目数量；整批验证并通过一次 FX apply 事务。整批验证并通过一次 FX apply 事务；失败会回滚。",
       allowBulk,btn("验证并批量导入白名单",()->importDomains("allow",allowBulk)));
 
   EditText block=draftField("block_domain"); block.setSingleLine(true); block.setHint("黑名单域名");
@@ -1313,7 +1308,7 @@ private void saveVpnDns(String key,EditText input){
   allowRemoveBulk.setMinLines(3);
   allowRemoveBulk.setHint("每行一个域名；仅删除白名单中匹配的条目");
   card("批量移除白名单",
-      "最多 2000 条。先完整校验域名，再在单次 FX 配置事务中移除；任何一步失败都会回滚。",
+      "完整校验筛选域名，再在单次 FX 配置事务中移除；任何一步失败都会回滚。",
       allowRemoveBulk,
       btn("确认批量移除白名单",()->removeDomains("allow",allowRemoveBulk)));
 
@@ -1392,7 +1387,6 @@ private void saveVpnDns(String key,EditText input){
   if(selected.isEmpty()){status.setText("当前筛选条件下没有匹配的白名单条目。");return;}
   String payload=String.join("\n",selected);
   byte[] bytes=payload.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-  if(bytes.length>65536){status.setText("批量状态数据超过 64 KiB，请缩小筛选范围。");return;}
   String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);
   String action=enabled?"启用":"停用";
   fxDialogBuilder().setTitle(action+"筛选命中的白名单")
@@ -1444,7 +1438,7 @@ private void saveVpnDns(String key,EditText input){
        +cleanDomainExportField(row.title)+"\\n";
    int bytes=line.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
    if(used+bytes>maxBytes){
-    status.setText("完整名单超过 64 KiB 导出上限（已处理 "+included+"/"+selected.size()+" 条）；已取消导出，避免生成不完整备份。请分名单导出或减少条目后重试。");
+    status.setText("名单导出未完成，已取消生成不完整备份。请检查系统分享目标或设备资源后重试。");
     return;
    }
    payload.append(line);used+=bytes;included++;
@@ -1459,7 +1453,7 @@ private void saveVpnDns(String key,EditText input){
    send.putExtra(Intent.EXTRA_TEXT,payload.toString());
    startActivity(Intent.createChooser(send,"分享域名名单"));
    status.setText("已准备分享 "+included+" 条域名名单"
-       +(omitted>0?"；另有 "+omitted+" 条因 64 KiB 上限省略。":"。"));
+       "。");
   }catch(RuntimeException unavailable){
    status.setText("无法打开系统分享面板："+safe(unavailable.getMessage()));
   }
