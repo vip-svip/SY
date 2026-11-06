@@ -275,36 +275,66 @@ remove_dns_section() {
 m_dns_section_clear() { remove_dns_section "$1"; }
 
 
+validate_dns_response_config() {
+  awk '
+    BEGIN { inside=0; sections=0; modes=0; bad=0; value="" }
+    $0=="[conf:yulong_dns_response]" {
+      sections++
+      if (inside || sections>1) bad=1
+      inside=1
+      next
+    }
+    /^\[/ { inside=0 }
+    inside && /^[[:space:]]*#/ { next }
+    inside && /^[[:space:]]*$/ { next }
+    inside && /^mode=/ {
+      modes++
+      value=substr($0,6)
+      if (value!="nxdomain" && value!="refused" && value!="custom_ip") bad=1
+      next
+    }
+    inside { bad=1 }
+    END {
+      if (sections>1 || modes>1 || bad) exit 1
+      if (sections==0) exit 0
+      if (modes!=1) exit 1
+    }
+  ' "$CONF"
+}
 write_dns_response() {
   mode=$1
+  case "$mode" in nxdomain|refused|custom_ip) : ;; *) return 2 ;; esac
+  validate_dns_response_config || {
+    echo "existing DNS response-mode section is ambiguous or malformed" >&2
+    return 22
+  }
   tmp=$(mktemp "$CONF.yulong-dns-response.XXXXXX") || return 1
   _yad_conf_tmp=$tmp
-  awk -v mode="$mode" '
-    BEGIN{inside=0;seen=0;written=0}
+  if ! awk -v mode="$mode" '
+    BEGIN { inside=0; seen=0; written=0 }
     $0=="[conf:yulong_dns_response]" {
-      if(inside&&!written){print "mode=" mode;written=1}
-      inside=1;seen=1;print;next
+      inside=1; seen=1; print; next
     }
     /^\[/ {
-      if(inside&&!written){print "mode=" mode;written=1}
-      inside=0;print;next
+      if (inside && !written) { print "mode=" mode; written=1 }
+      inside=0; print; next
     }
-    inside&&/^mode=/ {
-      if(!written)print "mode=" mode
-      written=1;next
+    inside && /^mode=/ {
+      if (!written) print "mode=" mode
+      written=1; next
     }
-    {print}
-    END{
-      if(inside&&!written)print "mode=" mode
-      if(!seen){print "";print "[conf:yulong_dns_response]";print "mode=" mode}
+    { print }
+    END {
+      if (inside && !written) print "mode=" mode
+      if (!seen) { print ""; print "[conf:yulong_dns_response]"; print "mode=" mode }
     }
-  ' "$CONF" > "$tmp" || { rm -f "$tmp"; return 1; }
-  if [ -s "$tmp" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"; then _yad_conf_tmp=; return 0; fi
-  rm -f "$tmp"
-  _yad_conf_tmp=
-  return 1
-  rm -f "$tmp"
-  return 1
+  ' "$CONF" > "$tmp"; then
+    rm -f "$tmp"; _yad_conf_tmp=; return 1
+  fi
+  if [ -s "$tmp" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"; then
+    _yad_conf_tmp=; return 0
+  fi
+  rm -f "$tmp"; _yad_conf_tmp=; return 1
 }
 m_dns_response() { write_dns_response "$1"; }
 dns_config_set_many() {
@@ -1415,8 +1445,12 @@ case "$cmd" in
 
  dns-response-get)
   echo FXYULONGDNSRESP1
-  mode=$(awk -F= '$1=="mode" {v=$2} $0=="[conf:yulong_dns_response]" {inside=1;next} /^\[/ {inside=0} inside&&$1=="mode" {v=$2} END{print v}' "$CONF" 2>/dev/null)
-  case "$mode" in nxdomain|refused|custom_ip) ;; *) mode=nxdomain ;; esac
+  if ! validate_dns_response_config; then
+    echo "mode=unknown"
+    exit 22
+  fi
+  mode=$(awk '$0=="[conf:yulong_dns_response]"{inside=1;next} /^\[/{inside=0} inside&&/^mode=/{sub(/^mode=/,"");print;exit}' "$CONF" 2>/dev/null)
+  [ -n "$mode" ] || mode=nxdomain
   echo "mode=$mode"
   ;;
  dns-response-set)
