@@ -1923,6 +1923,186 @@ public final class MainActivity extends ComponentActivity {
         addNativeSettingsCategory("其他系统隐私", "miscPanel");
     }
 
+    private void openAndroidSettingsPage(String action, String label) {
+        Intent intent = new Intent(action);
+        if (intent.resolveActivity(getPackageManager()) == null) {
+            FxNativeSkin.builder(this).setTitle(label + "不可用")
+                    .setMessage("当前 Android 版本或系统设置应用未提供此授权页面。请在系统设置中手动查找对应权限。")
+                    .setPositiveButton("知道了", null).show();
+            return;
+        }
+        try {
+            startActivity(intent);
+        } catch (RuntimeException error) {
+            FxNativeSkin.builder(this).setTitle("无法打开" + label)
+                    .setMessage(error.getMessage() == null ? "系统拒绝打开该设置页面。" : error.getMessage())
+                    .setPositiveButton("关闭", null).show();
+        }
+    }
+
+    private void openAndroidPrivacyDashboard() {
+        Intent intent = new Intent("android.settings.PRIVACY_SETTINGS");
+        if (intent.resolveActivity(getPackageManager()) == null) {
+            FxNativeSkin.builder(this).setTitle("系统隐私面板不可用")
+                    .setMessage("当前 Android 版本或系统设置应用未提供隐私信息中心。可在系统设置中手动查找“隐私”或“隐私信息中心”。")
+                    .setPositiveButton("知道了", null).show();
+            return;
+        }
+        try {
+            startActivity(intent);
+        } catch (RuntimeException error) {
+            FxNativeSkin.builder(this).setTitle("无法打开系统隐私面板")
+                    .setMessage(error.getMessage() == null ? "系统拒绝打开隐私信息中心。" : error.getMessage())
+                    .setPositiveButton("关闭", null).show();
+        }
+    }
+
+    private static String nativePrivacyPolicyState(JSONObject json, String key) {
+        if (json == null || !json.has(key) || json.isNull(key)) return "状态接口未提供";
+        Object value = json.opt(key);
+        if (!(value instanceof Boolean)) return "状态格式未知";
+        return ((Boolean) value) ? "已启用" : "未启用";
+    }
+
+    private void openAppNotificationSettings() {
+        Intent intent = new Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+        intent.putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, getPackageName());
+        if (intent.resolveActivity(getPackageManager()) == null) {
+            intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    android.net.Uri.parse("package:" + getPackageName()));
+        }
+        try {
+            startActivity(intent);
+        } catch (RuntimeException error) {
+            FxNativeSkin.builder(this).setTitle("无法打开 FX 通知设置")
+                    .setMessage(error.getMessage() == null ? "系统拒绝打开通知设置页面。" : error.getMessage())
+                    .setPositiveButton("关闭", null).show();
+        }
+    }
+
+    private String appNotificationStatus() {
+        android.app.NotificationManager manager = (android.app.NotificationManager)
+                getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager == null) return "状态不可用";
+        return manager.areNotificationsEnabled() ? "允许显示" : "已禁止显示";
+    }
+
+    private String notificationAccessStatus() {
+        String enabled = android.provider.Settings.Secure.getString(
+                getContentResolver(), "enabled_notification_listeners");
+        if (enabled == null || enabled.isEmpty()) return "未授予";
+        for (String item : enabled.split(":")) {
+            if (item.startsWith(getPackageName() + "/")) return "已授予";
+        }
+        return "未授予";
+    }
+
+    private void openOverlayPermissionSettings() {
+        Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                android.net.Uri.parse("package:" + getPackageName()));
+        if (intent.resolveActivity(getPackageManager()) == null) {
+            openAndroidSettingsPage(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    "悬浮窗权限设置");
+            return;
+        }
+        try {
+            startActivity(intent);
+        } catch (RuntimeException error) {
+            FxNativeSkin.builder(this).setTitle("无法打开悬浮窗权限设置")
+                    .setMessage(error.getMessage() == null ? "系统拒绝打开该设置页面。" : error.getMessage())
+                    .setPositiveButton("关闭", null).show();
+        }
+    }
+
+    private String overlayPermissionStatus() {
+        return android.provider.Settings.canDrawOverlays(this) ? "已授予" : "未授予";
+    }
+
+    private String batteryOptimizationStatus() {
+        android.os.PowerManager power = (android.os.PowerManager)
+                getSystemService(Context.POWER_SERVICE);
+        if (power == null) return "状态不可用";
+        return power.isIgnoringBatteryOptimizations(getPackageName()) ? "已豁免" : "受系统优化管理";
+    }
+
+    private void openExactAlarmSettings() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            FxNativeSkin.builder(this).setTitle("无需精确闹钟特殊访问")
+                    .setMessage("当前 Android 版本不使用 Android 12 的精确闹钟特殊访问权限。")
+                    .setPositiveButton("知道了", null).show();
+            return;
+        }
+        Intent intent = new Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                Uri.parse("package:" + getPackageName()));
+        openAndroidIntent(intent, "精确闹钟访问设置");
+    }
+
+    private void openNotificationPolicySettings() {
+        openAndroidSettingsPage(android.provider.Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS,
+                "勿扰模式访问设置");
+    }
+
+    private void openAndroidIntent(Intent intent, String label) {
+        if (intent.resolveActivity(getPackageManager()) == null) {
+            FxNativeSkin.builder(this).setTitle(label + "不可用")
+                    .setMessage("当前系统未提供此特殊访问页面，请在系统设置中手动查找对应权限。")
+                    .setPositiveButton("知道了", null).show();
+            return;
+        }
+        try {
+            startActivity(intent);
+        } catch (RuntimeException error) {
+            FxNativeSkin.builder(this).setTitle("无法打开" + label)
+                    .setMessage(error.getMessage() == null ? "系统拒绝打开该设置页面。" : error.getMessage())
+                    .setPositiveButton("关闭", null).show();
+        }
+    }
+
+    private void openAllFilesAccessSettings() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            FxNativeSkin.builder(this).setTitle("无需所有文件访问特殊权限")
+                    .setMessage("当前 Android 版本不提供 Android 11 的所有文件访问特殊权限。")
+                    .setPositiveButton("知道了", null).show();
+            return;
+        }
+        Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                Uri.parse("package:" + getPackageName()));
+        openAndroidIntent(intent, "所有文件访问设置");
+    }
+
+    private String allFilesAccessStatus() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return "当前系统无需此特殊访问";
+        return android.os.Environment.isExternalStorageManager() ? "已授予" : "未授予";
+    }
+
+    private String exactAlarmAccessStatus() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return "当前系统无需此特殊访问";
+        android.app.AlarmManager alarms = (android.app.AlarmManager)
+                getSystemService(Context.ALARM_SERVICE);
+        if (alarms == null) return "状态不可用";
+        return alarms.canScheduleExactAlarms() ? "已允许" : "未允许";
+    }
+
+    private String notificationPolicyAccessStatus() {
+        android.app.NotificationManager manager = (android.app.NotificationManager)
+                getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager == null) return "状态不可用";
+        return manager.isNotificationPolicyAccessGranted() ? "已授予" : "未授予";
+    }
+
+    private String usageAccessStatus() {
+        try {
+            android.app.AppOpsManager ops = (android.app.AppOpsManager)
+                    getSystemService(Context.APP_OPS_SERVICE);
+            if (ops == null) return "状态不可用";
+            int mode = ops.checkOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS,
+                    android.os.Process.myUid(), getPackageName());
+            return mode == android.app.AppOpsManager.MODE_ALLOWED ? "已授予" : "未授予";
+        } catch (RuntimeException unavailable) {
+            return "状态不可用";
+        }
+    }
+
     private void refreshNativePrivacyStatus(TextView target) {
         runNativeModuleCommand("sh \"$MP/scripts/status.sh\" json", 30000L, result -> {
             try {
