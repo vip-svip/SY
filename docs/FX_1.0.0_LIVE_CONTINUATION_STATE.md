@@ -7767,3 +7767,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 域名名单页新增统一搜索框，可同时匹配白名单/黑名单的域名与备注；输入变化时即时刷新列表，并显示命中数与总条目数。
 - 新增“批量移除筛选命中的白名单/黑名单”操作：按当前搜索条件分别收集对应名单中的匹配域名，复用上一批后端批量移除命令、2000 条/64 KiB 限制、二次确认与 FX 配置事务回滚机制；不影响未命中的条目或另一类名单。
 - 按用户要求，本批未运行测试、静态检查、Gradle 构建、CI、安装或真机验证；筛选和批量操作尚未验收。
+
+
+## 2026-11-06 — Ad DNS 自定义/全局/备用上游清除入口
+
+- 后端提交：`5d1862d2ed0b5660e1f066fe3d57a78bb2fe0e58`，改动 `scripts/yulong-ad-control.sh`。
+  - 将 `dns-config-clear` 从仅接受 fallback 扩展为严格白名单 `custom|global|fallback`；映射到既有 `custom_dns`、`global_dns`、`yulong_dns_fallback` 配置段，并继续使用现有锁与事务回滚。
+  - 不接受任意配置段名称，避免将通用配置删除能力暴露给调用方。
+- UI 提交：`ee62bbec17b54871086ed13bb830dd7cb5848440`，改动 `adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
+  - DNS 上游卡片新增清除自定义 DNS、清除全局 DNS入口，并将备用 DNS 清除统一到同一确认流程。
+  - 清除前说明仅移除对应服务器配置段，不自动关闭相关开关、不改动 VPN 节点 DNS；成功后清空对应输入框并刷新页面。
+- 按用户要求，本批未运行测试、静态检查、Gradle 构建、CI、安装或真机验证；清除行为尚未验收。
