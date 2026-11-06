@@ -6863,3 +6863,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 更新 `fx-module/scripts/yulong-root-proxy.sh`（`8d9f37f1`）：Root Proxy 自身 enable/disable 入口也通过统一 DNS 依赖管理器执行；模块缺少新管理器时保留旧兼容路径。
 - 更新 `MainActivity.java`（`82469744`），分开展示 DNS 引擎“已启用/已关闭”与“链路就绪/未就绪”，避免把用户主动关闭引擎显示成运行故障。
 - 本批未运行 Shell/Python/Java/Gradle 检查、回归测试、构建、CI 或真机验证。修复来自源码文本调整，尚无设备行为验证结论。
+
+
+## 2026-11-06 — VPN 裁决输入收紧与 DNS 白名单清理
+
+- `fx-module/scripts/fx-vpn-coexistence-arbiter.sh`（`eddefc0b`）将 VPN 接口、VPN owner、UID 和 proc-net 测试夹具路径统一限制在显式 `FX_ARB_TESTING=1` 环境；生产运行固定读取真实系统路径，避免调用者通过伪造夹具影响共存裁决。
+- `fx-module/scripts/yulong-root-proxy.sh`（`0ee6ce19`、`462c919b`）新增 `whitelist-prune`：先读取并验证 PackageManager UID 快照，再移除已卸载应用的 DNS 白名单条目；快照不可用或格式异常时不改配置。活动中的 Root Proxy 会在清理后重新应用白名单。
+- `adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`（`7096362b`）在“应用 DNS 白名单”弹窗加入“清理未安装应用”入口，完成后刷新列表。
+- 按当前推进要求，本批未运行测试、静态检查、构建、CI 或 Android 真机验证。
