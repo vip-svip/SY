@@ -1540,10 +1540,21 @@ private boolean targetDeveloperOptIn(String packageName) {
     }
 
 
+    private boolean shouldHidePostNotificationsPermission(String permission, String queriedPackage) {
+        if (!"android.permission.POST_NOTIFICATIONS".equals(permission)) return false;
+        String activePackage = currentPackage;
+        if (activePackage == null || activePackage.isEmpty()
+                || (queriedPackage != null && !activePackage.equals(queriedPackage))) return false;
+        UnifiedHookConfigParser.Target active = targets.get(activePackage);
+        return NotificationPrivacyPolicy.shouldHidePermission(notificationPermissionHideEnabled,
+                processPackages.size(), activePackage, active);
+    }
+
     /**
-     * Per-app masking of NotificationManager.areNotificationsEnabled().
-     * It changes only the target app's query result; actual grants, listener
-     * registration, posting, and notification display are not modified.
+     * Masks notification permission state consistently across Android's app-level
+     * queries. This does not revoke the grant, prevent notification posting, or
+     * alter notification-listener access; it only returns a denied/disabled view
+     * to the explicitly opted-in single-package target process.
      */
     private synchronized boolean installNotificationPermissionPrivacyHooks(final String pkg) {
         if (notificationPermissionHooksInstalled) return true;
@@ -1551,30 +1562,121 @@ private boolean targetDeveloperOptIn(String packageName) {
         try {
             Class<?> type = Class.forName("android.app.NotificationManager", false, null);
             for (final Method method : type.getDeclaredMethods()) {
-                if (!"areNotificationsEnabled".equals(method.getName())
-                        || method.getParameterTypes().length != 0
-                        || method.getReturnType() != boolean.class) continue;
+                final String name = method.getName();
+                final Class<?>[] params = method.getParameterTypes();
+                final boolean appEnabled = "areNotificationsEnabled".equals(name)
+                        && params.length == 0 && method.getReturnType() == boolean.class;
+                final boolean packageEnabled = "areNotificationsEnabledForPackage".equals(name)
+                        && params.length >= 1 && params[0] == String.class
+                        && method.getReturnType() == boolean.class;
+                if (!appEnabled && !packageEnabled) continue;
                 try {
                     hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                             .intercept(chain -> {
-                                String activePackage = currentPackage;
-                                UnifiedHookConfigParser.Target active = targets.get(activePackage);
-                                if (NotificationPrivacyPolicy.shouldHidePermission(notificationPermissionHideEnabled,
-                                        processPackages.size(), activePackage, active)) return Boolean.FALSE;
+                                String queried = packageEnabled && !chain.getArgs().isEmpty()
+                                        && chain.getArgs().get(0) instanceof String
+                                        ? (String) chain.getArgs().get(0) : null;
+                                if (NotificationPrivacyPolicy.shouldHidePermission(
+                                        notificationPermissionHideEnabled, processPackages.size(),
+                                        currentPackage, targets.get(currentPackage))
+                                        && (queried == null || queried.equals(currentPackage))) {
+                                    return Boolean.FALSE;
+                                }
                                 return chain.proceed();
                             });
                     installed++;
-                } catch (Throwable t) {
-                    logFx(Log.DEBUG, "notification permission query hook unavailable");
+                } catch (Throwable error) {
+                    logFx(Log.DEBUG, "NotificationManager permission state hook unavailable: " + name);
                 }
             }
-        } catch (Throwable t) {
+        } catch (Throwable error) {
             logFx(Log.DEBUG, "NotificationManager permission query unavailable");
-            return false;
         }
+
+        // ContextCompat delegates to Context.checkSelfPermission on supported
+        // Android releases. Hook the framework wrappers/implementation so both
+        // direct Context calls and common compatibility helpers share one result.
+        for (String className : new String[]{"android.content.ContextWrapper", "android.app.ContextImpl"}) {
+            try {
+                Class<?> contextType = Class.forName(className, false, null);
+                for (final Method method : contextType.getDeclaredMethods()) {
+                    final String name = method.getName();
+                    final Class<?>[] params = method.getParameterTypes();
+                    final boolean self = "checkSelfPermission".equals(name)
+                            && params.length == 1 && params[0] == String.class
+                            && method.getReturnType() == int.class;
+                    final boolean explicit = "checkPermission".equals(name)
+                            && params.length == 3 && params[0] == String.class
+                            && params[1] == int.class && params[2] == int.class
+                            && method.getReturnType() == int.class;
+                    if (!self && !explicit) continue;
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                                .intercept(chain -> {
+                                    Object[] args = chain.getArgs().toArray();
+                                    if (args.length > 0 && args[0] instanceof String) {
+                                        boolean ownUid = !explicit || (args.length > 2
+                                                && args[2] instanceof Integer
+                                                && ((Integer) args[2]).intValue() == android.os.Process.myUid());
+                                        if (ownUid && shouldHidePostNotificationsPermission(
+                                                (String) args[0], currentPackage)) {
+                                            return Integer.valueOf(-1);
+                                        }
+                                    }
+                                    return chain.proceed();
+                                });
+                        installed++;
+                    } catch (Throwable error) {
+                        logFx(Log.DEBUG, "Context notification permission hook unavailable: " + name);
+                    }
+                }
+            } catch (Throwable error) {
+                logFx(Log.DEBUG, "Context permission API unavailable: " + className);
+            }
+        }
+
+        // PackageManager callers may query a named package rather than the
+        // calling Context. Only mask the active target's own POST_NOTIFICATIONS.
+        for (String className : new String[]{
+                "android.app.ApplicationPackageManager", "android.content.pm.PackageManager"}) {
+            try {
+                Class<?> packageManager = Class.forName(className, false, null);
+                for (final Method method : packageManager.getDeclaredMethods()) {
+                    final String name = method.getName();
+                    final Class<?>[] params = method.getParameterTypes();
+                    final boolean check = "checkPermission".equals(name)
+                            && params.length == 2 && params[0] == String.class
+                            && params[1] == String.class && method.getReturnType() == int.class;
+                    final boolean flags = "getPermissionFlags".equals(name)
+                            && params.length == 3 && params[0] == String.class
+                            && params[1] == String.class && method.getReturnType() == int.class;
+                    if (!check && !flags) continue;
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                                .intercept(chain -> {
+                                    Object[] args = chain.getArgs().toArray();
+                                    if (args.length > 1 && args[0] instanceof String
+                                            && args[1] instanceof String
+                                            && shouldHidePostNotificationsPermission(
+                                                    (String) args[0], (String) args[1])) {
+                                        return Integer.valueOf(check ? -1 : 0);
+                                    }
+                                    return chain.proceed();
+                                });
+                        installed++;
+                    } catch (Throwable error) {
+                        logFx(Log.DEBUG, "PackageManager notification permission hook unavailable: " + name);
+                    }
+                }
+            } catch (Throwable error) {
+                logFx(Log.DEBUG, "PackageManager permission query unavailable: " + className);
+            }
+        }
+
         notificationPermissionHooksInstalled = installed > 0;
         logFx(installed > 0 ? Log.INFO : Log.WARN,
-                "opt-in notification permission query hooks installed=" + installed + " for " + pkg);
+                "opt-in notification permission query hooks installed=" + installed
+                        + " across NotificationManager/Context/PackageManager for " + pkg);
         return notificationPermissionHooksInstalled;
     }
 
