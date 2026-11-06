@@ -217,7 +217,7 @@ _resolve_whitelist_uids() {
       sub(/[ \t]+$/, "", line)
       n=split(line, field, /[ \t]+/)
       if(field[1] ~ /^package:[A-Za-z0-9_.-]+$/) {
-        snapshot_valid=1
+        for(j=2;j<=n;j++) if(field[j] ~ /^uid:[0-9]+$/) {snapshot_valid=1; break}
         package=substr(field[1],9)
         if(package in wanted) {
           uid=""
@@ -747,6 +747,8 @@ _whitelist_set_locked() {
   fi
 }
 _whitelist_prune_locked() {
+  _prune_reconcile=${1:-1}
+  case "$_prune_reconcile" in 0|1) ;; *) return 2 ;; esac
   [ -f "$CONF" ] && [ ! -L "$CONF" ] || { _log "settings.conf is missing or unsafe"; return 21; }
   _snapshot=$(cmd package list packages -U 2>/dev/null) || { _log "cannot read PackageManager snapshot; whitelist unchanged"; return 1; }
   [ -n "$_snapshot" ] || { _log "PackageManager returned an empty snapshot; whitelist unchanged"; return 1; }
@@ -836,7 +838,7 @@ _whitelist_prune_locked() {
   _RPROXY_PRUNE_PACKAGES=
   echo "removed=$_removed"
 
-  if [ "$_removed" -gt 0 ] && [ -s "$ACTIVE_META" ]; then
+  if [ "$_removed" -gt 0 ] && [ "$_prune_reconcile" = 1 ] && [ -s "$ACTIVE_META" ]; then
     [ ! -L "$ACTIVE_META" ] || { _stop_locked; _log "unsafe active metadata after whitelist prune"; return 1; }
     _iface=$(sed -n '1p' "$ACTIVE_META" 2>/dev/null)
     _uid=$(sed -n '2p' "$ACTIVE_META" 2>/dev/null)
@@ -952,6 +954,14 @@ _reconcile_locked() {
   _valid_if "$_iface" && _valid_uid "$_uid" || { _stop_locked; _log "invalid active metadata during package event"; return 1; }
   _ensure_locked "$_iface" "$_uid"
 }
+_package_event_locked() {
+  _prune_rc=0
+  _whitelist_prune_locked 0 || _prune_rc=$?
+  # Route validation still runs when PackageManager cannot provide a prune
+  # snapshot; stale whitelist cleanup must never suppress VPN fail-open checks.
+  _reconcile_locked || return $?
+  return "$_prune_rc"
+}
 cmd=${1:-status}
 case "$cmd" in
   ensure)
@@ -992,6 +1002,10 @@ case "$cmd" in
     ;;
   reconcile)
     with_lock _reconcile_locked
+    ;;
+  package-event)
+    [ "$#" -eq 1 ] || { echo "usage: yulong-root-proxy.sh package-event" >&2; exit 2; }
+    with_lock _package_event_locked
     ;;
   uninstall)
     with_lock _stop_locked
