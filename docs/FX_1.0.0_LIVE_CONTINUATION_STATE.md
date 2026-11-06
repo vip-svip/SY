@@ -8335,3 +8335,20 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 使用同步 commit；失败时保留原记录并提示，成功后刷新回执显示。不会修改已固定的发送方包名/签名、外部自动化授权开关、VPN 或广告过滤运行状态。
 - 本轮未同步整个设置 Activity，避免覆盖模块中其他差异；仅增加两个方法和对应按钮。
 - 按用户要求暂不核验；未运行测试、静态检查、Gradle 构建、CI、安装或设备验证。
+
+### FX 模块 Dia 脚本库存储层管理能力同步（2026-11-07）
+
+- 代码提交：`91cc55a746abf54debf8eee6d1a691be7d3bfe36`。
+- 文件：`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaScriptLibraryStore.java`。
+- 将统一主应用脚本库存储实现同步到模块，补齐单条脚本复制、重命名、批量删除、按指定名称导出，以及导入预览/合并时的同名覆盖二次确认和写锁内重检。
+- 保留既有 schema、脚本名称/内容校验、500 条容量限制和原子 SharedPreferences 写入；本次未改变脚本自动执行行为。
+- 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证。
+
+
+### FX 模块 Dia 监控事件解析类别与字段白名单同步（2026-11-07）
+
+- 代码提交：`93263bf37e3b7571bd7889e408fe53c1f84f2d4e`。
+- 文件：`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaMonitorEventParser.java`。
+- 同步主应用已有的监控事件类别与字段白名单，补齐 FRAGMENT、STACK、RUNTIME、MEMORY 等事件类别及其允许字段；保留逐类别字段约束、数值/标识符校验、Host/Endpoint authority 校验、事件数量和日志长度上限。
+- 不将原始 Intent extras、URI payload 或未列入白名单的字段开放到 UI；模块解析器与主应用版本保持一致。
+- 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证。
