@@ -450,6 +450,43 @@ status() {
         ;;
     esac
   fi
+  _statistics_ignored_enabled=unknown
+  _statistics_ignored_count=unknown
+  if [ -n "$_statistics_runtime" ] &&
+     [ "$(printf '%s\n' "$_statistics_runtime" | sed -n '1p')" = FXYULONGDNSSTAT1 ]; then
+    _statistics_ignored_flag=$(printf '%s\n' "$_statistics_runtime" | sed -n 's/^STATISTICS_IGNORED_ENABLED=//p')
+    _statistics_ignored_list=$(printf '%s\n' "$_statistics_runtime" | sed -n 's/^STATISTICS_IGNORED=//p')
+    if { [ "$_statistics_ignored_flag" = 0 ] || [ "$_statistics_ignored_flag" = 1 ]; } &&
+       printf '%s\n' "$_statistics_runtime" | grep -Fqx 'STATISTICS_IGNORED=' >/dev/null 2>&1 ||
+       { [ "$_statistics_ignored_flag" = 0 ] || [ "$_statistics_ignored_flag" = 1 ]; } &&
+       [ -n "$_statistics_ignored_list" ]; then
+      _statistics_ignored_enabled=$_statistics_ignored_flag
+      _statistics_ignored_count=$(printf '%s\n' "$_statistics_ignored_list" | awk -F, '
+        { if($0==""){print 0;exit}
+          for(i=1;i<=NF;i++)if($i=="")exit 1
+          print NF
+        }') || _statistics_ignored_count=unknown
+    fi
+  fi
+  _querylog_ignored_enabled=unknown
+  _querylog_ignored_count=unknown
+  _querylog_ignored_runtime=$(MP="$MP" PG="$PG" sh "$MP/scripts/yulong-ad-control.sh" dns-querylog-ignored-get 2>/dev/null) || _querylog_ignored_runtime=
+  if [ -n "$_querylog_ignored_runtime" ] &&
+     [ "$(printf '%s\n' "$_querylog_ignored_runtime" | sed -n '1p')" = FXYULONGDNSQIGNORE1 ]; then
+    _querylog_ignored_flag=$(printf '%s\n' "$_querylog_ignored_runtime" | sed -n 's/^QUERYLOG_IGNORED_ENABLED=//p')
+    _querylog_ignored_list=$(printf '%s\n' "$_querylog_ignored_runtime" | sed -n 's/^QUERYLOG_IGNORED=//p')
+    if { [ "$_querylog_ignored_flag" = 0 ] || [ "$_querylog_ignored_flag" = 1 ]; } &&
+       printf '%s\n' "$_querylog_ignored_runtime" | grep -Fqx 'QUERYLOG_IGNORED=' >/dev/null 2>&1 ||
+       { [ "$_querylog_ignored_flag" = 0 ] || [ "$_querylog_ignored_flag" = 1 ]; } &&
+       [ -n "$_querylog_ignored_list" ]; then
+      _querylog_ignored_enabled=$_querylog_ignored_flag
+      _querylog_ignored_count=$(printf '%s\n' "$_querylog_ignored_list" | awk -F, '
+        { if($0==""){print 0;exit}
+          for(i=1;i<=NF;i++)if($i=="")exit 1
+          print NF
+        }') || _querylog_ignored_count=unknown
+    fi
+  fi
   _local_dns_watchdog=unavailable
   if [ -L "$PG/localdns-watchdog.pid" ] || [ -L "$MP/scripts/localdns-watchdog.sh" ]; then
     _local_dns_watchdog=unsafe
@@ -569,6 +606,10 @@ status() {
   printf 'dns_querylog_memory_max|%s\n' "$_querylog_memory_max"
   printf 'dns_statistics_enabled|%s\n' "$_statistics_enabled"
   printf 'dns_statistics_interval|%s\n' "$_statistics_interval"
+  printf 'dns_querylog_ignored_enabled|%s\\n' "$_querylog_ignored_enabled"
+  printf 'dns_querylog_ignored_count|%s\\n' "$_querylog_ignored_count"
+  printf 'dns_statistics_ignored_enabled|%s\\n' "$_statistics_ignored_enabled"
+  printf 'dns_statistics_ignored_count|%s\\n' "$_statistics_ignored_count"
 }
 mutate() {
   _key=$1
