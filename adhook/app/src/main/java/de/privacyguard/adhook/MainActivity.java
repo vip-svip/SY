@@ -2088,10 +2088,11 @@ public final class MainActivity extends ComponentActivity {
         String value = raw.trim();
         if (value.isEmpty()) return false;
         if (value.regionMatches(true, 0, "https://", 0, 8)) {
+            if (value.length() > 2048 || value.matches("(?s).*\\\\p{Cntrl}.*")) return false;
             Uri parsed = Uri.parse(value);
             String host = parsed.getHost();
             return host != null && !host.isEmpty() && parsed.getUserInfo() == null
-                    && !value.matches(".*\\s+.*");
+                    && !value.matches(".*\\\\s+.*");
         }
         if (value.regionMatches(true, 0, "http://", 0, 7)) return false;
         // Other URI schemes are not fetched by the module synchronizer.
