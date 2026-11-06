@@ -202,6 +202,13 @@ public final class FxYulongAppWhitelistActivity extends de.privacyguard.adhook.F
             restoringUiState = true;
         }
         body.addView(query);
+        LinearLayout batchActions = new LinearLayout(this);
+        batchActions.setOrientation(LinearLayout.HORIZONTAL);
+        Button batchAdd = button("批量加入当前页", () -> applyCurrentPageBatch(true));
+        Button batchRemove = button("批量移出当前页", () -> applyCurrentPageBatch(false));
+        batchActions.addView(batchAdd, new LinearLayout.LayoutParams(0, -2, 1));
+        batchActions.addView(batchRemove, new LinearLayout.LayoutParams(0, -2, 1));
+        body.addView(batchActions);
         list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         body.addView(list);
@@ -229,6 +236,60 @@ public final class FxYulongAppWhitelistActivity extends de.privacyguard.adhook.F
             loading = false;
             loadAppsAsync();
         });
+    }
+
+    private List<String> visiblePackagesForCurrentPage() {
+        List<String> visible = new ArrayList<>();
+        String filter = query == null || query.getText() == null ? ""
+                : query.getText().toString().trim().toLowerCase(Locale.ROOT);
+        int pageStart = (Math.max(1, appPage) - 1) * APP_PAGE_SIZE;
+        int matched = 0;
+        for (ApplicationInfo app : apps) {
+            String pkg = app.packageName;
+            String label = labels.getOrDefault(pkg, pkg);
+            if (!filter.isEmpty() && !pkg.toLowerCase(Locale.ROOT).contains(filter)
+                    && !label.toLowerCase(Locale.ROOT).contains(filter)) continue;
+            if (matched >= pageStart && visible.size() < APP_PAGE_SIZE) visible.add(pkg);
+            matched++;
+            if (visible.size() >= APP_PAGE_SIZE) break;
+        }
+        return visible;
+    }
+
+    private void applyCurrentPageBatch(boolean enabled) {
+        if (destroyed || loading || appLoading) return;
+        List<String> packages = visiblePackagesForCurrentPage();
+        if (packages.isEmpty()) {
+            Toast.makeText(this, "当前页没有可批量处理的应用。", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String action = enabled ? "batch-add" : "batch-remove";
+        StringBuilder args = new StringBuilder(action);
+        for (String pkg : packages) args.append(' ').append(quote(pkg));
+        fxDialogBuilder().setTitle(enabled ? "批量加入应用白名单" : "批量移出应用白名单")
+                .setMessage("将对当前页 " + packages.size() + " 个应用一次性更新配置，并只应用一次网络规则。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton(enabled ? "批量加入" : "批量移出", (dialog, which) -> {
+                    status.setText(enabled ? "正在批量加入当前页应用…" : "正在批量移出当前页应用…");
+                    root(args.toString(), result -> {
+                        if (result.exitCode != 0) {
+                            status.setText("批量白名单更新未完成：" + safe(result.output));
+                            return;
+                        }
+                        root("list", refreshed -> {
+                            if (refreshed.exitCode != 0) {
+                                status.setText("批量配置已提交，但刷新名单失败：" + safe(refreshed.output));
+                                return;
+                            }
+                            parse(refreshed.output);
+                            updateStatus();
+                            renderRows();
+                            Toast.makeText(this, (enabled ? "已批量加入 " : "已批量移出 ")
+                                    + packages.size() + " 个应用：" + safe(result.output),
+                                    Toast.LENGTH_LONG).show();
+                        });
+                    });
+                }).show();
     }
 
     private void pruneUninstalledPackages() {
