@@ -226,13 +226,19 @@ valid_fallback_dns_csv() {
 }
 valid_dns_csv() {
   printf '%s\n' "$1" | awk -F, '
-    function ipv4(v, n, a, j) {
+    function ipv4(v, n, a, j, first, second) {
       if(v!~/^[0-9.]+$/) return 0
       n=split(v,a,".")
       if(n!=4) return 0
-      for(j=1;j<=4;j++) if(a[j]==""||a[j]!~/^[0-9]+$/||length(a[j])>3||a[j]+0>255) return 0
-      if(v=="0.0.0.0"||v=="255.255.255.255") return 0
-      return 1    }
+      for(j=1;j<=4;j++)
+        if(a[j]=="" || a[j]!~/^[0-9]+$/ || length(a[j])>3 ||
+           a[j]+0>255 || (a[j]!="0" && a[j]~/^0/)) return 0
+      first=a[1]+0; second=a[2]+0
+      if(v=="0.0.0.0" || v=="255.255.255.255" ||
+         first==0 || first==127 || first>=224 ||
+         (first==169 && second==254)) return 0
+      return 1
+    }
     function valid_ipv6(v, pos, left, right, count, i, n, a, b) {
       if(v=="" || v !~ /^[0-9A-Fa-f:]+$/ || v ~ /:::/) return 0
       pos=index(v,"::")
