@@ -60,7 +60,7 @@ public final class EgernScriptYamlImporter {
                 if (inScriptings) {
                     addEntry(scripts, seen, kind, name, match, scriptUrl,
                             disabled, bodyRequired, binaryBody, hasEnvironment,
-                            invalidEnvironment, scriptEnvironment);
+                            invalidEnvironment, unsupportedLimits, scriptEnvironment);
                     kind = "";
                     inScriptings = false;
                 }
@@ -72,7 +72,7 @@ public final class EgernScriptYamlImporter {
             if (item.matches()) {
                 addEntry(scripts, seen, kind, name, match, scriptUrl,
                         disabled, bodyRequired, binaryBody, hasEnvironment,
-                        invalidEnvironment, scriptEnvironment);
+                        invalidEnvironment, unsupportedLimits, scriptEnvironment);
                 kind = item.group(1);
                 name = "";
                 match = "";
@@ -151,7 +151,7 @@ public final class EgernScriptYamlImporter {
 
         addEntry(scripts, seen, kind, name, match, scriptUrl,
                 disabled, bodyRequired, binaryBody, hasEnvironment,
-                invalidEnvironment, scriptEnvironment);
+                invalidEnvironment, unsupportedLimits, scriptEnvironment);
         if (scripts.length() == 0) {
             throw new IllegalArgumentException(
                     "没有可安全迁移的 Egern HTTPS HTTP 脚本；定时/通用/网络脚本，以及含 env 或 binary_body 的条目暂不导入");
@@ -168,7 +168,8 @@ public final class EgernScriptYamlImporter {
                                  String kind, String name, String match, String scriptUrl,
                                  boolean disabled, boolean bodyRequired,
                                  boolean binaryBody, boolean hasEnvironment,
-                                 boolean invalidEnvironment, JSONObject scriptEnvironment) throws JSONException {
+                                 boolean invalidEnvironment, boolean unsupportedLimits,
+                                 JSONObject scriptEnvironment) throws JSONException {
         if (!"http_request".equals(kind) && !"http_response".equals(kind)) return;
         if (name == null || name.trim().isEmpty() || name.trim().length() > 512
                 || match == null || match.isEmpty() || match.length() > 2048
