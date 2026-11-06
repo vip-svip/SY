@@ -7160,3 +7160,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 上述入口沿用 `isLocationAccessBlockAuthorized()` 的隐私总开关、单包进程及当前目标配置条件；命中时以 `SecurityException` 拒绝新增定位/卫星数据访问注册，移除/注销接口不拦截。
 - 应用 Hook 提交：`23b2b81a9521f85b787ce6a3027edc4e7d7c1e60`；模块 Hook 提交：`7d555d6053ab21b97c44f04e90db1d7e288e5142`。
 - 按要求未运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-06 — POST_NOTIFICATIONS 权限查询一致性
+
+- 通知权限隐藏从 `NotificationManager.areNotificationsEnabled()` 扩展到 `areNotificationsEnabledForPackage()`、`ContextWrapper/ContextImpl.checkSelfPermission()`、`checkPermission(permission,pid,uid)`、`PackageManager.checkPermission()` 和 `getPermissionFlags()`。
+- 仅对当前选中目标自身的 `android.permission.POST_NOTIFICATIONS` 查询返回拒绝/隐藏标志；显式 UID 查询只处理当前进程 UID，PackageManager 查询只处理当前目标包。其他权限、其他包、共享包和系统保护包仍走原始结果。
+- 该功能只隐藏查询结果，不撤销真实运行时授权、不阻止应用调用 NotificationManager 发通知，也不等于拦截 NotificationListenerService 授权。
+- 应用 Hook 提交：`1cdfbbe61104e51b4820275665a7a358e837dbec`；模块 Hook 提交：`eafc1fecdff04460b8134881d2f2f7c8a11a5466`。
+- 按要求未运行测试、静态检查、构建、CI 或真机验证。
