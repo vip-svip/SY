@@ -7040,3 +7040,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Root Proxy 改用与 Unbound/AdGuard 共用的 FX 本地 DNS 报文探测器，不再依赖 nslookup 文本输出中的 Name/Address 格式判断 DNS 健康；探测器仍只允许 numeric loopback endpoint，NXDOMAIN 仍是合法 DNS 答复。
 - 同步正式 C 源、模块 C 源、两份 Host 回归夹具、Unbound/AdGuard/Root Proxy 运行脚本；构建工作流会从正式 C 源重新编译 ARM64 probe 并生成 SHA-256 sidecar。
 - 按当前要求未执行 C/Python/Shell 回归、静态检查、Android 构建、CI 或设备验证；仅提交源码与未执行回归用例。
+
+
+## 2026-11-07 — DNS 完整诊断协议 DIAG4 扩展
+
+- Root `dns-diagnose` 响应升级为 `FXYULONGDNSDIAG4`，新增 Root Proxy 清理状态、DNS 拦截返回模式/IPv4/IPv6/TTL、DNS 地址重写规则条数、逐条查询日志排除开关/条数、聚合统计排除开关/条数。
+- 新字段由现有只读配置接口获取并执行值规范化；DNS 重写只输出数量，不输出域名；日志排除只输出开关与数量，不泄露具体域名；不输出查询记录或客户端 IP。
+- 两份原生 Ad 页面同步升级 DIAG4 响应头、字段 allowlist、值校验及报告摘要；本地诊断报告的 SAF 文件导出继续复用该协议生成的完整报告。
+- 修改文件：`fx-module/scripts/yulong-ad-control.sh`、两份 `FxYulongAdActivity.java`。
+- 按用户要求未运行 Shell/Java 测试、静态检查、构建、CI 或 Android 真机验证。

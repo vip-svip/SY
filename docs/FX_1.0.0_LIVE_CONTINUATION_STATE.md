@@ -1393,3 +1393,12 @@
 - 兼容性：配置仍使用 `rewrite=domain|answer` / `DNS_REWRITES` 原有字段协议；普通旧规则无需迁移，快照版本及字段数量不变。
 - 同步正式与模块源码：两份 `yulong-ad-control.sh`、两份 `adguardhome.sh`、两份 `FxYulongAdActivity.java`。
 - 按用户要求未运行测试、静态检查、构建、CI 或设备验证；本批为源码移植，不代表运行验收。
+
+
+## 2026-11-07 — DNS 完整诊断协议 DIAG4 扩展
+
+- Root `dns-diagnose` 响应升级为 `FXYULONGDNSDIAG4`，新增 Root Proxy 清理状态、DNS 拦截返回模式/IPv4/IPv6/TTL、DNS 地址重写规则条数、逐条查询日志排除开关/条数、聚合统计排除开关/条数。
+- 新字段由现有只读配置接口获取并执行值规范化；DNS 重写只输出数量，不输出域名；日志排除只输出开关与数量，不泄露具体域名；不输出查询记录或客户端 IP。
+- 两份原生 Ad 页面同步升级 DIAG4 响应头、字段 allowlist、值校验及报告摘要；本地诊断报告的 SAF 文件导出继续复用该协议生成的完整报告。
+- 修改文件：`fx-module/scripts/yulong-ad-control.sh`、两份 `FxYulongAdActivity.java`。
+- 按用户要求未运行 Shell/Java 测试、静态检查、构建、CI 或 Android 真机验证。

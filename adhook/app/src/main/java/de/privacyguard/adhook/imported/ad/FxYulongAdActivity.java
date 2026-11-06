@@ -2323,7 +2323,7 @@ private void runDnsDiagnostics(){
     }
     String raw=result.output==null?"":result.output.trim();
     String[] lines=raw.split("\\r?\\n");
-    if(lines.length<2||!"FXYULONGDNSDIAG3".equals(lines[0].trim())){
+    if(lines.length<2||!"FXYULONGDNSDIAG4".equals(lines[0].trim())){
       status.setText("DNS 诊断响应版本或字段数量错误，拒绝显示不完整报告。");
       return;
     }
@@ -2332,6 +2332,9 @@ private void runDnsDiagnostics(){
       "adguardhome_ipv4_probe","adguardhome_ipv6_probe","localdns_watchdog",
       "vpn_coexistence_verdict","vpn_route_probe","private_dns_mode",
       "dns_upstream_mode","dns_upstream_state","dns_bootstrap_mode","dns_fallback_mode",
+       "rootproxy_cleanup","dns_response_mode","dns_blocking_ipv4","dns_blocking_ipv6",
+       "dns_blocked_response_ttl","dns_rewrites_count","dns_querylog_ignored_enabled",
+       "dns_querylog_ignored_count","dns_statistics_ignored_enabled","dns_statistics_ignored_count",
       "dnssec_anchor_state","root_hints_state","root_hints_bytes",
       "dns_querylog_enabled","dns_querylog_retention","dns_querylog_memory_size","dns_querylog_memory_max",
       "dns_statistics_enabled","dns_statistics_interval",
@@ -2391,6 +2394,12 @@ private void runDnsDiagnostics(){
             ||"unknown".equals(value);break;
         case "dns_fallback_mode": valid="none".equals(value)||"explicit".equals(value)
             ||"local_unbound".equals(value)||"unknown".equals(value);break;
+         case "rootproxy_cleanup": valid="complete".equals(value)||"failed".equals(value)
+             ||"not_required".equals(value)||"unknown".equals(value);break;
+         case "dns_response_mode": valid="nxdomain".equals(value)||"refused".equals(value)
+             ||"custom_ip".equals(value)||"unknown".equals(value);break;
+         case "dns_blocking_ipv4": valid="unknown".equals(value)||isValidDnsRewriteIpv4(value);break;
+         case "dns_blocking_ipv6": valid="unknown".equals(value)||isValidDnsRewriteIpv6(value);break;
         case "dnssec_anchor_state":
         case "root_hints_state": valid="valid".equals(value)||"missing".equals(value)
             ||"invalid".equals(value)||"unsafe".equals(value)||"unknown".equals(value);break;
@@ -2409,6 +2418,14 @@ private void runDnsDiagnostics(){
         case "unbound_num_threads":
         case "unbound_threads_max":
             valid=android.text.TextUtils.isDigitsOnly(value)||"unknown".equals(value);break;
+         case "dns_blocked_response_ttl":
+         case "dns_rewrites_count":
+         case "dns_querylog_ignored_count":
+         case "dns_statistics_ignored_count":
+             valid=android.text.TextUtils.isDigitsOnly(value)||"unknown".equals(value);break;
+         case "dns_querylog_ignored_enabled":
+         case "dns_statistics_ignored_enabled":
+             valid="0".equals(value)||"1".equals(value)||"unknown".equals(value);break;
         case "dns_querylog_enabled":
         case "dns_statistics_enabled":
         case "adguard_cache_enabled":
@@ -2460,6 +2477,15 @@ private void runDnsDiagnostics(){
     report.append("Android 私有 DNS：").append(dnsDiagnosticLabel(values.get("private_dns_mode"))).append('\n');
     report.append("当前上游模式：").append(values.get("dns_upstream_mode"))
         .append("；上游配置：").append(values.get("dns_upstream_state")).append('\n');
+     report.append("Root Proxy 清理：").append(values.get("rootproxy_cleanup")).append('\n');
+     report.append("DNS 拦截响应：").append(values.get("dns_response_mode"))
+         .append("；IPv4/IPv6：").append(values.get("dns_blocking_ipv4")).append("/")
+         .append(values.get("dns_blocking_ipv6")).append("；TTL：").append(values.get("dns_blocked_response_ttl")).append('\n');
+     report.append("DNS 地址重写：").append(values.get("dns_rewrites_count")).append(" 条；逐条日志排除：")
+         .append(values.get("dns_querylog_ignored_enabled")).append("（")
+         .append(values.get("dns_querylog_ignored_count")).append(" 条）；统计排除：")
+         .append(values.get("dns_statistics_ignored_enabled")).append("（")
+         .append(values.get("dns_statistics_ignored_count")).append(" 条）。\n");
     report.append("加密上游引导解析：").append(values.get("dns_bootstrap_mode"))
         .append("；故障回退：").append(values.get("dns_fallback_mode")).append('\n');
     report.append("\nDNS 查询日志：").append(values.get("dns_querylog_enabled"))
