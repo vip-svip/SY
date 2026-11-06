@@ -841,7 +841,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
   root("dns-querylog-retention-get",current->{
     String selectedValue="7d";
     if(current.exitCode==0&&current.output!=null)
-      for(String line:current.output.split("\\\\r?\\\\n"))
+      for(String line:current.output.split("\\r?\\n"))
         if(line.startsWith("querylog_retention="))selectedValue=line.substring("querylog_retention=".length()).trim();
     int selected=-1;
     for(int i=0;i<values.length;i++)if(values[i].equals(selectedValue))selected=i;
