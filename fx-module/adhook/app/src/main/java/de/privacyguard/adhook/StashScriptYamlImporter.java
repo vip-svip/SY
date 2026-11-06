@@ -187,10 +187,9 @@ public final class StashScriptYamlImporter {
                 break;
             case "argument":
                 script.argument = value;
-                // FX has no per-script argument transport in the URL subscription model.
-                if (!value.isEmpty() || value.length() > 512 || hasControl(value)) {
-                    script.supported = false;
-                }
+                // FX carries Stash's per-script argument through the shared metadata
+                // header and exposes it to compatible scripts as $argument.
+                if (value.length() > 512 || hasControl(value)) script.supported = false;
                 break;
             case "engine":
                 script.engine = value.toLowerCase(Locale.ROOT);
@@ -239,10 +238,12 @@ public final class StashScriptYamlImporter {
         String displayName = script.name.replaceAll("[\\p{Cntrl}]", " ").trim();
         if (displayName.isEmpty() || displayName.length() > 512) return;
         String bodyFlag = script.requireBody ? "1" : "0";
+        // Metadata field 5 is reserved for Egern env JSON; preserve an empty
+        // slot so Stash's argument remains field 6 for the shared runtime bridge.
         String metadata = script.type + "\n" + script.match + "\n"
-                + bodyFlag + "\n" + displayName;
+                + bodyFlag + "\n" + displayName + "\n\n" + script.argument;
         String duplicateKey = provider.url + "\n" + script.type + "\n"
-                + script.match + "\n" + bodyFlag;
+                + script.match + "\n" + bodyFlag + "\n" + script.argument;
         if (!seen.add(duplicateKey)) return;
 
         String encoded = "FXMETA_B64:" + Base64.encodeToString(
