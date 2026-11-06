@@ -565,6 +565,8 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
  private void renderRules(){EditText url=draftField("rule_url");url.setSingleLine(true);url.setHint("https://… 或 builtin://…");EditText name=draftField("rule_name");name.setSingleLine(true);name.setHint("列表名称");card("添加过滤列表","仅允许 HTTPS 订阅及 FX 本地资源。",url,name,btn("添加并应用",()->{String u=url.getText().toString().trim(),n=name.getText().toString().trim();if(!u.isEmpty()&&!n.isEmpty())apply("rule-add "+q(u)+" "+q(n)+" 1","规则添加");}));search=draftField("rule_search");search.setSingleLine(true);search.setHint("搜索过滤列表");card("搜索","输入来源或列表名称",search);search.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int st,int c,int a){}public void onTextChanged(CharSequence s,int st,int be,int co){bind();}public void afterTextChanged(Editable e){}});entries=new LinearLayout(this);entries.setOrientation(1);body.addView(entries);}
  private void renderDns(){
   card("DNS 配置备份","导出当前 FX DNS 引擎、过滤策略、上游服务器、VPN DNS 与拦截响应模式；仅读取本机配置，不会上传或修改设置。",btn("分享 DNS 配置快照",()->shareDnsProfile()));
+  TextView dnsRuntimeState=txt("DNS 运行状态尚未读取。",12,0xff617080,false);
+  card("DNS 引擎运行状态","读取 AdGuard Home、Unbound、第三方 VPN Root Proxy、DNS 过滤覆盖范围与 VPN 共存判定。此操作只读取状态，不会更改服务或网络路由。",dnsRuntimeState,btn("刷新 DNS 运行状态",()->loadDnsRuntimeStatus(dnsRuntimeState)));
   card("本地 DNS 引擎",
        "启用时使用 FX 自有 AdGuard Home 过滤服务；关闭后按 FX 当前安全 DNS 回退配置处理。",
        dnsSwitch("启用本地 AdGuard Home","dns_engine_adguardhome"));
@@ -688,6 +690,33 @@ private void shareDnsProfile(){
       status.setText("无法打开系统分享面板："+safe(unavailable.getMessage()));
     }
   });
+}
+private void loadDnsRuntimeStatus(TextView target){
+  target.setText("正在读取 DNS 服务状态…");
+  root("dns-runtime-status",r->{
+    if(r.exitCode!=0){target.setText("DNS 状态读取失败："+safe(r.output));return;}
+    java.util.Map<String,String> values=new java.util.LinkedHashMap<>();
+    for(String line:(r.output==null?"":r.output).split("\\r?\\n")){
+      int split=line.indexOf('|');
+      if(split>0&&split<line.length()-1)values.put(line.substring(0,split).trim(),line.substring(split+1).trim());
+    }
+    StringBuilder out=new StringBuilder();
+    appendDnsStatus(out,"AdGuard Home",values.get("adguardhome"));
+    appendDnsStatus(out,"Unbound",values.get("unbound"));
+    appendDnsStatus(out,"第三方 VPN Root Proxy",values.get("root_proxy"));
+    appendDnsStatus(out,"DNS 过滤覆盖",values.get("dns_filter_coverage"));
+    appendDnsStatus(out,"VPN 共存判定",values.get("vpn_coexistence_verdict"));
+    appendDnsStatus(out,"DNS 路由探测",values.get("vpn_route_probe"));
+    appendDnsStatus(out,"DNS 栈已启用",values.get("dns_stack_enabled"));
+    appendDnsStatus(out,"DNS 栈就绪",values.get("dns_stack_ready"));
+    appendDnsStatus(out,"过滤规则总数",values.get("dns_filter_sources_total"));
+    appendDnsStatus(out,"已启用过滤规则",values.get("dns_filter_sources_enabled"));
+    target.setText(out.length()==0?"未收到可识别的 DNS 状态字段。":out.toString().trim());
+  });
+}
+private void appendDnsStatus(StringBuilder out,String label,String value){
+  if(value==null||value.isEmpty())return;
+  out.append(label).append("：").append(value).append('\\n');
 }
 private void loadDnsLists(EditText custom,EditText global,EditText fallback,EditText remote,EditText domestic){
   root("dns-config-get",r->{
