@@ -115,15 +115,59 @@ _root_hints_valid() {
   _hints_file=$1
   [ -f "$_hints_file" ] && [ ! -L "$_hints_file" ] && [ -s "$_hints_file" ] || return 1
   awk '
-    function valid_ipv4(v,n,a,i) {
+    function valid_ipv4(v,n,a,i,first,second) {
       n=split(v,a,".")
       if(n!=4)return 0
       for(i=1;i<=4;i++)
         if(a[i]!~/^[0-9]+$/ || length(a[i])>3 || a[i]+0>255 ||
            (a[i]!="0" && a[i]~/^0/))return 0
+      first=a[1]+0;second=a[2]+0
+      if(first==0 || first==10 || first==127 || first>=224 ||
+         (first==169 && second==254) ||
+         (first==172 && second>=16 && second<=31) ||
+         (first==192 && second==168) ||
+         (first==100 && second>=64 && second<=127) ||
+         (first==255 && second==255 && a[3]+0==255 && a[4]+0==255))return 0
       return 1
     }
-    BEGIN {split("A B C D E F G H I J K L M",letters," ")}
+    function valid_ipv6(v,pos,left,right,count,i,n,a,b,first) {
+      if(v=="" || index(v,":")==0 || v~/[^0-9A-Fa-f:]/ || v~/:::/)return 0
+      pos=index(v,"::")
+      if(pos && index(substr(v,pos+2),"::"))return 0
+      count=0
+      first=""
+      if(pos) {
+        left=substr(v,1,pos-1)
+        right=substr(v,pos+2)
+        if(left!="") {
+          n=split(left,a,":")
+          for(i=1;i<=n;i++)
+            if(a[i]!~/^[0-9A-Fa-f][0-9A-Fa-f]?[0-9A-Fa-f]?[0-9A-Fa-f]?$/)return 0
+          count+=n
+          first=a[1]
+        }
+        if(right!="") {
+          n=split(right,b,":")
+          for(i=1;i<=n;i++)
+            if(b[i]!~/^[0-9A-Fa-f][0-9A-Fa-f]?[0-9A-Fa-f]?[0-9A-Fa-f]?$/)return 0
+          count+=n
+          if(first=="")first=b[1]
+        }
+        if(count>=8)return 0
+      } else {
+        n=split(v,a,":")
+        if(n!=8)return 0
+        for(i=1;i<=n;i++)
+          if(a[i]!~/^[0-9A-Fa-f][0-9A-Fa-f]?[0-9A-Fa-f]?[0-9A-Fa-f]?$/)return 0
+        first=a[1]
+      }
+      # Root server AAAA records must be globally scoped unicast (2000::/3).
+      if(tolower(substr(first,1,1))!="2" && tolower(substr(first,1,1))!="3")return 0
+      return 1
+    }
+    BEGIN {
+      split("A B C D E F G H I J K L M",letters," ")
+    }
     {
       line=$0
       sub(/;.*/,"",line)
@@ -131,35 +175,40 @@ _root_hints_valid() {
       gsub(/[ \t]+$/,"",line)
       if(line=="")next
       n=split(line,f,/[ \t]+/)
-      if(f[1]=="$TTL")next
+      if(f[1]=="$TTL") {
+        ttl_directive++
+        if(n!=2 || f[2]!~/^[0-9]+$/ || f[2]+0>4294967295)bad=1
+        next
+      }
       idx=2
-      if(f[idx]~/^[0-9]+$/)idx++
+      if(f[idx]~/^[0-9]+$/) {
+        if(f[idx]+0>4294967295)bad=1
+        idx++
+      }
       if(toupper(f[idx])=="IN")idx++
+      if(n!=idx+1) {bad=1;next}
       type=toupper(f[idx])
       owner=toupper(f[1])
       sub(/[.]$/,"",owner)
-      if(n<idx+1){bad=1;next}
-      if(owner=="." && type=="NS"){
+      if(owner=="." && type=="NS") {
         target=toupper(f[idx+1])
         sub(/[.]$/,"",target)
-        if(target!~/^[A-M][.]ROOT-SERVERS[.]NET$/){bad=1;next}
-        ns[target]=1
+        if(target!~/^[A-M][.]ROOT-SERVERS[.]NET$/ || ns[target]++)bad=1
         next
       }
-      if(owner~/^[A-M][.]ROOT-SERVERS[.]NET$/ && type=="A"){
-        if(!valid_ipv4(f[idx+1]))bad=1
-        else addr[owner]=1
+      if(owner~/^[A-M][.]ROOT-SERVERS[.]NET$/ && type=="A") {
+        if(!valid_ipv4(f[idx+1]) || addr[owner]++)bad=1
         next
       }
-      if(owner~/^[A-M][.]ROOT-SERVERS[.]NET$/ && type=="AAAA"){
-        if(f[idx+1]!~/^[0-9A-Fa-f:]+$/ || index(f[idx+1],":")==0 ||
-           f[idx+1]~/:::/)bad=1
+      if(owner~/^[A-M][.]ROOT-SERVERS[.]NET$/ && type=="AAAA") {
+        if(!valid_ipv6(f[idx+1]) || addr6[owner]++)bad=1
         next
       }
       bad=1
     }
     END {
-      for(i=1;i<=13;i++){
+      if(ttl_directive>1)bad=1
+      for(i=1;i<=13;i++) {
         name=letters[i] ".ROOT-SERVERS.NET"
         if(!ns[name] || !addr[name])bad=1
       }

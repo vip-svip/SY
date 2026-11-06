@@ -6997,3 +6997,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 原生页面同步升级协议白名单、字段完整性、数值/枚举/时长校验，并按日志、统计、AdGuard 缓存、Unbound 递归参数、DNSSEC 分组展示。仍为只读报告，不修改配置、不重启服务、不改写 VPN 或 DNS 路由。
 - 同步正式/模块 Root 控制脚本与两份原生 Ad 页面。
 - 按用户要求未运行测试、Shell/Java 静态检查、构建、CI 或 Android 真机验证；本次仅完成源码接线与续接记录。
+
+
+## 2026-11-07 — Root Hints DNS RR 严格结构校验
+
+- 收紧 fx-module/scripts/unbound.sh 的 _root_hints_valid()：DNS TTL 和 $TTL 指令按 uint32 校验；每条 RR 必须是单一完整字段结构，不再接受尾随多余 token。
+- 13 台根服务器的 NS/A 记录必须一一存在且不得重复；额外/未知 owner、记录类型、畸形或重复 A/AAAA 记录均拒绝。
+- IPv4 记录增加非公网/保留范围拒绝；AAAA 使用完整 1–8 hextet 与 :: 压缩规则校验，并要求根服务器地址属于全球单播 2000::/3，避免仅用十六进制冒号字符集误判畸形地址。
+- 同一 validator 同时用于模块启动前完整性检查与官方 HTTPS Root Hints 手动下载后的暂存文件检查；保留 SHA-256 sidecar、原子发布、失败回滚和 VPN-bound/运行中拒绝更新策略。
+- 本批未运行 Shell regression、静态检查、构建、CI 或 Android 真机测试；仅按要求提交源码，不将源码改动描述为验证通过。
