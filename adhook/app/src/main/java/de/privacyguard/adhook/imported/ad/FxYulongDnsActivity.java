@@ -85,11 +85,12 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
     }
     private String shell(String args) {
         boolean domainListAdd = args != null && args.matches("(allow-add|block-add) [A-Za-z0-9.-]{1,253}");
+        boolean domainListImport = args != null && args.matches("(allow-import|block-import) [A-Za-z0-9+/=]{1,87384}");
         if (!"dns-log-tail".equals(args) && !"cache-flush".equals(args)
                 && !"cache-flush adguardhome".equals(args)
                 && !"cache-flush unbound".equals(args)
                 && !"cache-flush all".equals(args)
-                && !"dns-log-clear".equals(args) && !domainListAdd) {
+                && !"dns-log-clear".equals(args) && !domainListAdd && !domainListImport) {
             throw new IllegalArgumentException("Unsupported Yulong DNS operation.");
         }
         return FxYulongRootModuleCommand.command("yulong-ad-control.sh", args);
@@ -150,9 +151,11 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         clearButton = button("清理本地查询日志", this::confirmClear);
         Button shareButton = button("分享全部筛选结果", this::shareFilteredResults);
         Button copyDomainsButton = button("复制筛选域名（去重）", this::copyFilteredDomains);
+        Button allowFilteredButton = button("筛选域名批量加入白名单", () -> addFilteredDomains(true));
+        Button blockFilteredButton = button("筛选域名批量加入黑名单", () -> addFilteredDomains(false));
         card(body, "本机日志说明",
                 "查询日志默认关闭；启用后 AdGuard Home 按本机保留策略保存记录。这里只显示最近 500 条，不显示客户端 IP，也不会上传。",
-                status, refreshButton, clearButton, shareButton, copyDomainsButton);
+                status, refreshButton, clearButton, shareButton, copyDomainsButton, allowFilteredButton, blockFilteredButton);
         cacheFlushButton = button("刷新全部本地 DNS 缓存", () -> confirmCacheFlush("all", "全部本地 DNS"));
         Button aghFlushButton = button("仅刷新 AdGuard Home", () -> confirmCacheFlush("adguardhome", "AdGuard Home"));
         Button unboundFlushButton = button("仅刷新 Unbound", () -> confirmCacheFlush("unbound", "Unbound"));
@@ -461,6 +464,63 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         }
     }
 
+
+    /** Add all unique domains in the active local query-log filter to one domain list. */
+    private void addFilteredDomains(boolean allow) {
+        if (data.isEmpty()) {
+            status.setText("当前没有可处理的 DNS 查询记录；请先刷新本地日志。");
+            return;
+        }
+        String query = search == null || search.getText() == null ? ""
+                : search.getText().toString().trim().toLowerCase(Locale.ROOT);
+        java.util.LinkedHashSet<String> unique = new java.util.LinkedHashSet<>();
+        int matchedRows = 0;
+        for (Entry item : data) {
+            if (!matchesResultFilter(item) || !matchesTimeFilter(item)
+                    || !matchesTypeFilter(item) || !matchesRcodeFilter(item)
+                    || (!query.isEmpty() && !item.searchable().contains(query))) continue;
+            matchedRows++;
+            String domain = item.domain == null ? "" : item.domain.trim().toLowerCase(Locale.ROOT);
+            if (!domain.matches("[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?")
+                    || domain.contains("..") || domain.startsWith(".") || domain.endsWith(".")) {
+                status.setText("筛选结果包含不符合域名名单格式的记录，已取消整批操作；请缩小筛选范围。");
+                return;
+            }
+            unique.add(domain);
+            if (unique.size() > 2000) {
+                status.setText("单次最多处理 2000 个唯一域名，请缩小筛选范围。");
+                return;
+            }
+        }
+        if (unique.isEmpty()) {
+            status.setText("当前筛选条件没有可加入名单的域名。");
+            return;
+        }
+        String payload = String.join("\\n", unique);
+        byte[] bytes = payload.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        if (bytes.length > 65536) {
+            status.setText("域名清单超过 64 KiB，已取消整批操作；请缩小筛选范围。");
+            return;
+        }
+        String encoded = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP);
+        String listName = allow ? "白名单" : "黑名单";
+        String operation = (allow ? "allow-import " : "block-import ") + encoded;
+        fxDialogBuilder().setTitle("批量加入 FX " + listName)
+                .setMessage("将当前所有筛选匹配记录中的 " + matchedRows + " 条记录去重为 "
+                        + unique.size() + " 个域名，并加入 FX " + listName + "。"
+                        + (allow ? "白名单会优先放行这些域名。" : "黑名单会阻断这些域名。")
+                        + "本次操作保留现有名单记录；后端会再次校验域名并在配置事务中应用。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("批量添加", (dialog, which) -> root(shell(operation), result -> {
+                    if (result.exitCode == 0) {
+                        status.setText("已将 " + unique.size() + " 个去重域名加入 FX " + listName
+                                + "（来源 " + matchedRows + " 条筛选记录）。");
+                        load();
+                    } else {
+                        status.setText("批量加入" + listName + "失败：" + safe(result.output));
+                    }
+                })).show();
+    }
 
     /** Copy unique domains from all locally loaded rows matching every active filter. */
     private void copyFilteredDomains() {
