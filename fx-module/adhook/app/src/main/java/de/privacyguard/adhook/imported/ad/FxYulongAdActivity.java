@@ -729,7 +729,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
        "启用时使用 FX 自有 AdGuard Home 过滤服务；关闭后按 FX 当前安全 DNS 回退配置处理。",
        dnsSwitch("启用本地 AdGuard Home","dns_engine_adguardhome"));
   card("本地 DNS 架构",
-       "默认由本地 AdGuard Home 过滤并交给 Unbound 递归解析；不固定使用公共 DNS。启用“全局 DNS 替换”时优先使用全局列表；否则启用“自定义 DNS”时使用自定义列表；两项都关闭时恢复本地 Unbound。备用 DNS 仅在主上游失败时用于回退。",
+       "默认由本地 AdGuard Home 过滤并交给 Unbound 递归解析；不固定使用公共 DNS。启用“全局 DNS 替换”时优先使用全局列表；否则启用“自定义 DNS”时使用自定义列表；两项都关闭时恢复本地 Unbound。备用 DNS 仅在主上游无响应时用于回退；外部自定义/全局上游未配置备用列表时，FX 自动使用本地 Unbound 作为故障回退，填写备用列表后则按用户列表回退。",
        dnsSwitch("DNS 兜底转发","dns_forward"),
        dnsSwitch("启用自定义 DNS","custom_dns"),
        dnsSwitch("启用全局 DNS 替换","global_dns"),
