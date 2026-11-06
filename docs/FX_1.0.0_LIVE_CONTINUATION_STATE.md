@@ -8181,3 +8181,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 同时修正上一批解析器在剥离 `fun ` 前缀后，仍使用原始输入定位右括号的问题。
 - 不接受无法精确确定运行时类型的泛型参数、`Nothing`、可空 `Unit` 或默认参数表达式。
 - 按用户要求未运行测试、静态检查、Gradle 构建、CI 或设备验证。
+
+
+### FX Hook 主应用源码同步 Kotlin 自定义签名解析器（2026-11-07）
+
+- 主应用源码提交：`bae83361304edb368ff576a5930b57dc61a3b883`，文件 `adhook/app/src/main/java/de/privacyguard/adhook/DeveloperExecutableDescriptor.java`。
+- 将此前已移植到 `fx-module/adhook` 的 Kotlin 声明式精确签名解析同步到统一 FX Hook 主应用源码：支持 `fun ` 声明、命名参数、可空类型、可空基础类型装箱及 `Array<T>` 精确组件描述符。
+- 保留 Java、Frida overload 与 DEX/JVM descriptor 解析路径；拒绝默认参数表达式及无法精确确定 ABI 的输入。
+- 本次修复主应用源码与模块镜像之间的功能漂移；按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证。
