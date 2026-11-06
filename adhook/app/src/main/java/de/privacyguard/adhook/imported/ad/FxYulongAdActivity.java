@@ -863,7 +863,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
    input.setHint("每行一条：域名|IPv4/IPv6/CNAME 目标");
    input.setText(normalized.replace(",", "\n"));
    fxDialogBuilder().setTitle("DNS 域名重写")
-    .setMessage("为指定域名固定返回 IPv4、IPv6 地址或 CNAME 目标。每行格式：域名|目标；同一源域名只能有一条规则。留空会清除全部重写。")
+    .setMessage("为指定域名固定返回 IPv4、IPv6 地址或 CNAME 目标。每行格式：域名|目标；同一源域名只能有一条规则，规则条数不设应用层上限。留空会清除全部重写。")
     .setView(input)
     .setNegativeButton("取消",null)
     .setPositiveButton("保存",(dialog,which)->{
