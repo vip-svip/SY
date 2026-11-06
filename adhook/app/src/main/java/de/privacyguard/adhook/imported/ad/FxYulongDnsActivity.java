@@ -37,6 +37,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
     private static final String STATE_SCROLL_Y = "fx_dns_scroll_y";
     private static final String STATE_RESULT_FILTER = "fx_dns_result_filter";
     private static final String STATE_TIME_FILTER = "fx_dns_time_filter";
+    private static final String STATE_TYPE_FILTER = "fx_dns_type_filter";
     private final AtomicInteger loadGeneration = new AtomicInteger();
     private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
             1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(16),
@@ -55,6 +56,8 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
     private int resultFilter = 0;
     /** 0=all, 1=last hour, 2=last 24 hours, 3=last 7 days. */
     private int timeFilter = 0;
+    /** Empty means all DNS RR types; otherwise an uppercase exact RR type. */
+    private String typeFilter = "";
     private int pendingScrollY;
     private boolean pendingScrollRestore;
 
@@ -137,6 +140,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
             pendingScrollY = Math.max(0, state.getInt(STATE_SCROLL_Y, 0));
             resultFilter = Math.max(0, Math.min(2, state.getInt(STATE_RESULT_FILTER, 0)));
             timeFilter = Math.max(0, Math.min(3, state.getInt(STATE_TIME_FILTER, 0)));
+            typeFilter = normalizeTypeFilter(state.getString(STATE_TYPE_FILTER, ""));
             pendingScrollRestore = true;
         }
         refreshButton = button("刷新", this::load);
@@ -165,6 +169,16 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         timeFilters.addView(button("近 24 小时", () -> setTimeFilter(2)), new LinearLayout.LayoutParams(0, -2, 1));
         timeFilters.addView(button("近 7 天", () -> setTimeFilter(3)), new LinearLayout.LayoutParams(0, -2, 1));
         card(body, "时间范围筛选", "按日志时间筛选；无法识别时间格式的记录仍保留显示，避免误隐藏本地日志。分享时同步应用。", timeFilters);
+        LinearLayout typeFilters = new LinearLayout(this);
+        typeFilters.setOrientation(LinearLayout.HORIZONTAL);
+        String[] rrTypes = {"全部", "A", "AAAA", "HTTPS", "TXT", "MX", "CNAME"};
+        String[] rrValues = {"", "A", "AAAA", "HTTPS", "TXT", "MX", "CNAME"};
+        for (int i = 0; i < rrTypes.length; i++) {
+            final String value = rrValues[i];
+            typeFilters.addView(button(rrTypes[i], () -> setTypeFilter(value)),
+                    new LinearLayout.LayoutParams(0, -2, 1));
+        }
+        card(body, "DNS 记录类型筛选", "按 DNS 查询记录类型精确筛选；可与域名搜索、拦截状态和时间范围叠加，分享时沿用。", typeFilters);
         rows = new LinearLayout(this); rows.setOrientation(1); body.addView(rows);
         search.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -301,6 +315,30 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         if (scroll != null) scroll.scrollTo(0, 0);
     }
 
+    private static String normalizeTypeFilter(String value) {
+        if (value == null) return "";
+        String normalized = value.trim().toUpperCase(Locale.ROOT);
+        switch (normalized) {
+            case "A": case "AAAA": case "HTTPS": case "TXT": case "MX": case "CNAME":
+                return normalized;
+            default: return "";
+        }
+    }
+
+    private boolean matchesTypeFilter(Entry item) {
+        return typeFilter.isEmpty() || (item != null && typeFilter.equals(
+                item.type == null ? "" : item.type.trim().toUpperCase(Locale.ROOT)));
+    }
+
+    private void setTypeFilter(String value) {
+        typeFilter = normalizeTypeFilter(value);
+        page = 1;
+        pendingScrollY = 0;
+        pendingScrollRestore = false;
+        render();
+        if (scroll != null) scroll.scrollTo(0, 0);
+    }
+
     private void confirmAddDomain(Entry item, boolean allow) {
         String domain = item == null || item.domain == null ? "" : item.domain.trim().toLowerCase(Locale.ROOT);
         if (!domain.matches("[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?") || domain.contains("..")
@@ -334,7 +372,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         String query = search.getText() == null ? "" : search.getText().toString().trim().toLowerCase(Locale.ROOT);
         int matched = 0;
         for (Entry item : data) {
-            if (matchesResultFilter(item) && matchesTimeFilter(item)
+            if (matchesResultFilter(item) && matchesTimeFilter(item) && matchesTypeFilter(item)
                     && (query.isEmpty() || item.searchable().contains(query))) matched++;
         }
         int maxPage = Math.max(1, (matched + ROW_PAGE_SIZE - 1) / ROW_PAGE_SIZE);
@@ -344,7 +382,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         rows.addView(text("匹配 " + matched + " 条 · 已显示 " + Math.min(matched, limit) + " 条",
                 11, 0xff718091, false));
         for (Entry item : data) {
-            if (!matchesResultFilter(item) || !matchesTimeFilter(item)
+            if (!matchesResultFilter(item) || !matchesTimeFilter(item) || !matchesTypeFilter(item)
                     || (!query.isEmpty() && !item.searchable().contains(query))) continue;
             if (shown >= limit) continue;
             LinearLayout row = new LinearLayout(this); row.setOrientation(1);
@@ -394,13 +432,14 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
                 .append("filter=").append(query).append("\\n")
                 .append("result=").append(resultFilter == 1 ? "blocked" : resultFilter == 2 ? "allowed" : "all").append("\\n")
                 .append("time=").append(timeFilter == 1 ? "1h" : timeFilter == 2 ? "24h" : timeFilter == 3 ? "7d" : "all").append("\\n")
+                .append("dns_type=").append(typeFilter.isEmpty() ? "all" : typeFilter).append("\\n")
                 .append("scope=locally retained latest 500 parsed records\\n")
                 .append("time\\tdomain\\ttype\\tresult\\treason\\n");
         int included = 0;
         int omitted = 0;
         final int maxBytes = 48 * 1024;
         for (Entry item : data) {
-            if (!matchesResultFilter(item) || !matchesTimeFilter(item)
+            if (!matchesResultFilter(item) || !matchesTimeFilter(item) || !matchesTypeFilter(item)
                     || (!query.isEmpty() && !item.searchable().contains(query))) continue;
             String row = cleanExportField(item.time) + "\\t"
                     + cleanExportField(item.domain) + "\\t"
@@ -486,6 +525,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         outState.putInt(STATE_PAGE, Math.max(1, page));
         outState.putInt(STATE_RESULT_FILTER, resultFilter);
         outState.putInt(STATE_TIME_FILTER, timeFilter);
+        outState.putString(STATE_TYPE_FILTER, typeFilter);
         if (scroll != null) outState.putInt(STATE_SCROLL_Y, Math.max(0, scroll.getScrollY()));
         super.onSaveInstanceState(outState);
     }
