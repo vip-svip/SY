@@ -103,11 +103,11 @@ status() {
       _rule_rows=$(MP="$MP" PG="$PG" sh "$MP/scripts/native-managed-lists.sh" list ruleList 2>/dev/null) || _rule_rows=
     fi
     if [ -n "$_rule_rows" ]; then
-      _filter_counts=$(printf '%s\\n' "$_rule_rows" | awk -F'|' '
+      _filter_counts=$(printf '%s\n' "$_rule_rows" | awk -F'|' '
         NR==1 {if($0!="FXLIST1") exit 2; next}
         NF!=4 || $1 !~ /^[0-9]+$/ || $4 !~ /^[01]$/ {exit 2}
         {total++; if($4=="1") enabled++}
-        END {if(NR<1) exit 2; printf "%d|%d\\n", total+0, enabled+0}
+        END {if(NR<1) exit 2; printf "%d|%d\n", total+0, enabled+0}
       ') || _filter_counts=
       case "$_filter_counts" in
         ''|*[!0-9|]*) _filter_total=unknown; _filter_enabled=unknown ;;
