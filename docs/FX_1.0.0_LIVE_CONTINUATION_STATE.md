@@ -7719,3 +7719,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - UI 提交：`1b0f1ba677a112b8b30bd246e984ed8d23cb5f76`。
   - 脚本卡片新增“重命名”，输入名称后后台提交并刷新列表；操作只更改本地脚本名称，不执行、不注入源码。
 - 本批未运行测试、静态检查、Gradle 构建、CI、安装或真机验证。
+
+
+## 2026-11-06 — Dia Activity 浏览器完整筛选清单复制
+
+- 代码提交：`96de2b29cbf3cfc942ce6ce7825c1d455a479d6a`。
+- 改动文件：`adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaActivityBrowserActivity.java`。
+- Activity 组件列表新增“复制全部筛选结果”，导出范围覆盖当前搜索条件下的全部匹配 Activity，不受当前分页限制；内容包含组件类名、exported、当前启用状态、Manifest enabled 与声明权限。
+- 导出仅包含组件元数据，不包含 Intent extra、应用数据或运行时内容；剪贴板内容限制为 256 KiB，超限按完整行省略并显示数量，不会静默截断单行。
+- 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或真机验证。
