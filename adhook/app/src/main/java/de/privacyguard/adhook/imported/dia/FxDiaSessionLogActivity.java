@@ -187,6 +187,11 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
         actions.addView(button("清空当前日志", this::confirmClearLog),
                 new LinearLayout.LayoutParams(0, -2, 1));
         controls.addView(actions);
+        LinearLayout secondaryActions = new LinearLayout(this);
+        secondaryActions.setTag("fx-card-group");
+        secondaryActions.addView(button("分享筛选结果", this::shareFilteredLog),
+                new LinearLayout.LayoutParams(0, -2, 1));
+        controls.addView(secondaryActions);
         root.addView(controls);
 
         logScroll = new ScrollView(this);
@@ -293,6 +298,34 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
                 Toast.LENGTH_SHORT).show();
     }
 
+    private void shareFilteredLog() {
+        String filtered = getFilteredLogContent();
+        if (filtered.isEmpty()) {
+            Toast.makeText(this, "当前没有可分享的日志内容。", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        final int shareLimit = 48 * 1024;
+        String header = "FX Dia 会话日志 · " + targetName + " · "
+                + (gadgetLog ? "Gadget" : "Frida") + "\\n"
+                + "包名：" + targetPackage + "\\n"
+                + "导出时间：" + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ROOT)
+                        .format(new Date()) + "\\n"
+                + "注意：分享前请检查日志中的敏感信息。\\n\\n";
+        String payload = header + filtered;
+        if (utf8Length(payload) > shareLimit) {
+            String marker = "\\n[分享内容达到 48 KiB 上限，后续日志已省略]";
+            payload = truncateUtf8(payload, shareLimit - utf8Length(marker)) + marker;
+        }
+        Intent send = new Intent(Intent.ACTION_SEND);
+        send.setType("text/plain");
+        send.putExtra(Intent.EXTRA_SUBJECT, "FX Dia 会话日志 · " + targetName);
+        send.putExtra(Intent.EXTRA_TEXT, payload);
+        try {
+            startActivity(Intent.createChooser(send, "分享筛选后的 Dia 日志"));
+        } catch (RuntimeException unavailable) {
+            Toast.makeText(this, "系统分享面板不可用，未分享日志。", Toast.LENGTH_LONG).show();
+        }
+    }
     private void beginExportLog() {
         String filtered = getFilteredLogContent();
         if (filtered.isEmpty()) {
