@@ -236,23 +236,59 @@ _render_managed_config() {
     rm -f "$_rules_file" 2>/dev/null || :
     return 1
   }
+  _fallback_file=$(_new_private_temp "$STATE/fallback-dns.XXXXXX") || {
+    rm -f "$_rules_file" "$_filters_file" 2>/dev/null || :
+    return 1
+  }
   _config_file=$(_new_private_temp "$STATE/AdGuardHome.yaml.tmp.XXXXXX") || {
     rm -f "$_rules_file" "$_filters_file" 2>/dev/null || :
     return 1
   }
   if ! _build_user_rules "$_rules_file" || ! _build_filter_sources "$_filters_file"; then
-    rm -f "$_rules_file" "$_filters_file" "$_config_file" 2>/dev/null || :
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_config_file" 2>/dev/null || :
     return 1
   fi
   _querylog_interval=$(awk '$0=="[conf:yulong_dns_querylog_retention]"{inside=1;next} /^\\[/{inside=0} inside&&/^interval=/{sub(/^interval=/,"");print;exit}' "$PG/settings.conf" 2>/dev/null)
   case "$_querylog_interval" in 1d|3d|7d|30d) : ;; *) _querylog_interval=7d ;; esac
   _dns_response_mode=$(awk '$0=="[conf:yulong_dns_response]"{inside=1;next} /^\\[/{inside=0} inside&&/^mode=/{sub(/^mode=/,"");print;exit}' "$PG/settings.conf" 2>/dev/null)
   case "$_dns_response_mode" in nxdomain|refused|custom_ip) : ;; *) _dns_response_mode=nxdomain ;; esac
-  if ! awk -v querylog_interval="$_querylog_interval" -v dns_response_mode="$_dns_response_mode" -v rules_file="$_rules_file" -v filters_file="$_filters_file" '
+  if ! awk '
+    function valid_ipv4(s, n,a,i) {
+      n=split(s,a,".")
+      if(n!=4) return 0
+      for(i=1;i<=4;i++) if(a[i]!~/^[0-9]+$/ || length(a[i])>3 || a[i]+0>255 || (a[i]!="0" && a[i]~/^0/)) return 0
+      if(a[1]+0==0 || a[1]+0>=224) return 0
+      return 1
+    }
+    $0=="[conf:yulong_dns_fallback]" {inside=1;next}
+    /^\[/ {inside=0}
+    inside && /^[[:space:]]*nameserver[[:space:]]+/ {
+      server=$2
+      if(!valid_ipv4(server)) {bad=1; next}
+      if(!seen[server]++) {count++; if(count>3) bad=1; else print "  - " server}
+    }
+    END {if(bad) exit 1}
+  ' "$PG/settings.conf" > "$_fallback_file"; then
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_config_file" 2>/dev/null || :
+    _log 'saved fallback DNS list is invalid; refusing to render AdGuard config'
+    return 1
+  fi
+  if ! awk -v querylog_interval="$_querylog_interval" -v dns_response_mode="$_dns_response_mode" -v rules_file="$_rules_file" -v filters_file="$_filters_file" -v fallback_file="$_fallback_file" '
     /^querylog:[[:space:]]*$/ {in_querylog=1; print; next}
     in_querylog && /^[^[:space:]]/ {in_querylog=0}
     in_querylog && /^  interval:/ {print "  interval: " querylog_interval; next}
     /^  blocking_mode:/ {print "  blocking_mode: " dns_response_mode; next}
+    /^  fallback_dns:[[:space:]]*\[\][[:space:]]*$/ {
+      if ((getline fallback < fallback_file) > 0) {
+        print "  fallback_dns:"
+        print fallback
+        while ((getline fallback < fallback_file) > 0) print fallback
+      } else {
+        print "  fallback_dns: []"
+      }
+      close(fallback_file)
+      next
+    }
     /^filters:[[:space:]]*\[\][[:space:]]*$/ {
       if ((getline filter < filters_file) > 0) {
         print "filters:"
@@ -277,11 +313,11 @@ _render_managed_config() {
     {print}
     END {if (!found_rules) exit 2}
   ' "$TEMPLATE" > "$_config_file"; then
-    rm -f "$_rules_file" "$_filters_file" "$_config_file" 2>/dev/null || :
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_config_file" 2>/dev/null || :
     _log 'unable to compose AdGuard Home config with managed subscriptions and DNS rules'
     return 1
   fi
-  rm -f "$_rules_file" "$_filters_file" 2>/dev/null || :
+  rm -f "$_rules_file" "$_filters_file" "$_fallback_file" 2>/dev/null || :
   chmod 600 "$_config_file" 2>/dev/null || {
     rm -f "$_config_file" 2>/dev/null || :
     return 1
