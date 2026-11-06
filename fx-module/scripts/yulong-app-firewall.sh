@@ -187,6 +187,33 @@ EOF
   fi
   set_rule_value "$pkg" "$uid" "$state" "$wifi" "$mobile" "$schedule" "$start" "$end"
 }
+validate_package_uid() {
+  pkg="$1"
+  requested_uid="$2"
+  snapshot="$(cmd package list packages -U 2>/dev/null)" || {
+    echo "cannot verify package UID before saving firewall rule: $pkg" >&2
+    return 5
+  }
+  [ -n "$snapshot" ] || {
+    echo "package UID snapshot is empty; refusing firewall rule mutation" >&2
+    return 5
+  }
+  current_uid="$(resolve_uid "$pkg" "$snapshot")" || {
+    rc=$?
+    if [ "$rc" -eq 2 ]; then
+      echo "package is no longer installed; refusing stale firewall rule: $pkg" >&2
+      return 6
+    fi
+    echo "cannot resolve current UID for package: $pkg" >&2
+    return 5
+  }
+  [ "$current_uid" = "$requested_uid" ] || {
+    echo "package UID changed; refresh the app list before saving: $pkg" >&2
+    return 7
+  }
+  printf '%s\n' "$current_uid"
+}
+
 resolve_uid() {
   pkg="$1"
   snapshot="$2"
@@ -978,7 +1005,8 @@ case "$cmd" in
   set)
     [ "$#" -eq 4 ] && valid_package "$2" && [ "$3" -gt 0 ] 2>/dev/null && valid_state "$4" \
       || { echo "usage: $0 set package uid 0|1" >&2; exit 2; }
-    with_lock mutate_transaction set_item_value "$2" "$3" "$4"
+    validate_package_uid "$2" "$3" >/dev/null || exit $?
+    with_lock mutate_transaction set_item_value "$2" "$3" "$4" || exit $?
     reconcile_watch_lifecycle
     ;;
   rule)
@@ -986,7 +1014,8 @@ case "$cmd" in
       && valid_state "$4" && valid_state "$5" && valid_state "$6" && valid_state "$7" \
       && valid_time "$8" && valid_time "$9" \
       || { echo "usage: $0 rule package uid enabled block_wifi block_mobile schedule_enabled HH:MM HH:MM" >&2; exit 2; }
-    with_lock mutate_transaction set_rule_value "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9"
+    validate_package_uid "$2" "$3" >/dev/null || exit $?
+    with_lock mutate_transaction set_rule_value "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9" || exit $?
     reconcile_watch_lifecycle
     ;;
   remove)
