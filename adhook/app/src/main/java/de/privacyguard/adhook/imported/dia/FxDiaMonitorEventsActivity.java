@@ -229,6 +229,11 @@ public final class FxDiaMonitorEventsActivity extends de.privacyguard.adhook.FxN
         });
         actions.addView(autoRefreshSwitch);
         controls.addView(actions);
+        LinearLayout secondaryActions = new LinearLayout(this);
+        secondaryActions.setTag("fx-card-group");
+        secondaryActions.addView(button("分享筛选事件", this::shareFilteredEvents),
+                new LinearLayout.LayoutParams(0, -2, 1));
+        controls.addView(secondaryActions);
         root.addView(controls);
 
         count = text("匹配事件：0", 12, 0xff617080, false);
@@ -327,6 +332,32 @@ public final class FxDiaMonitorEventsActivity extends de.privacyguard.adhook.FxN
         return filtered;
     }
 
+    private void shareFilteredEvents() {
+        List<FxDiaMonitorEventParser.Event> filtered = getFilteredEvents();
+        if (filtered.isEmpty()) {
+            Toast.makeText(this, "当前筛选没有可分享的安全事件。", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        final int shareLimit = 48 * 1024;
+        String content = buildFilteredExport();
+        if (content.isEmpty()) {
+            Toast.makeText(this, "当前没有可分享的事件内容。", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (utf8Length(content) > shareLimit) {
+            String marker = "\\n[分享内容达到 48 KiB 上限，后续事件已省略]\\n";
+            content = truncateUtf8(content, shareLimit - utf8Length(marker)) + marker;
+        }
+        Intent send = new Intent(Intent.ACTION_SEND);
+        send.setType("text/plain");
+        send.putExtra(Intent.EXTRA_SUBJECT, "FX Dia 结构化监控事件 · " + targetName);
+        send.putExtra(Intent.EXTRA_TEXT, content);
+        try {
+            startActivity(Intent.createChooser(send, "分享筛选后的 Dia 监控事件"));
+        } catch (RuntimeException unavailable) {
+            Toast.makeText(this, "系统分享面板不可用，未分享事件。", Toast.LENGTH_LONG).show();
+        }
+    }
     private void beginExportEvents() {
         List<FxDiaMonitorEventParser.Event> filtered = getFilteredEvents();
         if (filtered.isEmpty()) {
