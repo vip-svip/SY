@@ -966,6 +966,28 @@ _config_contract() {
       for(i=1;i<=n;i++) if(a[i]!~/^[0-9A-Fa-f][0-9A-Fa-f]?[0-9A-Fa-f]?[0-9A-Fa-f]?$/) return 0
       return 1
     }
+    function valid_rewrite_domain(v,n,a,i) {
+      v=tolower(v)
+      if(v=="" || length(v)>253 || v~/\.\./ || v~/^[.]|[.]$/ || v~/[^a-z0-9.-]/) return 0
+      n=split(v,a,".")
+      for(i=1;i<=n;i++)
+        if(length(a[i])<1 || length(a[i])>63 ||
+           a[i]!~/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/) return 0
+      return 1
+    }
+    function valid_rewrite_ipv4(v,n,a,i) {
+      n=split(v,a,".")
+      if(n!=4)return 0
+      for(i=1;i<=4;i++)
+        if(a[i]!~/^[0-9]+$/ || length(a[i])>3 || a[i]+0>255 ||
+           (a[i]!="0" && a[i]~/^0/)) return 0
+      return 1
+    }
+    function valid_rewrite_answer(v) {
+      if(v~/^[0-9.]+$/) return valid_rewrite_ipv4(v)
+      if(v~/^[0-9A-Fa-f:]+$/ && index(v,":")) return valid_ipv6(v)
+      return valid_rewrite_domain(v)
+    }
     function valid_ipv6_port(v, close, host, tail, port) {
       if(substr(v,1,1)!="[") return 0
       close=index(v,"]")
@@ -1010,6 +1032,44 @@ _config_contract() {
       if (http_parts[1]=="127.0.0.1" && http_parts[2] ~ /^[0-9]+$/ &&
           http_parts[2]>=0 && http_parts[2]<=65535) http_loopback=1
     }
+    /^filtering:[[:space:]]*$/ {filtering=1; next}
+    filtering && /^[^[:space:]]/ {
+      if(rewrite_block && rewrite_domain!="" && !rewrite_has_answer) unsafe_rewrites=1
+      filtering=0
+      rewrite_block=0
+    }
+    filtering && $0=="  rewrites: []" {rewrite_sections++; next}
+    filtering && $0=="  rewrites:" {rewrite_sections++; rewrite_block=1; next}
+    filtering && rewrite_block && /^  [A-Za-z_][A-Za-z0-9_-]*:/ {
+      if(rewrite_domain!="" && !rewrite_has_answer) unsafe_rewrites=1
+      rewrite_block=0
+      rewrite_domain=""
+      rewrite_has_answer=0
+    }
+    filtering && rewrite_block && /^  - domain: / {
+      if(rewrite_domain!="" && !rewrite_has_answer) unsafe_rewrites=1
+      value=$0
+      sub(/^  - domain: /,"",value)
+      sub(/^"/,"",value); sub(/"$/,"",value)
+      rewrite_domain=tolower(value)
+      rewrite_has_answer=0
+      if(!valid_rewrite_domain(rewrite_domain) || rewrite_domains_seen[rewrite_domain]++)
+        unsafe_rewrites=1
+      rewrite_entries++
+      next
+    }
+    filtering && rewrite_block && /^    answer: / {
+      value=$0
+      sub(/^    answer: /,"",value)
+      sub(/^"/,"",value); sub(/"$/,"",value)
+      if(rewrite_domain=="" || rewrite_has_answer || !valid_rewrite_answer(value))
+        unsafe_rewrites=1
+      rewrite_has_answer=1
+      next
+    }
+    filtering && rewrite_block && /^[[:space:]]*$/ {next}
+    filtering && rewrite_block && /^[[:space:]]*#/ {next}
+    filtering && rewrite_block {unsafe_rewrites=1; next}
     /^querylog:[[:space:]]*$/ {querylog=1; next}
     querylog && /^[^[:space:]]/ {querylog=0; querylog_ignored_sequence=0}
     querylog && querylog_ignored_sequence && /^  [A-Za-z_][A-Za-z0-9_-]*:/ {querylog_ignored_sequence=0}
@@ -1144,6 +1204,8 @@ _config_contract() {
         querylog_ignored_enabled_count==1 && querylog_ignored_count==1 &&
         (runtime_querylog_ignored_enabled=="true" || runtime_querylog_ignored_enabled=="false") &&
         !unsafe_querylog_ignored && !querylog_ignored_sequence &&
+        rewrite_sections==1 && !unsafe_rewrites && !rewrite_block &&
+        (rewrite_domain=="" || rewrite_has_answer) &&
         valid_uint32(runtime_cache_size,0) &&
         valid_uint32(runtime_cache_ttl_min,1) && valid_uint32(runtime_cache_ttl_max,1) &&
         runtime_cache_ttl_min+0<=runtime_cache_ttl_max+0 &&
