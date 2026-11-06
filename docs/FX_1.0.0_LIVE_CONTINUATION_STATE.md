@@ -7087,3 +7087,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 应用与模块两份 `FxYulongAppWhitelistActivity.java` 增加“批量加入当前页 / 批量移出当前页”，按当前搜索条件和分页范围处理最多一页应用，操作前确认数量，成功后刷新 Root 名单。提交：6856d6763189ae4e12242b74a8a8eb1d3af546b7、1ad6894d24352074b7507a0c45154724a6cfdb2d。
 - `fx-module/scripts/yulong-app-firewall.sh` 将多个选中应用的 UID 解析改为一次读取 PackageManager 快照后统一映射，避免每个包重复启动 AWK 全量扫描；缺失应用跳过，非法或不可用 UID 仍保留旧防火墙。提交：4a1cd9e9a77438c5b776483d8e69c22c105e7ee8。
 - 本批按要求未运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-06 — Stash HTTP YAML 导入与通用文件分流
+
+- 新增 `StashScriptYamlImporter.java`，从 Stash `http.script` 读取 HTTP request/response 触发条件，并经 `script-providers.<name>.url` 解析 HTTPS 脚本地址，转换到 FX 统一脚本列表和触发元数据。保留 `match`、Provider 名称、`disabled` 与 `require-body`。
+- Stash 的 `binary-mode: true`、非默认 timeout/max-size、非 auto engine、非空 argument、未知 Provider 选项和非 HTTPS Provider 不会错误降级为普通 Hook；URL Hook 只能保留受支持的字段。
+- 应用与模块 APK 源码均新增 Stash importer；应用提交 `3f91df8f35b84a5335c7819f4f2a99e32aa46c89`，模块源同步 `d30a6f2311fccfd42289172245e0db985a501cfa`。后续并行版本统一并增强 Provider/argument 处理，最新同步修订：应用 `d4e5f36e2ea11bef6ba1703205c50281bb05db88`、模块 `d260a133a0c180163cccfd2f3556b3f3b736062e`。
+- 脚本中心新增“导入 Stash YAML HTTP 脚本”独立入口，应用提交 `345431a37dc11cce77cdc4f64c97c49951a5eb17`，模块提交 `16066ed89bd88bc9024e21aa6a9e887598487c8f`。通用文件导入器也按 `scriptings:` 与 `http:` + `script-providers:` 实际内容分流；不识别的 YAML 明确拒绝，不当作普通 JS 存储。应用入口提交 `3b7a2af5c257c9e157153bf7a6dbb0350e252823`，模块同步 `f4ca5cd6d3fde9092c96615db9299a7f72313821`。
+- QuickJS 中文说明新增 Stash HTTP YAML 子集和限制说明，提交 `8e86d2129ee430ee5d6a2c0df7fed237a81de14a`。
+- 固定 FX 1.0.0；按用户当前要求未运行测试、静态检查、构建、CI 或真机验证。
