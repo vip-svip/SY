@@ -6847,3 +6847,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`（`86ee0a75`）在 Ad DNS 状态摘要和 DNS 引擎详情中显示“已启用/总订阅源”。
 - `fx-module/scripts/adguardhome.sh`（`d5bc6750`）进一步清理订阅过滤器名称中的控制字符、连续空白及首尾空白，降低配置名称污染 YAML 的风险。
 - 本批未运行 Shell/Python/Gradle 检查、回归测试、构建、CI 或 Android 真机验证；仅完成源码移植。
+
+
+## 2026-11-06 — AdGuard 订阅源身份稳定化
+
+- `fx-module/scripts/adguardhome.sh`（`9dbb8f70`）将过滤订阅源 ID 从顺序递增改为基于规范 URL 内容生成的稳定数值 ID，并在哈希碰撞时执行确定性递增避让；调整订阅列表顺序不再导致所有后续订阅源 ID 改变。
+- 本项仅改变 AdGuard 过滤器条目的标识生成方式，保留 URL 去重、启用状态、名称和远程订阅分区。
+- 本批按当前推进要求未运行测试、构建、CI 或设备核验。
