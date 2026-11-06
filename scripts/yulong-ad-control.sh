@@ -24,6 +24,8 @@ _yad_cache_lock=
 _yad_import_raw=
 _yad_import_clean=
 _yad_remove_raw=
+_yad_rule_raw=
+_yad_rule_clean=
 _yad_cleanup() {
   [ -z "$_yad_conf_tmp" ] || rm -f "$_yad_conf_tmp" 2>/dev/null || :
   [ -z "$_yad_transaction_backup" ] || rm -f "$_yad_transaction_backup" 2>/dev/null || :
@@ -36,6 +38,8 @@ _yad_cleanup() {
   [ -z "$_yad_import_raw" ] || rm -f "$_yad_import_raw" 2>/dev/null || :
   [ -z "$_yad_import_clean" ] || rm -f "$_yad_import_clean" 2>/dev/null || :
   [ -z "$_yad_remove_raw" ] || rm -f "$_yad_remove_raw" 2>/dev/null || :
+  [ -z "$_yad_rule_raw" ] || rm -f "$_yad_rule_raw" 2>/dev/null || :
+  [ -z "$_yad_rule_clean" ] || rm -f "$_yad_rule_clean" 2>/dev/null || :
 }
 trap '_yad_cleanup' 0
 trap '_yad_cleanup; exit 129' HUP
@@ -341,6 +345,35 @@ dns_config_get() {
 m_rule_add(){ write_rule "$1" "$2" "$3" add; }
 m_rule_set(){ old=$(pg_list rule|awk -F'|' -v src="$1" '$1==src{print $2;exit}'); [ -n "$old" ] || return 3; write_rule "$1" "$old" "$2" set; }
 m_rule_remove(){ write_rule "$1" "" 0 remove; }
+rule_set_many() {
+  _rule_state="$1"; _rule_encoded="$2"
+  [ "$_rule_state" = 0 ] || [ "$_rule_state" = 1 ] || return 2
+  case "$_rule_encoded" in ''|*[!A-Za-z0-9+/=]*) echo "invalid base64 rule source list" >&2; return 2 ;; esac
+  [ "${#_rule_encoded}" -le 87384 ] || { echo "rule source list exceeds 64 KiB" >&2; return 2; }
+  _rule_raw=$(mktemp "$PG/yulong-rule-set.XXXXXX") || return 1
+  _yad_rule_raw=$_rule_raw
+  _rule_clean=$(mktemp "$PG/yulong-rule-set-clean.XXXXXX") || return 1
+  _yad_rule_clean=$_rule_clean
+  chmod 600 "$_rule_raw" "$_rule_clean" || return 1
+  (umask 077; printf '%s' "$_rule_encoded" | base64 -d > "$_rule_raw") || { echo "unable to decode rule source list" >&2; return 2; }
+  _rule_bytes=$(wc -c < "$_rule_raw" | tr -d ' ')
+  [ "$_rule_bytes" -le 65536 ] || { echo "rule source list exceeds 64 KiB" >&2; return 2; }
+  _rule_count=0
+  while IFS= read -r _rule_source || [ -n "$_rule_source" ]; do
+    [ -n "$_rule_source" ] || continue
+    valid_source "$_rule_source" || { echo "invalid rule source in batch" >&2; return 2; }
+    if ! grep -F -x -q "$_rule_source" "$_rule_clean"; then
+      printf '%s\n' "$_rule_source" >> "$_rule_clean" || return 1
+      _rule_count=$((_rule_count + 1))
+      [ "$_rule_count" -le 2000 ] || { echo "rule batch is limited to 2000 sources" >&2; return 2; }
+    fi
+  done < "$_rule_raw"
+  [ "$_rule_count" -gt 0 ] || { echo "no rule sources to update" >&2; return 2; }
+  while IFS= read -r _rule_source; do
+    m_rule_set "$_rule_source" "$_rule_state" || { echo "failed to update rule source: $_rule_source" >&2; return 1; }
+  done < "$_rule_clean"
+  echo "updated=$_rule_count state=$_rule_state"
+}
 import_domains() {
   _import_kind="$1"
   _import_encoded="$2"
@@ -707,6 +740,9 @@ case "$cmd" in
  rule-remove)
   [ "$#" -eq 2 ] && valid_source "$2" || exit 2
   with_lock transaction m_rule_remove "$2" ;;
+ rule-set-many)
+  [ "$#" -eq 3 ] || { echo "usage: $0 rule-set-many 0|1 base64-source-list" >&2; exit 2; }
+  with_lock transaction rule_set_many "$2" "$3" ;;
  allow-add)
   [ "$#" -ge 2 ] && [ "$#" -le 3 ] || exit 2
   d=$(valid_domain "$2") || exit 2; note=$3; [ -n "$note" ] || note="FX 白名单"; valid_text "$note" || exit 2
