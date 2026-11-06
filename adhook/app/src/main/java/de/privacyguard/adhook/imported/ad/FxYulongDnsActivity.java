@@ -38,6 +38,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
     private static final String STATE_RESULT_FILTER = "fx_dns_result_filter";
     private static final String STATE_TIME_FILTER = "fx_dns_time_filter";
     private static final String STATE_TYPE_FILTER = "fx_dns_type_filter";
+    private static final String STATE_RCODE_FILTER = "fx_dns_rcode_filter";
     private final AtomicInteger loadGeneration = new AtomicInteger();
     private final ThreadPoolExecutor worker = new ThreadPoolExecutor(
             1, 1, 30L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(16),
@@ -58,17 +59,18 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
     private int timeFilter = 0;
     /** Empty means all DNS RR types; otherwise an uppercase exact RR type. */
     private String typeFilter = "";
+    private String rcodeFilter = "";
     private int pendingScrollY;
     private boolean pendingScrollRestore;
 
     private static final class Entry {
-        final String time, domain, type, reason;
+        final String time, domain, type, reason, rcode;
         final boolean blocked;
-        Entry(String time, String domain, String type, boolean blocked, String reason) {
+        Entry(String time, String domain, String type, boolean blocked, String reason, String rcode) {
             this.time = time; this.domain = domain; this.type = type;
-            this.blocked = blocked; this.reason = reason;
+            this.blocked = blocked; this.reason = reason; this.rcode = rcode;
         }
-        String searchable() { return (time + " " + domain + " " + type + " " + reason).toLowerCase(Locale.ROOT); }
+        String searchable() { return (time + " " + domain + " " + type + " " + reason + " " + rcode).toLowerCase(Locale.ROOT); }
     }
 
     private int dp(float n) { return (int)(n * getResources().getDisplayMetrics().density + 0.5f); }
@@ -141,6 +143,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
             resultFilter = Math.max(0, Math.min(2, state.getInt(STATE_RESULT_FILTER, 0)));
             timeFilter = Math.max(0, Math.min(3, state.getInt(STATE_TIME_FILTER, 0)));
             typeFilter = normalizeTypeFilter(state.getString(STATE_TYPE_FILTER, ""));
+            rcodeFilter = normalizeRcodeFilter(state.getString(STATE_RCODE_FILTER, ""));
             pendingScrollRestore = true;
         }
         refreshButton = button("刷新", this::load);
@@ -179,6 +182,16 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
                     new LinearLayout.LayoutParams(0, -2, 1));
         }
         card(body, "DNS 记录类型筛选", "按 DNS 查询记录类型精确筛选；可与域名搜索、拦截状态和时间范围叠加，分享时沿用。", typeFilters);
+        LinearLayout rcodeFilters = new LinearLayout(this);
+        rcodeFilters.setOrientation(LinearLayout.HORIZONTAL);
+        String[] rcodeLabels = {"全部", "NOERROR", "NXDOMAIN", "SERVFAIL", "REFUSED", "其他"};
+        String[] rcodeValues = {"", "NOERROR", "NXDOMAIN", "SERVFAIL", "REFUSED", "OTHER"};
+        for (int i = 0; i < rcodeLabels.length; i++) {
+            final String value = rcodeValues[i];
+            rcodeFilters.addView(button(rcodeLabels[i], () -> setRcodeFilter(value)),
+                    new LinearLayout.LayoutParams(0, -2, 1));
+        }
+        card(body, "DNS 响应码筛选", "按本地日志记录的 DNS 响应状态筛选；缺少或无法识别状态的记录归入“其他”，并与现有筛选条件叠加。分享时沿用。", rcodeFilters);
         rows = new LinearLayout(this); rows.setOrientation(1); body.addView(rows);
         search.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -246,6 +259,9 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
                         : result.optString("Reason", item.optString("reason", ""));
                 String statusValue = item.optString("status", "").toLowerCase(Locale.ROOT);
                 if (statusValue.contains("block") || statusValue.contains("filter")) isBlocked = true;
+                String responseStatus = result == null ? statusValue
+                        : result.optString("Status", item.optString("status", ""));
+                String rcode = normalizeRcodeValue(responseStatus);
                 if (!isBlocked && reason.toLowerCase(Locale.ROOT).startsWith("filtered")) isBlocked = true;
                 String domain = item.optString("QH", "").trim();
                 String type = item.optString("QT", "").trim();
@@ -255,7 +271,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
                     if (type.isEmpty()) type = question.optString("type", "").trim();
                 }
                 if (domain.isEmpty()) { malformed++; continue; }
-                data.add(new Entry(time, domain, type, isBlocked, reason));
+                data.add(new Entry(time, domain, type, isBlocked, reason, rcode));
                 total++;
                 if (isBlocked) blocked++;
             } catch (Exception ignored) { malformed++; }
@@ -339,6 +355,32 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         if (scroll != null) scroll.scrollTo(0, 0);
     }
 
+    private static String normalizeRcodeValue(String value) {
+        if (value == null) return "OTHER";
+        String normalized = value.trim().toUpperCase(Locale.ROOT);
+        if (normalized.contains("NOERROR") || normalized.equals("0")) return "NOERROR";
+        if (normalized.contains("NXDOMAIN") || normalized.equals("3")) return "NXDOMAIN";
+        if (normalized.contains("SERVFAIL") || normalized.equals("2")) return "SERVFAIL";
+        if (normalized.contains("REFUSED") || normalized.equals("5")) return "REFUSED";
+        return "OTHER";
+    }
+    private static String normalizeRcodeFilter(String value) {
+        if (value == null || value.trim().isEmpty()) return "";
+        String normalized = value.trim().toUpperCase(Locale.ROOT);
+        switch (normalized) {
+            case "NOERROR": case "NXDOMAIN": case "SERVFAIL": case "REFUSED": case "OTHER": return normalized;
+            default: return "";
+        }
+    }
+    private boolean matchesRcodeFilter(Entry item) {
+        return rcodeFilter.isEmpty() || (item != null && rcodeFilter.equals(item.rcode));
+    }
+    private void setRcodeFilter(String value) {
+        rcodeFilter = normalizeRcodeFilter(value);
+        page = 1; pendingScrollY = 0; pendingScrollRestore = false;
+        render();
+        if (scroll != null) scroll.scrollTo(0, 0);
+    }
     private void confirmAddDomain(Entry item, boolean allow) {
         String domain = item == null || item.domain == null ? "" : item.domain.trim().toLowerCase(Locale.ROOT);
         if (!domain.matches("[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?") || domain.contains("..")
@@ -372,7 +414,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         String query = search.getText() == null ? "" : search.getText().toString().trim().toLowerCase(Locale.ROOT);
         int matched = 0;
         for (Entry item : data) {
-            if (matchesResultFilter(item) && matchesTimeFilter(item) && matchesTypeFilter(item)
+            if (matchesResultFilter(item) && matchesTimeFilter(item) && matchesTypeFilter(item) && matchesRcodeFilter(item)
                     && (query.isEmpty() || item.searchable().contains(query))) matched++;
         }
         int maxPage = Math.max(1, (matched + ROW_PAGE_SIZE - 1) / ROW_PAGE_SIZE);
@@ -382,7 +424,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         rows.addView(text("匹配 " + matched + " 条 · 已显示 " + Math.min(matched, limit) + " 条",
                 11, 0xff718091, false));
         for (Entry item : data) {
-            if (!matchesResultFilter(item) || !matchesTimeFilter(item) || !matchesTypeFilter(item)
+            if (!matchesResultFilter(item) || !matchesTimeFilter(item) || !matchesTypeFilter(item) || !matchesRcodeFilter(item)
                     || (!query.isEmpty() && !item.searchable().contains(query))) continue;
             if (shown >= limit) continue;
             LinearLayout row = new LinearLayout(this); row.setOrientation(1);
@@ -390,7 +432,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
             row.setBackgroundColor(0xffffffff);
             row.addView(text(item.domain, 13, 0xff17212b, true));
             row.addView(text(item.type + " · " + (item.blocked ? "已拦截" : "未拦截")
-                    + (item.reason.isEmpty() ? "" : " · " + item.reason), 11,
+                    + " · " + item.rcode + (item.reason.isEmpty() ? "" : " · " + item.reason), 11,
                     item.blocked ? 0xffb42318 : 0xff526170, false));
             if (!item.time.isEmpty()) row.addView(text(item.time, 10, 0xff718091, false));
             LinearLayout actions = new LinearLayout(this);
@@ -433,17 +475,19 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
                 .append("result=").append(resultFilter == 1 ? "blocked" : resultFilter == 2 ? "allowed" : "all").append("\\n")
                 .append("time=").append(timeFilter == 1 ? "1h" : timeFilter == 2 ? "24h" : timeFilter == 3 ? "7d" : "all").append("\\n")
                 .append("dns_type=").append(typeFilter.isEmpty() ? "all" : typeFilter).append("\\n")
+                .append("rcode=").append(rcodeFilter.isEmpty() ? "all" : rcodeFilter).append("\\n")
                 .append("scope=locally retained latest 500 parsed records\\n")
-                .append("time\\tdomain\\ttype\\tresult\\treason\\n");
+                .append("time\\tdomain\\ttype\\trcode\\tresult\\treason\\n");
         int included = 0;
         int omitted = 0;
         final int maxBytes = 48 * 1024;
         for (Entry item : data) {
-            if (!matchesResultFilter(item) || !matchesTimeFilter(item) || !matchesTypeFilter(item)
+            if (!matchesResultFilter(item) || !matchesTimeFilter(item) || !matchesTypeFilter(item) || !matchesRcodeFilter(item)
                     || (!query.isEmpty() && !item.searchable().contains(query))) continue;
             String row = cleanExportField(item.time) + "\\t"
                     + cleanExportField(item.domain) + "\\t"
                     + cleanExportField(item.type) + "\\t"
+                    + cleanExportField(item.rcode) + "\\t"
                     + (item.blocked ? "blocked" : "allowed") + "\\t"
                     + cleanExportField(item.reason) + "\\n";
             int used = report.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
@@ -526,6 +570,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         outState.putInt(STATE_RESULT_FILTER, resultFilter);
         outState.putInt(STATE_TIME_FILTER, timeFilter);
         outState.putString(STATE_TYPE_FILTER, typeFilter);
+        outState.putString(STATE_RCODE_FILTER, rcodeFilter);
         if (scroll != null) outState.putInt(STATE_SCROLL_Y, Math.max(0, scroll.getScrollY()));
         super.onSaveInstanceState(outState);
     }
