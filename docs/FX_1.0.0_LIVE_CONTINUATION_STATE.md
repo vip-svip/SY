@@ -8126,3 +8126,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - UI 提交：`2f41d4cda79f478c3167e9ab1cf0352d30722476`，文件 `adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
   - Ad → DNS 查询日志卡新增保留期限设置入口；先读取当前值，再选择 1/3/7/30 天并保存。
 - 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证；本批尚未验收。
+
+
+### DNS 查询日志保留期限的模块运行时同步（2026-11-07）
+
+- 模块脚本同步提交：`442005f2a3b8ad59372a19df0f3b8bd0d03b23e0`，文件 `fx-module/scripts/yulong-ad-control.sh`。
+  - 将 `dns-querylog-retention-get/set` 与独立配置段写入实际模块运行脚本，保存仍走配置事务锁及回滚。
+- 规范 AdGuard 脚本同步提交：`d57a2b6229988d1f7426573fd8dba1521225153c`，文件 `scripts/adguardhome.sh`。
+  - 与 `fx-module/scripts/adguardhome.sh` 对齐，确保规范脚本和模块运行脚本都将保留期限渲染到 `querylog.interval`。
+- 本次为运行时镜像补齐，不新增 UI 行为；按用户要求未运行任何测试、构建、CI 或设备验证。
