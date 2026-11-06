@@ -29,6 +29,8 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
     private LinearLayout body;
     private TextView serviceState;
     private Switch masterSwitch;
+    private String selectedGroupFilter = "全部分组";
+    private String selectedStatusFilter = "全部状态";
 
     private int dp(float value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
@@ -541,17 +543,74 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
         // Keep the two notice cards, service status, permission button,
         // master switch, add-rule and import/export controls stay in place.
         while (body.getChildCount() > 7) body.removeViewAt(7);
-        TextView section = text("本地规则（仅保存在本机）", 0xff17212b, 16);
+        List<FxGkdRule> rules = FxGkdRuleStore.getRules(this);
+        TextView section = text("本地规则（仅保存在本机） · " + rules.size() + " 条", 0xff17212b, 16);
         section.setTypeface(null, android.graphics.Typeface.BOLD);
         body.addView(section);
 
-        List<FxGkdRule> rules = FxGkdRuleStore.getRules(this);
         if (rules.isEmpty()) {
             body.addView(text("还没有规则。添加目标应用包名和上游 GKD 选择器后，规则才会参与匹配。", 0xff66727e, 13));
             return;
         }
 
+        java.util.TreeSet<String> groupNames = new java.util.TreeSet<>();
+        for (FxGkdRule item : rules) groupNames.add(item.getGroup());
+        java.util.ArrayList<String> groupOptions = new java.util.ArrayList<>();
+        groupOptions.add("全部分组");
+        groupOptions.addAll(groupNames);
+        if (!groupOptions.contains(selectedGroupFilter)) selectedGroupFilter = "全部分组";
+
+        LinearLayout filters = new LinearLayout(this);
+        filters.setOrientation(LinearLayout.HORIZONTAL);
+        filters.setPadding(dp(12), dp(2), dp(12), dp(6));
+        Spinner groupFilter = new Spinner(this);
+        groupFilter.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, groupOptions));
+        groupFilter.setSelection(groupOptions.indexOf(selectedGroupFilter));
+        filters.addView(groupFilter, new LinearLayout.LayoutParams(0, -2, 1));
+
+        String[] statusOptions = new String[]{"全部状态", "仅启用", "仅关闭"};
+        Spinner statusFilter = new Spinner(this);
+        statusFilter.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, statusOptions));
+        int statusIndex = java.util.Arrays.asList(statusOptions).indexOf(selectedStatusFilter);
+        statusFilter.setSelection(statusIndex < 0 ? 0 : statusIndex);
+        filters.addView(statusFilter, new LinearLayout.LayoutParams(0, -2, 1));
+        body.addView(filters);
+
+        android.widget.AdapterView.OnItemSelectedListener filterListener =
+                new android.widget.AdapterView.OnItemSelectedListener() {
+                    @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view,
+                                                         int position, long id) {
+                        String group = groupFilter.getSelectedItem().toString();
+                        String status = statusFilter.getSelectedItem().toString();
+                        if (!group.equals(selectedGroupFilter) || !status.equals(selectedStatusFilter)) {
+                            selectedGroupFilter = group;
+                            selectedStatusFilter = status;
+                            renderRules();
+                        }
+                    }
+                    @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+                };
+        groupFilter.setOnItemSelectedListener(filterListener);
+        statusFilter.setOnItemSelectedListener(filterListener);
+
+        int shown = 0;
         for (FxGkdRule rule : rules) {
+            if (!"全部分组".equals(selectedGroupFilter) && !selectedGroupFilter.equals(rule.getGroup())) continue;
+            if ("仅启用".equals(selectedStatusFilter) && !rule.getEnabled()) continue;
+            if ("仅关闭".equals(selectedStatusFilter) && rule.getEnabled()) continue;
+            shown++;
+        }
+        TextView count = text("当前筛选显示 " + shown + " / " + rules.size() + " 条规则", 0xff66727e, 12);
+        body.addView(count);
+        if (shown == 0) {
+            body.addView(text("当前筛选条件下没有规则。可切换分组或启用状态筛选。", 0xff66727e, 13));
+            return;
+        }
+
+        for (FxGkdRule rule : rules) {
+            if (!"全部分组".equals(selectedGroupFilter) && !selectedGroupFilter.equals(rule.getGroup())) continue;
+            if ("仅启用".equals(selectedStatusFilter) && !rule.getEnabled()) continue;
+            if ("仅关闭".equals(selectedStatusFilter) && rule.getEnabled()) continue;
             LinearLayout row = new LinearLayout(this);
             row.setOrientation(LinearLayout.VERTICAL);
             row.setPadding(dp(14), dp(8), dp(14), dp(8));
