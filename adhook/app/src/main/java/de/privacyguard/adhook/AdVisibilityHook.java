@@ -1377,413 +1377,83 @@ private boolean targetDeveloperOptIn(String packageName) {
         return clipboardIsolationHooksInstalled;
     }
 
-    /**
-     * Opt-in Wi-Fi scan suppression. It is scoped to a single-package process;
-     * shared-UID/shared-process cases fail open to avoid affecting another app.
-     * Wi-Fi association, DHCP, sockets, VPN routing and DNS are not intercepted.
-     */
-    /** Per-app fake SSID/BSSID for explicitly selected debuggable test builds only. */
-    /** Report Wi-Fi or cellular transport only to the selected debuggable test app. */
-    /**
-     * Per-app debug location fixture. It changes only LocationManager.getLastKnownLocation()
-     * results in an explicitly selected debuggable target process. Location objects returned
-     * by fused-provider callbacks are covered only when the target reads their Location getters.
-     * Callback registration, device provider, GNSS, mock-location settings and routes are untouched.
-     */
-    /** Per-app device simulation is intentionally disabled in shared-package processes. */
-    private boolean isAuthorizedDeviceSimulationTarget(String packageName) {
-        return FxTargetSimulationGate.isAuthorized(packageName, currentPackage,
-                processPackages, debuggablePackages);
+    private boolean shouldBlockWifiScanNow() {
+        String activePackage = currentPackage;
+        UnifiedHookConfigParser.Target active = targets.get(activePackage);
+        return WifiScanPrivacyPolicy.shouldBlock(wifiScanEnabled, processPackages.size(),
+                activePackage, active);
     }
 
-    /** Per-app timezone fixture for explicitly selected debuggable test builds. */
-    private synchronized boolean installTimeZoneSimulationHooks(final String pkg) {
-        if (timeZoneSimulationHooksInstalled) return true;
-        try {
-            final Method getDefault = java.util.TimeZone.class.getDeclaredMethod("getDefault");
-            hook(getDefault).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                    .intercept(chain -> {
-                        UnifiedHookConfigParser.Target active = targets.get(currentPackage);
-                        if (active != null && isAuthorizedDeviceSimulationTarget(currentPackage)
-                                && active.timeZoneSimulation && active.simulatedTimeZone != null) {
-                            return java.util.TimeZone.getTimeZone(active.simulatedTimeZone);
-                        }
-                        return chain.proceed();
-                    });
-            timeZoneSimulationHooksInstalled = true;
-            logFx(Log.INFO, "debug-only TimeZone.getDefault simulation installed for " + pkg);
-            return true;
-        } catch (Throwable failure) {
-            logFx(Log.WARN, "TimeZone simulation unavailable for " + pkg
-                    + ": " + failure.getClass().getSimpleName());
-            return false;
-        }
+    private static Object emptyWifiScanResult(Method method) {
+        Class<?> result = method.getReturnType();
+        if (java.util.List.class.isAssignableFrom(result)) return Collections.emptyList();
+        if (result.isArray()) return Array.newInstance(result.getComponentType(), 0);
+        if (result == boolean.class) return Boolean.FALSE;
+        if (result == byte.class) return Byte.valueOf((byte) 0);
+        if (result == short.class) return Short.valueOf((short) 0);
+        if (result == int.class) return Integer.valueOf(0);
+        if (result == long.class) return Long.valueOf(0L);
+        if (result == float.class) return Float.valueOf(0f);
+        if (result == double.class) return Double.valueOf(0d);
+        return null;
     }
 
     /**
-     * Dia ExpandFakeActivity version fixture, limited to the current debuggable app querying itself.
-     * Does not alter signatures, APK files, other packages, or device-wide package state.
+     * Cover both the public WifiManager facade and the lower-level WifiScanner
+     * service. A blocked app receives no scan results and cannot enqueue a new
+     * scan or register a scan callback. Unregister/cleanup methods are untouched.
      */
-    private synchronized boolean installAppVersionSimulationHooks(final String pkg) {
-        if (appVersionSimulationHooksInstalled) return true;
+    private int installWifiScanSurface(Class<?> type) {
+        if (type == null) return 0;
         int installed = 0;
-        try {
-            Class<?> manager = Class.forName("android.app.ApplicationPackageManager", false, null);
-            for (final Method method : manager.getDeclaredMethods()) {
-                String name = method.getName();
-                if (!"getPackageInfo".equals(name) && !"getPackageInfoAsUser".equals(name)) continue;
-                Class<?>[] params = method.getParameterTypes();
-                if (method.getReturnType() != PackageInfo.class || params.length == 0) continue;
-                final boolean stringPackage = params[0] == String.class;
-                final boolean versionedPackage = "android.content.pm.VersionedPackage".equals(params[0].getName());
-                if (!stringPackage && !versionedPackage) continue;
-                try {
-                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                            .intercept(chain -> {
-                                Object result = chain.proceed();
-                                if (!(result instanceof PackageInfo) || chain.getArgs().size() == 0) return result;
-                                Object request = chain.getArgs().get(0);
-                                String requestedPackage = request instanceof String ? (String) request : null;
-                                if (requestedPackage == null && request != null) {
-                                    try {
-                                        Object candidate = request.getClass().getMethod("getPackageName").invoke(request);
-                                        if (candidate instanceof String) requestedPackage = (String) candidate;
-                                    } catch (Throwable ignored) { }
-                                }
-                                String activePackage = currentPackage;
-                                if (!activePackage.equals(requestedPackage)
-                                        || !isAuthorizedDeviceSimulationTarget(activePackage)) return result;
-                                UnifiedHookConfigParser.Target active = targets.get(activePackage);
-                                if (active == null || !active.appVersionSimulation
-                                        || active.simulatedVersionName == null) return result;
-                                PackageInfo info = (PackageInfo) result;
-                                info.versionName = active.simulatedVersionName;
-                                info.versionCode = (int) active.simulatedVersionCode;
-                                try {
-                                    Field major = PackageInfo.class.getDeclaredField("versionCodeMajor");
-                                    major.setAccessible(true);
-                                    major.setInt(info, 0);
-                                } catch (Throwable ignored) { }
-                                return info;
-                            });
-                    installed++;
-                } catch (Throwable methodFailure) {
-                    logFx(Log.DEBUG, "PackageInfo version hook unavailable: " + method.toGenericString());
-                }
-            }
-        } catch (Throwable failure) {
-            logFx(Log.WARN, "ApplicationPackageManager version fixture unavailable for " + pkg
-                    + ": " + failure.getClass().getSimpleName());
-            return false;
-        }
-        appVersionSimulationHooksInstalled = installed > 0;
-        logFx(installed > 0 ? Log.INFO : Log.WARN,
-                "debug-only PackageInfo version simulation hooks installed=" + installed + " for " + pkg);
-        return appVersionSimulationHooksInstalled;
-    }
-
-    private synchronized boolean installLocationSimulationHooks(final String pkg) {
-        UnifiedHookConfigParser.Target requested = targets.get(pkg);
-        if (requested == null || !isAuthorizedDeviceSimulationTarget(pkg)) return false;
-
-        final boolean needCoordinates = requested.locationSimulation;
-        final boolean needProviderState = requested.locationProviderEnabledSimulation;
-        if (!needCoordinates && !needProviderState) return false;
-        if ((!needCoordinates || locationSimulationHooksInstalled)
-                && (!needProviderState || locationProviderEnabledHooksInstalled)) return true;
-
-        // Provider-state reporting and coordinate values are independent controls.
-        // Track their hook registration separately so enabling one for a later
-        // target cannot be skipped merely because the other is already installed.
-        if (needProviderState && !locationProviderEnabledHooksInstalled) {
-            int providerHooks = 0;
+        for (final Method method : type.getDeclaredMethods()) {
+            final String name = method.getName();
+            final Class<?> result = method.getReturnType();
+            final boolean listResult = java.util.List.class.isAssignableFrom(result)
+                    && ("getScanResults".equals(name)
+                    || "getSingleScanResults".equals(name)
+                    || "getPnoScanResults".equals(name));
+            final boolean startOperation = "startScan".equals(name)
+                    || "startPnoScan".equals(name);
+            final boolean booleanCapability = "isScanAlwaysAvailable".equals(name)
+                    && result == boolean.class;
+            final boolean registerListener = "registerScanListener".equals(name)
+                    || "registerScanResultsCallback".equals(name);
+            if (!listResult && !startOperation && !booleanCapability && !registerListener) continue;
             try {
-                Class<?> manager = Class.forName("android.location.LocationManager", false, null);
-                for (final Method method : manager.getDeclaredMethods()) {
-                    final String name = method.getName();
-                    final Class<?>[] parameters = method.getParameterTypes();
-                    final boolean providerQuery = "isProviderEnabled".equals(name)
-                            && method.getReturnType() == boolean.class
-                            && parameters.length == 1 && parameters[0] == String.class;
-                    final boolean locationQuery = "isLocationEnabled".equals(name)
-                            && method.getReturnType() == boolean.class && parameters.length == 0;
-                    if (!providerQuery && !locationQuery) continue;
-                    try {
-                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                                .intercept(chain -> {
-                                    String activePackage = currentPackage;
-                                    UnifiedHookConfigParser.Target active = targets.get(activePackage);
-                                    if (active == null
-                                            || !isAuthorizedDeviceSimulationTarget(activePackage)
-                                            || !active.locationProviderEnabledSimulation) {
-                                        return chain.proceed();
-                                    }
-                                    if (locationQuery) return Boolean.TRUE;
-                                    Object provider = chain.getArgs().isEmpty()
-                                            ? null : chain.getArgs().get(0);
-                                    // The UI option is explicitly "GPS service enabled"; it
-                                    // must not claim that network/passive providers are enabled.
-                                    if (android.location.LocationManager.GPS_PROVIDER.equals(provider)) {
-                                        return Boolean.TRUE;
-                                    }
-                                    return chain.proceed();
-                                });
-                        providerHooks++;
-                    } catch (Throwable failure) {
-                        logFx(Log.DEBUG, "Location provider-state simulation unavailable: "
-                                + method.toGenericString());
-                    }
-                }
-            } catch (Throwable failure) {
-                logFx(Log.DEBUG, "Location provider-state simulation API unavailable");
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> shouldBlockWifiScanNow()
+                                ? emptyWifiScanResult(method) : chain.proceed());
+                installed++;
+            } catch (Throwable error) {
+                logFx(Log.DEBUG, "Wi-Fi scan API hook unavailable: "
+                        + type.getName() + "." + name);
             }
-            locationProviderEnabledHooksInstalled = providerHooks > 0;
-            logFx(locationProviderEnabledHooksInstalled ? Log.INFO : Log.WARN,
-                    "debug-only GPS provider-state hooks installed=" + providerHooks + " for " + pkg);
         }
-
-        if (needCoordinates && !locationSimulationHooksInstalled) {
-            int coordinateHooks = 0;
-            try {
-                Class<?> type = Class.forName("android.location.LocationManager", false, null);
-                for (final Method method : type.getDeclaredMethods()) {
-                    if (!"getLastKnownLocation".equals(method.getName())
-                            || method.getReturnType() != android.location.Location.class
-                            || method.getParameterTypes().length != 1
-                            || method.getParameterTypes()[0] != String.class) continue;
-                    try {
-                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                                .intercept(chain -> {
-                                    Object original = chain.proceed();
-                                    String activePackage = currentPackage;
-                                    UnifiedHookConfigParser.Target active = targets.get(activePackage);
-                                    if (active == null
-                                            || !isAuthorizedDeviceSimulationTarget(activePackage)
-                                            || !active.locationSimulation) return original;
-                                    String provider = "gps";
-                                    try {
-                                        Object value = chain.getArgs().get(0);
-                                        if (value instanceof String && !((String) value).isEmpty()) {
-                                            provider = (String) value;
-                                        }
-                                    } catch (Throwable ignored) { }
-                                    android.location.Location simulated;
-                                    if (original instanceof android.location.Location) {
-                                        simulated = new android.location.Location(
-                                                (android.location.Location) original);
-                                    } else {
-                                        simulated = new android.location.Location(provider);
-                                    }
-                                    simulated.setLatitude(active.simulatedLatitude);
-                                    simulated.setLongitude(active.simulatedLongitude);
-                                    simulated.setAccuracy(active.simulatedAccuracy);
-                                    simulated.setTime(System.currentTimeMillis());
-                                    if (android.os.Build.VERSION.SDK_INT >= 17) {
-                                        simulated.setElapsedRealtimeNanos(
-                                                android.os.SystemClock.elapsedRealtimeNanos());
-                                    }
-                                    return simulated;
-                                });
-                        coordinateHooks++;
-                    } catch (Throwable failure) {
-                        logFx(Log.DEBUG, "LocationManager simulation unavailable: "
-                                + method.toGenericString());
-                    }
-                }
-            } catch (Throwable failure) {
-                logFx(Log.WARN, "LocationManager unavailable; debug GPS simulation remains inactive");
-                return false;
-            }
-
-            // Fused providers return Location objects through Play Services callbacks.
-            // We do not replace callback registration or results globally; only
-            // getters read from an explicitly selected single-package test process
-            // observe the configured latitude/longitude/accuracy.
-            try {
-                Class<?> locationType = Class.forName("android.location.Location", false, null);
-                for (final Method method : locationType.getDeclaredMethods()) {
-                    String name = method.getName();
-                    if (method.getParameterTypes().length != 0) continue;
-                    final int field;
-                    if ("getLatitude".equals(name) && method.getReturnType() == double.class) {
-                        field = 1;
-                    } else if ("getLongitude".equals(name) && method.getReturnType() == double.class) {
-                        field = 2;
-                    } else if ("getAccuracy".equals(name) && method.getReturnType() == float.class) {
-                        field = 3;
-                    } else {
-                        continue;
-                    }
-                    try {
-                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                                .intercept(chain -> {
-                                    String activePackage = currentPackage;
-                                    UnifiedHookConfigParser.Target active = targets.get(activePackage);
-                                    if (active != null
-                                            && isAuthorizedDeviceSimulationTarget(activePackage)
-                                            && active.locationSimulation) {
-                                        if (field == 1) return Double.valueOf(active.simulatedLatitude);
-                                        if (field == 2) return Double.valueOf(active.simulatedLongitude);
-                                        return Float.valueOf(active.simulatedAccuracy);
-                                    }
-                                    return chain.proceed();
-                                });
-                        coordinateHooks++;
-                    } catch (Throwable failure) {
-                        logFx(Log.DEBUG, "Location value simulation unavailable: "
-                                + method.toGenericString());
-                    }
-                }
-            } catch (Throwable failure) {
-                logFx(Log.WARN,
-                        "Location value accessors unavailable; last-known-location fallback remains active");
-            }
-
-            locationSimulationHooksInstalled = coordinateHooks > 0;
-            logFx(locationSimulationHooksInstalled ? Log.INFO : Log.WARN,
-                    "debug-only Location coordinate hooks installed=" + coordinateHooks + " for " + pkg);
-        }
-
-        return (!needCoordinates || locationSimulationHooksInstalled)
-                && (!needProviderState || locationProviderEnabledHooksInstalled);
-    }
-
-    private synchronized boolean installNetworkTypeSimulationHooks(final String pkg) {
-        if (networkTypeSimulationHooksInstalled) return true;
-        int installed = 0;
-        try {
-            Class<?> info = Class.forName("android.net.NetworkInfo", false, null);
-            for (final Method method : info.getDeclaredMethods()) {
-                final String name = method.getName();
-                final boolean type = "getType".equals(name)
-                        && method.getParameterTypes().length == 0
-                        && method.getReturnType() == int.class;
-                final boolean typeName = "getTypeName".equals(name)
-                        && method.getParameterTypes().length == 0
-                        && method.getReturnType() == String.class;
-                if (!type && !typeName) continue;
-                try {
-                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                            .intercept(chain -> {
-                                UnifiedHookConfigParser.Target active = targets.get(currentPackage);
-                                if (active != null && isAuthorizedDeviceSimulationTarget(currentPackage)
-                                        && active.networkTypeSimulation) {
-                                    boolean wifi = "wifi".equals(active.simulatedNetworkType);
-                                    return type ? (wifi ? 1 : 0) : (wifi ? "WIFI" : "MOBILE");
-                                }
-                                return chain.proceed();
-                            });
-                    installed++;
-                } catch (Throwable failure) {
-                    logFx(Log.DEBUG, "NetworkInfo type simulation unavailable: " + name);
-                }
-            }
-        } catch (Throwable failure) {
-            logFx(Log.WARN, "NetworkInfo unavailable; network type simulation remains inactive");
-        }
-        try {
-            Class<?> caps = Class.forName("android.net.NetworkCapabilities", false, null);
-            final Method hasTransport = caps.getDeclaredMethod("hasTransport", int.class);
-            hook(hasTransport).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                    .intercept(chain -> {
-                        UnifiedHookConfigParser.Target active = targets.get(currentPackage);
-                        if (active != null && isAuthorizedDeviceSimulationTarget(currentPackage)
-                                && active.networkTypeSimulation) {
-                            Object arg = chain.getArgs().get(0);
-                            int transport = arg instanceof Number ? ((Number) arg).intValue() : -1;
-                            boolean wifi = "wifi".equals(active.simulatedNetworkType);
-                            if (transport == 1) return wifi; // TRANSPORT_WIFI
-                            if (transport == 0) return !wifi; // TRANSPORT_CELLULAR
-                        }
-                        return chain.proceed();
-                    });
-            installed++;
-        } catch (Throwable failure) {
-            logFx(Log.DEBUG, "NetworkCapabilities transport hook unavailable");
-        }
-        networkTypeSimulationHooksInstalled = installed > 0;
-        logFx(installed > 0 ? Log.INFO : Log.WARN,
-                "debug-only network type simulation hooks installed=" + installed + " for " + pkg);
-        return networkTypeSimulationHooksInstalled;
-    }
-
-    private synchronized boolean installWifiInfoSimulationHooks(final String pkg) {
-        if (wifiInfoSimulationHooksInstalled) return true;
-        int installed = 0;
-        try {
-            Class<?> type = Class.forName("android.net.wifi.WifiInfo", false, null);
-            for (final Method method : type.getDeclaredMethods()) {
-                final boolean ssid = "getSSID".equals(method.getName())
-                        && method.getParameterTypes().length == 0
-                        && method.getReturnType() == String.class;
-                final boolean bssid = "getBSSID".equals(method.getName())
-                        && method.getParameterTypes().length == 0
-                        && method.getReturnType() == String.class;
-                if (!ssid && !bssid) continue;
-                try {
-                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                            .intercept(chain -> {
-                                String activePackage = currentPackage;
-                                UnifiedHookConfigParser.Target active = targets.get(activePackage);
-                                if (active != null && isAuthorizedDeviceSimulationTarget(activePackage)
-                                        && active.wifiSimulation) {
-                                    String value = ssid ? active.simulatedWifiSsid : active.simulatedWifiBssid;
-                                    if (value != null && !value.isEmpty()) return value;
-                                }
-                                return chain.proceed();
-                            });
-                    installed++;
-                } catch (Throwable failure) {
-                    logFx(Log.DEBUG, "Wi-Fi simulation hook unavailable: " + method.getName());
-                }
-            }
-        } catch (Throwable failure) {
-            logFx(Log.WARN, "WifiInfo unavailable; test simulation remains inactive");
-            return false;
-        }
-        wifiInfoSimulationHooksInstalled = installed > 0;
-        logFx(installed > 0 ? Log.INFO : Log.WARN,
-                "debug-only Wi-Fi SSID/BSSID simulation hooks installed=" + installed + " for " + pkg);
-        return wifiInfoSimulationHooksInstalled;
+        return installed;
     }
 
     private synchronized boolean installWifiScanPrivacyHooks(final String pkg) {
         if (wifiScanHooksInstalled) return true;
         int installed = 0;
         try {
-            Class<?> type = Class.forName("android.net.wifi.WifiManager", false, null);
-            for (final Method method : type.getDeclaredMethods()) {
-                final String name = method.getName();
-                final Class<?> result = method.getReturnType();
-                final boolean listResult = "getScanResults".equals(name)
-                        && java.util.List.class.isAssignableFrom(result);
-                final boolean booleanResult = ("startScan".equals(name)
-                        || "isScanAlwaysAvailable".equals(name)) && result == boolean.class;
-                if (!listResult && !booleanResult) continue;
-                try {
-                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                            .intercept(chain -> {
-                                String activePackage = currentPackage;
-                                UnifiedHookConfigParser.Target active = targets.get(activePackage);
-                                if (WifiScanPrivacyPolicy.shouldBlock(wifiScanEnabled, processPackages.size(),
-                                        activePackage, active)) {
-                                    return listResult ? Collections.emptyList() : Boolean.FALSE;
-                                }
-                                return chain.proceed();
-                            });
-                    installed++;
-                } catch (Throwable t) {
-                    logFx(Log.DEBUG, "Wi-Fi scan hook unavailable: " + name);
-                }
-            }
-        } catch (Throwable t) {
-            logFx(Log.WARN, "WifiManager unavailable; Wi-Fi scan privacy fails open ("
-                    + t.getClass().getSimpleName() + ")");
-            return false;
+            Class<?> manager = Class.forName("android.net.wifi.WifiManager", false, null);
+            installed += installWifiScanSurface(manager);
+        } catch (Throwable error) {
+            logFx(Log.WARN, "WifiManager unavailable: " + error.getClass().getSimpleName());
+        }
+        // WifiScanner is hidden/system-facing on several Android releases. It is
+        // optional; public WifiManager hooks remain available when absent.
+        try {
+            Class<?> scanner = Class.forName("android.net.wifi.WifiScanner", false, null);
+            installed += installWifiScanSurface(scanner);
+        } catch (Throwable error) {
+            logFx(Log.DEBUG, "WifiScanner API unavailable; WifiManager hooks remain active");
         }
         wifiScanHooksInstalled = installed > 0;
         logFx(installed > 0 ? Log.INFO : Log.WARN,
-                "opt-in Wi-Fi scan privacy hooks installed=" + installed + " for " + pkg);
+                "opt-in Wi-Fi scan privacy hooks installed=" + installed
+                        + " across WifiManager/WifiScanner for " + pkg);
         return wifiScanHooksInstalled;
     }
 
