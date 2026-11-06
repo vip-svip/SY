@@ -111,6 +111,10 @@ public final class FxAccessibilityService extends AccessibilityService {
     // Coalesce only the package name. Acquire a fresh active-window root on the
     // main looper when a pending package is selected for scanning.
     private void startGkdScan(String eventPackage) {
+        if (gkdInterrupted || !FxGkdRuleStore.isEnabled(this)) {
+            gkdPendingScan.clear();
+            return;
+        }
         if (gkdServiceDestroyed) {
             gkdPendingScan.clear();
             return;
