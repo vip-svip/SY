@@ -6832,3 +6832,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 同步正式 App 与模块 App 的 `FxYulongDnsActivity.java`。提交：`32057d8330f9716afb8d919932f12ed35092ad7d`、`e5d8171ab2c3529e6f27b94eb90bdb3089f01b8c`。
 - 保留逐条日志 50 条渐进加载：该数值是界面分批呈现策略，不是数据读取/保存/导出数量上限；全部记录仍可继续加载、筛选、分享与批量操作。
 - 按当前要求未运行测试、静态检查、Gradle/APK 构建、CI 或 Android 真机验证。
+## 2026-11-07 — Root DNS 快照恢复移除固定字段数量枚举
+
+- Root profile restore 原先通过 `count!=18&&count!=19&&...&&count!=52` 的硬编码集合识别可接受快照版本；每增加一个可选 DNS 字段，都需要同步维护字段总数列表，容易拒绝结构正确的新旧快照。
+- 已改为逐行字段名白名单、重复字段拒绝、未知字段拒绝，并明确检查 18 个核心字段全部存在；新增可选字段继续由现有默认值初始化与逐字段格式/语义校验负责。没有放松上游端点、开关、DNS/VPN 地址、响应模式、内存安全和 Unbound CPU 线程数校验。
+- 同步 `scripts/yulong-ad-control.sh` 与 `fx-module/scripts/yulong-ad-control.sh`。提交：`583626ec3f655dbcf19b2061e37224dda4fbb474`、`87588f6d7d2c326fdbbfe8113d0393a973c5dde3`。
+- DNS querylog 内存刷盘批量上限仍由设备物理内存动态推导（约 1/64），属于运行资源安全保护，不是固定业务条数门槛，本批未移除。
+- 按用户推进要求未运行 Shell/Java 测试、静态检查、Gradle/APK 构建、CI 或 Android 真机验证；此记录只代表源码提交。
