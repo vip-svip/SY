@@ -433,6 +433,40 @@ FX_STELLAR_BOOT_SCRIPT
   esac
 }
 
+validate_state_files(){
+  # Validate all persisted authorization data before emitting any part of it.
+  # A malformed row must not disappear from the UI while the remaining rows
+  # are presented as if they were the complete policy.
+  awk '
+    function valid_pkg(p){return p ~ /^[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+$/}
+    NF!=1 || !valid_pkg($0) || seen[$0]++ {exit 1}
+  ' "$PKGS" || { echo "Stellar package authorization data is malformed" >&2; return 1; }
+  awk -F '\t' '
+    function valid_pkg(p){return p ~ /^[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+$/}
+    function valid_scope(s){return s ~ /^(SHELL_ID_COMMAND|PACKAGE_LIST_COMMAND|PROCESS_LIST_COMMAND|PROPERTY_READ_COMMAND|SETTINGS_READ_COMMAND|SELINUX_STATUS_COMMAND|FILESYSTEM_READ_COMMAND|SERVICE_LIST_COMMAND|SECURE_SETTINGS_WRITE|APPOPS_MANAGE|RUNTIME_PERMISSION_MANAGE|TERMINAL_COMMAND)$/}
+    NF!=2 || !valid_pkg($1) || !valid_scope($2) || seen[$1 SUBSEP $2]++ {exit 1}
+  ' "$SCOPES" || { echo "Stellar capability data is malformed" >&2; return 1; }
+  awk -F '\t' '
+    function valid_pkg(p){return p ~ /^[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+$/}
+    NF!=2 || !valid_pkg($1) || $2=="" || seen[$1 SUBSEP $2]++ {exit 1}
+  ' "$ALWAYS" || { echo "Stellar command authorization data is malformed" >&2; return 1; }
+  while IFS="$(printf '\t')" read -r p v; do
+    [ -n "$p" ] || continue
+    valid_command "$v" || { echo "Stellar command authorization contains an unsafe command" >&2; return 1; }
+  done < "$ALWAYS"
+}
+list_state(){
+  validate_state_files || return 21
+  echo STELLARFX1
+  while IFS= read -r p; do [ -n "$p" ] && echo "PKG|$p"; done < "$PKGS"
+  while IFS="$(printf '\t')" read -r p v; do
+    [ -n "$p" ] && echo "SCOPE|$p|$v"
+  done < "$SCOPES"
+  while IFS="$(printf '\t')" read -r p v; do
+    [ -n "$p" ] && echo "ALWAYS|$p|$v"
+  done < "$ALWAYS"
+}
+
 cmd="$1"
 case "$cmd" in
   boot-script)
@@ -448,14 +482,8 @@ case "$cmd" in
     with_lock clear_action_log
     ;;
   list)
-    echo STELLARFX1
-    while IFS= read -r p; do [ -n "$p" ] && valid_pkg "$p" && echo "PKG|$p"; done < "$PKGS"
-    while IFS="$(printf '\t')" read -r p v; do
-      [ -n "$p" ] && [ -n "$v" ] && valid_pkg "$p" && valid_scope "$v" && echo "SCOPE|$p|$v"
-    done < "$SCOPES"
-    while IFS="$(printf '\t')" read -r p v; do
-      [ -n "$p" ] && [ -n "$v" ] && valid_pkg "$p" && valid_command "$v" && echo "ALWAYS|$p|$v"
-    done < "$ALWAYS"
+    [ "$#" -eq 1 ] || exit 2
+    with_lock list_state
     ;;
   pkg-set)
     [ "$#" -eq 3 ] && valid_pkg "$2" && { [ "$3" = 0 ] || [ "$3" = 1 ]; } || exit 2
