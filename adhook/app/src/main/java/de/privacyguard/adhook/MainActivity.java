@@ -1197,6 +1197,10 @@ public final class MainActivity extends ComponentActivity {
                     case "ipv4_redirect_missing": return "IPv4 DNS 重定向缺失";
                     case "ipv6_redirect_missing": return "IPv6 DNS 重定向缺失";
                     case "local_dns_probe_failed": return "本地 DNS 探测失败";
+                    case "disabled": return "功能未启用";
+                    case "not_active": return "当前未接管";
+                    case "vpn_owner_unavailable": return "未找到可用的第三方 VPN 所有者";
+                    case "vpn_uid_mismatch": return "VPN UID 与接管记录不匹配";
                     case "unknown": return "尚无状态原因";
                     default: return "未识别原因：" + value;
                 }
@@ -1251,6 +1255,21 @@ public final class MainActivity extends ComponentActivity {
         return "未知";
     }
 
+    private String formatNativeDnsTimestamp(String value) {
+        if (value == null || value.isEmpty() || "unknown".equals(value) || "0".equals(value)) {
+            return "无有效记录";
+        }
+        try {
+            long seconds = Long.parseLong(value);
+            if (seconds <= 0L || seconds > 4102444800L) return "时间戳无效：" + value;
+            java.text.SimpleDateFormat format = new java.text.SimpleDateFormat(
+                    "yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault());
+            return format.format(new java.util.Date(seconds * 1000L));
+        } catch (NumberFormatException error) {
+            return "时间戳无效：" + value;
+        }
+    }
+
     private void refreshNativeDnsStatus(TextView target) {
         runNativeModuleCommand("sh \"$MP/scripts/native-dns-settings.sh\" status", 30000L, result -> {
             try {
@@ -1263,7 +1282,7 @@ public final class MainActivity extends ComponentActivity {
                         + "\n接管接口 / VPN UID：" + state.getOrDefault("rootproxy_interface", "unknown")
                         + " / " + state.getOrDefault("rootproxy_vpn_uid", "unknown")
                         + " · 出口 IPv4：" + state.getOrDefault("rootproxy_egress_ipv4", "unknown")
-                        + " · 启动时间：" + state.getOrDefault("rootproxy_activated_at", "unknown")
+                        + " · 启动时间：" + formatNativeDnsTimestamp(state.getOrDefault("rootproxy_activated_at", "unknown"))
                         + "\nRoot Proxy 状态原因：" + nativeDnsStatusLabel("rootproxy_reason", state.getOrDefault("rootproxy_reason", "unknown"))
                         + " · 残留规则清理：" + nativeDnsStatusLabel("rootproxy_cleanup", state.getOrDefault("rootproxy_cleanup", "not_required"))
                         + "\nRoot Proxy 路由验证：" + nativeDnsStatusLabel("rootproxy_route", state.getOrDefault("rootproxy_route", "unknown"))
@@ -1304,7 +1323,7 @@ public final class MainActivity extends ComponentActivity {
                         + "\n接管接口 / VPN UID：" + state.getOrDefault("rootproxy_interface", "unknown")
                         + " / " + state.getOrDefault("rootproxy_vpn_uid", "unknown")
                         + "\nRoot Proxy 出口 IPv4：" + state.getOrDefault("rootproxy_egress_ipv4", "unknown")
-                        + "\nRoot Proxy 启动时间（Unix 秒）：" + state.getOrDefault("rootproxy_activated_at", "unknown")
+                        + "\nRoot Proxy 启动时间（Unix 秒）：" + formatNativeDnsTimestamp(state.getOrDefault("rootproxy_activated_at", "unknown"))
                         + "\nRoot Proxy 状态原因：" + nativeDnsStatusLabel("rootproxy_reason", state.getOrDefault("rootproxy_reason", "unknown"))
                         + "\nRoot Proxy 残留规则清理：" + nativeDnsStatusLabel("rootproxy_cleanup", state.getOrDefault("rootproxy_cleanup", "not_required"))
                         + "\nRoot Proxy 路由验证：" + nativeDnsStatusLabel("rootproxy_route", state.getOrDefault("rootproxy_route", "unknown"))
