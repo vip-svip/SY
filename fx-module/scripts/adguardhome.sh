@@ -492,6 +492,18 @@ _render_managed_config() {
     rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
     return 1
   }
+  _querylog_runtime_output=$(MP="$MODDIR" PG="$PG" sh "$MODDIR/scripts/yulong-ad-control.sh" dns-querylog-runtime-get 2>/dev/null) || {
+    _log 'unable to read query-log memory buffer setting'
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
+    return 1
+  }
+  _querylog_memory_size=$(printf '%s\n' "$_querylog_runtime_output" | sed -n 's/^memory_size=//p')
+  case "$_querylog_memory_size" in ''|*[!0-9]*)
+    _log 'query-log memory buffer setting is missing or malformed'
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
+    return 1
+    ;;
+  esac
   _dns_response_mode=$(awk '
     BEGIN { inside=0; sections=0; modes=0; value=""; bad=0 }
     $0=="[conf:yulong_dns_response]" {
@@ -565,7 +577,7 @@ _render_managed_config() {
      { [ "$_custom_dns_enabled" = 1 ] || [ "$_global_dns_enabled" = 1 ]; }; then
     printf '  - 127.0.0.1:5353\n' > "$_fallback_file" || return 1
   fi
-  if ! awk -v querylog_interval="$_querylog_interval" -v querylog_enabled="$_dns_querylog_enabled" -v dns_response_mode="$_dns_response_mode" -v upstream_mode="$_dns_runtime_upstream_mode" -v fastest_timeout="$_dns_runtime_fastest_timeout" -v upstream_timeout="$_dns_runtime_upstream_timeout" -v cache_size="$_dns_runtime_cache_size" -v cache_ttl_min="$_dns_runtime_cache_ttl_min" -v cache_ttl_max="$_dns_runtime_cache_ttl_max" -v optimistic_answer_ttl="$_dns_runtime_optimistic_answer_ttl" -v optimistic_max_age="$_dns_runtime_optimistic_max_age" -v cache_enabled="$_dns_runtime_cache_enabled" -v cache_optimistic="$_dns_runtime_cache_optimistic" -v dnssec="$_dns_runtime_dnssec" -v rules_file="$_rules_file" -v filters_file="$_filters_file" -v fallback_file="$_fallback_file" -v upstream_file="$_upstream_file" -v bootstrap_file="$_bootstrap_file" '
+  if ! awk -v querylog_interval="$_querylog_interval" -v querylog_memory_size="$_querylog_memory_size" -v querylog_enabled="$_dns_querylog_enabled" -v dns_response_mode="$_dns_response_mode" -v upstream_mode="$_dns_runtime_upstream_mode" -v fastest_timeout="$_dns_runtime_fastest_timeout" -v upstream_timeout="$_dns_runtime_upstream_timeout" -v cache_size="$_dns_runtime_cache_size" -v cache_ttl_min="$_dns_runtime_cache_ttl_min" -v cache_ttl_max="$_dns_runtime_cache_ttl_max" -v optimistic_answer_ttl="$_dns_runtime_optimistic_answer_ttl" -v optimistic_max_age="$_dns_runtime_optimistic_max_age" -v cache_enabled="$_dns_runtime_cache_enabled" -v cache_optimistic="$_dns_runtime_cache_optimistic" -v dnssec="$_dns_runtime_dnssec" -v rules_file="$_rules_file" -v filters_file="$_filters_file" -v fallback_file="$_fallback_file" -v upstream_file="$_upstream_file" -v bootstrap_file="$_bootstrap_file" '
     /^querylog:[[:space:]]*$/ {in_querylog=1; print; next}
     in_querylog && /^[^[:space:]]/ {in_querylog=0}
     in_querylog && /^  enabled:/ {
@@ -577,6 +589,7 @@ _render_managed_config() {
       next
     }
     in_querylog && /^  interval:/ {print "  interval: " querylog_interval; next}
+    in_querylog && /^  size_memory:/ {print "  size_memory: " querylog_memory_size; next}
     /^  upstream_mode:/ {print "  upstream_mode: " upstream_mode; next}
     /^  fastest_timeout:/ {print "  fastest_timeout: " fastest_timeout; next}
     /^  upstream_timeout:/ {print "  upstream_timeout: " upstream_timeout; next}
@@ -760,6 +773,7 @@ _config_contract() {
     dns && /^  upstream_mode:/ {runtime_mode=$2}
     dns && /^  fastest_timeout:/ {runtime_fastest=$2}
     dns && /^  upstream_timeout:/ {runtime_timeout=$2}
+    dns && /^  size_memory:/ {runtime_querylog_memory_size=$2}
     dns && /^  cache_size:/ {runtime_cache_size=$2}
     dns && /^  cache_ttl_min:/ {runtime_cache_ttl_min=$2}
     dns && /^  cache_ttl_max:/ {runtime_cache_ttl_max=$2}
@@ -828,6 +842,7 @@ _config_contract() {
         !unsafe_bootstrap && !unsafe_fallback &&
         (runtime_mode=="load_balance" || runtime_mode=="parallel" || runtime_mode=="fastest_addr") &&
         valid_duration(runtime_fastest) && valid_duration(runtime_timeout) &&
+        runtime_querylog_memory_size~/^[0-9]+$/ &&
         valid_uint32(runtime_cache_size,0) &&
         valid_uint32(runtime_cache_ttl_min,1) && valid_uint32(runtime_cache_ttl_max,1) &&
         runtime_cache_ttl_min+0<=runtime_cache_ttl_max+0 &&
