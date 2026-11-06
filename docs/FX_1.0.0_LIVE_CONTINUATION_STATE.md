@@ -7789,3 +7789,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - VPN 节点 DNS 卡片新增“恢复 VPN DNS 默认值”，二次确认后调用单一后端事务；成功后刷新页面并显示默认地址。
   - 该操作只改 FX VPN 配置的两个 DNS 字段，不清除自定义/全局/备用 DNS，也不改变 DNS 引擎开关。
 - 按用户要求，本批未运行测试、静态检查、Gradle 构建、CI、安装或真机验证；默认值恢复及事务回滚尚未验收。
+
+
+## 2026-11-06 — Ad DNS 配置版本化快照与分享
+
+- 后端提交：`50ae6f9d57d770a8eaca6081a10cd2bd5d4b59e5`，文件 `scripts/yulong-ad-control.sh`。
+  - 新增只读 `dns-profile-get`，输出带 `FXYULONGDNSPROFILE1` 版本标识的 DNS 配置快照，覆盖本地 DNS 引擎/转发开关、过滤策略、custom/global/fallback 上游、VPN remote/cn DNS 与拦截响应模式。
+  - 快照通过现有配置读取接口获取，不写入配置、不触发 apply，也不包含 DNS 查询日志。
+- UI 提交：`c9b54c63c887d8a4e138183699a9f53071c7ee5`，文件 `adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
+  - Ad DNS 页面新增“分享 DNS 配置快照”，调用只读接口后通过 Android 系统分享面板导出纯文本备份；限制 48 KiB，并检查版本头，不自动上传或发送。
+  - 当前批次实现的是配置快照导出，不包含导入/恢复；恢复流程仍需独立实现并采用完整校验与事务写入。
+- 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或真机验证；导出内容与分享链路尚未验收。
