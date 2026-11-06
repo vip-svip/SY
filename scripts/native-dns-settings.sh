@@ -78,6 +78,12 @@ status() {
   _unbound=$(service_status unbound)
   _root=unavailable
   _whitelist_count=unknown
+  _root_reason=unknown
+  _root_interface=unknown
+  _root_vpn_uid=unknown
+  _root_egress_ipv4=unknown
+  _root_redirects=unknown
+  _root_dns_probe=unavailable
   _private_dns_mode=unknown
   _dns_filter_coverage=unknown
   _coexistence_verdict=unknown
@@ -115,6 +121,18 @@ status() {
       fi
       _count=$(printf '%s\n' "$_root_output" | sed -n 's/^whitelist_count=//p' | head -1)
       case "$_count" in ''|*[!0-9]*) : ;; *) _whitelist_count=$_count ;; esac
+      _reason=$(printf '%s\n' "$_root_output" | sed -n 's/^reason=//p' | head -1)
+      case "$_reason" in ''|*[!A-Za-z0-9_.:-]*) : ;; *) _root_reason=$_reason ;; esac
+      _iface=$(printf '%s\n' "$_root_output" | sed -n 's/^interface=//p' | head -1)
+      case "$_iface" in ''|*[!A-Za-z0-9_.:-]*) : ;; *) _root_interface=$_iface ;; esac
+      _uid=$(printf '%s\n' "$_root_output" | sed -n 's/^vpn_uid=//p' | head -1)
+      case "$_uid" in ''|*[!0-9]*) : ;; *) _root_vpn_uid=$_uid ;; esac
+      _egress=$(printf '%s\n' "$_root_output" | sed -n 's/^egress_ipv4=//p' | head -1)
+      case "$_egress" in ''|*[!0-9.]*) : ;; *) _root_egress_ipv4=$_egress ;; esac
+      _redirects=$(printf '%s\n' "$_root_output" | sed -n 's/^redirects=//p' | head -1)
+      case "$_redirects" in attached|detached) _root_redirects=$_redirects ;; esac
+      _probe=$(printf '%s\n' "$_root_output" | sed -n 's/^dns_probe=//p' | head -1)
+      case "$_probe" in passed|failed|unavailable) _root_dns_probe=$_probe ;; esac
       _mode=$(printf '%s\n' "$_root_output" | sed -n 's/^private_dns_mode=//p' | head -1)
       case "$_mode" in off|opportunistic|hostname) _private_dns_mode=$_mode ;; esac
       _coverage=$(printf '%s\n' "$_root_output" | sed -n 's/^dns_filter_coverage=//p' | head -1)
@@ -150,6 +168,12 @@ status() {
   printf 'adguardhome|%s\n' "$_agh"
   printf 'unbound|%s\n' "$_unbound"
   printf 'root_proxy|%s\n' "$_root"
+  printf 'rootproxy_interface|%s\n' "$_root_interface"
+  printf 'rootproxy_vpn_uid|%s\n' "$_root_vpn_uid"
+  printf 'rootproxy_egress_ipv4|%s\n' "$_root_egress_ipv4"
+  printf 'rootproxy_redirects|%s\n' "$_root_redirects"
+  printf 'rootproxy_dns_probe|%s\n' "$_root_dns_probe"
+  printf 'rootproxy_reason|%s\n' "$_root_reason"
   printf 'rootproxy_whitelist_count|%s\n' "$_whitelist_count"
   printf 'dns_filter_sources_total|%s\n' "$_filter_total"
   printf 'dns_filter_sources_enabled|%s\n' "$_filter_enabled"
