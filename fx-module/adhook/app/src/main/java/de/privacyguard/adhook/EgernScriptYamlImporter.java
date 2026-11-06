@@ -40,6 +40,9 @@ public final class EgernScriptYamlImporter {
         boolean bodyRequired = false;
         boolean binaryBody = false;
         boolean hasEnvironment = false;
+        boolean invalidEnvironment = false;
+        int environmentIndent = -1;
+        JSONObject scriptEnvironment = new JSONObject();
 
         String[] lines = (source == null ? "" : source).split("\\r?\\n");
         for (String sourceLine : lines) {
@@ -55,7 +58,8 @@ public final class EgernScriptYamlImporter {
                 }
                 if (inScriptings) {
                     addEntry(scripts, seen, kind, name, match, scriptUrl,
-                            disabled, bodyRequired, binaryBody, hasEnvironment);
+                            disabled, bodyRequired, binaryBody, hasEnvironment,
+                            invalidEnvironment, scriptEnvironment);
                     kind = "";
                     inScriptings = false;
                 }
@@ -66,7 +70,8 @@ public final class EgernScriptYamlImporter {
             Matcher item = ITEM.matcher(line);
             if (item.matches()) {
                 addEntry(scripts, seen, kind, name, match, scriptUrl,
-                        disabled, bodyRequired, binaryBody, hasEnvironment);
+                        disabled, bodyRequired, binaryBody, hasEnvironment,
+                        invalidEnvironment, scriptEnvironment);
                 kind = item.group(1);
                 name = "";
                 match = "";
@@ -75,9 +80,41 @@ public final class EgernScriptYamlImporter {
                 bodyRequired = false;
                 binaryBody = false;
                 hasEnvironment = false;
+                invalidEnvironment = false;
+                environmentIndent = -1;
+                scriptEnvironment = new JSONObject();
                 continue;
             }
             if (kind.isEmpty()) continue;
+
+            if (environmentIndent >= 0) {
+                if (indent > environmentIndent) {
+                    int envColon = line.indexOf(':');
+                    if (envColon <= 0) {
+                        invalidEnvironment = true;
+                        continue;
+                    }
+                    String envKey = line.substring(0, envColon).trim();
+                    String rawEnvValue = line.substring(envColon + 1).trim();
+                    if (!envKey.matches("[A-Za-z_][A-Za-z0-9_.-]{0,63}")
+                            || rawEnvValue.isEmpty()
+                            || rawEnvValue.startsWith("{") || rawEnvValue.startsWith("[")
+                            || rawEnvValue.startsWith("|") || rawEnvValue.startsWith(">")) {
+                        invalidEnvironment = true;
+                        continue;
+                    }
+                    String envValue = scalar(rawEnvValue);
+                    if (envValue.length() > 512
+                            || (!scriptEnvironment.has(envKey) && scriptEnvironment.length() >= 32)) {
+                        invalidEnvironment = true;
+                        continue;
+                    }
+                    scriptEnvironment.put(envKey, envValue);
+                    if (scriptEnvironment.toString().length() > 2048) invalidEnvironment = true;
+                    continue;
+                }
+                environmentIndent = -1;
+            }
 
             int colon = line.indexOf(':');
             if (colon <= 0) continue;
@@ -90,13 +127,22 @@ public final class EgernScriptYamlImporter {
                 case "disabled": disabled = truthy(value); break;
                 case "body_required": bodyRequired = truthy(value); break;
                 case "binary_body": binaryBody = truthy(value); break;
-                case "env": hasEnvironment = true; break;
+                case "env":
+                    String rawEnvironment = line.substring(colon + 1).trim();
+                    if (rawEnvironment.isEmpty()) {
+                        environmentIndent = indent;
+                    } else if (!"{}".equals(rawEnvironment)
+                            && !"null".equalsIgnoreCase(rawEnvironment) && !"~".equals(rawEnvironment)) {
+                        invalidEnvironment = true;
+                    }
+                    break;
                 default: break;
             }
         }
 
         addEntry(scripts, seen, kind, name, match, scriptUrl,
-                disabled, bodyRequired, binaryBody, hasEnvironment);
+                disabled, bodyRequired, binaryBody, hasEnvironment,
+                invalidEnvironment, scriptEnvironment);
         if (scripts.length() == 0) {
             throw new IllegalArgumentException(
                     "没有可安全迁移的 Egern HTTPS HTTP 脚本；定时/通用/网络脚本，以及含 env 或 binary_body 的条目暂不导入");
@@ -112,12 +158,13 @@ public final class EgernScriptYamlImporter {
     private static void addEntry(JSONArray scripts, Set<String> seen,
                                  String kind, String name, String match, String scriptUrl,
                                  boolean disabled, boolean bodyRequired,
-                                 boolean binaryBody, boolean hasEnvironment) throws JSONException {
+                                 boolean binaryBody, boolean hasEnvironment,
+                                 boolean invalidEnvironment, JSONObject scriptEnvironment) throws JSONException {
         if (!"http_request".equals(kind) && !"http_response".equals(kind)) return;
         if (name == null || name.trim().isEmpty() || name.trim().length() > 512
                 || match == null || match.isEmpty() || match.length() > 2048
                 || scriptUrl == null || !scriptUrl.regionMatches(true, 0, "https://", 0, 8)) return;
-        if (binaryBody || hasEnvironment || (bodyRequired && !"http_response".equals(kind))) return;
+        if (binaryBody || invalidEnvironment || (bodyRequired && !"http_response".equals(kind))) return;
 
         Uri uri = Uri.parse(scriptUrl);
         if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null
@@ -126,14 +173,20 @@ public final class EgernScriptYamlImporter {
         String type = "http_request".equals(kind) ? "request" : "response";
         String safeName = name.trim().replaceAll("[\\p{Cntrl}]", " ");
         if (safeName.isEmpty() || safeName.length() > 512) return;
-        String metadata = type + "\n" + match + "\n" + (bodyRequired ? "1" : "0") + "\n" + safeName;
-        String key = scriptUrl + "\n" + type + "\n" + match + "\n" + (bodyRequired ? "1" : "0");
+        String envJson = scriptEnvironment == null || scriptEnvironment.length() == 0
+                ? "" : scriptEnvironment.toString();
+        String metadata = type + "\n" + match + "\n" + (bodyRequired ? "1" : "0")
+                + "\n" + safeName + (envJson.isEmpty() ? "" : "\n" + envJson);
+        String key = scriptUrl + "\n" + type + "\n" + match + "\n"
+                + (bodyRequired ? "1" : "0") + "\n" + envJson;
         if (!seen.add(key)) return;
 
         JSONObject entry = new JSONObject();
         entry.put("value", scriptUrl);
-        entry.put("name", "FXMETA_B64:" + Base64.encodeToString(
-                metadata.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP));
+        String storedMetadata = "FXMETA_B64:" + Base64.encodeToString(
+                metadata.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
+        if (storedMetadata.length() > 4096) return;
+        entry.put("name", storedMetadata);
         entry.put("enabled", !disabled);
         scripts.put(entry);
     }
