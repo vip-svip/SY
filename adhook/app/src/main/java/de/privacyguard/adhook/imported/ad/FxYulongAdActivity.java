@@ -580,7 +580,30 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
     .setPositiveButton(action,(d,w)->apply("rule-set-many "+(enabled?"1":"0")+" "+encoded,"批量"+action+"过滤列表"))
     .show();
  }
- private void renderRules(){EditText url=draftField("rule_url");url.setSingleLine(true);url.setHint("https://… 或 builtin://…");EditText name=draftField("rule_name");name.setSingleLine(true);name.setHint("列表名称");card("添加过滤列表","仅允许 HTTPS 订阅及 FX 本地资源。",url,name,btn("添加并应用",()->{String u=url.getText().toString().trim(),n=name.getText().toString().trim();if(!u.isEmpty()&&!n.isEmpty())apply("rule-add "+q(u)+" "+q(n)+" 1","规则添加");}));search=draftField("rule_search");search.setSingleLine(true);search.setHint("搜索过滤列表");card("搜索","输入来源或列表名称",search,btn("启用当前筛选全部列表",()->setFilteredRules(true)),btn("暂停当前筛选全部列表",()->setFilteredRules(false)));search.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int st,int c,int a){}public void onTextChanged(CharSequence s,int st,int be,int co){bind();}public void afterTextChanged(Editable e){}});entries=new LinearLayout(this);entries.setOrientation(1);body.addView(entries);}
+ private void importRuleSubscriptions(EditText input){
+  String raw=input==null||input.getText()==null?"":input.getText().toString();
+  java.util.LinkedHashMap<String,String> parsed=new java.util.LinkedHashMap<>();
+  for(String line:raw.split("\\r?\\n")){
+   String row=line.trim();if(row.isEmpty()||row.startsWith("#"))continue;
+   int split=row.indexOf('|');
+   if(split<=0||split==row.length()-1||row.indexOf('|',split+1)>=0){status.setText("格式错误：每行使用 HTTPS或builtin来源|列表名称。");return;}
+   String source=row.substring(0,split).trim(),name=row.substring(split+1).trim();
+   if(parsed.put(source,name)!=null){status.setText("存在重复来源："+source);return;}
+   if(parsed.size()>2000){status.setText("单次最多导入 2000 个过滤列表。");return;}
+  }
+  if(parsed.isEmpty()){status.setText("没有可导入的过滤列表。");return;}
+  StringBuilder normalized=new StringBuilder();
+  for(java.util.Map.Entry<String,String> entry:parsed.entrySet())normalized.append(entry.getKey()).append('|').append(entry.getValue()).append('\\n');
+  byte[] bytes=normalized.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+  if(bytes.length>65536){status.setText("导入内容超过 64 KiB，请拆分后导入。");return;}
+  String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);
+  fxDialogBuilder().setTitle("批量导入过滤列表")
+   .setMessage("将新增 "+parsed.size()+" 个过滤订阅，导入条目默认启用。已存在的来源会被拒绝，不会覆盖现有名称或状态。是否继续？")
+   .setNegativeButton("取消",null)
+   .setPositiveButton("导入",(d,w)->apply("rule-add-many "+encoded,"批量导入过滤列表"))
+   .show();
+ }
+ private void renderRules(){EditText url=draftField("rule_url");url.setSingleLine(true);url.setHint("https://… 或 builtin://…");EditText name=draftField("rule_name");name.setSingleLine(true);name.setHint("列表名称");card("添加过滤列表","仅允许 HTTPS 订阅及 FX 本地资源。",url,name,btn("添加并应用",()->{String u=url.getText().toString().trim(),n=name.getText().toString().trim();if(!u.isEmpty()&&!n.isEmpty())apply("rule-add "+q(u)+" "+q(n)+" 1","规则添加");}));EditText ruleImport=draftField("rule_import_text");ruleImport.setSingleLine(false);ruleImport.setMinLines(4);ruleImport.setHint("每行：HTTPS或builtin来源|列表名称");card("批量导入过滤列表","支持多行来源|名称；空行和 # 注释行忽略。新订阅默认启用，已存在来源不会被覆盖。",ruleImport,btn("批量导入",()->importRuleSubscriptions(ruleImport)));search=draftField("rule_search");search.setSingleLine(true);search.setHint("搜索过滤列表");card("搜索","输入来源或列表名称",search,btn("启用当前筛选全部列表",()->setFilteredRules(true)),btn("暂停当前筛选全部列表",()->setFilteredRules(false)));search.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int st,int c,int a){}public void onTextChanged(CharSequence s,int st,int be,int co){bind();}public void afterTextChanged(Editable e){}});entries=new LinearLayout(this);entries.setOrientation(1);body.addView(entries);}
  private void renderDns(){
   card("DNS 配置备份","导出当前 FX DNS 引擎、过滤策略、上游服务器、VPN DNS 与拦截响应模式；仅读取本机配置，不会上传或修改设置。",btn("分享 DNS 配置快照",()->shareDnsProfile()));
   TextView dnsRuntimeState=txt("DNS 运行状态尚未读取。",12,0xff617080,false);
