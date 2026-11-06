@@ -6,6 +6,8 @@
 #define _POSIX_C_SOURCE 200809L
 #include <arpa/inet.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <poll.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -42,12 +44,28 @@ static int retry_tcp(const struct sockaddr_in *server,const unsigned char *query
                      unsigned char *reply,size_t reply_cap,const struct timeval *timeout,size_t *reply_len) {
     unsigned char prefix[2],frame[514];
     uint16_t length;
-    int fd=socket(AF_INET,SOCK_STREAM,0);
+    int fd=socket(AF_INET,SOCK_STREAM,0),flags,connect_rc,so_error=0;
+    socklen_t so_error_len=sizeof(so_error);
+    struct pollfd waitfd;
+    int wait_ms;
     if(fd<0) return -1;
+    if(query_len>512 || timeout->tv_sec<0 || timeout->tv_sec>10) { close(fd); return -1; }
     if(setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,timeout,sizeof(*timeout))!=0 ||
-       setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,timeout,sizeof(*timeout))!=0 ||
-       connect(fd,(const struct sockaddr *)server,sizeof(*server))!=0) { close(fd); return -1; }
-    if(query_len>512) { close(fd); return -1; }
+       setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,timeout,sizeof(*timeout))!=0) { close(fd); return -1; }
+    flags=fcntl(fd,F_GETFL,0);
+    if(flags<0 || fcntl(fd,F_SETFL,flags|O_NONBLOCK)!=0) { close(fd); return -1; }
+    connect_rc=connect(fd,(const struct sockaddr *)server,sizeof(*server));
+    if(connect_rc!=0 && errno!=EINPROGRESS) { close(fd); return -1; }
+    if(connect_rc!=0) {
+        wait_ms=(int)(timeout->tv_sec*1000L+(timeout->tv_usec+999L)/1000L);
+        waitfd.fd=fd; waitfd.events=POLLOUT; waitfd.revents=0;
+        do { connect_rc=poll(&waitfd,1,wait_ms); } while(connect_rc<0 && errno==EINTR);
+        if(connect_rc<=0 || (waitfd.revents&(POLLERR|POLLHUP|POLLNVAL))!=0 ||
+           getsockopt(fd,SOL_SOCKET,SO_ERROR,&so_error,&so_error_len)!=0 || so_error!=0) {
+            close(fd); return -1;
+        }
+    }
+    if(fcntl(fd,F_SETFL,flags)!=0) { close(fd); return -1; }
     put16(prefix,(uint16_t)query_len);
     memcpy(frame,prefix,2); memcpy(frame+2,query,query_len);
     if(transfer_all(fd,frame,query_len+2,1)!=0 || transfer_all(fd,prefix,2,0)!=0) {
