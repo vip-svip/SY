@@ -6919,3 +6919,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 - Native Script 文件导入新增 Surge/Loon 常见 `[Script]` 模块格式识别：迁移 HTTPS `script-path` 且声明 `http-request` / `http-response`、`pattern` 的条目，转为 FX `FXMETA_B64` 触发元数据并写入统一脚本列表；任务/定时脚本、相对路径和不支持的条目不自动执行。
 - 导入实现同步到主 APK 源码与 fx-module APK 源码；未执行测试、检查、构建、CI 或真机验证。
+
+
+## 2026-11-06 — QuickJS Egern 构建补丁重复应用修正
+
+- 修正 `fx-patches/patch_quickjs_egern_compat.py` 的标记块换行裁剪和无标记源码插入锚点转义，重复应用时直接替换 V1/V2 标记块而不叠加换行；README Egern 段落现在以中文兼容边界描述稳定覆盖。
+- 构建工具镜像新增 `fx-module/build-tools/patches/patch_quickjs_egern_compat.py`，与根目录构建补丁保持一致：`e55be482bb7c0d1028d392b251471e9b894a6462`。根目录修正提交：`107a6c120478c1af3daecd1ae25ea9f2322b76ef`。
+- 本批未运行测试、构建、CI 或设备验证；FX 1.0.0 版本保持不变。
