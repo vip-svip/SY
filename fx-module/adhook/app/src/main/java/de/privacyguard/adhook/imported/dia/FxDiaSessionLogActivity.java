@@ -3,6 +3,9 @@ package de.privacyguard.adhook.imported.dia;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.ClipboardManager;
+import android.content.ClipData;
+import android.net.Uri;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -19,6 +22,8 @@ import de.privacyguard.adhook.RootAccess;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+import java.io.OutputStream;
+import java.io.IOException;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -30,6 +35,8 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
     private static final String EXTRA_TARGET_NAME = "fx_dia_session_log_target_name";
     private static final String EXTRA_GADGET_PORT = "fx_dia_session_log_gadget_port";
     private static final int MAX_ROOT_OUTPUT = 512 * 1024;
+    private static final int REQUEST_EXPORT_LOG = 7105;
+    private static final int MAX_EXPORT_CHARS = 512 * 1024;
     private static final String BASE_DIR = "/data/adb/privacyguard";
     private static final String DIA_DIR = BASE_DIR + "/dia-frida";
     private static final String LOG_DIR = DIA_DIR + "/logs";
@@ -173,9 +180,18 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
         actions.setTag("fx-card-group");
         actions.addView(button("刷新日志", this::refreshLog),
                 new LinearLayout.LayoutParams(0, -2, 1));
+        actions.addView(button("复制筛选结果", this::copyFilteredLog),
+                new LinearLayout.LayoutParams(0, -2, 1));
+        actions.addView(button("导出筛选结果", this::beginExportLog),
+                new LinearLayout.LayoutParams(0, -2, 1));
         actions.addView(button("清空当前日志", this::confirmClearLog),
                 new LinearLayout.LayoutParams(0, -2, 1));
         controls.addView(actions);
+        LinearLayout secondaryActions = new LinearLayout(this);
+        secondaryActions.setTag("fx-card-group");
+        secondaryActions.addView(button("分享筛选结果", this::shareFilteredLog),
+                new LinearLayout.LayoutParams(0, -2, 1));
+        controls.addView(secondaryActions);
         root.addView(controls);
 
         logScroll = new ScrollView(this);
@@ -240,24 +256,155 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
         });
     }
 
+    private String getFilteredLogContent() {
+        String needle = search == null || search.getText() == null ? ""
+                : search.getText().toString().trim().toLowerCase(Locale.ROOT);
+        if (logContent.isEmpty()) return "";
+        StringBuilder filtered = new StringBuilder();
+        for (String line : logContent.split("\\r?\\n", -1)) {
+            if (!needle.isEmpty() && !line.toLowerCase(Locale.ROOT).contains(needle)) continue;
+            if (filtered.length() > 0) filtered.append('\n');
+            filtered.append(line);
+        }
+        return filtered.toString();
+    }
+
     private void renderLog() {
         if (outputView == null || search == null) return;
-        String needle = search.getText() == null ? ""
-                : search.getText().toString().trim().toLowerCase(Locale.ROOT);
         if (logContent.isEmpty()) {
             outputView.setText("暂无可显示的运行日志。");
             restorePendingScrollPosition();
             return;
         }
-        StringBuilder filtered = new StringBuilder();
-        int total = 0;
-        for (String line : logContent.split("\\r?\\n", -1)) {
-            if (!needle.isEmpty() && !line.toLowerCase(Locale.ROOT).contains(needle)) continue;
-            if (total++ > 0) filtered.append('\n');
-            filtered.append(line);
-        }
-        outputView.setText(total == 0 ? "没有符合条件的日志行。" : filtered.toString());
+        String filtered = getFilteredLogContent();
+        outputView.setText(filtered.isEmpty() ? "没有符合条件的日志行。" : filtered);
         restorePendingScrollPosition();
+    }
+
+    private void copyFilteredLog() {
+        String filtered = getFilteredLogContent();
+        if (filtered.isEmpty()) {
+            Toast.makeText(this, "当前没有可复制的日志内容。", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+        if (clipboard == null) {
+            Toast.makeText(this, "系统剪贴板不可用，未复制日志。", Toast.LENGTH_LONG).show();
+            return;
+        }
+        clipboard.setPrimaryClip(ClipData.newPlainText(
+                gadgetLog ? "FX Gadget 日志" : "FX Frida 会话日志", filtered));
+        Toast.makeText(this, "已复制当前筛选结果（" + filtered.length() + " 字符）。",
+                Toast.LENGTH_SHORT).show();
+    }
+
+    private void shareFilteredLog() {
+        String filtered = getFilteredLogContent();
+        if (filtered.isEmpty()) {
+            Toast.makeText(this, "当前没有可分享的日志内容。", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        final int shareLimit = 48 * 1024;
+        String header = "FX Dia 会话日志 · " + targetName + " · "
+                + (gadgetLog ? "Gadget" : "Frida") + "\\n"
+                + "包名：" + targetPackage + "\\n"
+                + "导出时间：" + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ROOT)
+                        .format(new Date()) + "\\n"
+                + "注意：分享前请检查日志中的敏感信息。\\n\\n";
+        String payload = header + filtered;
+        if (utf8Length(payload) > shareLimit) {
+            String marker = "\\n[分享内容达到 48 KiB 上限，后续日志已省略]";
+            payload = truncateUtf8(payload, shareLimit - utf8Length(marker)) + marker;
+        }
+        Intent send = new Intent(Intent.ACTION_SEND);
+        send.setType("text/plain");
+        send.putExtra(Intent.EXTRA_SUBJECT, "FX Dia 会话日志 · " + targetName);
+        send.putExtra(Intent.EXTRA_TEXT, payload);
+        try {
+            startActivity(Intent.createChooser(send, "分享筛选后的 Dia 日志"));
+        } catch (RuntimeException unavailable) {
+            Toast.makeText(this, "系统分享面板不可用，未分享日志。", Toast.LENGTH_LONG).show();
+        }
+    }
+    private void beginExportLog() {
+        String filtered = getFilteredLogContent();
+        if (filtered.isEmpty()) {
+            Toast.makeText(this, "当前筛选没有可导出的日志。", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Intent create = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        create.addCategory(Intent.CATEGORY_OPENABLE);
+        create.setType("text/plain");
+        create.putExtra(Intent.EXTRA_TITLE,
+                (gadgetLog ? "FX-Gadget-" : "FX-Frida-") + targetPackage + ".log.txt");
+        try {
+            startActivityForResult(create, REQUEST_EXPORT_LOG);
+        } catch (RuntimeException unavailable) {
+            Toast.makeText(this, "系统文件创建器不可用，未导出日志。", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQUEST_EXPORT_LOG || resultCode != RESULT_OK
+                || data == null || data.getData() == null) return;
+        String filtered = getFilteredLogContent();
+        if (filtered.isEmpty()) {
+            Toast.makeText(this, "筛选结果已变化，没有可导出的日志。", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String header = "FX Dia 会话日志导出\\n"
+                + "目标：" + targetName + "\\n"
+                + "包名：" + targetPackage + "\\n"
+                + "日志类型：" + (gadgetLog ? "Gadget" : "Frida") + "\\n"
+                + "导出时间：" + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ROOT)
+                        .format(new Date()) + "\\n"
+                + "说明：日志可能包含脚本或目标应用输出的敏感信息，请妥善保管。\\n\\n";
+        String content = header + filtered;
+        boolean truncated = utf8Length(content) > MAX_EXPORT_CHARS;
+        if (truncated) {
+            String marker = "\\n[导出达到 512 KiB 上限，后续内容已省略]\\n";
+            content = truncateUtf8(content, MAX_EXPORT_CHARS - utf8Length(marker)) + marker;
+        }
+        try (OutputStream stream = getContentResolver().openOutputStream(data.getData(), "w")) {
+            if (stream == null) throw new IOException("无法打开目标文件");
+            byte[] bytes = content.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            stream.write(bytes);
+            stream.flush();
+            Toast.makeText(this, "已导出筛选日志（" + bytes.length + " 字节）。",
+                    Toast.LENGTH_LONG).show();
+        } catch (IOException | SecurityException failure) {
+            Toast.makeText(this, "导出失败，未能写入目标文件："
+                    + failure.getClass().getSimpleName(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private static int utf8Length(String value) {
+        if (value == null || value.isEmpty()) return 0;
+        int bytes = 0;
+        for (int i = 0; i < value.length();) {
+            int codePoint = value.codePointAt(i);
+            bytes += codePoint <= 0x7f ? 1 : codePoint <= 0x7ff ? 2
+                    : codePoint <= 0xffff ? 3 : 4;
+            i += Character.charCount(codePoint);
+        }
+        return bytes;
+    }
+
+    private static String truncateUtf8(String value, int maxBytes) {
+        if (value == null || maxBytes <= 0) return "";
+        StringBuilder bounded = new StringBuilder();
+        int bytes = 0;
+        for (int i = 0; i < value.length();) {
+            int codePoint = value.codePointAt(i);
+            int size = codePoint <= 0x7f ? 1 : codePoint <= 0x7ff ? 2
+                    : codePoint <= 0xffff ? 3 : 4;
+            if (bytes + size > maxBytes) break;
+            bounded.appendCodePoint(codePoint);
+            bytes += size;
+            i += Character.charCount(codePoint);
+        }
+        return bounded.toString();
     }
 
     private void restoreUiState(Bundle state) {
