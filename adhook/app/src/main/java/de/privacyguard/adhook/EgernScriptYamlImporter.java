@@ -164,7 +164,7 @@ public final class EgernScriptYamlImporter {
         if (name == null || name.trim().isEmpty() || name.trim().length() > 512
                 || match == null || match.isEmpty() || match.length() > 2048
                 || scriptUrl == null || !scriptUrl.regionMatches(true, 0, "https://", 0, 8)) return;
-        if (binaryBody || invalidEnvironment || (bodyRequired && !"http_response".equals(kind))) return;
+        if (binaryBody || invalidEnvironment) return;
 
         Uri uri = Uri.parse(scriptUrl);
         if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null
