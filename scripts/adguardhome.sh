@@ -246,10 +246,13 @@ _render_managed_config() {
   fi
   _querylog_interval=$(awk '$0=="[conf:yulong_dns_querylog_retention]"{inside=1;next} /^\\[/{inside=0} inside&&/^interval=/{sub(/^interval=/,"");print;exit}' "$PG/settings.conf" 2>/dev/null)
   case "$_querylog_interval" in 1d|3d|7d|30d) : ;; *) _querylog_interval=7d ;; esac
-  if ! awk -v querylog_interval="$_querylog_interval" -v rules_file="$_rules_file" -v filters_file="$_filters_file" '
+  _dns_response_mode=$(awk '$0=="[conf:yulong_dns_response]"{inside=1;next} /^\\[/{inside=0} inside&&/^mode=/{sub(/^mode=/,"");print;exit}' "$PG/settings.conf" 2>/dev/null)
+  case "$_dns_response_mode" in nxdomain|refused|custom_ip) : ;; *) _dns_response_mode=nxdomain ;; esac
+  if ! awk -v querylog_interval="$_querylog_interval" -v dns_response_mode="$_dns_response_mode" -v rules_file="$_rules_file" -v filters_file="$_filters_file" '
     /^querylog:[[:space:]]*$/ {in_querylog=1; print; next}
     in_querylog && /^[^[:space:]]/ {in_querylog=0}
     in_querylog && /^  interval:/ {print "  interval: " querylog_interval; next}
+    /^  blocking_mode:/ {print "  blocking_mode: " dns_response_mode; next}
     /^filters:[[:space:]]*\[\][[:space:]]*$/ {
       if ((getline filter < filters_file) > 0) {
         print "filters:"
