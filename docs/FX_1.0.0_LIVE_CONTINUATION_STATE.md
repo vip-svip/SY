@@ -7844,3 +7844,16 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - Ad → DNS → 过滤策略新增“一键启用全部过滤策略 / 一键关闭全部过滤策略”，均有二次确认。
   - 两个入口统一修改五项策略；原有单项开关保留不变，成功后刷新页面。
 - 本批按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证；功能尚未验收。
+
+
+## 2026-11-06 — Ad 本地 DNS 引擎组一键批量控制
+
+- 原生后端提交：`af3c4e96ba1e2ab163910e08bd191eeb3ad8f18f`，文件 `scripts/native-dns-settings.sh`。
+  - 新增 `set-many KEY 0|1 ...`，只接受已声明的四个原生 DNS 依赖开关，拒绝重复键、非法值和越权配置键。
+  - 在单次原生 DNS 锁、配置备份与 apply/回滚中更新 AdGuard Home、Unbound、VPN 兼容与 Root Proxy 开关；按依赖关系归一化，避免过滤引擎指向已关闭的上游或 Root Proxy 脱离兼容模式。
+- Ad 控制入口提交：`397a5339c8f5aa1756010e9a5cc8e14b7eccacf2`，文件 `scripts/yulong-ad-control.sh`。
+  - 新增 `dns-native-set-many`，将白名单批量请求转交原生依赖管理器，保持单一锁所有权，不在外层重复加锁。
+- UI 提交：`48bb980ff4011741a2db999b3d09340054a3011e`，文件 `adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
+  - DNS 架构卡新增“一键启用本地 DNS 引擎组 / 一键关闭本地 DNS 引擎组”，二次确认后单次提交。
+  - 仅调整本地引擎及其依赖开关，不修改上游服务器、过滤规则或 VPN 节点。
+- 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证；本批尚未验收。
