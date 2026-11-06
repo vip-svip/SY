@@ -111,7 +111,6 @@ while IFS='|' read -r url note enabled; do
       meta_name_length=$(printf '%s' "$meta_display_name" | wc -c | tr -d ' ')
       case "$meta_name_length" in ''|*[!0-9]*) meta_display_name='' ;; esac
       [ "$meta_name_length" -le 512 ] 2>/dev/null || meta_display_name=''
-      if [ "$meta_requires_body" = 1 ] && [ "$meta_type" = request ]; then meta_requires_body=''; fi
       if [ -z "$meta_type" ] || [ -z "$meta_match" ] || [ -z "$meta_requires_body" ]; then
         rm -f "$tmp"; pg_log "js-sub: invalid encoded trigger metadata for [subscription URL redacted]"; failed=$((failed+1)); continue
       fi
