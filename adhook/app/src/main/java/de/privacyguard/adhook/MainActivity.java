@@ -2613,36 +2613,45 @@ public final class MainActivity extends ComponentActivity {
         try{return Integer.parseInt(value.trim())==expected;}catch(NumberFormatException ignored){return false;}
     }
 
+
     private void appendEgernYamlHttpEntry(JSONArray entries,java.util.Set<String> seen,
             String kind,String name,String match,String scriptUrl,boolean disabled,
-            boolean bodyRequired,boolean binaryBody,boolean hasEnvironment,boolean unsupportedLimits)
-            throws org.json.JSONException {
+            boolean bodyRequired,boolean binaryBody,JSONObject env,boolean envValid,
+            boolean unsupportedLimits) throws org.json.JSONException {
         if(!"http_request".equals(kind)&&!"http_response".equals(kind))return;
         if(name==null||name.trim().isEmpty()||name.length()>512||match==null||match.isEmpty()
                 ||match.length()>2048||scriptUrl==null||!scriptUrl.regionMatches(true,0,"https://",0,8))return;
-        if(binaryBody||hasEnvironment||unsupportedLimits||!isSupportedNativeScriptValue(scriptUrl))return;
+        if(binaryBody||!envValid||unsupportedLimits||!isSupportedNativeScriptValue(scriptUrl))return;
+        if(env==null)env=new JSONObject();
+        if(env.length()>32)return;
+        String envJson=env.length()==0?"":env.toString();
+        if(envJson.getBytes(StandardCharsets.UTF_8).length>2048)return;
         String type="http_request".equals(kind)?"request":"response";
         String safeName=name.replaceAll("[\\p{Cntrl}]"," ").trim();
         if(safeName.isEmpty())return;
         String bodyFlag=bodyRequired?"1":"0";
-        String metadata=type+"\n"+match+"\n"+bodyFlag+"\n"+safeName;
-        String duplicateKey=scriptUrl+"\n"+type+"\n"+match+"\n"+bodyFlag;
+        String metadata=type+"\n"+match+"\n"+bodyFlag+"\n"+safeName+"\n"+envJson;
+        String duplicateKey=scriptUrl+"\n"+type+"\n"+match+"\n"+bodyFlag+"\n"+envJson;
         if(!seen.add(duplicateKey))return;
+        String encoded="FXMETA_B64:"+Base64.encodeToString(metadata.getBytes(StandardCharsets.UTF_8),Base64.NO_WRAP);
+        if(encoded.length()>4096)return;
         JSONObject entry=new JSONObject();
         entry.put("value",scriptUrl);
-        entry.put("name","FXMETA_B64:"+Base64.encodeToString(metadata.getBytes(StandardCharsets.UTF_8),Base64.NO_WRAP));
+        entry.put("name",encoded);
         entry.put("enabled",!disabled);
         entries.put(entry);
     }
 
-    /** Import the Egern HTTP subset; scheduled, generic and network events are not HTTP hooks. */
+    /** Import Egern HTTP request/response scriptings and their bounded flat env map. */
     private void importNativeEgernScriptConfig(String payload) {
         try {
             JSONArray entries=new JSONArray();
             java.util.Set<String> seen=new java.util.HashSet<>();
             boolean inScriptings=false;
             String kind="",name="",match="",scriptUrl="";
-            boolean disabled=false,bodyRequired=false,binaryBody=false,hasEnvironment=false,unsupportedLimits=false;
+            boolean disabled=false,bodyRequired=false,binaryBody=false,envValid=true,unsupportedLimits=false;
+            int envIndent=-1;
+            JSONObject env=new JSONObject();
             String[] lines=(payload==null?"":payload).split("\\r?\\n");
             for(String sourceLine:lines) {
                 String uncommented=stripEgernYamlComment(sourceLine);
@@ -2652,38 +2661,83 @@ public final class MainActivity extends ComponentActivity {
                 String line=uncommented.trim();
                 if(indent==0) {
                     if("scriptings:".equalsIgnoreCase(line)){inScriptings=true;continue;}
-                    if(inScriptings)appendEgernYamlHttpEntry(entries,seen,kind,name,match,scriptUrl,disabled,bodyRequired,binaryBody,hasEnvironment,unsupportedLimits);
+                    if(inScriptings)appendEgernYamlHttpEntry(entries,seen,kind,name,match,scriptUrl,
+                            disabled,bodyRequired,binaryBody,env,envValid,unsupportedLimits);
                     inScriptings=false;kind="";
                     continue;
                 }
                 if(!inScriptings)continue;
-                java.util.regex.Matcher item=java.util.regex.Pattern.compile("^-\\s*(http_request|http_response|schedule|generic|network)\\s*:\\s*$").matcher(line);
+                if(envIndent>=0) {
+                    if(indent>envIndent) {
+                        int envColon=line.indexOf(':');
+                        if(envColon<=0){envValid=false;continue;}
+                        String envKey=line.substring(0,envColon).trim();
+                        String envValue=egernYamlScalar(line.substring(envColon+1));
+                        if(!envKey.matches("[A-Za-z_][A-Za-z0-9_.-]{0,63}")
+                                ||envValue.length()>512||env.length()>=32
+                                ||env.has(envKey)) {
+                            envValid=false;
+                        } else {
+                            env.put(envKey,envValue);
+                        }
+                        continue;
+                    }
+                    envIndent=-1;
+                }
+                java.util.regex.Matcher item=java.util.regex.Pattern
+                        .compile("^-\\s*(http_request|http_response|schedule|generic|network)\\s*:\\s*$")
+                        .matcher(line);
                 if(item.matches()) {
-                    appendEgernYamlHttpEntry(entries,seen,kind,name,match,scriptUrl,disabled,bodyRequired,binaryBody,hasEnvironment,unsupportedLimits);
+                    appendEgernYamlHttpEntry(entries,seen,kind,name,match,scriptUrl,
+                            disabled,bodyRequired,binaryBody,env,envValid,unsupportedLimits);
                     kind=item.group(1);name="";match="";scriptUrl="";
-                    disabled=false;bodyRequired=false;binaryBody=false;hasEnvironment=false;unsupportedLimits=false;
+                    disabled=false;bodyRequired=false;binaryBody=false;envValid=true;unsupportedLimits=false;
+                    env=new JSONObject();envIndent=-1;
                     continue;
                 }
                 if(kind.isEmpty())continue;
                 int colon=line.indexOf(':');if(colon<=0)continue;
                 String key=line.substring(0,colon).trim().toLowerCase(Locale.ROOT);
-                String value=egernYamlScalar(line.substring(colon+1));
-                switch(key){
+                String rawValue=line.substring(colon+1).trim();
+                String value=egernYamlScalar(rawValue);
+                switch(key) {
                     case "name":name=value;break;
                     case "match":match=value;break;
                     case "script_url":scriptUrl=value;break;
                     case "disabled":disabled=egernYamlTrue(value);break;
                     case "body_required":bodyRequired=egernYamlTrue(value);break;
                     case "binary_body":binaryBody=egernYamlTrue(value);break;
-                    case "env":hasEnvironment=true;break;
+                    case "env":
+                        if(rawValue.isEmpty()) {
+                            envIndent=indent;
+                        } else if("{}".equals(rawValue)||"{ }".equals(rawValue)) {
+                            envIndent=-1;
+                        } else if(rawValue.startsWith("{")) {
+                            try {
+                                JSONObject inline=new JSONObject(rawValue);
+                                java.util.Iterator<String> keys=inline.keys();
+                                while(keys.hasNext()) {
+                                    String k=keys.next();Object v=inline.opt(k);
+                                    if(!k.matches("[A-Za-z_][A-Za-z0-9_.-]{0,63}")
+                                            ||!(v instanceof String)||((String)v).length()>512||env.length()>=32) {
+                                        envValid=false;break;
+                                    }
+                                    env.put(k,v);
+                                }
+                            } catch(Exception invalidInlineEnv) { envValid=false; }
+                        } else {
+                            envValid=false;
+                        }
+                        break;
                     case "timeout":unsupportedLimits|=!egernYamlDefaultNumber(value,10);break;
                     case "max_size":unsupportedLimits|=!egernYamlDefaultNumber(value,1048576);break;
                     case "update_interval":unsupportedLimits|=!egernYamlDefaultNumber(value,86400);break;
                     default:break;
                 }
             }
-            appendEgernYamlHttpEntry(entries,seen,kind,name,match,scriptUrl,disabled,bodyRequired,binaryBody,hasEnvironment,unsupportedLimits);
-            if(entries.length()==0)throw new IllegalArgumentException("没有可安全迁移的 Egern HTTP 脚本；schedule/generic/network、env、binary_body 和非默认资源选项暂不支持");
+            appendEgernYamlHttpEntry(entries,seen,kind,name,match,scriptUrl,
+                    disabled,bodyRequired,binaryBody,env,envValid,unsupportedLimits);
+            if(entries.length()==0)throw new IllegalArgumentException("没有可安全迁移的 Egern HTTP 脚本；schedule/generic/network、binary_body 和非默认资源选项暂不支持");
             JSONObject document=new JSONObject();
             document.put("format","FX-SCRIPT-LIST");
             document.put("version",1);
