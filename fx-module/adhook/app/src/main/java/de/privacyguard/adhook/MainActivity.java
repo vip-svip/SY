@@ -2078,11 +2078,13 @@ public final class MainActivity extends ComponentActivity {
         storeNativeScriptValue(raw, sourceName, "1", (success, detail) -> {
             if (isFinishing() || isDestroyed()) return;
             if (success) {
-                Toast.makeText(this, "脚本条目已保存到模块配置", Toast.LENGTH_SHORT).show();
+                boolean duplicate = detail != null && detail.contains("DUPLICATE");
+                Toast.makeText(this, duplicate ? "相同脚本已存在，未重复添加" : "脚本条目已保存到模块配置",
+                        Toast.LENGTH_SHORT).show();
                 if (nativeScriptRows != null && nativeScriptStatus != null) {
                     refreshNativeScriptList(nativeScriptRows, nativeScriptStatus);
                 }
-                syncNativeScriptRuntime();
+                if (!duplicate) syncNativeScriptRuntime();
             } else {
                 Toast.makeText(this, "脚本未保存：" + detail, Toast.LENGTH_LONG).show();
             }
@@ -2508,9 +2510,11 @@ public final class MainActivity extends ComponentActivity {
         }
         known.add(key);
         storeNativeScriptValue(value, name, enabled, (ok, detail) -> {
+            boolean duplicate = ok && detail != null && detail.contains("DUPLICATE");
             if (!ok) known.remove(key);
             importNativeScriptEntry(entries, index + 1,
-                    imported + (ok ? 1 : 0), failed + (ok ? 0 : 1), skipped, known);
+                    imported + (ok && !duplicate ? 1 : 0),
+                    failed + (ok ? 0 : 1), skipped + (duplicate ? 1 : 0), known);
         });
     }
 
