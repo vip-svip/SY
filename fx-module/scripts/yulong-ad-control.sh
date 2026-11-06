@@ -958,10 +958,6 @@ import_domains() {
     return 2
   }
   _import_bytes=$(wc -c < "$_import_raw" | tr -d ' ')
-    rm -f "$_import_raw" "$_import_clean" 2>/dev/null || :
-    echo "domain import exceeds 64 KiB" >&2
-    return 2
-  }
 
   _import_count=0
   while IFS='|' read -r _import_domain _import_note _import_extra || \
@@ -992,10 +988,6 @@ import_domains() {
       return 1
     }
     _import_count=$((_import_count + 1))
-      rm -f "$_import_raw" "$_import_clean" 2>/dev/null || :
-      echo "domain import is limited to 2000 rows" >&2
-      return 2
-    }
   done < "$_import_raw"
 
   [ "$_import_count" -gt 0 ] || {
@@ -1332,7 +1324,7 @@ dns_log_tail() {
       return 21
     }
   if [ -s "$logfile" ] && [ -f "$logfile" ]; then
-    tail -n 500 "$logfile"
+    cat "$logfile"
   else
     echo FXDNSLOG_EMPTY
   fi
@@ -1701,7 +1693,7 @@ case "$cmd" in
   sh "$MP/scripts/yulong-trusted-network.sh" pause-set "$2" ;;
 
  logs)
-  [ -s "$PG/boot.log" ] && tail -n 180 "$PG/boot.log" || echo "暂无日志" ;;
+  [ -s "$PG/boot.log" ] && cat "$PG/boot.log" || echo "暂无日志" ;;
  ad-master)
    [ "$#" -eq 2 ] && { [ "$2" = 0 ] || [ "$2" = 1 ]; } || exit 2
    with_lock transaction m_dns yulong_ad_filter_enabled "$2" ;;

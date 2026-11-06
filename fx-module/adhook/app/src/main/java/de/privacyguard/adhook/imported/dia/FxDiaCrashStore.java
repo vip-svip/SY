@@ -117,10 +117,8 @@ public final class FxDiaCrashStore implements Thread.UncaughtExceptionHandler {
         try (FileInputStream input = file.openRead();
              ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             byte[] buffer = new byte[8192];
-            int total = 0;
             int count;
             while ((count = input.read(buffer)) != -1) {
-                total += count;
                 output.write(buffer, 0, count);
             }
             JSONObject json = new JSONObject(new String(output.toByteArray(), StandardCharsets.UTF_8));
