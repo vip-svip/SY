@@ -6787,3 +6787,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 同步正式 App 与 FX 模块内 App 源码：`adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`、`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
 - 提交：`c96d58b173b3bf7dd870fa37b34f66ca8f600a9c`、`5cd981922b70197baf45b23bfc50caf75ccc568b`。
 - 按推进要求未运行测试、静态检查、Gradle/APK 构建、CI 或设备验证。
+## 2026-11-07 — DNS 查询日志匿名化与服务器指纹防护
+
+- 在 FX AdGuard Home 运行模板固定开启 `anonymize_client_ip: true`，使查询日志不保存客户端原始 IP 地址；Ad 页面同步说明日志中的客户端 IP 已匿名化。
+- 固定启用 `refuse_any: true`，拒绝 DNS ANY 请求；固定屏蔽 `version.bind`、`id.server`、`hostname.bind` 三个 DNS 服务器版本/身份探测名称。
+- `scripts/adguardhome.sh` 与 `fx-module/scripts/adguardhome.sh` 的运行配置校验器增加强制不变量：匿名化和 ANY 拒绝字段必须唯一且为 true；blocked_hosts 必须完整包含上述三个唯一条目。缺失、重复或被改弱的配置不会被当作合法运行配置。
+- 正式引擎模板、FX runtime 配置模板、GitHub workflow 配置模板和模块内模板同步写入相同默认值，避免开发模板与安装配置漂移。
+- 本批代码提交：运行配置校验器 `cd15c6e38bb5b2a30fe6239dfc5e920781f27319` / module mirror `f0258759884fde653de4b49106de1f6cc99679c3`；模板同步 `0227c670ec1d64c6137dcd016a4cbf2bc4b1cb48`、`dd4983cf3b71c2fc600e914a08ea0bf1a17d5719`、`8c84baac052fec6194de757fe1f343a3b9861d73`、`f11b61cf5a2d124969b602eabc6a66348aec0282`；Activity 文案同步 `b108255f9ca242f9e7b8a5fa2b6ebc3e7b55914f` / `8233afc8904ff8027f6c54e90b13e59a4a0b786b`。
+- 按当前要求未运行测试、静态检查、构建、CI 或 Android 真机验证。该记录说明源码已提交，不代表设备端运行验收。
