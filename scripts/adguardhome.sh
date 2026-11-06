@@ -427,11 +427,17 @@ _render_managed_config() {
   _dns_runtime_fastest_timeout=$(printf '%s\n' "$_dns_runtime_output" | sed -n 's/^FASTEST_TIMEOUT=//p')
   _dns_runtime_upstream_timeout=$(printf '%s\n' "$_dns_runtime_output" | sed -n 's/^UPSTREAM_TIMEOUT=//p')
   _dns_runtime_cache_size=$(printf '%s\n' "$_dns_runtime_output" | sed -n 's/^CACHE_SIZE=//p')
+  _dns_runtime_cache_ttl_min=$(printf '%s\n' "$_dns_runtime_output" | sed -n 's/^CACHE_TTL_MIN=//p')
+  _dns_runtime_cache_ttl_max=$(printf '%s\n' "$_dns_runtime_output" | sed -n 's/^CACHE_TTL_MAX=//p')
+  _dns_runtime_optimistic_answer_ttl=$(printf '%s\n' "$_dns_runtime_output" | sed -n 's/^CACHE_OPTIMISTIC_ANSWER_TTL=//p')
+  _dns_runtime_optimistic_max_age=$(printf '%s\n' "$_dns_runtime_output" | sed -n 's/^CACHE_OPTIMISTIC_MAX_AGE=//p')
   _dns_runtime_cache_enabled=$(printf '%s\n' "$_dns_runtime_output" | sed -n 's/^CACHE_ENABLED=//p')
   _dns_runtime_cache_optimistic=$(printf '%s\n' "$_dns_runtime_output" | sed -n 's/^CACHE_OPTIMISTIC=//p')
   _dns_runtime_dnssec=$(printf '%s\n' "$_dns_runtime_output" | sed -n 's/^ENABLE_DNSSEC=//p')
   [ -n "$_dns_runtime_upstream_mode" ] && [ -n "$_dns_runtime_fastest_timeout" ] &&
     [ -n "$_dns_runtime_upstream_timeout" ] && [ -n "$_dns_runtime_cache_size" ] &&
+    [ -n "$_dns_runtime_cache_ttl_min" ] && [ -n "$_dns_runtime_cache_ttl_max" ] &&
+    [ -n "$_dns_runtime_optimistic_answer_ttl" ] && [ -n "$_dns_runtime_optimistic_max_age" ] &&
     [ -n "$_dns_runtime_cache_enabled" ] && [ -n "$_dns_runtime_cache_optimistic" ] &&
     [ -n "$_dns_runtime_dnssec" ] || {
       _log 'AdGuard Home runtime settings response is incomplete'
@@ -536,7 +542,7 @@ _render_managed_config() {
      { [ "$_custom_dns_enabled" = 1 ] || [ "$_global_dns_enabled" = 1 ]; }; then
     printf '  - 127.0.0.1:5353\n' > "$_fallback_file" || return 1
   fi
-  if ! awk -v querylog_interval="$_querylog_interval" -v querylog_enabled="$_dns_querylog_enabled" -v dns_response_mode="$_dns_response_mode" -v upstream_mode="$_dns_runtime_upstream_mode" -v fastest_timeout="$_dns_runtime_fastest_timeout" -v upstream_timeout="$_dns_runtime_upstream_timeout" -v cache_size="$_dns_runtime_cache_size" -v cache_enabled="$_dns_runtime_cache_enabled" -v cache_optimistic="$_dns_runtime_cache_optimistic" -v dnssec="$_dns_runtime_dnssec" -v rules_file="$_rules_file" -v filters_file="$_filters_file" -v fallback_file="$_fallback_file" -v upstream_file="$_upstream_file" -v bootstrap_file="$_bootstrap_file" '
+  if ! awk -v querylog_interval="$_querylog_interval" -v querylog_enabled="$_dns_querylog_enabled" -v dns_response_mode="$_dns_response_mode" -v upstream_mode="$_dns_runtime_upstream_mode" -v fastest_timeout="$_dns_runtime_fastest_timeout" -v upstream_timeout="$_dns_runtime_upstream_timeout" -v cache_size="$_dns_runtime_cache_size" -v cache_ttl_min="$_dns_runtime_cache_ttl_min" -v cache_ttl_max="$_dns_runtime_cache_ttl_max" -v optimistic_answer_ttl="$_dns_runtime_optimistic_answer_ttl" -v optimistic_max_age="$_dns_runtime_optimistic_max_age" -v cache_enabled="$_dns_runtime_cache_enabled" -v cache_optimistic="$_dns_runtime_cache_optimistic" -v dnssec="$_dns_runtime_dnssec" -v rules_file="$_rules_file" -v filters_file="$_filters_file" -v fallback_file="$_fallback_file" -v upstream_file="$_upstream_file" -v bootstrap_file="$_bootstrap_file" '
     /^querylog:[[:space:]]*$/ {in_querylog=1; print; next}
     in_querylog && /^[^[:space:]]/ {in_querylog=0}
     in_querylog && /^  enabled:/ {
@@ -553,6 +559,10 @@ _render_managed_config() {
     /^  upstream_timeout:/ {print "  upstream_timeout: " upstream_timeout; next}
     /^  cache_enabled:/ {print "  cache_enabled: " (cache_enabled=="1" ? "true" : "false"); next}
     /^  cache_size:/ {print "  cache_size: " cache_size; next}
+    /^  cache_ttl_min:/ {print "  cache_ttl_min: " cache_ttl_min; next}
+    /^  cache_ttl_max:/ {print "  cache_ttl_max: " cache_ttl_max; next}
+    /^  cache_optimistic_answer_ttl:/ {print "  cache_optimistic_answer_ttl: " optimistic_answer_ttl; next}
+    /^  cache_optimistic_max_age:/ {print "  cache_optimistic_max_age: " optimistic_max_age; next}
     /^  cache_optimistic:/ {print "  cache_optimistic: " (cache_optimistic=="1" ? "true" : "false"); next}
     /^  enable_dnssec:/ {print "  enable_dnssec: " (dnssec=="1" ? "true" : "false"); next}
     # FX_YULONG_DNS_RESPONSE_BEGIN
@@ -654,6 +664,22 @@ _config_contract() {
       } else return 0
       return n ~ /^[0-9]+$/ && n+0>=1 && n+0<=limit && int(n+0)==n+0
     }
+    function valid_uint32(value, allow_zero) {
+      return value ~ /^[0-9]+$/ && value+0<=4294967295 &&
+        int(value+0)==value+0 && (allow_zero ? value+0>=0 : value+0>=1)
+    }
+    function valid_optimistic_answer_ttl(value, n, seconds) {
+      if (value ~ /^[0-9]+ms$/) {
+        n=substr(value,1,length(value)-2); seconds=n/1000
+      } else if (value ~ /^[0-9]+s$/) {
+        n=substr(value,1,length(value)-1); seconds=n
+      } else if (value ~ /^[0-9]+m$/) {
+        n=substr(value,1,length(value)-1); seconds=n*60
+      } else if (value ~ /^[0-9]+h$/) {
+        n=substr(value,1,length(value)-1); seconds=n*3600
+      } else return 0
+      return valid_duration(value) && seconds>=1 && seconds<=4294967295
+    }
     function valid_ipv4(v, n, a, i) {
       n=split(v,a,".")
       if(n!=4) return 0
@@ -707,6 +733,10 @@ _config_contract() {
     dns && /^  fastest_timeout:/ {runtime_fastest=$2}
     dns && /^  upstream_timeout:/ {runtime_timeout=$2}
     dns && /^  cache_size:/ {runtime_cache_size=$2}
+    dns && /^  cache_ttl_min:/ {runtime_cache_ttl_min=$2}
+    dns && /^  cache_ttl_max:/ {runtime_cache_ttl_max=$2}
+    dns && /^  cache_optimistic_answer_ttl:/ {runtime_optimistic_answer_ttl=$2}
+    dns && /^  cache_optimistic_max_age:/ {runtime_optimistic_max_age=$2}
     dns && /^  cache_enabled:/ {runtime_cache_enabled=$2}
     dns && /^  cache_optimistic:/ {runtime_cache_optimistic=$2}
     dns && /^  enable_dnssec:/ {runtime_dnssec=$2}
@@ -774,7 +804,11 @@ _config_contract() {
         !unsafe_bootstrap && !unsafe_fallback &&
         (runtime_mode=="load_balance" || runtime_mode=="parallel" || runtime_mode=="fastest_addr") &&
         valid_duration(runtime_fastest) && valid_duration(runtime_timeout) &&
-        runtime_cache_size~/^[0-9]+$/ && runtime_cache_size+0>0 &&
+        valid_uint32(runtime_cache_size,0) &&
+        valid_uint32(runtime_cache_ttl_min,1) && valid_uint32(runtime_cache_ttl_max,1) &&
+        runtime_cache_ttl_min+0<=runtime_cache_ttl_max+0 &&
+        valid_optimistic_answer_ttl(runtime_optimistic_answer_ttl) &&
+        valid_duration(runtime_optimistic_max_age) &&
         (runtime_cache_enabled=="true" || runtime_cache_enabled=="false") &&
         (runtime_cache_optimistic=="true" || runtime_cache_optimistic=="false") &&
         (runtime_dnssec=="true" || runtime_dnssec=="false")) ? 0 : 1
