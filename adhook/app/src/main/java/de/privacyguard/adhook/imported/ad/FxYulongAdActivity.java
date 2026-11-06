@@ -1371,7 +1371,19 @@ private Boolean adMaster(){
    }
   }
 private String dnsValue(String key){for(String line:snapshot.split("\\r?\\n")){String[] p=line.split("\\|",-1);if(p.length==3&&p[0].equals("DNS")&&p[1].equals(key))return p[2];}return "0";}
- private void domainRow(Row e,boolean allow){LinearLayout r=new LinearLayout(this);r.setTag("fx-list-row");r.setOrientation(1);r.setPadding(dp(8),dp(5),dp(8),dp(5));TextView domain=txt((allow?"白名单 · ":"黑名单 · ")+e.value,13,0xff17212b,true);domain.setTag("fx-list-title");r.addView(domain);TextView source=txt(e.title,10,0xff718091,false);source.setTag("fx-list-subtitle");r.addView(source);Switch enabled=new Switch(this);enabled.setTag("fx-switch-row");enabled.setText(allow?"启用此白名单域名":"启用此黑名单域名");enabled.setChecked(e.enabled);enabled.setOnCheckedChangeListener((button,on)->apply((allow?"allow-set ":"block-set ")+q(e.value)+" "+(on?"1":"0"),allow?"白名单状态":"黑名单状态"));r.addView(enabled);r.addView(btn("移除",()->apply((allow?"allow-remove ":"block-remove ")+q(e.value),"名单移除")));entries.addView(r);}
+ private void domainRow(Row e,boolean allow){LinearLayout r=new LinearLayout(this);r.setTag("fx-list-row");r.setOrientation(1);r.setPadding(dp(8),dp(5),dp(8),dp(5));TextView domain=txt((allow?"白名单 · ":"黑名单 · ")+e.value,13,0xff17212b,true);domain.setTag("fx-list-title");r.addView(domain);TextView source=txt(e.title,10,0xff718091,false);source.setTag("fx-list-subtitle");r.addView(source);Switch enabled=new Switch(this);enabled.setTag("fx-switch-row");enabled.setText(allow?"启用此白名单域名":"启用此黑名单域名");enabled.setChecked(e.enabled);enabled.setOnCheckedChangeListener((button,on)->apply((allow?"allow-set ":"block-set ")+q(e.value)+" "+(on?"1":"0"),allow?"白名单状态":"黑名单状态"));r.addView(enabled);r.addView(btn("编辑备注",()->editDomainNote(e,allow)));r.addView(btn("移除",()->apply((allow?"allow-remove ":"block-remove ")+q(e.value),"名单移除")));entries.addView(r);}
+ private void editDomainNote(Row e,boolean allow){
+  EditText input=new EditText(this);input.setSingleLine(true);input.setHint("域名备注");input.setText(e.title==null?"":e.title);
+  fxDialogBuilder().setTitle("编辑"+(allow?"白名单":"黑名单")+"备注")
+   .setMessage("只修改备注，不改变域名、启用状态或其他名单记录。")
+   .setView(input).setNegativeButton("取消",null)
+   .setPositiveButton("保存",(dialog,which)->{
+    String note=input.getText()==null?"":input.getText().toString().trim();
+    if(note.isEmpty()){status.setText("备注不能为空；如需清空请使用单个空格以外的明确备注。");return;}
+    if(note.length()>160||note.indexOf(10)>=0||note.indexOf(13)>=0){status.setText("备注最多 160 个字符且不能包含换行。");return;}
+    apply((allow?"allow-note ":"block-note ")+q(e.value)+" "+q(note),allow?"白名单备注":"黑名单备注");
+   }).show();
+ }
  @Override protected void onDestroy(){pageGeneration++;trustedNetworkGeneration++;trustedNetworkStatus=null;rootProxyStatusGeneration++;rootProxyStatus=null;proxyWhitelistGeneration++;worker.shutdownNow();super.onDestroy();}
  private void profileRoot(String args,java.util.function.Consumer<RootAccess.Result> cb){
   final long requestGeneration=pageGeneration;
