@@ -395,12 +395,7 @@ object FxGkdRuleStore {
         val rules = getRules(context)
         if (rules.none { it.group == name }) return false
         val next = rules.map { if (it.group == name) it.copy(enabled = enabled) else it }
-        if (!writeRules(context, next)) return false
-        if (enabled) {
-            return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                .edit().putBoolean(KEY_MASTER_ENABLED, true).commit()
-        }
-        return true
+        return writeRules(context, next, enableMasterOnEnabled = enabled)
     }
 
     /** Apply an enabled state to a bounded set of explicitly selected rule IDs. */
@@ -412,7 +407,7 @@ object FxGkdRuleStore {
         val selected = rules.filter { it.id in ids }
         if (selected.isEmpty()) return 0
         val next = rules.map { if (it.id in ids) it.copy(enabled = enabled) else it }
-        return if (writeRules(context, next)) selected.size else -1
+        return if (writeRules(context, next, enableMasterOnEnabled = enabled)) selected.size else -1
     }
 
     /** Remove only explicitly selected IDs; unrelated rules and order are preserved. */
@@ -474,7 +469,11 @@ object FxGkdRuleStore {
         value.length in 3..255 &&
             value.matches(Regex("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+"))
 
-    private fun writeRules(context: Context, rules: List<FxGkdRule>): Boolean {
+    private fun writeRules(
+        context: Context,
+        rules: List<FxGkdRule>,
+        enableMasterOnEnabled: Boolean = false
+    ): Boolean {
         if (rules.size > MAX_RULES) return false
         val array = JSONArray()
         rules.forEach { rule ->
@@ -491,7 +490,10 @@ object FxGkdRuleStore {
         val editor = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit()
             .putString(KEY_RULES, array.toString())
-        if (rules.none { it.enabled }) editor.putBoolean(KEY_MASTER_ENABLED, false)
+        when {
+            rules.none { it.enabled } -> editor.putBoolean(KEY_MASTER_ENABLED, false)
+            enableMasterOnEnabled -> editor.putBoolean(KEY_MASTER_ENABLED, true)
+        }
         val committed = editor.commit()
         if (committed) {
             cachedRules = rules.toList()
