@@ -264,11 +264,17 @@ _maybe_refresh_anchor() {
     else
       _log 'bounded root trust-anchor refresh unavailable; retaining previous valid anchor if output is invalid'
     fi
-    if ! grep -Eq '^\.[[:space:]]+IN[[:space:]]+DNSKEY[[:space:]]+257[[:space:]]+3[[:space:]]+8[[:space:]]' "$STATE/root.key" 2>/dev/null; then
-      mv -f "$_tmp_anchor" "$STATE/root.key" 2>/dev/null || cp "$_tmp_anchor" "$STATE/root.key" 2>/dev/null || :
+    if ! grep -Eq '^\\.[[:space:]]+IN[[:space:]]+DNSKEY[[:space:]]+257[[:space:]]+3[[:space:]]+8[[:space:]]' "$STATE/root.key" 2>/dev/null; then
+      # Never continue with an invalid refreshed anchor if rollback itself
+      # fails. Keep the private pre-refresh copy for recovery and abort startup.
+      if ! mv -f "$_tmp_anchor" "$STATE/root.key" 2>/dev/null; then
+        _log 'invalid root trust-anchor refresh and rollback failed; preserving previous anchor copy'
+        return 1
+      fi
       _log 'root trust anchor refresh output failed validation; previous file restored'
+      return 0
     fi
-    rm -f "$_tmp_anchor" 2>/dev/null || :
+    rm -f "$_tmp_anchor" 2>/dev/null || return 1
   else
     _log 'timeout helper unavailable; skipping offline trust-anchor refresh to avoid unbounded boot delay'
   fi
@@ -336,7 +342,11 @@ _ensure() {
   elif [ -n "$_p" ]; then
     _stop || { rm -f "$_tmp"; return 1; }
   fi
-  _maybe_refresh_anchor
+  if ! _maybe_refresh_anchor; then
+    _log 'trust-anchor refresh rollback was not confirmed; refusing resolver startup'
+    rm -f "$_tmp"
+    return 1
+  fi
   mv -f "$_tmp" "$CFG" || { rm -f "$_tmp"; return 1; }
   # The config was created with _new_private_temp (umask 077 + chmod 600)
   # and retains that mode across the atomic rename.
