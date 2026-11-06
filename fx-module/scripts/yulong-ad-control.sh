@@ -233,6 +233,41 @@ valid_dns_csv() {
       for(j=1;j<=4;j++) if(a[j]==""||a[j]!~/^[0-9]+$/||length(a[j])>3||a[j]+0>255) return 0
       if(v=="0.0.0.0"||v=="255.255.255.255") return 0
       return 1    }
+    function valid_ipv6(v, pos, left, right, count, i, n, a, b) {
+      if(v=="" || v !~ /^[0-9A-Fa-f:]+$/ || v ~ /:::/) return 0
+      pos=index(v,"::")
+      if(pos && index(substr(v,pos+2),"::")) return 0
+      count=0
+      if(pos) {
+        left=substr(v,1,pos-1); right=substr(v,pos+2)
+        if(left!="") {
+          n=split(left,a,":")
+          for(i=1;i<=n;i++) if(a[i]!~/^[0-9A-Fa-f][0-9A-Fa-f]?[0-9A-Fa-f]?[0-9A-Fa-f]?$/) return 0
+          count+=n
+        }
+        if(right!="") {
+          n=split(right,b,":")
+          for(i=1;i<=n;i++) if(b[i]!~/^[0-9A-Fa-f][0-9A-Fa-f]?[0-9A-Fa-f]?[0-9A-Fa-f]?$/) return 0
+          count+=n
+        }
+        return count<8
+      }
+      n=split(v,a,":")
+      if(n!=8) return 0
+      for(i=1;i<=n;i++) if(a[i]!~/^[0-9A-Fa-f][0-9A-Fa-f]?[0-9A-Fa-f]?[0-9A-Fa-f]?$/) return 0
+      return 1
+    }
+    function valid_ipv6_port(v, close, host, tail, port) {
+      if(substr(v,1,1)!="[") return 0
+      close=index(v,"]")
+      if(close<3) return 0
+      host=substr(v,2,close-2); tail=substr(v,close+1)
+      if(!valid_ipv6(host)) return 0
+      if(tail=="") return 1
+      if(substr(tail,1,1)!=":") return 0
+      port=substr(tail,2)
+      return port~/^[0-9]+$/ && port+0>=1 && port+0<=65535
+    }
     function dns_host(v, n, labels, i) {
       if(v~/^[0-9.]+$/) return ipv4(v)
       if(length(v)>253 || substr(v,1,1)=="." || substr(v,length(v),1)==".") return 0
@@ -243,13 +278,14 @@ valid_dns_csv() {
       return 1
     }
     function valid_hostport(v, n, a) {
+      if(substr(v,1,1)=="[") return valid_ipv6_port(v)
       n=split(v,a,":")
       if(n==1) return dns_host(a[1])
       if(n==2) return dns_host(a[1]) && a[2]~/^[0-9]+$/ && a[2]+0>=1 && a[2]+0<=65535
       return 0
     }
     function endpoint(v, rest, parts, hostpart, address) {
-      if(ipv4(v)) return 1
+      if(ipv4(v) || valid_ipv6(v) || valid_ipv6_port(v)) return 1
       # Plain IPv4 upstreams may use a non-standard UDP/TCP port.
       if(split(v,address,":")==2 && ipv4(address[1]) &&
          address[2]~/^[0-9]+$/ && address[2]+0>=1 && address[2]+0<=65535) return 1
@@ -258,7 +294,9 @@ valid_dns_csv() {
         split(rest,parts,"/")
         hostpart=parts[1]
         if(!valid_hostport(hostpart)) return 0
-        return rest~/^[A-Za-z0-9.-]+(:[0-9]+)?(\/[A-Za-z0-9._~!$&()*+,;=:@%/?#-]*)?$/
+        slash=index(rest,"/")
+        path=slash ? substr(rest,slash) : ""
+        return path=="" || path~/^\/[A-Za-z0-9._~!$&()*+,;=:@%/?#-]*$/
       }
       if(substr(v,1,6)=="tls://") return valid_hostport(substr(v,7))
       if(substr(v,1,7)=="quic://") return valid_hostport(substr(v,8))
