@@ -16,6 +16,7 @@ STATE="$PG/adguardhome"
 CFG="$STATE/AdGuardHome.yaml"
 WORK="$STATE/work"
 PIDFILE="$STATE/managed.pid"
+CONFIG_HASH="$STATE/config.sha256"
 LOG="$STATE/engine.log"
 PATH=/system/bin:/system/xbin:/sbin:/vendor/bin:/usr/bin:/bin
 export PATH
@@ -74,7 +75,7 @@ _prepare_state_dirs() {
     (umask 077; mkdir "$WORK") || return 1
   fi
   chmod 700 "$STATE" "$WORK" 2>/dev/null || :
-  for _candidate in "$BIN" "$BIN.sha256" "$TEMPLATE" "$CFG" "$PIDFILE" "$LOG"; do
+  for _candidate in "$BIN" "$BIN.sha256" "$TEMPLATE" "$CFG" "$PIDFILE" "$CONFIG_HASH" "$LOG"; do
     _safe_file_or_absent "$_candidate" || {
       echo "AdGuard Home refuses a symlink or non-regular state/runtime file: $_candidate" >&2
       return 1
@@ -272,6 +273,31 @@ _config_contract() {
     return 1
   }
 }
+_current_config_hash() {
+  _safe_file_or_absent "$CFG" && [ -f "$CFG" ] && [ -s "$CFG" ] || return 1
+  if command -v sha256sum >/dev/null 2>&1; then
+    _digest=$(sha256sum "$CFG" 2>/dev/null | awk 'NR==1 {print tolower($1)}')
+  elif command -v toybox >/dev/null 2>&1; then
+    _digest=$(toybox sha256sum "$CFG" 2>/dev/null | awk 'NR==1 {print tolower($1)}')
+  else
+    return 1
+  fi
+  case "$_digest" in
+    *[!a-f0-9]*|'') return 1 ;;
+  esac
+  [ "\${#_digest}" -eq 64 ] || return 1
+  printf '%s\n' "$_digest"
+}
+_publish_config_hash() {
+  _digest=$1
+  _safe_file_or_absent "$CONFIG_HASH" || return 1
+  _tmp=$(_new_private_temp "$STATE/config.sha256.tmp.XXXXXX") || return 1
+  if ! printf '%s\n' "$_digest" > "$_tmp" || ! chmod 600 "$_tmp" || ! mv -f "$_tmp" "$CONFIG_HASH"; then
+    rm -f "$_tmp" 2>/dev/null || :
+    return 1
+  fi
+  return 0
+}
 _remove_pid_marker_if_matches() {
   _expected=$1
   _safe_file_or_absent "$PIDFILE" || return 1
@@ -376,12 +402,24 @@ _ensure() {
   _check_files || return 1
   _install_config || return 1
   _config_contract || return 1
+  _current_hash=$(_current_config_hash) || {
+    _log 'unable to calculate managed AdGuard Home config fingerprint'
+    return 1
+  }
   if _p=$(_owned_pid 2>/dev/null); then
-    if _probe; then
+    _previous_hash=
+    if _safe_file_or_absent "$CONFIG_HASH" && [ -f "$CONFIG_HASH" ]; then
+      _previous_hash=$(cat "$CONFIG_HASH" 2>/dev/null)
+    fi
+    if [ "$_previous_hash" = "$_current_hash" ] && _probe; then
       echo 'ready'
       return 0
     fi
-    _log 'existing AdGuard Home failed uncached loopback DNS probe; restarting'
+    if [ "$_previous_hash" != "$_current_hash" ]; then
+      _log 'managed DNS rules changed; restarting AdGuard Home to load the new config'
+    else
+      _log 'existing AdGuard Home failed uncached loopback DNS probe; restarting'
+    fi
     _stop || return 1
   else
     if [ -f "$PIDFILE" ]; then
@@ -409,7 +447,12 @@ _ensure() {
   while [ "$_tries" -lt 30 ]; do
     _now=$(_owned_pid 2>/dev/null) || _now=
     if [ "$_now" = "$_p" ] && _probe; then
-      _log 'ready; loopback DNS filter answers through local Unbound upstream'
+      _publish_config_hash "$_current_hash" || {
+        _log 'DNS filter is healthy but config fingerprint publication failed'
+        _stop || :
+        return 1
+      }
+      _log 'ready; loopback DNS filter answers through local Unbound upstream with current managed rules'
       echo 'ready'
       return 0
     fi
