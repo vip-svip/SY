@@ -708,9 +708,6 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
         saveDnsQueryLogRetention(values[which]);
       }).setNegativeButton("取消",null).show();
   });
- });
-      }).setNegativeButton("取消",null).show();
-  });
  }
  private static boolean isValidDnsRuntimeCacheSize(String value){
   if(value==null||!value.matches("[0-9]+"))return false;
