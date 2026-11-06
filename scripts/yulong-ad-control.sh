@@ -28,6 +28,7 @@ _yad_rule_raw=
 _yad_rule_clean=
 _yad_rule_add_raw=
 _yad_rule_add_clean=
+_yad_profile_raw=
 _yad_cleanup() {
   [ -z "$_yad_conf_tmp" ] || rm -f "$_yad_conf_tmp" 2>/dev/null || :
   [ -z "$_yad_transaction_backup" ] || rm -f "$_yad_transaction_backup" 2>/dev/null || :
@@ -44,6 +45,7 @@ _yad_cleanup() {
   [ -z "$_yad_rule_clean" ] || rm -f "$_yad_rule_clean" 2>/dev/null || :
   [ -z "$_yad_rule_add_raw" ] || rm -f "$_yad_rule_add_raw" 2>/dev/null || :
   [ -z "$_yad_rule_add_clean" ] || rm -f "$_yad_rule_add_clean" 2>/dev/null || :
+  [ -z "$_yad_profile_raw" ] || rm -f "$_yad_profile_raw" 2>/dev/null || :
 }
 trap '_yad_cleanup' 0
 trap '_yad_cleanup; exit 129' HUP
@@ -393,6 +395,121 @@ dns_profile_get() {
   case "$mode" in nxdomain|refused|custom_ip) ;; *) mode=nxdomain ;; esac
   printf 'RESPONSE_MODE=%s\n' "$mode"
 }
+
+dns_profile_restore() {
+  _profile_encoded=$1
+  case "$_profile_encoded" in ''|*[!A-Za-z0-9+/=]*) echo "invalid DNS profile encoding" >&2; return 2 ;; esac
+  [ "${#_profile_encoded}" -le 87384 ] || { echo "DNS profile exceeds 64 KiB" >&2; return 2; }
+  _yad_profile_raw=$(mktemp "$PG/yulong-dns-profile.XXXXXX") || return 1
+  chmod 600 "$_yad_profile_raw" || return 1
+  (umask 077; printf '%s' "$_profile_encoded" | base64 -d > "$_yad_profile_raw") || { echo "unable to decode DNS profile" >&2; return 2; }
+  _profile_bytes=$(wc -c < "$_yad_profile_raw" | tr -d ' ')
+  [ "$_profile_bytes" -le 65536 ] || { echo "DNS profile exceeds 64 KiB" >&2; return 2; }
+  [ "$(sed -n '1p' "$_yad_profile_raw")" = FXYULONGDNSPROFILE1 ] || { echo "unsupported DNS profile version" >&2; return 2; }
+  awk '
+    NR==1 {if($0!="FXYULONGDNSPROFILE1")bad=1;next}
+    {
+      if(index($0,"=")<2 || $0 ~ /\r/){bad=1;next}
+      key=substr($0,1,index($0,"=")-1)
+      value=substr($0,index($0,"=")+1)
+      if(key !~ /^(dns_engine_adguardhome|dns_forward|custom_dns|global_dns|block_quic|block_dot|block_plain_dns|block_ipv6|block_track_domains|vpn_external_dns_proxy|vpn_external_compat|dns_querylog_enabled|CUSTOM_SERVERS|GLOBAL_SERVERS|FALLBACK_SERVERS|VPN_REMOTE|VPN_CN|RESPONSE_MODE)$/)bad=1
+      if(seen[key]++)bad=1
+      count++
+    }
+    END{if(bad||count!=18)exit 1}
+  ' "$_yad_profile_raw" || { echo "DNS profile has unknown, duplicate, missing, or malformed fields" >&2; return 2; }
+  _profile_seen='|'
+  while IFS= read -r _profile_line || [ -n "$_profile_line" ]; do
+    [ "$_profile_line" = FXYULONGDNSPROFILE1 ] && continue
+    _profile_key=${_profile_line%%=*}; _profile_value=${_profile_line#*=}
+    case "$_profile_key" in
+      dns_engine_adguardhome|dns_forward|custom_dns|global_dns|block_quic|block_dot|block_plain_dns|block_ipv6|block_track_domains|vpn_external_dns_proxy|vpn_external_compat|dns_querylog_enabled)
+        case "$_profile_value" in 0|1) : ;; *) echo "invalid DNS flag: $_profile_key" >&2; return 2 ;; esac
+        ;;
+      CUSTOM_SERVERS)
+        _profile_custom=$_profile_value
+        [ -z "$_profile_custom" ] || valid_dns_csv "$_profile_custom" || { echo "invalid custom DNS servers" >&2; return 2; }
+        ;;
+      GLOBAL_SERVERS)
+        _profile_global=$_profile_value
+        [ -z "$_profile_global" ] || valid_ipv4_dns_csv "$_profile_global" || { echo "invalid global DNS servers" >&2; return 2; }
+        ;;
+      FALLBACK_SERVERS)
+        _profile_fallback=$_profile_value
+        [ -z "$_profile_fallback" ] || valid_ipv4_dns_csv "$_profile_fallback" || { echo "invalid fallback DNS servers" >&2; return 2; }
+        ;;
+      VPN_REMOTE|VPN_CN)
+        valid_ipv4 "$_profile_value" || { echo "invalid VPN DNS address: $_profile_key" >&2; return 2; }
+        ;;
+      RESPONSE_MODE)
+        case "$_profile_value" in nxdomain|refused|custom_ip) : ;; *) echo "invalid DNS response mode" >&2; return 2 ;; esac
+        ;;
+    esac
+    case "$_profile_key" in
+      dns_engine_adguardhome) _profile_agh=$_profile_value ;;
+      dns_forward) _profile_forward=$_profile_value ;;
+      custom_dns) _profile_custom_enabled=$_profile_value ;;
+      global_dns) _profile_global_enabled=$_profile_value ;;
+      block_quic) _profile_quic=$_profile_value ;;
+      block_dot) _profile_dot=$_profile_value ;;
+      block_plain_dns) _profile_plain=$_profile_value ;;
+      block_ipv6) _profile_ipv6=$_profile_value ;;
+      block_track_domains) _profile_track=$_profile_value ;;
+      vpn_external_dns_proxy) _profile_proxy=$_profile_value ;;
+      vpn_external_compat) _profile_compat=$_profile_value ;;
+      dns_querylog_enabled) _profile_querylog=$_profile_value ;;
+      VPN_REMOTE) _profile_remote=$_profile_value ;;
+      VPN_CN) _profile_cn=$_profile_value ;;
+      RESPONSE_MODE) _profile_mode=$_profile_value ;;
+    esac
+  done < "$_yad_profile_raw"
+  # Preserve the native DNS dependency invariants before touching the live config.
+  if [ "$_profile_forward" != 1 ]; then _profile_agh=0; _profile_proxy=0; fi
+  if [ "$_profile_agh" != 1 ]; then _profile_proxy=0; fi
+  if [ "$_profile_compat" != 1 ]; then _profile_proxy=0; fi
+  if [ "$_profile_proxy" = 1 ]; then _profile_forward=1; _profile_agh=1; _profile_compat=1; fi
+  pg_set dns_engine_adguardhome "$_profile_agh" &&
+    pg_set dns_forward "$_profile_forward" &&
+    pg_set vpn_external_compat "$_profile_compat" &&
+    pg_set vpn_external_dns_proxy "$_profile_proxy" &&
+    pg_set custom_dns "$_profile_custom_enabled" &&
+    pg_set global_dns "$_profile_global_enabled" &&
+    pg_set block_quic "$_profile_quic" &&
+    pg_set block_dot "$_profile_dot" &&
+    pg_set block_plain_dns "$_profile_plain" &&
+    pg_set block_ipv6 "$_profile_ipv6" &&
+    pg_set block_track_domains "$_profile_track" &&
+    pg_set dns_querylog_enabled "$_profile_querylog" || return 1
+  if [ -n "$_profile_custom" ]; then m_dns_servers custom_dns "$_profile_custom" || return 1
+  else m_dns_section_clear custom_dns || return 1; fi
+  if [ -n "$_profile_global" ]; then m_dns_servers global_dns "$_profile_global" || return 1
+  else m_dns_section_clear global_dns || return 1; fi
+  if [ -n "$_profile_fallback" ]; then m_dns_servers yulong_dns_fallback "$_profile_fallback" || return 1
+  else m_dns_section_clear yulong_dns_fallback || return 1; fi
+  m_vpn_dns remote_dns "$_profile_remote" &&
+    m_vpn_dns cn_dns "$_profile_cn" &&
+    m_dns_response "$_profile_mode" || return 1
+  printf 'dns_profile=restored native_agh=%s native_forward=%s native_compat=%s native_proxy=%s\n' "$_profile_agh" "$_profile_forward" "$_profile_compat" "$_profile_proxy"
+}
+dns_profile_transaction() {
+  _profile_backup=$(umask 077; mktemp "$CONF.dns-profile-rollback.XXXXXX") || return 1
+  if ! cp -p "$CONF" "$_profile_backup" || ! chmod 600 "$_profile_backup"; then rm -f "$_profile_backup"; return 1; fi
+  if ! dns_profile_restore "$1"; then
+    _profile_restore=$(umask 077; mktemp "$CONF.dns-profile-restore.XXXXXX") || { echo "DNS profile mutation failed; backup retained at $_profile_backup" >&2; return 11; }
+    if ! cp -p "$_profile_backup" "$_profile_restore" || ! chmod 600 "$_profile_restore" || ! mv -f "$_profile_restore" "$CONF"; then
+      rm -f "$_profile_restore" 2>/dev/null || :; echo "DNS profile rollback failed; backup retained at $_profile_backup" >&2; return 11
+    fi
+    rm -f "$_profile_backup"; return 1
+  fi
+  if sh "$MP/scripts/apply.sh" full; then rm -f "$_profile_backup"; return 0; fi
+  _profile_restore=$(umask 077; mktemp "$CONF.dns-profile-restore.XXXXXX") || { echo "DNS profile apply failed; backup retained at $_profile_backup" >&2; return 11; }
+  if ! cp -p "$_profile_backup" "$_profile_restore" || ! chmod 600 "$_profile_restore" || ! mv -f "$_profile_restore" "$CONF"; then
+    rm -f "$_profile_restore" 2>/dev/null || :; echo "DNS profile apply rollback failed; backup retained at $_profile_backup" >&2; return 11
+  fi
+  sh "$MP/scripts/apply.sh" full >/dev/null 2>&1 || echo "previous DNS profile restored; runtime reconcile failed" >&2
+  rm -f "$_profile_backup"; echo "DNS profile apply failed; previous settings restored" >&2; return 1
+}
+
 dns_config_get() {
   echo FXYULONGDNS1
   echo "CUSTOM_ENABLED|$(pg_get custom_dns 0)"
