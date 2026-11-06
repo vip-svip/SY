@@ -293,6 +293,64 @@ validate_existing_dns_section() {
     return 22
   }
 }
+write_dns_sections_many() {
+  _multi_custom=$1; _multi_global=$2; _multi_fallback=$3
+  validate_existing_dns_section custom_dns || return $?
+  validate_existing_dns_section global_dns || return $?
+  validate_existing_dns_section yulong_dns_fallback || return $?
+  _multi_tmp=$(mktemp "$CONF.yulong-dns-many.XXXXXX") || return 1
+  _yad_conf_tmp=$_multi_tmp
+  if ! awk -v custom="$_multi_custom" -v global="$_multi_global" -v fallback="$_multi_fallback" '
+    function emit(value, n, a, i) {
+      if (value == "-") return
+      n=split(value,a,",")
+      for(i=1;i<=n;i++) print "nameserver " a[i]
+    }
+    function finish_section() {
+      if (!inside) return
+      if (section == "custom_dns") emit(custom)
+      else if (section == "global_dns") emit(global)
+      else if (section == "yulong_dns_fallback") emit(fallback)
+      inside=0; section=""
+    }
+    BEGIN {
+      inside=0; section=""
+      seen_custom=0; seen_global=0; seen_fallback=0
+    }
+    /^\[conf:(custom_dns|global_dns|yulong_dns_fallback)\]$/ {
+      finish_section()
+      section=$0
+      sub(/^\[conf:/,"",section); sub(/\]$/,"",section)
+      if (section=="custom_dns") seen_custom=1
+      else if (section=="global_dns") seen_global=1
+      else seen_fallback=1
+      value=(section=="custom_dns" ? custom : (section=="global_dns" ? global : fallback))
+      if (value != "-") { print; inside=1 } else inside=1
+      next
+    }
+    /^\[/ {
+      finish_section()
+      print
+      next
+    }
+    inside { next }
+    { print }
+    END {
+      finish_section()
+      if (!seen_custom && custom!="-") { print ""; print "[conf:custom_dns]"; emit(custom) }
+      if (!seen_global && global!="-") { print ""; print "[conf:global_dns]"; emit(global) }
+      if (!seen_fallback && fallback!="-") { print ""; print "[conf:yulong_dns_fallback]"; emit(fallback) }
+    }
+  ' "$CONF" > "$_multi_tmp"; then
+    rm -f "$_multi_tmp"; _yad_conf_tmp=; return 1
+  fi
+  if [ -s "$_multi_tmp" ] && chmod 600 "$_multi_tmp" && mv -f "$_multi_tmp" "$CONF"; then
+    _yad_conf_tmp=; return 0
+  fi
+  rm -f "$_multi_tmp"; _yad_conf_tmp=
+  return 1
+}
+
 write_dns_section() {
   section=$1; servers=$2
   case "$section" in custom_dns|global_dns|yulong_dns_fallback) : ;; *) return 2 ;; esac
@@ -409,12 +467,7 @@ dns_config_set_many() {
   if [ "$_many_fallback" != "-" ]; then
     valid_fallback_dns_csv "$_many_fallback" || { echo "fallback DNS requires 1..3 IPv4 literals" >&2; return 2; }
   fi
-  if [ "$_many_custom" = "-" ]; then m_dns_section_clear custom_dns || return 1
-  else m_dns_servers custom_dns "$_many_custom" || return 1; fi
-  if [ "$_many_global" = "-" ]; then m_dns_section_clear global_dns || return 1
-  else m_dns_servers global_dns "$_many_global" || return 1; fi
-  if [ "$_many_fallback" = "-" ]; then m_dns_section_clear yulong_dns_fallback || return 1
-  else m_dns_servers yulong_dns_fallback "$_many_fallback" || return 1; fi
+  write_dns_sections_many "$_many_custom" "$_many_global" "$_many_fallback" || return 1
   echo "dns_servers=updated custom=$_many_custom global=$_many_global fallback=$_many_fallback"
 }
 dns_security_profile_set() {
