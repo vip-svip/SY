@@ -2681,7 +2681,9 @@ public final class MainActivity extends ComponentActivity {
                 if (!isSupportedNativeScriptValue(value)) {
                     throw new IllegalArgumentException("第 " + (i + 1) + " 项脚本内容无效。");
                 }
-                if (name.length() > 4096) throw new IllegalArgumentException("第 " + (i + 1) + " 项备注元数据超过 4096 字符");
+                if (name.length() > 4096) {
+                    throw new IllegalArgumentException("第 " + (i + 1) + " 项备注元数据超过 4096 字符");
+                }
                 String transportValue = value.trim();
                 if (!transportValue.regionMatches(true, 0, "https://", 0, 8)
                         && nativeScriptUtf8Bytes(value) > 1048576) {
@@ -2689,17 +2691,15 @@ public final class MainActivity extends ComponentActivity {
                 }
             }
             importNativeScriptBatch(entries, 0, 0, 0, 0);
-            return;
-        } catch (Exception error) {
-                    Toast.makeText(this, "无法读取现有脚本列表，未执行导入：" + error.getMessage(),
-                            Toast.LENGTH_LONG).show();
-                }
-            });
         } catch (Exception error) {
             Toast.makeText(this, "脚本配置导入失败：" + error.getMessage(), Toast.LENGTH_LONG).show();
         }
     }
 
+    /**
+     * Write URL subscriptions and local JS source rows into a bounded manifest.
+     * The native store commits each manifest under one settings.conf transaction.
+     */
     private void importNativeScriptBatch(JSONArray entries, int offset,
                                          int totalAdded, int totalDuplicate, int totalFailed) {
         if (offset >= entries.length()) {
@@ -2716,6 +2716,7 @@ public final class MainActivity extends ComponentActivity {
         final int maxEntries = Math.min(entries.length(), offset + 512);
         int nextOffset = offset;
         long manifestBytes = 0L;
+        int stagingFailed = 0;
         java.io.File manifest = null;
         try {
             manifest = java.io.File.createTempFile("fx-native-script-batch-", ".list", getCacheDir());
@@ -2723,6 +2724,7 @@ public final class MainActivity extends ComponentActivity {
                 for (int i = offset; i < maxEntries; i++) {
                     JSONObject entry = entries.optJSONObject(i);
                     if (entry == null) {
+                        stagingFailed++;
                         nextOffset = i + 1;
                         continue;
                     }
@@ -2738,7 +2740,9 @@ public final class MainActivity extends ComponentActivity {
                     } else {
                         int sourceBytes = nativeScriptUtf8Bytes(value);
                         if (sourceBytes <= 0 || sourceBytes > 1048576) {
-                            throw new IllegalArgumentException("第 " + (i + 1) + " 项本地 JS 源码为空或超过 1 MiB");
+                            stagingFailed++;
+                            nextOffset = i + 1;
+                            continue;
                         }
                         kind = "SOURCE";
                         storedValue = value;
@@ -2752,7 +2756,9 @@ public final class MainActivity extends ComponentActivity {
                         break;
                     }
                     if (row.length > 7L * 1024L * 1024L) {
-                        throw new IllegalArgumentException("单条脚本导入记录超过批量清单上限");
+                        stagingFailed++;
+                        nextOffset = i + 1;
+                        continue;
                     }
                     output.write(row);
                     manifestBytes += row.length;
@@ -2761,11 +2767,17 @@ public final class MainActivity extends ComponentActivity {
                 output.flush();
                 output.getFD().sync();
             }
-            if (nextOffset <= offset || manifest.length() <= 0) {
-                throw new IllegalStateException("批量导入清单为空");
+            if (nextOffset <= offset) {
+                throw new IllegalStateException("批量导入没有可写入的项目");
+            }
+            if (manifest.length() <= 0) {
+                importNativeScriptBatch(entries, nextOffset, totalAdded,
+                        totalDuplicate, totalFailed + stagingFailed);
+                return;
             }
             final java.io.File staged = manifest;
             final int nextBatchOffset = nextOffset;
+            final int batchStagingFailed = stagingFailed;
             String command = nativeScriptStoreCommand("add-batch", shellQuote(staged.getAbsolutePath()));
             runNativeModuleCommand(command, 120000L, result -> {
                 if (staged.exists() && !staged.delete()) staged.deleteOnExit();
@@ -2784,7 +2796,8 @@ public final class MainActivity extends ComponentActivity {
                     return;
                 }
                 importNativeScriptBatch(entries, nextBatchOffset,
-                        totalAdded + added, totalDuplicate + duplicate, totalFailed + failed);
+                        totalAdded + added, totalDuplicate + duplicate,
+                        totalFailed + failed + batchStagingFailed);
             });
         } catch (Exception error) {
             if (manifest != null && manifest.exists()) manifest.delete();
@@ -2809,47 +2822,6 @@ public final class MainActivity extends ComponentActivity {
             }
         }
         return -1;
-    }
-
-    private static String nativeScriptImportKey(String value, String name) {
-        return nativeScriptSha256((value == null ? "" : value) + "\n"
-                + (name == null ? "" : name.trim()));
-    }
-
-    private void importNativeScriptEntry(JSONArray entries, int index, int imported,
-                                         int failed, int skipped,
-                                         java.util.Set<String> known) {
-        if (index >= entries.length()) {
-            Toast.makeText(this, "脚本配置导入结束：新增 " + imported + " 项，失败 " + failed
-                            + " 项，重复跳过 " + skipped + " 项",
-                    Toast.LENGTH_LONG).show();
-            if (nativeScriptRows != null && nativeScriptStatus != null) {
-                refreshNativeScriptList(nativeScriptRows, nativeScriptStatus);
-            }
-            if (imported > 0) syncNativeScriptRuntime();
-            return;
-        }
-        JSONObject entry = entries.optJSONObject(index);
-        if (entry == null) {
-            importNativeScriptEntry(entries, index + 1, imported, failed + 1, skipped, known);
-            return;
-        }
-        String value = entry.optString("value", "");
-        String name = entry.optString("name", "").trim();
-        String enabled = entry.optBoolean("enabled", true) ? "1" : "0";
-        String key = nativeScriptImportKey(value, name);
-        if (known.contains(key)) {
-            importNativeScriptEntry(entries, index + 1, imported, failed, skipped + 1, known);
-            return;
-        }
-        known.add(key);
-        storeNativeScriptValue(value, name, enabled, (ok, detail) -> {
-            boolean duplicate = ok && detail != null && detail.contains("DUPLICATE");
-            if (!ok) known.remove(key);
-            importNativeScriptEntry(entries, index + 1,
-                    imported + (ok && !duplicate ? 1 : 0),
-                    failed + (ok ? 0 : 1), skipped + (duplicate ? 1 : 0), known);
-        });
     }
 
     private void clearPendingNativeScriptExport() {
