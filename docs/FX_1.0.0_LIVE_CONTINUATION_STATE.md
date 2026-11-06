@@ -6951,3 +6951,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - build-fx-kernelsu.yml 现在在 Release ZIP 恢复前快照整个 QuickJS 运行时目录，恢复后整体覆盖回当前分支源码，避免旧归档同时覆盖订阅同步器、脚本存储和调度器，而不再只保护 host/runner/README。
 - 应用导入器提交：83a1a37d78a01311a11c71794df0053f614098f7；模块导入器提交：f8c9d0616f94beaadf547c65332b30af0b9bf055；订阅同步器提交：6ce26c89196889fa617df9ebc7f83a3a4252547b；构建恢复提交：b78d223854eda696197fc88ae399fe077708e3bd；运行时文档提交：102b025da665edaafc722a27c1d8985fdfc9e294。
 - 固定 FX 1.0.0；本批按要求未运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-06 — Quantumult X rewrite_local 脚本迁移
+
+- 应用和 KernelSU 模块两套 Native Script 导入器同时支持 Quantumult X 常见 [rewrite_local] 脚本动作：script-request-header、script-request-body、script-response-header、script-response-body 和 script-analyze-echo-response。
+- 规则 URL 正则与 HTTPS 脚本 URL 被转换为 FXMETA_B64 触发元数据；正文脚本保留请求/响应正文需求标记，重复规则按脚本 URL、阶段、匹配表达式和正文标记去重。
+- 文件选择器新增 .qxconf 后缀与 [rewrite_local] 文件头识别。仅处理 HTTPS 脚本动作；普通 URL Rewrite、reject、相对脚本路径及非 HTTPS 地址不会被自动执行。
+- 应用源码提交：eda62bdefa56a9d9a390d83f46a969453e52e9fd；模块 APK 源码提交：4a89075335193b3fc6869bad88773478613f627c；同步器保留请求正文标记提交：14a32e114224be8c22b5317d5fb852942bea21a9。
+- 按当前推进要求未运行测试、静态检查、构建、CI 或真机验证。
