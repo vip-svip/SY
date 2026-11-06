@@ -45,6 +45,12 @@
 - `schedule`、`generic`、`network` 不会转换为 HTTP Hook；仅接收 HTTPS 脚本 URL。Egern 的 `timeout`、`max_size`、`update_interval` 等参数不假定已经映射为 FX 控制项。
 - 该导入器仅覆盖上述 HTTP YAML 子集，不是通用 YAML 解析器，也不代表 Egern 全功能运行时。
 
+## Native Script 混合清单批量导入
+
+- FX JSON、Egern YAML、Surge/Loon 与 Quantumult X 的转换结果统一进入批量导入器；同一个清单允许 HTTPS 订阅 URL 与本地 JavaScript 源码混合，不再因为混入一个本地文件而退回逐项改写配置。
+- UI 每批最多 512 条，并将 manifest 控制在约 7 MiB；模块端 add-batch 在单个脚本列表锁内处理 URL 与 SOURCE 两种记录，一次性提交该批 [list:script]。多批次依序推进，按批汇总新增、重复跳过及失败数。
+- SOURCE 记录以 SOURCE|Base64(源码)|Base64(名称)|启用状态 传输；模块将源码保持文件流处理，按内容快照和名称去重，不将完整源码塞进 shell 变量。单文件上限 1 MiB；URL 仅接受 HTTPS，普通明文 HTTP 不导入。
+- 配置批次仍以现有 settings.conf [list:script] 为唯一来源；批量接口不会另建第二份脚本数据库。模块脚本模板、运行时副本和构建恢复来源使用同一协议。
 ## 本地实时钩子脚本示例
 
 ```javascript
