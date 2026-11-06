@@ -12,10 +12,11 @@
 
 ## Egern 脚本兼容入口（扩展子集）
 
-- 运行器支持顶层默认导出的异步或同步函数，包括带函数名的形式，并在执行前转换为 FX QuickJS 函数入口。
-- 提供 ctx.script、ctx.env、ctx.app、ctx.device、ctx.request、ctx.response、ctx.http、ctx.storage、ctx.notify 和 ctx.log。HTTP 支持 GET/POST/PUT/PATCH/DELETE/HEAD/OPTIONS，以及 fetch/request 入口；响应提供 status、headers、text() 和 json()。
-- 请求与响应头大小写不敏感，支持 get、getAll、has、set、append、delete、entries 和迭代；ctx.storage 支持 get、set、remove、getJSON。超时按毫秒接收，并限制在 FX HTTP bridge 的安全范围内。
-- 环境和设备字段只透传事件实际提供的值，不伪造运营商或网络状态。当前是 Egern API 子集，不支持 ESM import 依赖、流、Blob/ArrayBuffer、SSH、ctx.respond()、ctx.abort() 或客户端策略/网络服务 API；底层 HTTP 仍为同步 bridge，Promise 兼容不代表非阻塞网络 I/O。
+- 运行器支持顶层默认导出的异步或同步函数，包括带函数名的形式；请求/响应上下文只在 HTTP request/response 事件中提供。
+- 提供 ctx.script、ctx.env、ctx.app、ctx.device、ctx.cron、ctx.widgetFamily、ctx.request、ctx.response、ctx.http、ctx.storage、ctx.notify 和 ctx.log。对请求/响应对象的受支持修改会作用于原始 Hook 对象，并通过 $done() 结果回传。
+- HTTP 支持 GET/POST/PUT/PATCH/DELETE/HEAD/OPTIONS；响应提供 status、headers、text() 和 json()。请求头支持多值；存储支持 get、set、getJSON、setJSON 和 delete；HTTP 超时按毫秒接收并由 FX 限制。
+- 环境、设备、cron 和 widget 字段仅透传事件实际提供的值。通知目前写入 FX 脚本日志，不会调用 Android 通知栏。
+- 当前是 Egern 兼容子集：不支持 ESM import、流/二进制正文、SSH、lookupIP、压缩、ctx.respond()、ctx.abort()、重定向策略、代理策略和 Egern 私有网络服务；HTTP 底层同步执行，只提供 Promise 兼容层。
 
 ## 明确的能力边界
 
