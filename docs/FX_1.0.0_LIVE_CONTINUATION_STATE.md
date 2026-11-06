@@ -7393,3 +7393,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 提交：`2c7653a89c13bb53b76df8e4cef4c944c9f13d55`。
 - 电池优化豁免仅展示当前状态并打开系统统一管理页，不自动申请豁免；页面提示该豁免可能增加后台耗电。
 - 按提速要求未运行测试、静态检查、构建、CI 或真机验证。
+
+
+## 2026-11-06 — FX 自身通知显示权限管理
+
+- `adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`：隐私页新增 FX 自身通知显示设置入口，优先打开 `ACTION_APP_NOTIFICATION_SETTINGS` 并传入当前包名，系统未提供该页面时回退到 FX 应用详情设置；状态刷新通过 `NotificationManager.areNotificationsEnabled()` 显示 FX 通知是否允许展示。
+- 提交：`55d213738a255d24e6500335dc19d0071982b2d5`。
+- 明确区分“FX 自身通知显示权限”与“读取其他应用通知的通知使用权”，两者互不替代。
+- 按提速要求未运行测试、静态检查、构建、CI 或真机验证。
