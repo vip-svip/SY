@@ -203,6 +203,10 @@ _build_filter_sources() {
       name=$2
       gsub(/["\\]/," ",name)
       gsub(/[\r\t]/," ",name)
+      gsub(/[[:cntrl:]]/," ",name)
+      gsub(/[[:space:]]+/," ",name)
+      sub(/^[[:space:]]+/,"",name)
+      sub(/[[:space:]]+$/,"",name)
       if (name=="") name=url
       id=100000+next_id++
       print "  - enabled: " ($3=="1" ? "true" : "false")
