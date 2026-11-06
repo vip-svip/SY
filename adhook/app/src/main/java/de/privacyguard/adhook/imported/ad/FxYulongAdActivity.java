@@ -887,6 +887,8 @@ private void saveVpnDns(String key,EditText input){
         if(!allow.getText().toString().trim().isEmpty())
           apply("allow-add "+q(allow.getText().toString().trim())+" "+q(allowNote.getText().toString().trim()),"白名单添加");
       }));
+  card("白名单维护", "清空操作只移除用户白名单，不影响黑名单、内置规则源或 DNS 上游。",
+      btn("清空全部白名单",()->clearAllDomains("allow")));
   EditText allowBulk=draftField("allow_bulk"); allowBulk.setGravity(Gravity.TOP|Gravity.START);
   allowBulk.setMinLines(4); allowBulk.setHint("每行一个域名；可选格式：example.com|备注");
   card("批量导入白名单","最多 2000 条、48 Ki 字符（导入字节仍限制为 64 KiB）。整批验证并通过一次 FX apply 事务；失败会回滚。",
@@ -900,6 +902,8 @@ private void saveVpnDns(String key,EditText input){
         if(!block.getText().toString().trim().isEmpty())
           apply("block-add "+q(block.getText().toString().trim())+" "+q(blockNote.getText().toString().trim()),"黑名单添加");
       }));
+  card("黑名单维护", "清空操作只移除用户黑名单，不影响白名单、内置规则源或 DNS 上游。",
+      btn("清空全部黑名单",()->clearAllDomains("block")));
   EditText blockBulk=draftField("block_bulk"); blockBulk.setGravity(Gravity.TOP|Gravity.START);
   blockBulk.setMinLines(4); blockBulk.setHint("每行一个域名；可选格式：example.com|备注");
   card("批量导入黑名单","最多 2000 条、48 Ki 字符（导入字节仍限制为 64 KiB）。整批验证并通过一次 FX apply 事务；失败会回滚。",
@@ -942,6 +946,17 @@ private void saveVpnDns(String key,EditText input){
       btn("批量移除筛选命中的白名单",()->removeFilteredDomains("ALLOW")),
       btn("批量移除筛选命中的黑名单",()->removeFilteredDomains("BLOCK")));
   entries=new LinearLayout(this); entries.setOrientation(1); body.addView(entries);
+ }
+
+ private void clearAllDomains(String kind){
+  String label="allow".equals(kind)?"白名单":"黑名单";
+  new AlertDialog.Builder(this).setTitle("清空全部"+label+"？")
+      .setMessage("将移除当前 FX 用户"+label+"中的全部域名条目；此操作不影响另一份名单、内置规则源、DNS 上游或过滤策略。")
+      .setNegativeButton("取消",null)
+      .setPositiveButton("清空",(dialog,which)->root(kind+"-clear-all",r->{
+        if(r.exitCode==0){status.setText(label+"已清空。");load();}
+        else fxDialogBuilder().setTitle("清空失败").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
+      })).show();
  }
 
  private void removeFilteredDomains(String kind){
