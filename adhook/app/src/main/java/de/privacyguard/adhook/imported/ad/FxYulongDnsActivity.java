@@ -214,7 +214,6 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
             }
             @Override public void afterTextChanged(Editable e) {}
         });
-        loadSummary(summaryStatus);
         load();
     }
 
@@ -359,6 +358,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
     }
 
     private void load() {
+        loadSummary(summaryStatus);
         final int generation = loadGeneration.incrementAndGet();
         if (refreshButton != null) refreshButton.setEnabled(false);
         status.setText("正在读取DNS 查询记录…");
@@ -847,7 +847,9 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
                                     .matcher(output);
                             String count = files.find() ? files.group(1) : "未知";
                             status.setText("本地活动及轮转 DNS 查询日志已清理，共处理 " + count + " 个文件。");
-                            data.clear(); render();
+                            data.clear();
+                            setSummaryBaseText("本机暂无可统计的 DNS 查询记录。");
+                            render();
                         } else status.setText("清理失败：" + safe(result.output));
                     });
                 }).show();
