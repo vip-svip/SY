@@ -263,6 +263,27 @@ object FxGkdRuleStore {
         return if (writeRules(context, next)) rule else null
     }
 
+    /** Export one selected rule using the same portable, versioned document envelope. */
+    @JvmStatic
+    @Synchronized
+    fun exportRuleJson(context: Context, id: String): String? {
+        val rule = getRules(context).firstOrNull { it.id == id } ?: return null
+        val item = JSONObject()
+            .put("id", rule.id)
+            .put("package", rule.packageName)
+            .put("selector", rule.selector)
+            .put("cooldown_ms", rule.cooldownMillis)
+            .put("enabled", rule.enabled)
+            .put("action", rule.action)
+            .put("group", rule.group)
+            .put("exclude_selector", rule.excludeSelector)
+        return JSONObject()
+            .put("format", EXPORT_FORMAT)
+            .put("schema_version", EXPORT_SCHEMA_VERSION)
+            .put("rules", JSONArray().put(item))
+            .toString(2)
+    }
+
     /** Duplicate a rule as a disabled draft with a fresh identity. */
     @JvmStatic
     @Synchronized
