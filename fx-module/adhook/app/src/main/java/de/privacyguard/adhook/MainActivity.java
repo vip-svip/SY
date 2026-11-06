@@ -252,6 +252,7 @@ public final class MainActivity extends ComponentActivity {
     private boolean pendingDiaDexHookPicker;
     private static final int REQUEST_NATIVE_SCRIPT_FILE = 4102;
     private static final int REQUEST_NATIVE_SCRIPT_EXPORT = 4103;
+    private static final int REQUEST_NATIVE_EGERN_CONFIG = 4113;
     private static final int REQUEST_NATIVE_WALLPAPER_PICKER = 4112;
     private String pendingNativeScriptExport;
     private static final String NATIVE_SCRIPT_EXPORT_PREFS = "fx_pending_native_script_export";
@@ -1645,6 +1646,7 @@ public final class MainActivity extends ComponentActivity {
         actions.setOrientation(LinearLayout.VERTICAL);
         actions.addView(nativeAction("添加脚本 / 订阅", this::showNativeScriptAddDialog));
         actions.addView(nativeAction("从文件导入脚本", this::pickNativeScriptFile));
+        actions.addView(nativeAction("导入 Egern YAML HTTP 脚本", this::pickNativeEgernScriptConfig));
         actions.addView(nativeAction("导出脚本配置", this::exportNativeScripts));
         actions.addView(nativeAction("刷新脚本订阅", this::refreshNativeScripts));
         actions.addView(nativeAction("查看脚本运行日志", this::showNativeScriptLogs));
@@ -2003,6 +2005,21 @@ public final class MainActivity extends ComponentActivity {
             startActivityForResult(intent, REQUEST_NATIVE_SCRIPT_FILE);
         } catch (Exception error) {
             Toast.makeText(this, "无法打开系统文件选择器：" + error.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void pickNativeEgernScriptConfig() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+        intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{
+                "application/yaml", "application/x-yaml", "text/yaml", "text/x-yaml"
+        });
+        try {
+            startActivityForResult(intent, REQUEST_NATIVE_EGERN_CONFIG);
+        } catch (Exception error) {
+            Toast.makeText(this, "无法打开 Egern YAML 选择器：" + error.getMessage(),
+                    Toast.LENGTH_LONG).show();
         }
     }
 
@@ -4867,6 +4884,30 @@ public final class MainActivity extends ComponentActivity {
                 Toast.makeText(this, "导出失败：" + error.getMessage(), Toast.LENGTH_LONG).show();
             } finally {
                 clearPendingNativeScriptExport();
+            }
+            return;
+        }
+        if (requestCode == REQUEST_NATIVE_EGERN_CONFIG) {
+            if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
+            try (InputStream input = getContentResolver().openInputStream(data.getData());
+                 ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+                if (input == null) throw new IllegalStateException("无法读取 Egern YAML 文件");
+                byte[] buffer = new byte[32 * 1024];
+                int count;
+                int total = 0;
+                while ((count = input.read(buffer)) != -1) {
+                    total += count;
+                    if (total > 2 * 1024 * 1024) {
+                        throw new IllegalArgumentException("Egern YAML 超过 2 MiB 导入上限");
+                    }
+                    output.write(buffer, 0, count);
+                }
+                JSONObject document = EgernScriptYamlImporter.parse(
+                        new String(output.toByteArray(), StandardCharsets.UTF_8));
+                importNativeScriptDocument(document.toString());
+            } catch (Exception error) {
+                Toast.makeText(this, "Egern YAML 导入失败：" + error.getMessage(),
+                        Toast.LENGTH_LONG).show();
             }
             return;
         }
