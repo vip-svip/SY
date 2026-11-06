@@ -1020,6 +1020,37 @@ _config_contract() {
       return n==2 && valid_ipv4(a[1]) && a[2]~/^[0-9]+$/ &&
         a[2]+0>=1 && a[2]+0<=65535
     }
+    function routable_ipv6(v, words, pos, left, right, n, a, b, i, allzero, loopback, last) {
+      if(!valid_ipv6(v)) return 0
+      for(i=1;i<=8;i++) words[i]="0"
+      pos=index(v,"::")
+      if(pos) {
+        left=substr(v,1,pos-1); right=substr(v,pos+2)
+        if(left!="") { n=split(left,a,":"); for(i=1;i<=n;i++) words[i]=tolower(a[i]) }
+        if(right!="") { n=split(right,b,":"); for(i=1;i<=n;i++) words[9-n+i]=tolower(b[i]) }
+      } else {
+        n=split(v,a,":")
+        for(i=1;i<=8;i++) words[i]=tolower(a[i])
+      }
+      if(words[1]~/^fe[89ab]/ || words[1]~/^ff/) return 0
+      allzero=1; loopback=1
+      for(i=1;i<=8;i++) if(words[i]!~/^0+$/) allzero=0
+      for(i=1;i<=7;i++) if(words[i]!~/^0+$/) loopback=0
+      last=words[8]; sub(/^0+/,"",last)
+      if(allzero || (loopback && last=="1")) return 0
+      return 1
+    }
+    function routable_ipv6_port(v, close, host, tail, port) {
+      if(substr(v,1,1)!="[") return 0
+      close=index(v,"]")
+      if(close<3) return 0
+      host=substr(v,2,close-2); tail=substr(v,close+1)
+      if(!routable_ipv6(host)) return 0
+      if(tail=="") return 1
+      if(substr(tail,1,1)!=":") return 0
+      port=substr(tail,2)
+      return port~/^[0-9]+$/ && port+0>=1 && port+0<=65535
+    }
     function valid_endpoint(v, rest, parts, authority) {
       if(valid_ipv4(v) || valid_ipv4_port(v) || valid_ipv6(v) || valid_ipv6_port(v)) return 1
       if(substr(v,1,8)=="https://") {
@@ -1192,7 +1223,8 @@ _config_contract() {
       if (server=="127.0.0.1:5353") {
         if (fallback_seen[server]++) unsafe_fallback=1
       } else {
-        if((!valid_ipv4(server) && !valid_ipv4_port(server)) || fallback_seen[server]++)
+        if((!valid_ipv4(server) && !valid_ipv4_port(server) &&
+            !routable_ipv6(server) && !routable_ipv6_port(server)) || fallback_seen[server]++)
           unsafe_fallback=1
       }
     }
