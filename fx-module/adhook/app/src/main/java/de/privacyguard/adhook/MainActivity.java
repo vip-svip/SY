@@ -1101,6 +1101,7 @@ public final class MainActivity extends ComponentActivity {
         dnsActions.addView(nativeAction("应用 DNS 白名单", this::showRootProxyDnsWhitelistDialog));
         dnsActions.addView(nativeAction("刷新本地 DNS 缓存", this::flushNativeDnsCache));
         dnsActions.addView(nativeAction("刷新 DNS 状态", () -> refreshNativeDnsStatus(dnsStatus)));
+        dnsActions.addView(nativeAction("重新应用 DNS 服务配置", this::confirmNativeDnsReconcile));
         addNativeActionGroup(dnsActions);
         refreshNativeDnsStatus(dnsStatus);
 
@@ -1140,6 +1141,26 @@ public final class MainActivity extends ComponentActivity {
             if (parts.length == 2) values.put(parts[0], parts[1]);
         }
         return values;
+    }
+
+    private void confirmNativeDnsReconcile() {
+        FxNativeSkin.builder(this).setTitle("重新应用 DNS 配置")
+                .setMessage("将按当前设置重新协调 AdGuard Home、Unbound 与 Root Proxy 服务。此操作不会创建第二个 Android VPN，也不会修改 Android Private DNS。")
+                .setPositiveButton("重新应用", (dialog, which) -> {
+                    runNativeModuleCommand("sh \\"$MP/scripts/native-dns-settings.sh\\" reconcile", 180000L, result -> {
+                        if (result.exitCode == 0) {
+                            Toast.makeText(this, "DNS 服务配置已重新应用", Toast.LENGTH_LONG).show();
+                            showNativeDnsSettingsDialog();
+                        } else {
+                            String detail = result.output == null ? "" : result.output.trim();
+                            FxNativeSkin.builder(this).setTitle("DNS 配置重新应用失败")
+                                    .setMessage(detail.isEmpty() ? "设备端未能完成 DNS 服务协调。" : detail)
+                                    .setPositiveButton("重试", (d, w) -> confirmNativeDnsReconcile())
+                                    .setNegativeButton("关闭", null).show();
+                        }
+                    });
+                })
+                .setNegativeButton("取消", null).show();
     }
 
     private void flushNativeDnsCache() {
