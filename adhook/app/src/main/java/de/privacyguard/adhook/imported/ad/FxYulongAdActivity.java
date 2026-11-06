@@ -896,6 +896,82 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
       }).show();
   });
  }
+ private void chooseDnsQueryLogIgnoredDomains(){
+  root("dns-querylog-ignored-get",current->{
+   if(current.exitCode!=0){
+    status.setText("读取逐条 DNS 查询日志排除域名失败："+safe(current.output));return;
+   }
+   String[] lines=(current.output==null?"":current.output.trim()).split("\\r?\\n");
+   if(lines.length<3||!"FXYULONGDNSQIGNORE1".equals(lines[0].trim())){
+    status.setText("逐条 DNS 查询日志排除域名响应格式错误。");return;
+   }
+   java.util.Map<String,String> values=new java.util.HashMap<>();
+   for(int i=1;i<lines.length;i++){
+    String line=lines[i].trim();int split=line.indexOf('=');
+    if(split<=0||(split==line.length()-1&&!"QUERYLOG_IGNORED".equals(line.substring(0,split)))){
+     status.setText("逐条 DNS 查询日志排除域名字段格式错误。");return;
+    }
+    String key=line.substring(0,split);
+    if(!"QUERYLOG_IGNORED_ENABLED".equals(key)&&!"QUERYLOG_IGNORED".equals(key)){
+     status.setText("逐条 DNS 查询日志排除域名响应包含未知字段："+key);return;
+    }
+    if(values.put(key,line.substring(split+1))!=null){
+     status.setText("逐条 DNS 查询日志排除域名响应包含重复字段："+key);return;
+    }
+   }
+   if(values.size()!=2){
+    status.setText("逐条 DNS 查询日志排除域名响应不完整。");return;
+   }
+   String flag=values.get("QUERYLOG_IGNORED_ENABLED");
+   String rawDomains=values.get("QUERYLOG_IGNORED");
+   if(!"0".equals(flag)&&!"1".equals(flag)){
+    status.setText("逐条 DNS 查询日志排除域名开关值非法。");return;
+   }
+   try{
+    rawDomains=normalizeDnsStatisticsDomains(rawDomains,true);
+   }catch(IllegalArgumentException invalid){
+    status.setText("当前逐条日志排除域名配置异常："+invalid.getMessage());return;
+   }
+   Switch enabled=new Switch(this);
+   enabled.setText("启用逐条查询日志排除域名");
+   enabled.setChecked("1".equals(flag));
+   EditText domains=new EditText(this);
+   domains.setSingleLine(false);
+   domains.setMinLines(4);
+   domains.setGravity(android.view.Gravity.TOP|android.view.Gravity.START);
+   domains.setHint("每行一个域名，也可逗号分隔；例如 login.example.com");
+   domains.setText(rawDomains.replace(",", "\\n"));
+   LinearLayout form=new LinearLayout(this);
+   form.setOrientation(LinearLayout.VERTICAL);
+   form.addView(enabled);
+   form.addView(txt("命中的域名不会写入逐条 DNS 查询日志。该列表不影响 DNS 拦截/放行，也不影响聚合统计的独立排除列表；域名数量不设应用层上限。",12,0xff617080,false));
+   form.addView(domains);
+   fxDialogBuilder().setTitle("逐条 DNS 查询日志排除域名")
+    .setMessage("用于避免将指定域名写入本机逐条查询日志。关闭排除开关时保留列表，之后可重新启用。")
+    .setView(form)
+    .setNegativeButton("取消",null)
+    .setPositiveButton("保存",(dialog,which)->{
+     String normalized;
+     try{
+      normalized=normalizeDnsStatisticsDomains(
+          domains.getText()==null?"":domains.getText().toString(),true);
+     }catch(IllegalArgumentException invalid){
+      status.setText("逐条查询日志排除域名无效："+invalid.getMessage());return;
+     }
+     String nextFlag=enabled.isChecked()?"1":"0";
+     root("dns-querylog-ignored-set "+nextFlag+" "+q(normalized),result->{
+      if(result.exitCode==0){
+       status.setText("逐条查询日志排除域名已"+(nextFlag.equals("1")?"启用":"关闭")
+           +"；已配置 "+(normalized.isEmpty()?0:normalized.split(",").length)+" 个域名。");
+       load();
+      }else{
+       fxDialogBuilder().setTitle("逐条日志排除域名未更新")
+        .setMessage(safe(result.output)).setPositiveButton("关闭",null).show();
+      }
+     });
+    }).show();
+  });
+ }
  private void chooseDnsQueryLogRetention(){
   final String[] values={"1d","3d","7d","30d"};
   final String[] labels={"保留 1 天","保留 3 天","保留 7 天","保留 30 天","自定义时长…"};
@@ -1395,6 +1471,7 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
        dnsSwitch("启用本地 DNS 查询日志","dns_querylog_enabled"),
        btn("设置日志保留期限",()->chooseDnsQueryLogRetention()),
        btn("设置日志内存刷盘批量",()->chooseDnsQueryLogMemorySize()),
+       btn("设置逐条日志排除域名",()->chooseDnsQueryLogIgnoredDomains()),
        btn("查看 DNS 查询日志",()->startActivity(new Intent(this,FxYulongDnsActivity.class))));
   card("DNS 聚合统计数据库","与逐条查询日志独立控制。可设置本机统计开关、轮转周期和排除域名列表；排除域名只影响聚合统计，不改变 DNS 拦截/放行，也不会清理逐条查询日志。",
        btn("设置本地 DNS 聚合统计",()->chooseDnsStatisticsSettings()));
