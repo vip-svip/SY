@@ -9,7 +9,7 @@ case "$timeout" in ''|*[!0-9]*) timeout=20 ;; esac
 [ "$timeout" -le 120 ] 2>/dev/null || timeout=120
 : > "$outbody" || exit 73
 if command -v curl >/dev/null 2>&1; then
-  set -- curl -sS -L --proto-redir '=https' --max-filesize 8388608 --max-time "$timeout" --connect-timeout 8 -X "$method" -D "$outbody.headers" -o "$outbody" -w '%{http_code}'
+  set -- curl -sS -L --max-redirs 5 --proto '=http,https' --proto-redir '=https' --max-filesize 8388608 --max-time "$timeout" --connect-timeout 8 -X "$method" -D "$outbody.headers" -o "$outbody" -w '%{http_code}'
   if [ -s "$bodyfile" ]; then set -- "$@" --data-binary "@$bodyfile"; fi
   while IFS= read -r h || [ -n "$h" ]; do
     [ -n "$h" ] || continue
