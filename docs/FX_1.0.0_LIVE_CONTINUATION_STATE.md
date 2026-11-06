@@ -7043,3 +7043,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Root Proxy 白名单 UID 解析改为单次 PackageManager 数据遍历并按 UID 去重；同时保留快照有效性和显式非法 UID fail-open。提交：49f5a502e73cb3c3460415535cdd6d6b291e4863。
 - 新增 `package-event` 命令，将白名单 prune 与活动路由 reconcile 合并在同一 Root Proxy 锁内；两份 PackageReceiver 改为调用此单一入口。提交：31e22faf5ff4dbe49e7a0675d7dd0871361cc5f5、5094bbc82b9f8349429e388f380e617247a67909、8b4b45e8fd2932d4798eb89280d4c350bc742953。
 - 本批按要求未运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-06 — Egern YAML 导入范围与混合脚本清单批量写入
+
+- EgernScriptYamlImporter.java 应用与模块源码同步更新：Egern scriptings: 中可映射到 FX URL Hook 的 HTTPS http_request / http_response 保留名称、match、disabled、body_required；支持受限扁平字符串 env（最多 32 项、单值 512 字符、JSON 不超过 2048 字节）并由 QuickJS ctx.env 读取；嵌套/无法安全表示的 env、binary_body 和超出 FX 默认值的资源限制跳过，不把 schedule/generic/network 转成 HTTP Hook。同步提交：应用 8a12572063eee6ccea9fced5718d89d9f674a118，模块 18791cc6d308a50a9549f220fa302a8106bec8d6。
+- Native Script JSON 导入统一改为混合批量入口：同一份脚本清单中 URL 订阅写为 URL manifest 记录，本地 JS 源码写为 SOURCE manifest 记录。每批最多 512 条、manifest 约 7 MiB；单个本地 JS 源码上限 1 MiB。Android 侧分批推进并读取模块 added/duplicate/failed 计数；模块端在单个脚本列表锁内去重并一次性提交每批 [list:script]。
+- fx-patches/native-script-list.sh 已扩展 add-batch 的 SOURCE 分支：通过文件快照进行 Base64 编码，按内容与名称去重，拒绝空源码、超限源码和伪装为 URL 的本地内容；修正批量清单的换行输出。并同步到 fx-module/scripts/jsruntime/native-list.sh 和 fx-module/build-tools/patches/native-script-list.sh，确保构建恢复模板与模块运行时同一协议。
+- 应用/模块 MainActivity 的混合批量入口已对齐；模块入口修复提交 1e927e8e1c731399c8cbeefc90bd1a8cdf7e7442，模块批量实现对齐提交 bc3c3379e30ba203f5f6198e674a0d049e9b00d4，应用混合批量导入提交 c9a52bde66e6b65cc9a492d489e054831d85a217。存储模板批量 SOURCE/分派/换行修正提交序列：daa26c18d09c30b4650ec164adc86086483c5ed7、9fc9052a6dcdc4f09b03ba0a8248ccd5b8d3453d、7ee356881a5d0a01f3f96a987059b9ee4a4a55c2，模块同步：a06cb17a9cec6bf51226f99d5f4db47a81811bfa、e4804c73b2157aae58ba3509f22564b977969b81、f48dbf090c2706e955b75cec23eaa861f32dab72、69943f8dd3c5c5405a555cc6c76f91ae4d264a4e。
+- 固定 FX 1.0.0；本批按要求未运行测试、静态检查、构建、CI 或真机验证。
