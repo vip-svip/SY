@@ -660,6 +660,25 @@ public final class FxDiaActivityBrowserActivity extends de.privacyguard.adhook.F
         });
         row.addView(name);
         row.addView(meta);
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        actions.addView(button("复制组件名", () -> {
+            try {
+                android.content.ClipboardManager clipboard =
+                        (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                if (clipboard == null) throw new IllegalStateException("系统剪贴板不可用");
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText(
+                        "FX Activity component", packageName + "/" + className));
+                Toast.makeText(this, "已复制 Activity 组件名。", Toast.LENGTH_SHORT).show();
+            } catch (RuntimeException error) {
+                Toast.makeText(this, "复制失败：" + safeError(error.getMessage()),
+                        Toast.LENGTH_LONG).show();
+            }
+        }));
+        if (info.exported) {
+            actions.addView(button("启动 Activity", () -> launchExportedActivity(packageName, className)));
+        }
+        row.addView(actions);
         row.addView(toggle);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
         params.setMargins(dp(10), dp(3), dp(10), dp(3));
@@ -755,6 +774,54 @@ public final class FxDiaActivityBrowserActivity extends de.privacyguard.adhook.F
                             loadActivities();
                         });
                     });
+                })
+                .show();
+    }
+
+    private void launchExportedActivity(String packageName, String className) {
+        if (!isSafePackage(packageName) || className == null
+                || !className.matches("[A-Za-z0-9_.$]+")
+                || selected == null || !packageName.equals(selected.packageName)) {
+            Toast.makeText(this, "目标组件已变化，请重新读取列表。", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        ActivityEntry current = null;
+        for (ActivityEntry entry : activities) {
+            if (entry.info != null && className.equals(entry.info.name)) {
+                current = entry;
+                break;
+            }
+        }
+        if (current == null || !current.info.exported || !current.enabled) {
+            Toast.makeText(this, "该 Activity 未导出或当前处于禁用状态，不能从此处启动。",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+        String permission = current.info.permission;
+        String warning = "将显式启动目标应用声明的已导出 Activity：\\n"
+                + packageName + "/" + className
+                + (permission == null || permission.isEmpty()
+                    ? "\\n该组件未声明启动权限。"
+                    : "\\n该组件声明启动权限：" + permission
+                        + "。当前调用方可能不具备该权限。")
+                + "\\n目标应用可能执行页面跳转或其他自身逻辑。";
+        fxDialogBuilder()
+                .setTitle("启动目标 Activity？")
+                .setMessage(warning)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("启动", (dialog, which) -> {
+                    try {
+                        Intent intent = new Intent();
+                        intent.setComponent(new ComponentName(packageName, className));
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(intent);
+                        status.setText("已向 Android 提交显式 Activity 启动请求。");
+                    } catch (SecurityException denied) {
+                        status.setText("启动被 Android 权限策略拒绝：" + safeError(denied.getMessage()));
+                    } catch (RuntimeException error) {
+                        status.setText("Activity 启动失败：" + error.getClass().getSimpleName()
+                                + "：" + safeError(error.getMessage()));
+                    }
                 })
                 .show();
     }
