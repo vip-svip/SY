@@ -8093,3 +8093,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - 用户二次确认后分别复用既有 `allow-import` / `block-import` 后端事务入口，使用 Base64 域名清单，不将日志内容拼入任意 Root 命令；成功后刷新本地查询记录。
   - 保留原有逐条加入、复制去重域名、日志分享及缓存维护入口。
 - 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证；本批尚未验收。
+
+
+## 2026-11-07 — Ad 域名白/黑名单备注编辑
+
+- 后端提交：`1c1334d43fb6a2ccfbb60df3d0f97aa9af9e9642`，文件 `scripts/yulong-ad-control.sh`。
+  - 新增 `allow-note DOMAIN NOTE` 与 `block-note DOMAIN NOTE`，在既有配置事务锁内更新指定名单记录。
+  - 修改备注时读取并保留原启用状态；域名不存在、备注非法或写入失败时拒绝更新，不改变其他名单项目。
+- UI 提交：`f6beffb6d0e0cdebc37dd3c2d8b1a67eff3a5b4e`，文件 `adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
+  - 白名单、黑名单每条记录新增“编辑备注”入口；保存后沿用现有 Root 写入与页面刷新流程。
+  - 备注编辑不触碰域名、启用开关及其他名单记录。
+- 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证；本批尚未验收。
