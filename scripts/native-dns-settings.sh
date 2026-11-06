@@ -82,6 +82,26 @@ status() {
   _dns_filter_coverage=unknown
   _coexistence_verdict=unknown
   _coexistence_route_probe=unavailable
+  _filter_total=unknown
+  _filter_enabled=unknown
+  if [ -f "$CONF" ] && [ ! -L "$CONF" ] && [ -r "$CONF" ]; then
+    _filter_counts=$(awk -F'|' '
+      function valid_url(u) {
+        return length(u)<=2048 && u ~ /^https?:\/\/[A-Za-z0-9._~:\/?#@!  _coexistence_route_probe=unavailable
+()*+,;=%-]+$/
+      }
+      $0=="[list:rule]" {section="rule"; next}
+      /^\[/ {section=""; next}
+      section=="rule" && valid_url($1) && ($3=="0" || $3=="1") {
+        total++
+        if ($3=="1") enabled++
+      }
+      END {printf "%d|%d\n", total+0, enabled+0}
+    ' "$CONF")
+    _filter_total=\${_filter_counts%%|*}
+    _filter_enabled=\${_filter_counts#*|}
+    case "$_filter_total:$_filter_enabled" in *[!0-9:]*|:*) _filter_total=unknown; _filter_enabled=unknown ;; esac
+  fi
   if [ -f "$MP/scripts/yulong-root-proxy.sh" ] && [ ! -L "$MP/scripts/yulong-root-proxy.sh" ]; then
     _root_output=$(MP="$MP" PG="$PG" sh "$MP/scripts/yulong-root-proxy.sh" status 2>/dev/null) || _root_output=
     if [ -n "$_root_output" ]; then
@@ -114,6 +134,8 @@ status() {
   printf 'unbound|%s\n' "$_unbound"
   printf 'root_proxy|%s\n' "$_root"
   printf 'rootproxy_whitelist_count|%s\n' "$_whitelist_count"
+  printf 'dns_filter_sources_total|%s\n' "$_filter_total"
+  printf 'dns_filter_sources_enabled|%s\n' "$_filter_enabled"
   printf 'private_dns_mode|%s\n' "$_private_dns_mode"
   printf 'dns_filter_coverage|%s\n' "$_dns_filter_coverage"
   printf 'vpn_coexistence_verdict|%s\n' "$_coexistence_verdict"
