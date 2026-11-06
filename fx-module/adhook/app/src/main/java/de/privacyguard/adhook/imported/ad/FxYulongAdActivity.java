@@ -1117,7 +1117,9 @@ private void loadDnsRuntimeStatus(TextView target){
         "dns_filter_sources_enabled","private_dns_mode","dns_filter_coverage",
         "vpn_coexistence_verdict","vpn_route_probe","dns_stack_enabled",
         "dns_stack_ready",
-        "dns_stack_readiness_reason"));
+        "dns_stack_readiness_reason","dns_upstream_mode","dns_upstream_state",
+        "dns_custom_upstreams","dns_global_upstreams","dns_fallback_upstreams",
+        "dns_encrypted_upstreams","dns_bootstrap_mode"));
     for(int index=1;index<lines.length;index++){
       String line=lines[index].trim();
       if(line.isEmpty())continue;
@@ -1162,6 +1164,13 @@ private void loadDnsRuntimeStatus(TextView target){
     appendDnsStatus(out,"DNS 栈未就绪原因",values.get("dns_stack_readiness_reason"));
     appendDnsStatus(out,"过滤规则总数",values.get("dns_filter_sources_total"));
     appendDnsStatus(out,"已启用过滤规则",values.get("dns_filter_sources_enabled"));
+    appendDnsStatus(out,"当前 DNS 上游模式",values.get("dns_upstream_mode"));
+    appendDnsStatus(out,"上游配置状态",values.get("dns_upstream_state"));
+    appendDnsStatus(out,"自定义 DNS 上游数量",values.get("dns_custom_upstreams"));
+    appendDnsStatus(out,"全局 DNS 上游数量",values.get("dns_global_upstreams"));
+    appendDnsStatus(out,"备用 DNS 上游数量",values.get("dns_fallback_upstreams"));
+    appendDnsStatus(out,"加密 DNS 上游数量",values.get("dns_encrypted_upstreams"));
+    appendDnsStatus(out,"加密上游引导解析",values.get("dns_bootstrap_mode"));
     target.setText(out.length()==0?"未收到可识别的 DNS 状态字段。":out.toString().trim());
   });
 }
