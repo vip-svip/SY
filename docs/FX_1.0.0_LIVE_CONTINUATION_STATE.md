@@ -7323,3 +7323,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`（提交 `26ef10dcab49d314ca288fe3c229896b9f361dfb`）：Ad 页面紧凑 DNS 状态摘要新增 Root Proxy 启动时间、状态原因、残留规则清理状态，并保留路由验证、重定向挂载和 DNS 探测的独立展示。
 - 与前一批状态协议配合，用户无需每次打开详细设置弹窗即可看到 Root Proxy 生命周期与异常线索。
 - 按提速要求，本轮未运行测试、静态检查、构建、CI 或真机验证；不代表设备运行状态已验收。
+
+
+## 2026-11-06 — DNS 生命周期信息本地化
+
+- `adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`：DNS 首页摘要与 DNS 引擎详情中的 Root Proxy 启动时间由 Unix 秒转换为本地日期时间；无记录、无效时间戳明确显示，不将原始秒数误作可读时间。
+- 同一状态原因映射补充 VPN 所有者不可用、VPN UID 不匹配的中文说明。提交：`dd0b57c198e568b8c6ad093aeecdc4df3f07bccd`；随后清理重复原因分支：`7e80bb1971a1ba71f5f7386c54e42d7aa5a95006`。
+- 按提速要求未运行测试、静态检查、构建、CI 或真机验证；不代表设备端状态已验收。
