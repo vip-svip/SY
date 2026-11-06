@@ -200,7 +200,8 @@ public final class StashScriptYamlImporter {
                 script.disabled = truthy(value);
                 break;
             default:
-                // Unknown Stash-specific keys must not silently become FX options.
+                // Reject unknown script options rather than silently dropping their semantics.
+                script.supported = false;
                 break;
         }
     }
