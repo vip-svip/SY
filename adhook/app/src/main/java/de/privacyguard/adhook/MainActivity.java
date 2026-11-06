@@ -1077,6 +1077,18 @@ public final class MainActivity extends ComponentActivity {
         ruleActions.addView(nativeAction("应用 Hosts 与过滤规则", this::applyNativeHosts));
         addNativeActionGroup(ruleActions);
 
+        section("本地 DNS 引擎");
+        TextView dnsStatus = new TextView(this);
+        dnsStatus.setText("正在读取 AdGuard Home / Unbound 状态…");
+        dnsStatus.setTextColor(0xff536170);
+        dnsStatus.setPadding(dp(18), dp(6), dp(18), dp(8));
+        content.addView(dnsStatus);
+        LinearLayout dnsActions = new LinearLayout(this);
+        dnsActions.setOrientation(LinearLayout.VERTICAL);
+        dnsActions.addView(nativeAction("DNS 引擎与 VPN DNS 设置", this::showNativeDnsSettingsDialog));
+        addNativeActionGroup(dnsActions);
+        refreshNativeDnsStatus(dnsStatus);
+
         section("广告过滤完整功能");
         TextView yulongIntro = new TextView(this);
         yulongIntro.setText("Ad 的广告过滤、DNS、应用防火墙、白名单、统计与备份功能均在 FX 内统一管理，不会启动来源 APK 或第二套过滤服务。");
@@ -1100,6 +1112,85 @@ public final class MainActivity extends ComponentActivity {
         yulongActions.addView(nativeAction("应用广告过滤白名单", () ->
                 startActivity(new Intent(this, de.privacyguard.adhook.imported.ad.FxYulongAppWhitelistActivity.class))));
         addNativeActionGroup(yulongActions);
+    }
+
+    private java.util.Map<String, String> parseNativeDnsState(String output) {
+        String[] lines = (output == null ? "" : output.trim()).split("\\r?\\n");
+        if (lines.length == 0 || !"FXDNS1".equals(lines[0])) {
+            throw new IllegalStateException("设备端 DNS 状态响应格式错误。");
+        }
+        java.util.Map<String, String> values = new java.util.HashMap<>();
+        for (int i = 1; i < lines.length; i++) {
+            String[] parts = lines[i].split("\\|", 2);
+            if (parts.length == 2) values.put(parts[0], parts[1]);
+        }
+        return values;
+    }
+
+    private void refreshNativeDnsStatus(TextView target) {
+        runNativeModuleCommand("sh \"$MP/scripts/native-dns-settings.sh\" status", 30000L, result -> {
+            try {
+                if (result.exitCode != 0) throw new IllegalStateException(result.output);
+                java.util.Map<String, String> state = parseNativeDnsState(result.output);
+                target.setText("AdGuard Home：" + state.getOrDefault("adguardhome", "unknown")
+                        + " · Unbound：" + state.getOrDefault("unbound", "unknown")
+                        + "\\nRoot Proxy：" + state.getOrDefault("root_proxy", "unknown")
+                        + " · DNS 链路就绪：" + ("1".equals(state.get("dns_stack_ready")) ? "是" : "否"));
+            } catch (Exception error) {
+                target.setText("DNS 状态暂不可用：" + (error.getMessage() == null ? "unknown" : error.getMessage()));
+            }
+        });
+    }
+
+    private void showNativeDnsSettingsDialog() {
+        runNativeModuleCommand("sh \"$MP/scripts/native-dns-settings.sh\" status", 30000L, result -> {
+            try {
+                if (result.exitCode != 0) throw new IllegalStateException(result.output);
+                java.util.Map<String, String> state = parseNativeDnsState(result.output);
+                String[] keys = {"dns_engine_adguardhome", "dns_forward",
+                        "vpn_external_compat", "vpn_external_dns_proxy"};
+                String[] names = {"AdGuard Home 独立 DNS 过滤", "Unbound 本地递归 DNS",
+                        "第三方 VPN DNS 兼容模式", "第三方 VPN DNS Root Proxy"};
+                String[] items = new String[keys.length];
+                for (int i = 0; i < keys.length; i++) {
+                    boolean enabled = "1".equals(state.get(keys[i]));
+                    items[i] = names[i] + (enabled ? "（当前开启，点击关闭）" : "（当前关闭，点击开启）");
+                }
+                String detail = "AdGuard Home：" + state.getOrDefault("adguardhome", "unknown")
+                        + "\\nUnbound：" + state.getOrDefault("unbound", "unknown")
+                        + "\\nRoot Proxy：" + state.getOrDefault("root_proxy", "unknown")
+                        + "\\nDNS 链路就绪：" + ("1".equals(state.get("dns_stack_ready")) ? "是" : "否")
+                        + "\\n\\nRoot Proxy 只在第三方 VPN 所有者、出口路由和 DNS 引擎条件满足时接管 DNS，不会创建第二个 Android VPN。";
+                FxNativeSkin.builder(this).setTitle("DNS 引擎管理").setMessage(detail)
+                        .setItems(items, (dialog, which) -> {
+                            boolean enabled = "1".equals(state.get(keys[which]));
+                            setNativeDnsSetting(keys[which], !enabled, names[which]);
+                        })
+                        .setPositiveButton("刷新", (dialog, which) -> showNativeDnsSettingsDialog())
+                        .setNegativeButton("关闭", null).show();
+            } catch (Exception error) {
+                FxNativeSkin.builder(this).setTitle("DNS 状态读取失败")
+                        .setMessage(error.getMessage() == null ? "设备端 DNS 后端不可用。" : error.getMessage())
+                        .setPositiveButton("重试", (dialog, which) -> showNativeDnsSettingsDialog())
+                        .setNegativeButton("关闭", null).show();
+            }
+        });
+    }
+
+    private void setNativeDnsSetting(String key, boolean enabled, String label) {
+        String command = "sh \"$MP/scripts/native-dns-settings.sh\" set "
+                + shellQuote(key) + " " + (enabled ? "1" : "0");
+        runNativeModuleCommand(command, 180000L, result -> {
+            if (result.exitCode == 0) {
+                Toast.makeText(this, label + (enabled ? "已开启" : "已关闭"), Toast.LENGTH_LONG).show();
+                showNativeDnsSettingsDialog();
+            } else {
+                FxNativeSkin.builder(this).setTitle("DNS 设置未应用")
+                        .setMessage(result.output == null ? "设备端设置失败。" : result.output.trim())
+                        .setPositiveButton("重试", (dialog, which) -> setNativeDnsSetting(key, enabled, label))
+                        .setNegativeButton("关闭", null).show();
+            }
+        });
     }
 
     private void refreshHostsStatus(TextView target) {
