@@ -821,6 +821,57 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
  }
 
 
+private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTtl,
+      Switch serveExpired,EditText serveExpiredTtl,EditText serveExpiredReplyTtl,
+      EditText serveExpiredClientTimeout,Switch prefetch,Switch qnameMinimisation,TextView state){
+  root("unbound-runtime-get",result->{
+    if(result.exitCode!=0){state.setText("读取 Unbound 递归缓存参数失败："+safe(result.output));return;}
+    String raw=result.output==null?"":result.output;
+    String[] lines=raw.split("\\r?\\n");
+    if(lines.length==0||!"FXYULONGUNBOUND1".equals(lines[0].trim())){
+      state.setText("Unbound 参数响应版本错误，未更新界面。");return;
+    }
+    java.util.Map<String,String> values=new java.util.LinkedHashMap<>();
+    for(int i=1;i<lines.length;i++){
+      String line=lines[i].trim();
+      if(line.isEmpty())continue;
+      int split=line.indexOf('=');
+      if(split<=0||values.put(line.substring(0,split),line.substring(split+1))!=null){
+        state.setText("Unbound 参数响应包含格式错误或重复字段，未更新界面。");return;
+      }
+    }
+    String[] required={"UNBOUND_CACHE_MAX_TTL","UNBOUND_CACHE_MIN_TTL",
+        "UNBOUND_SERVE_EXPIRED","UNBOUND_SERVE_EXPIRED_TTL",
+        "UNBOUND_SERVE_EXPIRED_REPLY_TTL","UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT",
+        "UNBOUND_PREFETCH","UNBOUND_QNAME_MINIMISATION"};
+    for(String key:required)if(!values.containsKey(key)){
+      state.setText("Unbound 参数响应缺少字段："+key+"。");return;
+    }
+    if(!isValidDnsRuntimeUint32(values.get("UNBOUND_CACHE_MAX_TTL"),false)
+        ||!isValidDnsRuntimeUint32(values.get("UNBOUND_CACHE_MIN_TTL"),true)
+        ||new java.math.BigInteger(values.get("UNBOUND_CACHE_MIN_TTL"))
+            .compareTo(new java.math.BigInteger(values.get("UNBOUND_CACHE_MAX_TTL")))>0
+        ||!isValidDnsRuntimeUint32(values.get("UNBOUND_SERVE_EXPIRED_TTL"),true)
+        ||!isValidDnsRuntimeUint32(values.get("UNBOUND_SERVE_EXPIRED_REPLY_TTL"),false)
+        ||!isValidDnsRuntimeUint32(values.get("UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT"),true)){
+      state.setText("Unbound 缓存 TTL 或 serve-expired 时长超出有效范围。");return;
+    }
+    for(String key:new String[]{"UNBOUND_SERVE_EXPIRED","UNBOUND_PREFETCH","UNBOUND_QNAME_MINIMISATION"})
+      if(!"0".equals(values.get(key))&&!"1".equals(values.get(key))){
+        state.setText("Unbound 开关值无效："+key+"。");return;
+      }
+    cacheMaxTtl.setText(values.get("UNBOUND_CACHE_MAX_TTL"));
+    cacheMinTtl.setText(values.get("UNBOUND_CACHE_MIN_TTL"));
+    serveExpired.setChecked("1".equals(values.get("UNBOUND_SERVE_EXPIRED")));
+    serveExpiredTtl.setText(values.get("UNBOUND_SERVE_EXPIRED_TTL"));
+    serveExpiredReplyTtl.setText(values.get("UNBOUND_SERVE_EXPIRED_REPLY_TTL"));
+    serveExpiredClientTimeout.setText(values.get("UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT"));
+    prefetch.setChecked("1".equals(values.get("UNBOUND_PREFETCH")));
+    qnameMinimisation.setChecked("1".equals(values.get("UNBOUND_QNAME_MINIMISATION")));
+    state.setText("已读取全部 Unbound 递归缓存与隐私参数。更改后会重新生成配置并重启 FX 自有 Unbound。");
+  });
+}
+
  private void renderDns(){
   EditText dnsProfileImport=draftField("dns_profile_import");dnsProfileImport.setSingleLine(false);dnsProfileImport.setMinLines(5);dnsProfileImport.setHint("粘贴完整 FXYULONGDNSPROFILE1 快照文本");dnsProfileImportField=dnsProfileImport;
   card("DNS 配置备份与恢复","快照导入会完整替换 DNS 引擎开关、过滤策略、三组上游、VPN DNS、拦截响应模式、查询日志保留期限、多上游策略与超时、缓存容量/模式及 DNSSEC；兼容旧版快照并为新增字段补齐默认值，提交前由 Root 后端再次校验，应用失败时回滚原配置。",btn("分享 DNS 配置快照",()->shareDnsProfile()),btn("保存 DNS 快照到文件",()->saveDnsProfileToFile()),btn("从文件读取 DNS 快照",()->openDnsProfileFile()),dnsProfileImport,btn("校验并恢复 DNS 配置快照",()->restoreDnsProfile(dnsProfileImport)));
@@ -925,6 +976,70 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
   loadDnsRuntimeControls(dnsRuntimeMode,dnsRuntimeFastest,dnsRuntimeTimeout,dnsRuntimeCacheSize,
       dnsRuntimeCacheTtlMin,dnsRuntimeCacheTtlMax,dnsRuntimeOptimisticAnswerTtl,dnsRuntimeOptimisticMaxAge,
       dnsCacheEnabled,dnsCacheOptimistic,dnssecEnabled,dnsRuntimeState);
+
+  EditText unboundCacheMaxTtl=draftField("unbound_cache_max_ttl");
+  unboundCacheMaxTtl.setSingleLine(true);
+  unboundCacheMaxTtl.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+  unboundCacheMaxTtl.setHint("最大 TTL（秒），例如 86400");
+  EditText unboundCacheMinTtl=draftField("unbound_cache_min_ttl");
+  unboundCacheMinTtl.setSingleLine(true);
+  unboundCacheMinTtl.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+  unboundCacheMinTtl.setHint("最小 TTL（秒），0 表示不强制提高");
+  Switch unboundServeExpired=new Switch(this);
+  unboundServeExpired.setText("上游故障时提供过期缓存答案");
+  EditText unboundServeExpiredTtl=draftField("unbound_serve_expired_ttl");
+  unboundServeExpiredTtl.setSingleLine(true);
+  unboundServeExpiredTtl.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+  unboundServeExpiredTtl.setHint("过期缓存最大年龄（秒），0 表示不限制");
+  EditText unboundServeExpiredReplyTtl=draftField("unbound_serve_expired_reply_ttl");
+  unboundServeExpiredReplyTtl.setSingleLine(true);
+  unboundServeExpiredReplyTtl.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+  unboundServeExpiredReplyTtl.setHint("过期答案返回 TTL（秒）");
+  EditText unboundServeExpiredClientTimeout=draftField("unbound_serve_expired_client_timeout");
+  unboundServeExpiredClientTimeout.setSingleLine(true);
+  unboundServeExpiredClientTimeout.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+  unboundServeExpiredClientTimeout.setHint("等待上游响应时间（毫秒）");
+  Switch unboundPrefetch=new Switch(this);
+  unboundPrefetch.setText("启用高频域名预取");
+  Switch unboundQnameMinimisation=new Switch(this);
+  unboundQnameMinimisation.setText("启用 QNAME minimisation（减少递归查询泄露）");
+  TextView unboundRuntimeState=txt("正在读取 Unbound 递归参数…",12,0xff617080,false);
+  card("Unbound 递归缓存与隐私",
+       "独立控制递归解析器缓存 TTL、过期缓存服务和预取策略。serve-expired 只在递归上游暂不可用时改善可用性；QNAME minimisation 减少向上游权威服务器暴露的查询名称。所有时间参数均以秒或毫秒输入并受 uint32 范围校验。",
+       txt("缓存最大 TTL（秒）",12,0xff617080,true),unboundCacheMaxTtl,
+       txt("缓存最小 TTL（秒）",12,0xff617080,true),unboundCacheMinTtl,
+       unboundServeExpired,
+       txt("过期缓存最大年龄（秒）",12,0xff617080,true),unboundServeExpiredTtl,
+       txt("过期答案返回 TTL（秒）",12,0xff617080,true),unboundServeExpiredReplyTtl,
+       txt("serve-expired 客户端等待时间（毫秒）",12,0xff617080,true),unboundServeExpiredClientTimeout,
+       unboundPrefetch,unboundQnameMinimisation,
+       btn("保存并应用 Unbound 递归参数",()->{
+         String maxTtl=unboundCacheMaxTtl.getText()==null?"":unboundCacheMaxTtl.getText().toString().trim();
+         String minTtl=unboundCacheMinTtl.getText()==null?"":unboundCacheMinTtl.getText().toString().trim();
+         String expiredTtl=unboundServeExpiredTtl.getText()==null?"":unboundServeExpiredTtl.getText().toString().trim();
+         String replyTtl=unboundServeExpiredReplyTtl.getText()==null?"":unboundServeExpiredReplyTtl.getText().toString().trim();
+         String clientTimeout=unboundServeExpiredClientTimeout.getText()==null?"":unboundServeExpiredClientTimeout.getText().toString().trim();
+         if(!isValidDnsRuntimeUint32(maxTtl,false)||!isValidDnsRuntimeUint32(minTtl,true)
+             ||new java.math.BigInteger(minTtl).compareTo(new java.math.BigInteger(maxTtl))>0
+             ||!isValidDnsRuntimeUint32(expiredTtl,true)
+             ||!isValidDnsRuntimeUint32(replyTtl,false)
+             ||!isValidDnsRuntimeUint32(clientTimeout,true)){
+           unboundRuntimeState.setText("Unbound TTL/时长必须为有效 uint32 秒数/毫秒，且缓存最小 TTL 不得大于最大 TTL；未提交。");
+           return;
+         }
+         String command="unbound-runtime-set "+q(maxTtl)+" "+q(minTtl)+" "
+             +(unboundServeExpired.isChecked()?"1":"0")+" "+q(expiredTtl)+" "+q(replyTtl)+" "
+             +q(clientTimeout)+" "+(unboundPrefetch.isChecked()?"1":"0")+" "
+             +(unboundQnameMinimisation.isChecked()?"1":"0");
+         root(command,result->{
+           if(result.exitCode==0){unboundRuntimeState.setText("Unbound 递归参数已保存并应用。");load();}
+           else fxDialogBuilder().setTitle("Unbound 参数未应用").setMessage(safe(result.output)).setPositiveButton("关闭",null).show();
+         });
+       }),
+       unboundRuntimeState);
+  loadUnboundRuntimeControls(unboundCacheMaxTtl,unboundCacheMinTtl,unboundServeExpired,
+      unboundServeExpiredTtl,unboundServeExpiredReplyTtl,unboundServeExpiredClientTimeout,
+      unboundPrefetch,unboundQnameMinimisation,unboundRuntimeState);
 
   card("过滤策略","DNS 和网络策略开关；与 DNS 上游地址分开保存。批量操作会一次性更新以下五项策略。",
        dnsSwitch("阻止 QUIC","block_quic"),
@@ -1146,7 +1261,9 @@ private void restoreDnsProfile(EditText input){
       "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled",
       "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE","QUERYLOG_RETENTION",
       "UPSTREAM_MODE","FASTEST_TIMEOUT","UPSTREAM_TIMEOUT","CACHE_SIZE","CACHE_ENABLED","CACHE_OPTIMISTIC","ENABLE_DNSSEC",
-      "CACHE_TTL_MIN","CACHE_TTL_MAX","CACHE_OPTIMISTIC_ANSWER_TTL","CACHE_OPTIMISTIC_MAX_AGE"};
+      "CACHE_TTL_MIN","CACHE_TTL_MAX","CACHE_OPTIMISTIC_ANSWER_TTL","CACHE_OPTIMISTIC_MAX_AGE",
+      "UNBOUND_CACHE_MAX_TTL","UNBOUND_CACHE_MIN_TTL","UNBOUND_SERVE_EXPIRED","UNBOUND_SERVE_EXPIRED_TTL",
+      "UNBOUND_SERVE_EXPIRED_REPLY_TTL","UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT","UNBOUND_PREFETCH","UNBOUND_QNAME_MINIMISATION"};
   java.util.Set<String> keys=new java.util.HashSet<>(java.util.Arrays.asList(allowed));
   java.util.Map<String,String> preview=new java.util.LinkedHashMap<>();
   for(String line:raw.split("\\n")){
@@ -1159,7 +1276,7 @@ private void restoreDnsProfile(EditText input){
     }
     preview.put(key,line.substring(split+1));
   }
-  if(preview.size()!=allowed.length&&preview.size()!=26&&preview.size()!=19&&preview.size()!=18){
+  if(preview.size()!=allowed.length&&preview.size()!=30&&preview.size()!=26&&preview.size()!=19&&preview.size()!=18){
     status.setText("快照字段不完整（"+preview.size()+"/"+allowed.length+"），未提交。");return;
   }
   for(String key:allowed)if(!preview.containsKey(key)){
@@ -1175,6 +1292,14 @@ private void restoreDnsProfile(EditText input){
     else if("CACHE_TTL_MAX".equals(key))preview.put(key,"0");
     else if("CACHE_OPTIMISTIC_ANSWER_TTL".equals(key))preview.put(key,"30s");
     else if("CACHE_OPTIMISTIC_MAX_AGE".equals(key))preview.put(key,"12h");
+    else if("UNBOUND_CACHE_MAX_TTL".equals(key))preview.put(key,"86400");
+    else if("UNBOUND_CACHE_MIN_TTL".equals(key))preview.put(key,"0");
+    else if("UNBOUND_SERVE_EXPIRED".equals(key))preview.put(key,"1");
+    else if("UNBOUND_SERVE_EXPIRED_TTL".equals(key))preview.put(key,"86400");
+    else if("UNBOUND_SERVE_EXPIRED_REPLY_TTL".equals(key))preview.put(key,"30");
+    else if("UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT".equals(key))preview.put(key,"1800");
+    else if("UNBOUND_PREFETCH".equals(key))preview.put(key,"1");
+    else if("UNBOUND_QNAME_MINIMISATION".equals(key))preview.put(key,"1");
     else {status.setText("快照缺少字段："+key+"；未提交。");return;}
   }
   for(String key:new String[]{"dns_engine_adguardhome","dns_forward","custom_dns","global_dns",
@@ -1213,6 +1338,19 @@ private void restoreDnsProfile(EditText input){
       ||!isValidDnsRuntimeDuration(preview.get("CACHE_OPTIMISTIC_MAX_AGE"))){
     status.setText("快照 DNS 缓存 TTL 或乐观缓存期限非法；未提交。");return;
   }
+  if(!isValidDnsRuntimeUint32(preview.get("UNBOUND_CACHE_MAX_TTL"),false)
+      ||!isValidDnsRuntimeUint32(preview.get("UNBOUND_CACHE_MIN_TTL"),true)
+      ||new java.math.BigInteger(preview.get("UNBOUND_CACHE_MIN_TTL"))
+          .compareTo(new java.math.BigInteger(preview.get("UNBOUND_CACHE_MAX_TTL")))>0
+      ||!isValidDnsRuntimeUint32(preview.get("UNBOUND_SERVE_EXPIRED_TTL"),true)
+      ||!isValidDnsRuntimeUint32(preview.get("UNBOUND_SERVE_EXPIRED_REPLY_TTL"),false)
+      ||!isValidDnsRuntimeUint32(preview.get("UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT"),true)){
+    status.setText("快照 Unbound TTL 或 serve-expired 时长非法；未提交。");return;
+  }
+  for(String key:new String[]{"UNBOUND_SERVE_EXPIRED","UNBOUND_PREFETCH","UNBOUND_QNAME_MINIMISATION"})
+    if(!"0".equals(preview.get(key))&&!"1".equals(preview.get(key))){
+      status.setText("快照 Unbound 开关值非法："+key+"；未提交。");return;
+    }
   for(String key:new String[]{"CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS"}){
     String value=preview.get(key);
     boolean encrypted="CUSTOM_SERVERS".equals(key);
@@ -1232,14 +1370,17 @@ private void restoreDnsProfile(EditText input){
       "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled"})
     if("1".equals(preview.get(key)))enabled++;
   for(String key:new String[]{"CACHE_ENABLED","CACHE_OPTIMISTIC","ENABLE_DNSSEC"})if("1".equals(preview.get(key)))enabled++;
-  String summary="快照包含 30 项字段、15 个开关（启用 "+enabled+" 项）。\\n"
+  for(String key:new String[]{"UNBOUND_SERVE_EXPIRED","UNBOUND_PREFETCH","UNBOUND_QNAME_MINIMISATION"})
+    if("1".equals(preview.get(key)))enabled++;
+  String summary="快照包含 38 项字段、18 个开关（启用 "+enabled+" 项）。\\n"
       +"自定义上游："+countDnsEndpoints(preview.get("CUSTOM_SERVERS"))+" 条；"
       +"全局上游："+countDnsEndpoints(preview.get("GLOBAL_SERVERS"))+" 条；"
       +"备用上游："+countDnsEndpoints(preview.get("FALLBACK_SERVERS"))+" 条。\\n"
       +"VPN 远端 DNS："+preview.get("VPN_REMOTE")+"；国内 DNS："+preview.get("VPN_CN")+"。\\n"
       +"拦截响应模式："+preview.get("RESPONSE_MODE")+"；查询日志保留："+querylogRetention+"。\\n"
       +"上游策略："+preview.get("UPSTREAM_MODE")+"；fastest 超时："+preview.get("FASTEST_TIMEOUT")+"；上游超时："+preview.get("UPSTREAM_TIMEOUT")+"。\\n"
-      +"DNS 缓存："+preview.get("CACHE_SIZE")+" 字节；缓存 TTL："+preview.get("CACHE_TTL_MIN")+"~"+preview.get("CACHE_TTL_MAX")+" 秒；乐观缓存："+preview.get("CACHE_OPTIMISTIC")+"（答复 TTL "+preview.get("CACHE_OPTIMISTIC_ANSWER_TTL")+"，最大年龄 "+preview.get("CACHE_OPTIMISTIC_MAX_AGE")+"）；DNSSEC："+preview.get("ENABLE_DNSSEC")+"。\\n\\n"
+      +"DNS 缓存："+preview.get("CACHE_SIZE")+" 字节；缓存 TTL："+preview.get("CACHE_TTL_MIN")+"~"+preview.get("CACHE_TTL_MAX")+" 秒；乐观缓存："+preview.get("CACHE_OPTIMISTIC")+"（答复 TTL "+preview.get("CACHE_OPTIMISTIC_ANSWER_TTL")+"，最大年龄 "+preview.get("CACHE_OPTIMISTIC_MAX_AGE")+"）；DNSSEC："+preview.get("ENABLE_DNSSEC")+"。\\n"
+      +"Unbound 缓存 TTL："+preview.get("UNBOUND_CACHE_MIN_TTL")+"~"+preview.get("UNBOUND_CACHE_MAX_TTL")+" 秒；serve-expired："+preview.get("UNBOUND_SERVE_EXPIRED")+"（最大年龄 "+preview.get("UNBOUND_SERVE_EXPIRED_TTL")+" 秒、答复 TTL "+preview.get("UNBOUND_SERVE_EXPIRED_REPLY_TTL")+" 秒、客户端等待 "+preview.get("UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT")+" 毫秒）；预取："+preview.get("UNBOUND_PREFETCH")+"；QNAME minimisation："+preview.get("UNBOUND_QNAME_MINIMISATION")+"。\\n\\n"
       +"这是本地结构预览，不代表端点及配置语义已通过后端校验；继续后仍由 FX Root 后端完整校验。";
   String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);
   root("dns-profile-get",currentResult->{
@@ -1263,7 +1404,9 @@ private void restoreDnsProfile(EditText input){
       "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled",
       "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE","QUERYLOG_RETENTION",
       "UPSTREAM_MODE","FASTEST_TIMEOUT","UPSTREAM_TIMEOUT","CACHE_SIZE","CACHE_ENABLED","CACHE_OPTIMISTIC","ENABLE_DNSSEC",
-      "CACHE_TTL_MIN","CACHE_TTL_MAX","CACHE_OPTIMISTIC_ANSWER_TTL","CACHE_OPTIMISTIC_MAX_AGE"};
+      "CACHE_TTL_MIN","CACHE_TTL_MAX","CACHE_OPTIMISTIC_ANSWER_TTL","CACHE_OPTIMISTIC_MAX_AGE",
+      "UNBOUND_CACHE_MAX_TTL","UNBOUND_CACHE_MIN_TTL","UNBOUND_SERVE_EXPIRED","UNBOUND_SERVE_EXPIRED_TTL",
+      "UNBOUND_SERVE_EXPIRED_REPLY_TTL","UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT","UNBOUND_PREFETCH","UNBOUND_QNAME_MINIMISATION"};
     StringBuilder changes=new StringBuilder();
     for(String key:labels){
       String oldValue=current.get(key),newValue=preview.get(key);
@@ -1277,7 +1420,7 @@ private void restoreDnsProfile(EditText input){
       .setMessage(summary+"\\n\\n"+changeText)
       .setNegativeButton("取消",null)
       .setPositiveButton("继续恢复",(d,w)->fxDialogBuilder().setTitle("确认完整替换 DNS 配置")
-        .setMessage("将完整替换当前 DNS 引擎开关、过滤策略、全部上游服务器、VPN DNS、拦截响应模式、日志保留期限、上游选择/超时、缓存容量/TTL/乐观缓存策略和 DNSSEC。后端会再次校验全部字段；恢复应用失败会回滚原配置。不会修改 VPN 节点或其他 FX 模块设置。")
+        .setMessage("将完整替换当前 DNS 引擎开关、过滤策略、全部上游服务器、VPN DNS、拦截响应模式、日志保留期限、上游选择/超时、AdGuard Home 缓存容量/TTL/乐观缓存策略、DNSSEC，以及 Unbound 缓存 TTL、serve-expired、预取和 QNAME minimisation。后端会再次校验全部字段；恢复应用失败会回滚原配置。不会修改 VPN 节点或其他 FX 模块设置。")
         .setNegativeButton("取消",null)
         .setPositiveButton("恢复",(dialog,which)->root("dns-profile-restore "+encoded,r->{
           if(r.exitCode==0){status.setText("DNS 配置快照已恢复并应用。");input.setText("");load();}
