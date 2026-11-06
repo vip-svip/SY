@@ -143,8 +143,9 @@ dns_section_count() {
   ' "$CONF"
 }
 dns_encrypted_upstream_count() {
-  awk '
-    $0=="[conf:custom_dns]" {inside=1; next}
+  _section=${1:-custom_dns}
+  awk -v target="$_section" '
+    $0=="[conf:" target "]" {inside=1; next}
     /^\[/ {inside=0}
     inside && /^[[:space:]]*nameserver[[:space:]]+/ &&
       $2 ~ /^(https:\/\/|tls:\/\/|quic:\/\/)/ {count++}
@@ -244,16 +245,35 @@ status() {
   _dns_custom_count=$(dns_section_count custom_dns 2>/dev/null) || _dns_custom_count=unknown
   _dns_global_count=$(dns_section_count global_dns 2>/dev/null) || _dns_global_count=unknown
   _dns_fallback_count=$(dns_section_count yulong_dns_fallback 2>/dev/null) || _dns_fallback_count=unknown
-  _dns_encrypted_count=$(dns_encrypted_upstream_count 2>/dev/null) || _dns_encrypted_count=unknown
   _dns_upstream_mode=local_recursive
   if [ "$_global_dns_enabled" = 1 ]; then _dns_upstream_mode=global
   elif [ "$_custom_dns_enabled" = 1 ]; then _dns_upstream_mode=custom
   elif [ "$_global_dns_enabled" = unknown ] || [ "$_custom_dns_enabled" = unknown ]; then _dns_upstream_mode=unknown
   fi
+  # Only inspect the list that the active policy actually selects. An invalid
+  # dormant custom list must not make a valid global-DNS runtime look broken,
+  # and an unused encrypted endpoint must not be reported as a bootstrap dependency.
+  case "$_dns_upstream_mode" in
+    custom) _dns_encrypted_count=$(dns_encrypted_upstream_count custom_dns 2>/dev/null) || _dns_encrypted_count=unknown ;;
+    *) _dns_encrypted_count=0 ;;
+  esac
   _dns_upstream_state=ready
-  case "$_dns_upstream_mode:$_dns_custom_count:$_dns_global_count" in
-    unknown:*|*:unknown:*) _dns_upstream_state=unknown ;;
-    custom:0:*|global:*:0) _dns_upstream_state=missing_primary ;;
+  case "$_dns_upstream_mode" in
+    unknown) _dns_upstream_state=unknown ;;
+    custom)
+      case "$_dns_custom_count" in
+        unknown) _dns_upstream_state=unknown ;;
+        0) _dns_upstream_state=missing_primary ;;
+        *[!0-9]*|'') _dns_upstream_state=unknown ;;
+      esac
+      ;;
+    global)
+      case "$_dns_global_count" in
+        unknown) _dns_upstream_state=unknown ;;
+        0) _dns_upstream_state=missing_primary ;;
+        *[!0-9]*|'') _dns_upstream_state=unknown ;;
+      esac
+      ;;
   esac
   case "$_dns_encrypted_count" in
     ''|*[!0-9]*) _dns_bootstrap_mode=unknown ;;
@@ -304,6 +324,10 @@ status() {
             _readiness_reason=dns_upstream_config_unknown
             ;;
         esac
+      fi
+      if [ "$_ready" = 1 ] && [ "$_dns_fallback_mode" = unknown ]; then
+        _ready=0
+        _readiness_reason=dns_fallback_config_unknown
       fi
       # Encrypted upstream bootstrap and implicit local fallback both depend
       # on the same healthy local recursive listener. Never mark this stack
