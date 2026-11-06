@@ -7256,3 +7256,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 主 APK 与模块 APK 的 Ad DNS 状态卡片同步显示这些诊断字段，便于区分“配置已开启”和“实际路由已接管”，不把未验证状态标记为成功。
 - 提交：脚本 `f68f8a2975e08133c5144eb08064d654d846ff9b`；主 APK `5e82750f7e09b5956ea57c88153317c6fb087816`；模块 APK `7e5fd3f3f0fafb294596eb4e90b798f248972335`。
 - 按当前推进要求未运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-06 — DNS 状态补齐 Root Proxy 路由证据
+
+- `native-dns-settings.sh status` 先前已预留接口、VPN UID、出口 IPv4、重定向与 DNS 探测字段，但没有从 Root Proxy 的成功状态响应读取真实值；现已解析并输出这些运行态字段。接口、UID、出口地址与枚举值均经过格式约束，未通过有效 Root Proxy 状态响应时继续保留 unknown/unavailable，不伪造接管成功。
+- 主 APK 与模块版 DNS 状态卡片/详情弹窗同步显示接管接口、VPN UID、出口 IPv4、重定向挂载与 DNS 探测；重定向枚举统一翻译为中文。
+- Shell 后端提交：89c547fe5bd31467cdaeaa5bdc91fc6b8b922d90；主 APK 提交：37adc5d7b44d31be978123e66192ed0360376891；模块 APK 提交：11c4ddf603ff48c1e79825ece5aa5464d3a7be5d。
+- 按当前推进要求未运行测试、静态检查、构建、CI 或真机验证。
