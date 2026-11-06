@@ -50,33 +50,51 @@ public final class DeveloperExecutableDescriptor {
      */
     public static String fromJavaSignature(String value, String packageName) {
         if (value == null || packageName == null || value.length() > 768) return null;
-        String frida = fromFridaOverloadSignature(value, packageName);
+        // Kotlin declaration form: fun com.example.Foo.run(value: kotlin.String, count: Int): Boolean
+        // Parameter names are presentation-only; runtime matching remains based on exact erased JVM types.
+        String source = value.trim();
+        boolean kotlinSyntax = source.startsWith("fun ");
+        if (kotlinSyntax) source = source.substring(4).trim();
+        String frida = fromFridaOverloadSignature(source, packageName);
         if (frida != null) return frida;
-        int open = value.indexOf('(');
-        int close = value.indexOf(')', open + 1);
-        if (open <= 0 || close < open || close != value.lastIndexOf(')')) return null;
-        int hash = value.lastIndexOf('#', open);
-        int dot = value.lastIndexOf('.', open);
+        int open = source.indexOf('(');
+        int close = source.indexOf(')', open + 1);
+        if (open <= 0 || close < open || close != source.lastIndexOf(')')) return null;
+        int hash = source.lastIndexOf('#', open);
+        int dot = source.lastIndexOf('.', open);
         int split = Math.max(hash, dot);
         if (split <= 0) return null;
-        String owner = value.substring(0, split);
-        String name = value.substring(split + 1, open);
+        String owner = source.substring(0, split);
+        String name = source.substring(split + 1, open);
         if (!owner.startsWith(packageName + ".") || !name.matches("[A-Za-z_$][A-Za-z0-9_$]*|<init>")) return null;
-        String argsText = value.substring(open + 1, close).trim();
+        String argsText = source.substring(open + 1, close).trim();
         List<String> args = new ArrayList<>();
         if (!argsText.isEmpty()) {
             for (String part : argsText.split(",", -1)) {
-                String descriptor = javaTypeDescriptor(part.trim(), false);
+                String argument = part.trim();
+                // Kotlin named parameters use "name: Type". Reject defaults,
+                // destructuring, and malformed names rather than guessing an ABI.
+                if (argument.indexOf('=') >= 0) return null;
+                int typeSeparator = argument.indexOf(':');
+                if (typeSeparator >= 0) {
+                    kotlinSyntax = true;
+                    String parameterName = argument.substring(0, typeSeparator).trim();
+                    if (!parameterName.matches("[A-Za-z_$][A-Za-z0-9_$]*")) return null;
+                    argument = argument.substring(typeSeparator + 1).trim();
+                }
+                String descriptor = kotlinSyntax
+                        ? kotlinTypeDescriptor(argument, false) : javaTypeDescriptor(argument, false);
                 if (descriptor == null || args.size() >= 64) return null;
                 args.add(descriptor);
             }
         }
-        String returnText = value.substring(close + 1).trim();
+        String returnText = source.substring(close + 1).trim();
         if (returnText.startsWith(":")) returnText = returnText.substring(1).trim();
         else if (returnText.startsWith("->")) returnText = returnText.substring(2).trim();
         else if (returnText.regionMatches(true, 0, "returns ", 0, 8))
             returnText = returnText.substring(8).trim();
-        String result = javaTypeDescriptor(returnText, true);
+        String result = kotlinSyntax
+                ? kotlinTypeDescriptor(returnText, true) : javaTypeDescriptor(returnText, true);
         if (result == null || ("<init>".equals(name) && !"V".equals(result))) return null;
         StringBuilder out = new StringBuilder("L").append(owner.replace('.', '/')).append(";->")
                 .append(name).append('(');
@@ -139,6 +157,65 @@ public final class DeveloperExecutableDescriptor {
         }
         javaSignature.append(")->").append(returnText);
         return fromJavaSignature(javaSignature.toString(), packageName);
+    }
+
+    /**
+     * Kotlin source types retain nullability in the JVM ABI: nullable primitive
+     * values are boxed, while nullable reference values keep their reference descriptor.
+     * Array<T> is accepted only when T is a concrete, exactly representable type.
+     */
+    private static String kotlinTypeDescriptor(String type, boolean allowVoid) {
+        if (type == null) return null;
+        String value = type.trim();
+        boolean nullable = value.endsWith("?");
+        if (nullable) value = value.substring(0, value.length() - 1).trim();
+        if (value.startsWith("Array<") && value.endsWith(">")) {
+            if (nullable && value.length() <= 7) return null;
+            String component = kotlinTypeDescriptor(value.substring(6, value.length() - 1), false);
+            if (component == null || "V".equals(component)) return null;
+            if (component.length() == 1 && "ZBCSIJFD".contains(component)) {
+                switch (component) {
+                    case "Z": component = "Ljava/lang/Boolean;"; break;
+                    case "B": component = "Ljava/lang/Byte;"; break;
+                    case "C": component = "Ljava/lang/Character;"; break;
+                    case "S": component = "Ljava/lang/Short;"; break;
+                    case "I": component = "Ljava/lang/Integer;"; break;
+                    case "J": component = "Ljava/lang/Long;"; break;
+                    case "F": component = "Ljava/lang/Float;"; break;
+                    case "D": component = "Ljava/lang/Double;"; break;
+                    default: return null;
+                }
+            }
+            return "[" + component;
+        }
+        String primitive = null;
+        String boxed = null;
+        switch (value) {
+            case "Boolean": case "kotlin.Boolean": primitive = "Z"; boxed = "Ljava/lang/Boolean;"; break;
+            case "Byte": case "kotlin.Byte": primitive = "B"; boxed = "Ljava/lang/Byte;"; break;
+            case "Char": case "kotlin.Char": primitive = "C"; boxed = "Ljava/lang/Character;"; break;
+            case "Short": case "kotlin.Short": primitive = "S"; boxed = "Ljava/lang/Short;"; break;
+            case "Int": case "kotlin.Int": primitive = "I"; boxed = "Ljava/lang/Integer;"; break;
+            case "Long": case "kotlin.Long": primitive = "J"; boxed = "Ljava/lang/Long;"; break;
+            case "Float": case "kotlin.Float": primitive = "F"; boxed = "Ljava/lang/Float;"; break;
+            case "Double": case "kotlin.Double": primitive = "D"; boxed = "Ljava/lang/Double;"; break;
+            case "Unit": case "kotlin.Unit":
+                if (!allowVoid || nullable) return null;
+                return "V";
+            default: break;
+        }
+        if (primitive != null) return nullable ? boxed : primitive;
+        if ("String".equals(value) || "kotlin.String".equals(value)) return "Ljava/lang/String;";
+        if ("Any".equals(value) || "kotlin.Any".equals(value)) return "Ljava/lang/Object;";
+        if ("Nothing".equals(value) || "kotlin.Nothing".equals(value)) return null;
+        if (value.endsWith("Array") && value.startsWith("kotlin.")) {
+            String array = javaTypeDescriptor(value, false);
+            return array != null && array.startsWith("[") ? array : null;
+        }
+        if (value.indexOf('<') >= 0 || value.indexOf('>') >= 0) return null;
+        String reference = javaTypeDescriptor(value, false);
+        if (reference == null || reference.length() == 1 || "V".equals(reference)) return null;
+        return reference;
     }
 
     private static String javaTypeDescriptor(String type, boolean allowVoid) {
