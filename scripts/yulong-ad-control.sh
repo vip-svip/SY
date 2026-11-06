@@ -671,7 +671,18 @@ case "$cmd" in
   [ "$#" -eq 3 ] || exit 2
   case "$2" in dns_engine_adguardhome|dns_forward|custom_dns|global_dns|block_quic|block_dot|block_plain_dns|block_ipv6|block_track_domains|vpn_external_dns_proxy|vpn_external_compat|dns_querylog_enabled) ;; *) exit 2 ;; esac
   [ "$3" = 0 ] || [ "$3" = 1 ] || exit 2
-  with_lock transaction m_dns "$2" "$3" ;;
+  case "$2" in
+    dns_engine_adguardhome|dns_forward|vpn_external_dns_proxy|vpn_external_compat)
+      [ -x "$MP/scripts/native-dns-settings.sh" ] || {
+        echo "native DNS dependency manager is missing" >&2
+        exit 20
+      }
+      MP="$MP" PG="$PG" sh "$MP/scripts/native-dns-settings.sh" set "$2" "$3"
+      ;;
+    *)
+      with_lock transaction m_dns "$2" "$3"
+      ;;
+  esac ;;
  dns-config-get)
   dns_config_get
   ;;
