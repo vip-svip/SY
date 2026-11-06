@@ -7075,3 +7075,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - wildcard 与 A/AAAA 保留型重写同样显式启用；FX 当前编辑模型为整表替换，每条提交规则均启用，删除规则即移除该项。
 - 本批保留并叠加在最新 DNSDIAG4 Root 控制脚本与续接文档上；正式/模块两套 Root/AdGuard renderer 配置同步。
 - 依据 AdGuard Home LegacyRewrite.Enabled 行为与 OpenAPI 可选 enabled 字段定义。按用户要求未运行测试、静态检查、构建、CI 或设备验证；仅完成源码移植。
+
+
+## 2026-11-07 — AdGuard Home 全局 DNS Rewrite 开关贯通
+
+- FX 实际 ARM64 runtime YAML 模板此前缺少 `filtering.rewrites_enabled`；AdGuard Home 即使读取到 `filtering.rewrites` 列表，如果全局开关关闭/缺省为 false，处理请求时仍跳过 Rewrite。
+- 四份实际运行/构建模板统一在 `filtering` 区段添加唯一 `rewrites_enabled: true`：仓库 `.github/dns`、`fx-module/.github/dns`、`fx-module/config/dns` 和 `fx-module/engines/adguardhome/AdGuardHome.yaml`。
+- canonical/module `scripts/adguardhome.sh` 的 `_config_contract()` 现在要求全局开关恰好出现一次且为 true；原有每条 rewrite 的 domain、answer 和 enabled=true 契约继续保留。缺字段、重复项或 false 都会拒绝把配置标记为就绪。
+- 修改文件：四份 FX runtime YAML、两份 `scripts/adguardhome.sh`、两份续接文档。
+- 官方语义依据：AdGuard Home filtering 全局 `rewrites_enabled` 开关决定是否调用 Rewrite 处理；见官方源码 `internal/filtering/filtering.go`。
+- 按用户要求未运行测试、构建、静态检查、CI 或设备验证。

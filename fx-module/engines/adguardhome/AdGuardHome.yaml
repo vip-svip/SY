@@ -51,6 +51,7 @@ filtering:
   blocked_response_ttl: 10
   safe_fs_patterns: []
   rewrites: []
+  rewrites_enabled: true
   safe_search:
     enabled: false
     bing: false

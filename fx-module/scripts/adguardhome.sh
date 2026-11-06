@@ -1146,6 +1146,11 @@ _config_contract() {
       rewrite_has_answer=0
       rewrite_has_enabled=0
     }
+    filtering && /^  rewrites_enabled:/ {
+      runtime_rewrites_enabled=scalar($2)
+      rewrites_enabled_count++
+      next
+    }
     filtering && rewrite_block && /^    - domain: / {
       if(rewrite_domain!="" && (!rewrite_has_answer || !rewrite_has_enabled)) unsafe_rewrites=1
       value=$0
@@ -1314,6 +1319,7 @@ _config_contract() {
         (runtime_querylog_ignored_enabled=="true" || runtime_querylog_ignored_enabled=="false") &&
         !unsafe_querylog_ignored && !querylog_ignored_sequence &&
         rewrite_sections==1 && !unsafe_rewrites && !rewrite_block &&
+        rewrites_enabled_count==1 && runtime_rewrites_enabled=="true" &&
         (rewrite_domain=="" || (rewrite_has_answer && rewrite_has_enabled)) &&
         valid_uint32(runtime_cache_size,0) &&
         valid_uint32(runtime_cache_ttl_min,1) && valid_uint32(runtime_cache_ttl_max,1) &&
