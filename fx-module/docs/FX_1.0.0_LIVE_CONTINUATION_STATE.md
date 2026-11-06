@@ -6699,3 +6699,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 模块源码提交：Egern env 透传 `4ae5a93ca2ad3c942e06aee2ddee3d8b5101980e`；拒绝嵌套 env 扁平化 `c61425b71f09d04a6ac2a0e749fe9fe5282cc82f`。
 - `fx-module/scripts/jsruntime/sync-subs.sh` 再次修正元数据包装临时文件为进程 PID 独立路径，提交 `2e469c26361336ff256e05e47e6574cd057287d9`。
 - 本轮仅提交源码与文档，未运行测试、静态检查、构建、CI 或设备验证。
+
+
+## 2026-11-07 — DNS local fallback, encrypted bootstrap and snapshot restore alignment
+
+- DNS profile restore now accepts every positive-integer query-log retention value supported by the normal Root setting writer; root and `fx-module` copies were updated together.
+- When a custom/global upstream is enabled without a user-supplied fallback list, the AdGuard Home renderer adds the FX-local Unbound listener (`127.0.0.1:5353`) as `fallback_dns`. Explicit user fallback entries remain authoritative and unchanged. Runtime config validation accepts only this exact loopback resolver as a special fallback; ordinary saved fallback entries remain routable IPv4 addresses.
+- DoH/DoT/DoQ hostname bootstrap now uses FX-local Unbound instead of pinned public DNS servers. Runtime validation accepts the exact local resolver endpoint.
+- Both DNS build patchers now mirror global-over-custom upstream precedence and local-Unbound bootstrap/failure-fallback behavior.
+- The native Ad page explains automatic local fallback and explicit user fallback precedence.
+- Related commits: `fac8e359a14b3bcd8f7a020c27f5051b74694d49`, `06e72554a19933fdd95aa7cac73b2e0f3e796167`, `04d095f762a1063e94d27ad7ea4c1d2f2d501446`, `bf19291670d88a64df2dd1be5e0a1b7a7808f527`, `cdba5c63a9a0bf9684ae49cece0d46f87ef99046`, `f49591575cbf300eb73aa38ea46cd4656e27899b`, `5ac6097b02c58767b4482f12e612e44db6880407`, `046d468d6068e0627341a32ac91d17e7e198dd03`, `2a3264c44a8346f4282351527efd0abd325c4214`, `ddff0fecec21c40df51090dbd93c6c9592835d91`.
+- Per current request, no tests, static checks, build, CI or Android device validation were run.
