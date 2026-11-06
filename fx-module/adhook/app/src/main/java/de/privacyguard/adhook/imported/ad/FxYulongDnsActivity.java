@@ -49,6 +49,8 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
     private LinearLayout rows;
     private LinearLayout typeFilters;
     private TextView status;
+    private TextView summaryStatus;
+    private String summaryBaseText = "尚未读取本机查询统计。";
     private EditText search;
     private Button cacheFlushButton;
     private Button refreshButton;
@@ -158,9 +160,9 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         card(body, "本机日志说明",
                 "查询日志默认关闭；启用后 AdGuard Home 按本机保留策略保存记录。这里显示本机保留的完整查询日志，不显示客户端 IP，也不会上传。",
                 status, refreshButton, clearButton, shareButton, copyDomainsButton, allowFilteredButton, blockFilteredButton);
-        TextView summaryStatus = text("尚未读取本机查询统计。", 12, 0xff526170, false);
+        summaryStatus = text(summaryBaseText, 12, 0xff526170, false);
         card(body, "查询日志统计摘要",
-                "只统计本机全部保留的活动及轮转日志，输出查询总数、拦截数和未拦截数；不输出域名、客户端 IP 或原始日志。",
+                "显示本机全部保留日志的汇总、去重域名数、RR 类型/响应码分布及高频拦截域名；不显示客户端 IP，也不会上传。",
                 summaryStatus, button("刷新统计", () -> loadSummary(summaryStatus)));
         cacheFlushButton = button("刷新全部本地 DNS 缓存", () -> confirmCacheFlush("all", "全部本地 DNS"));
         Button aghFlushButton = button("仅刷新 AdGuard Home", () -> confirmCacheFlush("adguardhome", "AdGuard Home"));
@@ -212,28 +214,108 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
             }
             @Override public void afterTextChanged(Editable e) {}
         });
+        loadSummary(summaryStatus);
         load();
     }
 
+    private void setSummaryBaseText(String value) {
+        summaryBaseText = value == null ? "" : value;
+        updateSummaryPresentation();
+    }
+
+    private void updateSummaryPresentation() {
+        if (summaryStatus == null) return;
+        StringBuilder out = new StringBuilder(summaryBaseText);
+        if (data.isEmpty()) {
+            summaryStatus.setText(out.toString());
+            return;
+        }
+
+        java.util.Set<String> uniqueDomains = new java.util.HashSet<>();
+        java.util.Map<String, Long> typeCounts = new java.util.HashMap<>();
+        java.util.Map<String, Long> responseCounts = new java.util.HashMap<>();
+        java.util.Map<String, Long> blockedDomainCounts = new java.util.HashMap<>();
+        long blockedRows = 0L;
+        for (Entry item : data) {
+            String domain = item.domain == null ? "" : item.domain.trim().toLowerCase(Locale.ROOT);
+            if (!domain.isEmpty()) uniqueDomains.add(domain);
+            String type = item.type == null || item.type.trim().isEmpty()
+                    ? "UNKNOWN" : item.type.trim().toUpperCase(Locale.ROOT);
+            String rcode = item.rcode == null || item.rcode.trim().isEmpty()
+                    ? "OTHER" : item.rcode.trim().toUpperCase(Locale.ROOT);
+            typeCounts.put(type, typeCounts.getOrDefault(type, 0L) + 1L);
+            responseCounts.put(rcode, responseCounts.getOrDefault(rcode, 0L) + 1L);
+            if (item.blocked) {
+                blockedRows++;
+                if (!domain.isEmpty()) {
+                    blockedDomainCounts.put(domain, blockedDomainCounts.getOrDefault(domain, 0L) + 1L);
+                }
+            }
+        }
+
+        out.append("\n\n当前载入记录分析（").append(data.size()).append(" 条）：")
+                .append("\n去重域名：").append(uniqueDomains.size())
+                .append(" 个 · 已拦截：").append(blockedRows).append(" 条");
+        appendCountDistribution(out, "RR 类型分布", typeCounts);
+        appendCountDistribution(out, "响应码分布", responseCounts);
+
+        java.util.List<java.util.Map.Entry<String, Long>> blockedDomains =
+                new java.util.ArrayList<>(blockedDomainCounts.entrySet());
+        java.util.Collections.sort(blockedDomains, (left, right) -> {
+            int countOrder = Long.compare(right.getValue(), left.getValue());
+            return countOrder != 0 ? countOrder : left.getKey().compareTo(right.getKey());
+        });
+        if (!blockedDomains.isEmpty()) {
+            out.append("\n高频拦截域名：");
+            int visible = Math.min(5, blockedDomains.size());
+            for (int i = 0; i < visible; i++) {
+                java.util.Map.Entry<String, Long> entry = blockedDomains.get(i);
+                if (i > 0) out.append("；");
+                out.append(entry.getKey()).append(" × ").append(entry.getValue());
+            }
+            if (blockedDomains.size() > visible) {
+                out.append("；另有 ").append(blockedDomains.size() - visible).append(" 个域名");
+            }
+        }
+        summaryStatus.setText(out.toString());
+    }
+
+    private void appendCountDistribution(StringBuilder out, String label,
+                                         java.util.Map<String, Long> counts) {
+        if (counts == null || counts.isEmpty()) return;
+        java.util.List<java.util.Map.Entry<String, Long>> entries =
+                new java.util.ArrayList<>(counts.entrySet());
+        java.util.Collections.sort(entries, (left, right) -> {
+            int countOrder = Long.compare(right.getValue(), left.getValue());
+            return countOrder != 0 ? countOrder : left.getKey().compareTo(right.getKey());
+        });
+        out.append("\n").append(label).append("：");
+        for (int i = 0; i < entries.size(); i++) {
+            if (i > 0) out.append(" · ");
+            java.util.Map.Entry<String, Long> entry = entries.get(i);
+            out.append(entry.getKey()).append(" ").append(entry.getValue());
+        }
+    }
+
     private void loadSummary(TextView target) {
-        target.setText("正在统计本机保留的 DNS 查询日志…");
+        setSummaryBaseText("正在统计本机保留的 DNS 查询日志…");
         root(shell("dns-log-summary"), result -> {
             if (result.exitCode != 0) {
-                target.setText("统计失败：" + safe(result.output));
+                setSummaryBaseText("统计失败：" + safe(result.output));
                 return;
             }
             String raw = result.output == null ? "" : result.output.trim();
             if ("FXDNSLOG_DISABLED".equals(raw)) {
-                target.setText("DNS 查询日志当前关闭。启用本地查询日志后才能统计。");
+                setSummaryBaseText("DNS 查询日志当前关闭。启用本地查询日志后才能统计。");
                 return;
             }
             if ("FXDNSLOG_EMPTY".equals(raw)) {
-                target.setText("本机暂无可统计的 DNS 查询记录。");
+                setSummaryBaseText("本机暂无可统计的 DNS 查询记录。");
                 return;
             }
             String[] lines = raw.split("\\r?\\n");
             if (lines.length == 0 || !"FXYULONGDNSSTATS1".equals(lines[0].trim())) {
-                target.setText("统计响应格式不受支持，拒绝显示可能不完整的数据。");
+                setSummaryBaseText("统计响应格式不受支持，拒绝显示可能不完整的数据。");
                 return;
             }
             java.util.Map<String, Long> values = new java.util.HashMap<>();
@@ -242,16 +324,16 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
                 if (line.isEmpty()) continue;
                 int split = line.indexOf('=');
                 if (split <= 0 || split == line.length() - 1) {
-                    target.setText("统计响应包含格式错误字段，拒绝显示。");
+                    setSummaryBaseText("统计响应包含格式错误字段，拒绝显示。");
                     return;
                 }
                 String key = line.substring(0, split);
                 if (!"queries".equals(key) && !"blocked".equals(key) && !"unblocked".equals(key)) {
-                    target.setText("统计响应包含未知字段：" + key + "；拒绝显示。");
+                    setSummaryBaseText("统计响应包含未知字段：" + key + "；拒绝显示。");
                     return;
                 }
                 if (values.containsKey(key)) {
-                    target.setText("统计响应包含重复字段：" + key + "；拒绝显示。");
+                    setSummaryBaseText("统计响应包含重复字段：" + key + "；拒绝显示。");
                     return;
                 }
                 try {
@@ -259,7 +341,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
                     if (value < 0) throw new NumberFormatException("negative count");
                     values.put(key, value);
                 } catch (NumberFormatException invalid) {
-                    target.setText("统计响应包含非法数量：" + key + "；拒绝显示。");
+                    setSummaryBaseText("统计响应包含非法数量：" + key + "；拒绝显示。");
                     return;
                 }
             }
@@ -268,11 +350,11 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
             Long unblocked = values.get("unblocked");
             if (queries == null || blocked == null || unblocked == null
                     || blocked > queries || unblocked != queries - blocked) {
-                target.setText("统计响应缺少字段或总数关系不一致，拒绝显示。");
+                setSummaryBaseText("统计响应缺少字段或总数关系不一致，拒绝显示。");
                 return;
             }
-            target.setText("本地保留查询总数：" + queries
-                    + " 条\\n已拦截：" + blocked + " 条\\n未拦截：" + unblocked + " 条");
+            setSummaryBaseText("本机全部保留日志统计：查询总数 " + queries
+                    + " 条 · 已拦截 " + blocked + " 条 · 未拦截 " + unblocked + " 条");
         });
     }
 
@@ -286,7 +368,8 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
             if (refreshButton != null) refreshButton.setEnabled(true);
             if (result.exitCode != 0) {
                 status.setText("读取失败：" + safe(result.output));
-                data.clear(); render(); restoreScrollIfNeeded(); return;
+                data.clear(); updateSummaryPresentation(); refreshTypeFilterChoices();
+                render(); restoreScrollIfNeeded(); return;
             }
             parse(result.output);
             refreshTypeFilterChoices();
@@ -310,11 +393,11 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         String raw = output == null ? "" : output;
         if (raw.contains("FXDNSLOG_DISABLED")) {
             status.setText("DNS 查询日志当前关闭。请返回 Ad → DNS 设置，手动开启本地日志。");
-            render(); return;
+            updateSummaryPresentation(); render(); return;
         }
         if (raw.contains("FXDNSLOG_EMPTY")) {
             status.setText("本机暂无 DNS 查询记录。开启查询日志并产生 DNS 请求后，这里会出现记录。");
-            render(); return;
+            updateSummaryPresentation(); render(); return;
         }
         for (String line : raw.split("\\r?\\n")) {
             String trimmed = line.trim();
@@ -357,6 +440,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         status.setText("本次解析 " + total + " 条 · 拦截 " + blocked + " 条 · 放行/未拦截 "
                 + Math.max(0, total - blocked) + " 条 · 无法解析/缺少域名 " + malformed
                 + " 条。数据来自本机全部保留的活动及轮转查询日志，按时间从新到旧排序；无法识别时间的记录保留在末尾。");
+        updateSummaryPresentation();
         render();
     }
 
