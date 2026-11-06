@@ -185,6 +185,7 @@ public final class AdVisibilityHook extends XposedModule {
     private volatile boolean appVersionSimulationHooksInstalled;
     private volatile boolean notificationListenHooksInstalled;
     private volatile boolean notificationPermissionHooksInstalled;
+    private final Set<Method> notificationPermissionHookedMethods = ConcurrentHashMap.newKeySet();
     private volatile boolean diaToastHooksInstalled;
     private final Set<Method> diaToastHookedMethods = ConcurrentHashMap.newKeySet();
     private final Map<Toast, DiaToastPayload> diaToastPayloads =
@@ -1584,6 +1585,7 @@ private boolean targetDeveloperOptIn(String packageName) {
             for (final Method method : appOps.getDeclaredMethods()) {
                 Class<?>[] params = method.getParameterTypes();
                 if (!queryNames.contains(method.getName())
+                        || notificationPermissionHookedMethods.contains(method)
                         || method.getReturnType() != int.class
                         || (params.length != 3 && params.length != 4)
                         || (params[0] != String.class && params[0] != int.class)
@@ -1607,6 +1609,7 @@ private boolean targetDeveloperOptIn(String packageName) {
                                 }
                                 return chain.proceed();
                             });
+                    notificationPermissionHookedMethods.add(method);
                     installed++;
                 } catch (Throwable error) {
                     logFx(Log.DEBUG, "notification AppOps query hook unavailable: "
@@ -1620,7 +1623,7 @@ private boolean targetDeveloperOptIn(String packageName) {
     }
 
     private synchronized boolean installNotificationPermissionPrivacyHooks(final String pkg) {
-        if (notificationPermissionHooksInstalled) return true;
+        // Retry missing framework surfaces after partial ART/OEM registration failures.
         int installed = 0;
         try {
             Class<?> type = Class.forName("android.app.NotificationManager", false, null);
@@ -1632,7 +1635,8 @@ private boolean targetDeveloperOptIn(String packageName) {
                 final boolean packageEnabled = "areNotificationsEnabledForPackage".equals(name)
                         && params.length >= 1 && params[0] == String.class
                         && method.getReturnType() == boolean.class;
-                if (!appEnabled && !packageEnabled) continue;
+                if ((!appEnabled && !packageEnabled)
+                        || notificationPermissionHookedMethods.contains(method)) continue;
                 try {
                     hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                             .intercept(chain -> {
@@ -1647,6 +1651,7 @@ private boolean targetDeveloperOptIn(String packageName) {
                                 }
                                 return chain.proceed();
                             });
+                    notificationPermissionHookedMethods.add(method);
                     installed++;
                 } catch (Throwable error) {
                     logFx(Log.DEBUG, "NotificationManager permission state hook unavailable: " + name);
@@ -1672,7 +1677,8 @@ private boolean targetDeveloperOptIn(String packageName) {
                             && params.length == 3 && params[0] == String.class
                             && params[1] == int.class && params[2] == int.class
                             && method.getReturnType() == int.class;
-                    if (!self && !explicit) continue;
+                    if ((!self && !explicit)
+                            || notificationPermissionHookedMethods.contains(method)) continue;
                     try {
                         hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                                 .intercept(chain -> {
@@ -1688,6 +1694,7 @@ private boolean targetDeveloperOptIn(String packageName) {
                                     }
                                     return chain.proceed();
                                 });
+                        notificationPermissionHookedMethods.add(method);
                         installed++;
                     } catch (Throwable error) {
                         logFx(Log.DEBUG, "Context notification permission hook unavailable: " + name);
@@ -1713,7 +1720,8 @@ private boolean targetDeveloperOptIn(String packageName) {
                     final boolean flags = "getPermissionFlags".equals(name)
                             && params.length == 3 && params[0] == String.class
                             && params[1] == String.class && method.getReturnType() == int.class;
-                    if (!check && !flags) continue;
+                    if ((!check && !flags)
+                            || notificationPermissionHookedMethods.contains(method)) continue;
                     try {
                         hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                                 .intercept(chain -> {
@@ -1726,6 +1734,7 @@ private boolean targetDeveloperOptIn(String packageName) {
                                     }
                                     return chain.proceed();
                                 });
+                        notificationPermissionHookedMethods.add(method);
                         installed++;
                     } catch (Throwable error) {
                         logFx(Log.DEBUG, "PackageManager notification permission hook unavailable: " + name);
@@ -1737,10 +1746,11 @@ private boolean targetDeveloperOptIn(String packageName) {
         }
 
         installed += installNotificationPostAppOpsHooks();
-        notificationPermissionHooksInstalled = installed > 0;
+        notificationPermissionHooksInstalled = !notificationPermissionHookedMethods.isEmpty();
         logFx(installed > 0 ? Log.INFO : Log.WARN,
-                "opt-in notification permission query hooks installed=" + installed
-                        + " across NotificationManager/Context/PackageManager for " + pkg);
+                "opt-in notification permission hooks newly installed=" + installed
+                        + " total=" + notificationPermissionHookedMethods.size()
+                        + " across AppOps/NotificationManager/Context/PackageManager for " + pkg);
         return notificationPermissionHooksInstalled;
     }
 
