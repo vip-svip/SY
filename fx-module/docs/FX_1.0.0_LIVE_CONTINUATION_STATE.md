@@ -6909,3 +6909,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 原生 Ad 页面新增“执行完整 DNS 链路诊断”入口，严格检查协议头、字段白名单、重复/缺失字段和枚举值。诊断不修改配置、不重启服务、不操作第三方 VPN 或改写路由。
 - 同步正式/模块 Root 脚本、两套 APK 原生页面和 watchdog 使用说明。
 - 按用户要求未运行 Shell/Java 测试、静态检查、构建、CI 或真机验证；本轮仅完成源码移植与提交。
+
+
+## 2026-11-07 — DNS 拦截响应自定义地址与 TTL 完整接入
+
+- DNS 拦截响应从 NXDOMAIN / REFUSED / 固定空地址扩展为可自定义 A 记录 IPv4、AAAA 记录 IPv6 以及 blocked-response TTL（uint32 秒，允许 0）。Root 后端校验 IPv4/IPv6 字面量、TTL 数值、配置 section 唯一性，并通过原子写入保存四项设置。
+- 原有 `dns-response-set MODE` 命令保持兼容：只修改模式并保留地址和 TTL；新增 `dns-response-config-set MODE IPV4 IPV6 TTL` 支持完整设置。
+- AdGuard Home 运行配置生成现在读取 Root `FXYULONGDNSRESP1` 响应，将自定义地址写入 `filtering.blocking_ipv4` / `blocking_ipv6`，将 TTL 写入 `filtering.blocked_response_ttl`；不再硬编码固定空地址和 10 秒。
+- 原生 DNS 设置页新增三项编辑控件、响应协议检查、读取回显和保存入口；DNS 配置快照导出/导入/字段差异预览/恢复加入 `RESPONSE_IPV4`、`RESPONSE_IPV6`、`RESPONSE_TTL`，旧版快照缺少字段时自动回填原默认值。
+- 同步普通源码与 FX 模块 Root/AdGuard renderer、两份原生 APK 源码。
+- 按用户当前提速要求未运行测试、静态检查、构建、CI 或 Android 真机验证；本批为代码移植与接线提交，不代表设备验收。

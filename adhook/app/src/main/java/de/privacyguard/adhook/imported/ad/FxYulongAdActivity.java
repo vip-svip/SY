@@ -1333,7 +1333,7 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
 }
  private void renderDns(){
   EditText dnsProfileImport=draftField("dns_profile_import");dnsProfileImport.setSingleLine(false);dnsProfileImport.setMinLines(5);dnsProfileImport.setHint("粘贴完整 FXYULONGDNSPROFILE1 快照文本");dnsProfileImportField=dnsProfileImport;
-  card("DNS 配置备份与恢复","快照导入会完整替换 DNS 引擎开关、过滤策略、三组上游、VPN DNS、拦截响应模式、查询日志保留期限/内存批量/逐条日志排除域名/DNS 域名重写、多上游策略与超时、缓存容量/模式及 DNSSEC；兼容旧版快照并为新增字段补齐默认值，提交前由 Root 后端再次校验，应用失败时回滚原配置。",btn("分享 DNS 配置快照",()->shareDnsProfile()),btn("保存 DNS 快照到文件",()->saveDnsProfileToFile()),btn("从文件读取 DNS 快照",()->openDnsProfileFile()),dnsProfileImport,btn("校验并恢复 DNS 配置快照",()->restoreDnsProfile(dnsProfileImport)));
+  card("DNS 配置备份与恢复","快照导入会完整替换 DNS 引擎开关、过滤策略、三组上游、VPN DNS、拦截响应模式、自定义 IPv4/IPv6 响应地址与 TTL、查询日志保留期限/内存批量/逐条日志排除域名/DNS 域名重写、多上游策略与超时、缓存容量/模式及 DNSSEC；兼容旧版快照并为新增字段补齐默认值，提交前由 Root 后端再次校验，应用失败时回滚原配置。",btn("分享 DNS 配置快照",()->shareDnsProfile()),btn("保存 DNS 快照到文件",()->saveDnsProfileToFile()),btn("从文件读取 DNS 快照",()->openDnsProfileFile()),dnsProfileImport,btn("校验并恢复 DNS 配置快照",()->restoreDnsProfile(dnsProfileImport)));
   TextView dnsRuntimeState=txt("DNS 运行状态尚未读取。",12,0xff617080,false);
   card("DNS 引擎运行状态","读取 AdGuard Home、Unbound、第三方 VPN Root Proxy、DNS 过滤覆盖范围与 VPN 共存判定。此操作只读取状态，不会更改服务或网络路由。",dnsRuntimeState,
        btn("刷新 DNS 运行状态",()->loadDnsRuntimeStatus(dnsRuntimeState)),
@@ -1571,23 +1571,48 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
   responseRefused.setText("REFUSED（拒绝查询）");
   responseRefused.setId(View.generateViewId());
   android.widget.RadioButton responseNull=new android.widget.RadioButton(this);
-  responseNull.setText("返回空地址 0.0.0.0 / ::");
+  responseNull.setText("返回自定义 A/AAAA 地址");
   responseNull.setId(View.generateViewId());
   responseGroup.addView(responseNx);
   responseGroup.addView(responseRefused);
   responseGroup.addView(responseNull);
   responseGroup.check(responseNx.getId());
+  EditText responseIpv4=draftField("dns_blocking_ipv4");
+  responseIpv4.setSingleLine(true);
+  responseIpv4.setHint("被拦截 A 查询返回地址，例如 0.0.0.0");
+  EditText responseIpv6=draftField("dns_blocking_ipv6");
+  responseIpv6.setSingleLine(true);
+  responseIpv6.setHint("被拦截 AAAA 查询返回地址，例如 ::");
+  EditText responseTtl=draftField("dns_blocked_response_ttl");
+  responseTtl.setSingleLine(true);
+  responseTtl.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+  responseTtl.setHint("拦截响应 TTL（秒），0 表示不缓存");
   TextView responseState=txt("正在读取 DNS 返回模式…",12,0xff617080,false);
   card("DNS 拦截返回模式",
-       "选择被广告/黑名单规则拦截的域名如何响应。默认 NXDOMAIN；自定义模式返回空地址，不会修改未命中的 DNS 查询。",
+       "选择被广告/黑名单规则拦截的域名如何响应。NXDOMAIN 与 REFUSED 不返回地址；自定义模式按下方 IPv4/IPv6 地址返回 A/AAAA 答案。TTL 为 0 至 4294967295 秒。",
        responseGroup,
-       btn("保存返回模式",()->{
+       txt("自定义 IPv4（A 记录）",12,0xff617080,true),responseIpv4,
+       txt("自定义 IPv6（AAAA 记录）",12,0xff617080,true),responseIpv6,
+       txt("拦截响应 TTL（秒）",12,0xff617080,true),responseTtl,
+       btn("保存并应用 DNS 返回策略",()->{
          int chosen=responseGroup.getCheckedRadioButtonId();
          String mode=chosen==responseRefused.getId()?"refused"
              :chosen==responseNull.getId()?"custom_ip":"nxdomain";
-         root("dns-response-set "+mode,r->{
-           if(r.exitCode==0)responseState.setText("已保存并应用："+mode);
-           else responseState.setText("保存失败："+safe(r.output));
+         String ipv4=responseIpv4.getText()==null?"":responseIpv4.getText().toString().trim();
+         String ipv6=responseIpv6.getText()==null?"":responseIpv6.getText().toString().trim();
+         String ttl=responseTtl.getText()==null?"":responseTtl.getText().toString().trim();
+         if(!isValidDnsBlockingIpv4(ipv4)||!isValidDnsBlockingIpv6(ipv6)
+             ||!isValidDnsBlockingTtl(ttl)){
+           responseState.setText("自定义 IPv4/IPv6 地址或 TTL 无效，未提交。");
+           return;
+         }
+         root("dns-response-config-set "+mode+" "+q(ipv4)+" "+q(ipv6)+" "+q(ttl),result->{
+           if(result.exitCode==0){
+             responseState.setText("已保存并应用："+mode+"；A="+ipv4+"；AAAA="+ipv6+"；TTL="+ttl+" 秒。");
+             load();
+           }else{
+             responseState.setText("保存失败："+safe(result.output));
+           }
          });
        }),
        btn("一键应用严格 DNS 保护配置",()->applyDnsSecurityProfile("nxdomain",true,responseState,responseGroup,responseNx,responseRefused,responseNull)),
@@ -1595,12 +1620,39 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
        responseState);
   root("dns-response-get",r->{
     if(r.exitCode!=0){responseState.setText("读取失败："+safe(r.output));return;}
-    String mode="nxdomain";
-    for(String line:r.output.split("\\r?\\n"))
-      if(line.startsWith("mode="))mode=line.substring(5).trim();
+    String[] lines=(r.output==null?"":r.output).split("\\r?\\n");
+    if(lines.length<5||!"FXYULONGDNSRESP1".equals(lines[0].trim())){
+      responseState.setText("DNS 返回策略响应格式错误，拒绝使用默认值。");return;
+    }
+    java.util.Map<String,String> values=new java.util.HashMap<>();
+    for(int i=1;i<lines.length;i++){
+      String line=lines[i].trim();if(line.isEmpty())continue;
+      int split=line.indexOf('=');
+      if(split<=0||split==line.length()-1){
+        responseState.setText("DNS 返回策略响应字段格式错误。");return;
+      }
+      String key=line.substring(0,split);
+      if(!"mode".equals(key)&&!"blocking_ipv4".equals(key)
+          &&!"blocking_ipv6".equals(key)&&!"blocked_response_ttl".equals(key)){
+        responseState.setText("DNS 返回策略响应包含未知字段："+key);return;
+      }
+      if(values.put(key,line.substring(split+1))!=null){
+        responseState.setText("DNS 返回策略响应包含重复字段："+key);return;
+      }
+    }
+    String mode=values.get("mode"),ipv4=values.get("blocking_ipv4");
+    String ipv6=values.get("blocking_ipv6"),ttl=values.get("blocked_response_ttl");
+    if(values.size()!=4||!("nxdomain".equals(mode)||"refused".equals(mode)||"custom_ip".equals(mode))
+        ||!isValidDnsBlockingIpv4(ipv4)||!isValidDnsBlockingIpv6(ipv6)
+        ||!isValidDnsBlockingTtl(ttl)){
+      responseState.setText("DNS 返回策略响应字段不完整或数值非法。");return;
+    }
     responseGroup.check("refused".equals(mode)?responseRefused.getId()
         :"custom_ip".equals(mode)?responseNull.getId():responseNx.getId());
-    responseState.setText("当前模式："+mode);
+    responseIpv4.setText(ipv4);
+    responseIpv6.setText(ipv6);
+    responseTtl.setText(ttl);
+    responseState.setText("当前模式："+mode+"；A="+ipv4+"；AAAA="+ipv6+"；TTL="+ttl+" 秒。");
   });
   EditText customServers=draftField("dns_custom_servers");
   customServers.setSingleLine(false);customServers.setMinLines(2);
@@ -1797,7 +1849,7 @@ private void restoreDnsProfile(EditText input){
   String[] allowed={"dns_engine_adguardhome","dns_forward","custom_dns","global_dns",
       "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
       "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled",
-      "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE","QUERYLOG_RETENTION","QUERYLOG_MEMORY_SIZE","QUERYLOG_IGNORED_ENABLED","QUERYLOG_IGNORED","DNS_REWRITES","STATISTICS_ENABLED","STATISTICS_INTERVAL","STATISTICS_IGNORED_ENABLED","STATISTICS_IGNORED",
+      "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE","RESPONSE_IPV4","RESPONSE_IPV6","RESPONSE_TTL","QUERYLOG_RETENTION","QUERYLOG_MEMORY_SIZE","QUERYLOG_IGNORED_ENABLED","QUERYLOG_IGNORED","DNS_REWRITES","STATISTICS_ENABLED","STATISTICS_INTERVAL","STATISTICS_IGNORED_ENABLED","STATISTICS_IGNORED",
       "UPSTREAM_MODE","FASTEST_TIMEOUT","UPSTREAM_TIMEOUT","CACHE_SIZE","CACHE_ENABLED","CACHE_OPTIMISTIC","ENABLE_DNSSEC",
       "CACHE_TTL_MIN","CACHE_TTL_MAX","CACHE_OPTIMISTIC_ANSWER_TTL","CACHE_OPTIMISTIC_MAX_AGE",
       "UNBOUND_CACHE_MAX_TTL","UNBOUND_CACHE_MIN_TTL","UNBOUND_SERVE_EXPIRED","UNBOUND_SERVE_EXPIRED_TTL",
@@ -1816,7 +1868,10 @@ private void restoreDnsProfile(EditText input){
     preview.put(key,line.substring(split+1));
   }
   for(String key:allowed)if(!preview.containsKey(key)){
-    if("QUERYLOG_RETENTION".equals(key))preview.put(key,"7d");
+    if("RESPONSE_IPV4".equals(key))preview.put(key,"0.0.0.0");
+    else if("RESPONSE_IPV6".equals(key))preview.put(key,"::");
+    else if("RESPONSE_TTL".equals(key))preview.put(key,"10");
+    else if("QUERYLOG_RETENTION".equals(key))preview.put(key,"7d");
     else if("QUERYLOG_MEMORY_SIZE".equals(key))preview.put(key,"1000");
     else if("QUERYLOG_IGNORED_ENABLED".equals(key))preview.put(key,"0");
     else if("QUERYLOG_IGNORED".equals(key))preview.put(key,"");
@@ -1868,6 +1923,11 @@ private void restoreDnsProfile(EditText input){
   String responseMode=preview.get("RESPONSE_MODE");
   if(!"nxdomain".equals(responseMode)&&!"refused".equals(responseMode)&&!"custom_ip".equals(responseMode)){
     status.setText("快照拦截响应模式非法；未提交。");return;
+  }
+  if(!isValidDnsBlockingIpv4(preview.get("RESPONSE_IPV4"))
+      ||!isValidDnsBlockingIpv6(preview.get("RESPONSE_IPV6"))
+      ||!isValidDnsBlockingTtl(preview.get("RESPONSE_TTL"))){
+    status.setText("快照 DNS 拦截 IPv4/IPv6 地址或 TTL 无效；未提交。");return;
   }
   String querylogRetention=preview.get("QUERYLOG_RETENTION");
   if(!isValidDnsQueryLogRetention(querylogRetention)){
@@ -1963,7 +2023,7 @@ private void restoreDnsProfile(EditText input){
       +"全局上游："+countDnsEndpoints(preview.get("GLOBAL_SERVERS"))+" 条；"
       +"备用上游："+countDnsEndpoints(preview.get("FALLBACK_SERVERS"))+" 条。\n"
       +"VPN 远端 DNS："+preview.get("VPN_REMOTE")+"；国内 DNS："+preview.get("VPN_CN")+"。\n"
-      +"拦截响应模式："+preview.get("RESPONSE_MODE")+"；查询日志保留："+querylogRetention
+      +"拦截响应模式："+preview.get("RESPONSE_MODE")+"（IPv4 "+preview.get("RESPONSE_IPV4")+"；IPv6 "+preview.get("RESPONSE_IPV6")+"；TTL "+preview.get("RESPONSE_TTL")+" 秒）；查询日志保留："+querylogRetention
       +"；内存刷盘批量："+preview.get("QUERYLOG_MEMORY_SIZE")+"（0 表示逐条写盘）；逐条日志排除："+preview.get("QUERYLOG_IGNORED_ENABLED")+"（"+(preview.get("QUERYLOG_IGNORED").isEmpty()?0:preview.get("QUERYLOG_IGNORED").split(",").length)+" 个）；DNS 重写："+(preview.get("DNS_REWRITES").isEmpty()?0:preview.get("DNS_REWRITES").split(",").length)+" 条；聚合统计："+preview.get("STATISTICS_ENABLED")+"，周期 "+preview.get("STATISTICS_INTERVAL")+"；统计排除："+preview.get("STATISTICS_IGNORED_ENABLED")+"（"+(preview.get("STATISTICS_IGNORED").isEmpty()?0:preview.get("STATISTICS_IGNORED").split(",").length)+" 个）。\n"
       +"上游策略："+preview.get("UPSTREAM_MODE")+"；fastest 超时："+preview.get("FASTEST_TIMEOUT")+"；上游超时："+preview.get("UPSTREAM_TIMEOUT")+"。\n"
       +"DNS 缓存："+preview.get("CACHE_SIZE")+" 字节；缓存 TTL："+preview.get("CACHE_TTL_MIN")+"~"+preview.get("CACHE_TTL_MAX")+" 秒；乐观缓存："+preview.get("CACHE_OPTIMISTIC")+"（答复 TTL "+preview.get("CACHE_OPTIMISTIC_ANSWER_TTL")+"，最大年龄 "+preview.get("CACHE_OPTIMISTIC_MAX_AGE")+"）；DNSSEC："+preview.get("ENABLE_DNSSEC")+"。\n"
@@ -1989,7 +2049,7 @@ private void restoreDnsProfile(EditText input){
     String[] labels={"dns_engine_adguardhome","dns_forward","custom_dns","global_dns",
       "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
       "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled",
-      "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE","QUERYLOG_RETENTION","QUERYLOG_MEMORY_SIZE","QUERYLOG_IGNORED_ENABLED","QUERYLOG_IGNORED","DNS_REWRITES","STATISTICS_ENABLED","STATISTICS_INTERVAL","STATISTICS_IGNORED_ENABLED","STATISTICS_IGNORED",
+      "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE","RESPONSE_IPV4","RESPONSE_IPV6","RESPONSE_TTL","QUERYLOG_RETENTION","QUERYLOG_MEMORY_SIZE","QUERYLOG_IGNORED_ENABLED","QUERYLOG_IGNORED","DNS_REWRITES","STATISTICS_ENABLED","STATISTICS_INTERVAL","STATISTICS_IGNORED_ENABLED","STATISTICS_IGNORED",
       "UPSTREAM_MODE","FASTEST_TIMEOUT","UPSTREAM_TIMEOUT","CACHE_SIZE","CACHE_ENABLED","CACHE_OPTIMISTIC","ENABLE_DNSSEC",
       "CACHE_TTL_MIN","CACHE_TTL_MAX","CACHE_OPTIMISTIC_ANSWER_TTL","CACHE_OPTIMISTIC_MAX_AGE",
       "UNBOUND_CACHE_MAX_TTL","UNBOUND_CACHE_MIN_TTL","UNBOUND_SERVE_EXPIRED","UNBOUND_SERVE_EXPIRED_TTL",
@@ -2008,13 +2068,34 @@ private void restoreDnsProfile(EditText input){
       .setMessage(summary+"\n\n"+changeText)
       .setNegativeButton("取消",null)
       .setPositiveButton("继续恢复",(d,w)->fxDialogBuilder().setTitle("确认完整替换 DNS 配置")
-        .setMessage("将完整替换当前 DNS 引擎开关、过滤策略、全部上游服务器、VPN DNS、拦截响应模式、日志保留期限/内存刷盘批量/逐条日志排除域名/DNS 域名重写规则、DNS 聚合统计开关/周期/排除域名、上游选择/超时、AdGuard Home 缓存容量/TTL/乐观缓存策略、DNSSEC，以及 Unbound 缓存 TTL、消息/RRset/DNSSEC Key/否定响应四类缓存池、serve-expired、域名预取、DNSSEC 密钥预取和 QNAME minimisation。后端会再次校验全部字段；恢复应用失败会回滚原配置。不会修改 VPN 节点或其他 FX 模块设置。")
+        .setMessage("将完整替换当前 DNS 引擎开关、过滤策略、全部上游服务器、VPN DNS、拦截响应模式、自定义 IPv4/IPv6 响应地址与 TTL、日志保留期限/内存刷盘批量/逐条日志排除域名/DNS 域名重写规则、DNS 聚合统计开关/周期/排除域名、上游选择/超时、AdGuard Home 缓存容量/TTL/乐观缓存策略、DNSSEC，以及 Unbound 缓存 TTL、消息/RRset/DNSSEC Key/否定响应四类缓存池、serve-expired、域名预取、DNSSEC 密钥预取和 QNAME minimisation。后端会再次校验全部字段；恢复应用失败会回滚原配置。不会修改 VPN 节点或其他 FX 模块设置。")
         .setNegativeButton("取消",null)
         .setPositiveButton("恢复",(dialog,which)->root("dns-profile-restore "+encoded,r->{
           if(r.exitCode==0){status.setText("DNS 配置快照已恢复并应用。");input.setText("");load();}
           else fxDialogBuilder().setTitle("DNS 快照恢复失败").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
         })).show()).show();
   });
+private boolean isValidDnsBlockingIpv4(String value){
+  if(value==null||!value.matches("[0-9]{1,3}(\\.[0-9]{1,3}){3}"))return false;
+  for(String part:value.split("\\.",-1)){
+    try{
+      if(part.length()>1&&part.charAt(0)=='0')return false;
+      int octet=Integer.parseInt(part);
+      if(octet<0||octet>255)return false;
+    }catch(NumberFormatException invalid){return false;}
+  }
+  return true;
+}
+private boolean isValidDnsBlockingIpv6(String value){
+  return isValidProfileDnsIpv6(value);
+}
+private boolean isValidDnsBlockingTtl(String value){
+  if(value==null||!value.matches("[0-9]+"))return false;
+  try{
+    java.math.BigInteger ttl=new java.math.BigInteger(value);
+    return ttl.signum()>=0&&ttl.compareTo(new java.math.BigInteger("4294967295"))<=0;
+  }catch(NumberFormatException invalid){return false;}
+}
 private boolean isValidProfileIpv4(String value){
   if(value==null||!value.matches("[0-9]{1,3}(\\.[0-9]{1,3}){3}")||
       "0.0.0.0".equals(value)||"255.255.255.255".equals(value))return false;
