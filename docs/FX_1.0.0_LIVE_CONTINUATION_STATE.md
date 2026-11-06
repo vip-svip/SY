@@ -7176,3 +7176,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Wi-Fi 扫描与通知读取 Hook 同样增加 `Method` 粒度的成功登记及缺失项重试；WifiManager/WifiScanner 与 NotificationManager/NotificationListenerService/Settings.Secure 不再因为其中一个 API 已注册就永久跳过其余失败方法。已成功安装的方法保持去重。
 - 应用 Wi-Fi/通知 Hook：`2de7e8659509d32e1b7bb4c41041364748e0f1e1`；模块 Wi-Fi/通知 Hook：`2a884613751381c9ddcb6054031fa37f01f7abeb`。
 - 固定 FX 1.0.0。按要求未运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-06 — Root Proxy DNS 白名单模块 UI 与后台包变化同步
+
+- 将主 APK 已有的应用 DNS 白名单页面同步到 `fx-module/adhook/.../MainActivity.java`，包含应用开关、保留未安装记录、`whitelist-prune` 清理入口和清理后刷新列表：868d883a8f7fd78fb50bc3a7d011dc82e453e3ff。
+- 主 APK 与模块 APK 的 PackageManager 广播处理均调用 Root Proxy `package-event`；过滤安装更新的中间 remove/add 事件，使用 Root Proxy 自身锁和原子清理逻辑：应用源码 5df2626c96cf2cf6bdbd85d7a11b919078a1ca11，模块源码 547cfadf96cb345e38534e5c4b887d0a9b197806。
+- 新增模块级 `yulong-root-proxy-package-watch.sh`：开机先执行一次 `package-event`，随后每 30 秒读取并规范化 PackageManager 包名/UID 快照，只有集合变化时才重新清理和协调 Root Proxy；snapshot 标记原子发布，PID/锁路径拒绝 symlink，进程身份按脚本路径和参数识别。提交 316b35ee11cd257172fb1d02ca68851248ce6e7f。
+- `service.sh` 在 FX `apply.sh` 后启动后台 watcher：e952bda552defb40e9a98277261839f64f5fbfc5；`uninstall.sh` 在 Root Proxy 拆除前停止 watcher，并将 watcher 日志纳入卸载安全路径检查：9108ddc905fa15969a27c252c3c868125fbacb83。
+- 固定 FX 1.0.0；本轮按当前移植节奏未运行测试、构建、静态检查、CI 或真机验证。
