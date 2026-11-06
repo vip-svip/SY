@@ -606,10 +606,10 @@ status() {
   printf 'dns_querylog_memory_max|%s\n' "$_querylog_memory_max"
   printf 'dns_statistics_enabled|%s\n' "$_statistics_enabled"
   printf 'dns_statistics_interval|%s\n' "$_statistics_interval"
-  printf 'dns_querylog_ignored_enabled|%s\\n' "$_querylog_ignored_enabled"
-  printf 'dns_querylog_ignored_count|%s\\n' "$_querylog_ignored_count"
-  printf 'dns_statistics_ignored_enabled|%s\\n' "$_statistics_ignored_enabled"
-  printf 'dns_statistics_ignored_count|%s\\n' "$_statistics_ignored_count"
+  printf 'dns_querylog_ignored_enabled|%s\n' "$_querylog_ignored_enabled"
+  printf 'dns_querylog_ignored_count|%s\n' "$_querylog_ignored_count"
+  printf 'dns_statistics_ignored_enabled|%s\n' "$_statistics_ignored_enabled"
+  printf 'dns_statistics_ignored_count|%s\n' "$_statistics_ignored_count"
 }
 mutate() {
   _key=$1
