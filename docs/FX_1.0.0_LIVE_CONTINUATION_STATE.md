@@ -8263,3 +8263,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 文件：`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
 - 在模块原生 DNS 查询日志卡增加“设置日志保留期限”入口，移植主应用既有 1/3/7/30 天选择、当前值读取、保存与失败提示流程；调用模块后端已有的 `dns-querylog-retention-get` / `dns-querylog-retention-set` 命令，不新增后端接口。
 - 用户要求本阶段暂缓核验；未运行测试、静态检查、Gradle 构建、CI、安装或设备验证。
+
+
+### FX 模块原生 DNS 配置控制、快照与运行状态整批移植（2026-11-07）
+
+- 代码提交：`c8e2fdaf1e2fb897f3994eb2be9df9cd938a147f`。
+- 文件：`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
+- 补齐 DNS 配置快照分享与恢复入口；恢复前检查快照版本头和 48 KiB 上限，使用既有后端事务恢复命令。
+- 补齐 DNS 引擎运行状态面板，显示 AdGuard Home、Unbound、第三方 VPN Root Proxy、DNS 过滤覆盖、VPN 共存判定、路由探测及过滤规则统计。
+- 补齐本地 DNS 引擎组一键启停、五项过滤策略一键启停、三组 DNS 上游一次性保存、VPN 两组 DNS 一次性保存、自定义/全局/备用 DNS 清除，以及 AdGuard Home / Unbound 定向和全部缓存刷新入口。
+- 所有操作复用现有原生后端命令与事务语义；未另造 DNS 配置协议。
+- 按用户要求暂不核验；未运行测试、静态检查、Gradle 构建、CI、安装或设备验证。
