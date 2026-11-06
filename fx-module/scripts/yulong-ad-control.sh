@@ -502,18 +502,72 @@ write_vpn_dns() {
 }
 m_dns_servers() { write_dns_section "$1" "$2"; }
 m_vpn_dns() { write_vpn_dns "$1" "$2"; }
+write_vpn_dns_many() {
+  _remote_value=$1; _cn_value=$2
+  valid_ipv4 "$_remote_value" && valid_ipv4 "$_cn_value" || return 2
+  validate_existing_vpn_dns || {
+    echo "existing VPN DNS section or target keys are ambiguous or malformed" >&2
+    return 22
+  }
+  _vpn_tmp=$(mktemp "$CONF.yulong-vpn-dns-many.XXXXXX") || return 1
+  _yad_conf_tmp=$_vpn_tmp
+  if ! awk -v remote="$_remote_value" -v cn="$_cn_value" '
+    BEGIN { inside=0; seen=0; remote_written=0; cn_written=0 }
+    $0=="[conf:vpn]" {
+      if (inside) {
+        if (!remote_written) { print "remote_dns=" remote; remote_written=1 }
+        if (!cn_written) { print "cn_dns=" cn; cn_written=1 }
+      }
+      inside=1; seen=1; print; next
+    }
+    /^\\[/ {
+      if (inside) {
+        if (!remote_written) { print "remote_dns=" remote; remote_written=1 }
+        if (!cn_written) { print "cn_dns=" cn; cn_written=1 }
+      }
+      inside=0; print; next
+    }
+    inside && /^remote_dns=/ {
+      if (!remote_written) print "remote_dns=" remote
+      remote_written=1; next
+    }
+    inside && /^cn_dns=/ {
+      if (!cn_written) print "cn_dns=" cn
+      cn_written=1; next
+    }
+    { print }
+    END {
+      if (inside) {
+        if (!remote_written) print "remote_dns=" remote
+        if (!cn_written) print "cn_dns=" cn
+      }
+      if (!seen) {
+        print ""
+        print "[conf:vpn]"
+        print "remote_dns=" remote
+        print "cn_dns=" cn
+      }
+    }
+  ' "$CONF" > "$_vpn_tmp"; then
+    rm -f "$_vpn_tmp"; _yad_conf_tmp=; return 1
+  fi
+  if [ -s "$_vpn_tmp" ] && chmod 600 "$_vpn_tmp" && mv -f "$_vpn_tmp" "$CONF"; then
+    _yad_conf_tmp=; return 0
+  fi
+  rm -f "$_vpn_tmp"; _yad_conf_tmp=
+  return 1
+}
 dns_vpn_set_many() {
   _vpn_remote=$1; _vpn_cn=$2
   valid_ipv4 "$_vpn_remote" || { echo "VPN remote DNS must be an IPv4 literal" >&2; return 2; }
   valid_ipv4 "$_vpn_cn" || { echo "VPN China DNS must be an IPv4 literal" >&2; return 2; }
-  m_vpn_dns remote_dns "$_vpn_remote" &&
-    m_vpn_dns cn_dns "$_vpn_cn" || {
-      echo "unable to update both VPN DNS values" >&2
-      return 1
-    }
+  write_vpn_dns_many "$_vpn_remote" "$_vpn_cn" || {
+    echo "unable to atomically update both VPN DNS values" >&2
+    return 1
+  }
   echo "vpn_dns=updated remote_dns=$_vpn_remote cn_dns=$_vpn_cn"
 }
-m_vpn_dns_reset() { write_vpn_dns remote_dns 1.1.1.1 && write_vpn_dns cn_dns 223.5.5.5; }
+m_vpn_dns_reset() { write_vpn_dns_many 1.1.1.1 223.5.5.5; }
 dns_profile_get() {
   validate_existing_dns_section custom_dns || return $?
   validate_existing_dns_section global_dns || return $?
