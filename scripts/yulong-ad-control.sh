@@ -1327,9 +1327,17 @@ dns_profile_transaction() {
 }
 
 valid_dns_querylog_retention() {
-  case "$1" in *d) _dns_retention_days=\${1%d} ;; *) return 1 ;; esac
-  case "$_dns_retention_days" in ''|*[!0-9]*) return 1 ;; esac
-  case "$_dns_retention_days" in *[1-9]*) return 0 ;; *) return 1 ;; esac
+  case "$1" in
+    *d) _dns_retention_value=${1%d}; _dns_retention_max=365 ;;
+    *h) _dns_retention_value=${1%h}; _dns_retention_max=8760 ;;
+    *) return 1 ;;
+  esac
+  case "$_dns_retention_value" in ''|*[!0-9]*) return 1 ;; esac
+  awk -v value="$_dns_retention_value" -v maximum="$_dns_retention_max" '
+    BEGIN {
+      if (value+0<1 || value+0>maximum || int(value+0)!=value+0) exit 1
+    }
+  '
 }
 write_dns_querylog_retention() {
   interval=$1
