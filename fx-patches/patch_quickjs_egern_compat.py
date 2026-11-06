@@ -190,6 +190,14 @@ def update_host(path: Path) -> bool:
         if source.count(anchor) != 1:
             raise SystemExit("QuickJS Egern host insertion anchor is missing or ambiguous")
         updated = source.replace(anchor, HOST_BLOCK + anchor, 1)
+    old_done = "else if(_fxEvent.stage==='response')_fxDoneValue=globalThis.$response;"
+    new_done = "else if(_fxEvent.stage==='response'||_fxEvent.stage==='http-response')_fxDoneValue=globalThis.$response;"
+    if old_done in updated:
+        if updated.count(old_done) != 1:
+            raise SystemExit("QuickJS response-stage completion anchor is ambiguous")
+        updated = updated.replace(old_done, new_done, 1)
+    elif updated.count(new_done) != 1:
+        raise SystemExit("QuickJS host does not route http-response completion to the response object")
     if updated != source:
         path.write_text(updated, encoding="utf-8")
         return True
