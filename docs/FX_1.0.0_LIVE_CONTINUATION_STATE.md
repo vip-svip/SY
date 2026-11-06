@@ -6977,3 +6977,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `env` 和 `binary_body` 仍跳过；`body_required` 若出现在 request 项也跳过，避免把响应正文标记错误地套到请求阶段。去重键增加正文需求位，防止同 URL/阶段/匹配规则下不同正文行为互相覆盖。
 - 应用导入器提交：`7dd437892e3d23716558fbab885f017bfd7f8b7a`；模块导入器提交：`3b8ca649c43b7b97be17b7259d4bfdaed76721aa`；README 边界更新提交：`0af0989a7d709dda8e77e53fddceb6aa4bb65332`。
 - 固定 FX 1.0.0；本轮没有运行测试、静态检查、构建、CI 或真机验证。正文行为仍受现有 MITM 正文类型/大小上限约束，不代表二进制正文或完整 Egern API 已支持。
+## 2026-11-06 — Egern scriptings YAML HTTP 迁移
+
+- `MainActivity.java`（应用源码 `d98fd4cf300ea25ba897bb0c815616e562e7e935`、模块源码 `fe82821fc01d442de149cbf90e24b9de76563ef6`）增加 `.yaml` / `.yml` 导入路径，识别 Egern `scriptings:` 列表中的 `http_request` / `http_response` 条目，并转为现有 FX-SCRIPT-LIST / FXMETA_B64 元数据格式。
+- 保留 `name`、`match`、HTTPS `script_url`、`disabled` 和 `body_required`；正文标记随四行元数据传递到 `sync-subs.sh`，由其生成 `FX-SCRIPT-REQUIRES-BODY`。文件内重复项与当前配置重复项按 URL 和触发元数据跳过。
+- `schedule`、`generic`、`network` 不会错误转换成 HTTP Hook；带 `env`、`binary_body` 或非默认 timeout / max_size / update_interval 的条目会跳过，因为现有 FX 订阅协议无法无损表达这些字段。只允许 HTTPS 远程源，未把本地路径转换成远程订阅。
+- 修正脚本导入去重键的分隔符为真实换行，保持与 Base64 解码后的订阅元数据字段结构一致。
+- 本轮仅提交源码和说明；按要求未运行测试、静态检查、构建、CI 或真机验证。
