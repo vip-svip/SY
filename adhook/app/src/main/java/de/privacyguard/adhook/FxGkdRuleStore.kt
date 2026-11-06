@@ -16,7 +16,8 @@ data class FxGkdRule(
     val packageName: String,
     val selector: String,
     val cooldownMillis: Long,
-    val enabled: Boolean
+    val enabled: Boolean,
+    val action: String = "click"
 )
 
 /**
@@ -91,7 +92,8 @@ object FxGkdRuleStore {
                     val selector = item.optString("selector").takeIf { it.isNotBlank() && it.length <= 512 } ?: continue
                     val cooldown = item.optLong("cooldown_ms", DEFAULT_COOLDOWN_MS)
                         .coerceIn(MIN_COOLDOWN_MS, MAX_COOLDOWN_MS)
-                    add(FxGkdRule(id, pkg, selector, cooldown, item.optBoolean("enabled", true)))
+                    val action = item.optString("action", "click").takeIf { it == "click" || it == "long_click" } ?: "click"
+                    add(FxGkdRule(id, pkg, selector, cooldown, item.optBoolean("enabled", true), action))
                 }
             }
         } catch (_: Exception) {
@@ -118,6 +120,7 @@ object FxGkdRuleStore {
                     .put("selector", rule.selector)
                     .put("cooldown_ms", rule.cooldownMillis)
                     .put("enabled", rule.enabled)
+                    .put("action", rule.action)
             )
         }
         return JSONObject()
@@ -182,7 +185,8 @@ object FxGkdRuleStore {
                 packageName = packageName,
                 selector = selector,
                 cooldownMillis = cooldown,
-                enabled = false
+                enabled = false,
+                action = item.optString("action", "click").takeIf { it == "click" || it == "long_click" } ?: "click"
             )
         }
 
@@ -214,7 +218,8 @@ object FxGkdRuleStore {
         context: Context,
         packageName: String,
         selector: String,
-        cooldownMillis: Long = DEFAULT_COOLDOWN_MS
+        cooldownMillis: Long = DEFAULT_COOLDOWN_MS,
+        action: String = "click"
     ): FxGkdRule? {
         val pkg = packageName.trim()
         val expression = selector.trim()
@@ -223,7 +228,7 @@ object FxGkdRuleStore {
             expression.isEmpty() || expression.length > 512
         ) return null
         val compiled = FxGkdSelectorEngine.compile(expression)
-        if (!compiled.isValid) return null
+        if (!compiled.isValid || (action != "click" && action != "long_click")) return null
         val existing = getRules(context)
         if (existing.size >= MAX_RULES) return null
         val rule = FxGkdRule(
@@ -231,7 +236,8 @@ object FxGkdRuleStore {
             packageName = pkg,
             selector = expression,
             cooldownMillis = cooldownMillis.coerceIn(MIN_COOLDOWN_MS, MAX_COOLDOWN_MS),
-            enabled = true
+            enabled = true,
+            action = action
         )
         val next = existing + rule
         return if (writeRules(context, next)) rule else null
@@ -243,16 +249,18 @@ object FxGkdRuleStore {
         context: Context,
         id: String,
         selector: String,
-        cooldownMillis: Long
+        cooldownMillis: Long,
+        action: String = "click"
     ): FxGkdRule? {
         val expression = selector.trim()
         if (expression.isEmpty() || expression.length > 512 ||
             cooldownMillis !in MIN_COOLDOWN_MS..MAX_COOLDOWN_MS ||
-            !FxGkdSelectorEngine.compile(expression).isValid
+            !FxGkdSelectorEngine.compile(expression).isValid ||
+            (action != "click" && action != "long_click")
         ) return null
         val rules = getRules(context)
         val current = rules.firstOrNull { it.id == id } ?: return null
-        val updated = current.copy(selector = expression, cooldownMillis = cooldownMillis)
+        val updated = current.copy(selector = expression, cooldownMillis = cooldownMillis, action = action)
         val next = rules.map { if (it.id == id) updated else it }
         return if (writeRules(context, next)) updated else null
     }
@@ -288,7 +296,8 @@ object FxGkdRuleStore {
                 .put("package", rule.packageName)
                 .put("selector", rule.selector)
                 .put("cooldown_ms", rule.cooldownMillis)
-                .put("enabled", rule.enabled))
+                .put("enabled", rule.enabled)
+                .put("action", rule.action))
         }
         val editor = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit()
