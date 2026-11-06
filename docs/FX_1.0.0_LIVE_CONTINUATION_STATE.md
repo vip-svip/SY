@@ -8114,3 +8114,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - UI 提交：`b9410476758ded2250a73fce0cbf3bb4628b8cbc`，文件 `adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
   - 有备注的白名单/黑名单记录新增“清除备注”入口，二次确认后执行；无备注记录不显示该入口。
 - 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证；本批尚未验收。
+
+
+## 2026-11-07 — AdGuard Home DNS 查询日志保留期限
+
+- 后端提交：`0e302814a1471969b32aafe10816f64e38d34f36`，文件 `scripts/yulong-ad-control.sh`。
+  - 新增 `dns-querylog-retention-get` / `dns-querylog-retention-set`。
+  - 支持 1d、3d、7d、30d 四档；写入独立配置段并复用现有配置锁、备份/回滚及 apply 事务。
+- AdGuard 配置提交：`1bb0b800361d2ab64603b5fe1cf4c041d33e6572`，文件 `fx-module/scripts/adguardhome.sh`。
+  - 生成受管 AdGuard Home 配置时读取保留期限，仅覆盖 querylog.interval；非法/缺省值安全回退到 7d，不改变统计周期、日志启用状态或其他 DNS 配置。
+- UI 提交：`2f41d4cda79f478c3167e9ab1cf0352d30722476`，文件 `adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
+  - Ad → DNS 查询日志卡新增保留期限设置入口；先读取当前值，再选择 1/3/7/30 天并保存。
+- 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证；本批尚未验收。
