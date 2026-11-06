@@ -149,9 +149,10 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         refreshButton = button("刷新", this::load);
         clearButton = button("清理本地查询日志", this::confirmClear);
         Button shareButton = button("分享全部筛选结果", this::shareFilteredResults);
+        Button copyDomainsButton = button("复制筛选域名（去重）", this::copyFilteredDomains);
         card(body, "本机日志说明",
                 "查询日志默认关闭；启用后 AdGuard Home 按本机保留策略保存记录。这里只显示最近 500 条，不显示客户端 IP，也不会上传。",
-                status, refreshButton, clearButton, shareButton);
+                status, refreshButton, clearButton, shareButton, copyDomainsButton);
         cacheFlushButton = button("刷新全部本地 DNS 缓存", () -> confirmCacheFlush("all", "全部本地 DNS"));
         Button aghFlushButton = button("仅刷新 AdGuard Home", () -> confirmCacheFlush("adguardhome", "AdGuard Home"));
         Button unboundFlushButton = button("仅刷新 Unbound", () -> confirmCacheFlush("unbound", "Unbound"));
@@ -460,6 +461,55 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         }
     }
 
+
+    /** Copy unique domains from all locally loaded rows matching every active filter. */
+    private void copyFilteredDomains() {
+        if (data.isEmpty()) {
+            status.setText("当前没有可复制的 DNS 查询记录；请先刷新并确认本地日志已启用。");
+            return;
+        }
+        String query = search == null || search.getText() == null ? ""
+                : search.getText().toString().trim().toLowerCase(Locale.ROOT);
+        List<String> domains = new ArrayList<>();
+        int matchedRows = 0;
+        int duplicateRows = 0;
+        final int maxBytes = 48 * 1024;
+        int bytes = 0;
+        for (Entry item : data) {
+            if (!matchesResultFilter(item) || !matchesTimeFilter(item)
+                    || !matchesTypeFilter(item) || !matchesRcodeFilter(item)
+                    || (!query.isEmpty() && !item.searchable().contains(query))) continue;
+            matchedRows++;
+            if (domains.contains(item.domain)) {
+                duplicateRows++;
+                continue;
+            }
+            int nextBytes = item.domain.getBytes(java.nio.charset.StandardCharsets.UTF_8).length
+                    + (domains.isEmpty() ? 0 : 1);
+            if (bytes + nextBytes > maxBytes) {
+                status.setText("筛选结果域名清单超过 48 KiB，未复制不完整清单；请缩小筛选范围。");
+                return;
+            }
+            domains.add(item.domain);
+            bytes += nextBytes;
+        }
+        if (domains.isEmpty()) {
+            status.setText("当前筛选条件没有可复制的域名。");
+            return;
+        }
+        try {
+            ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+            if (clipboard == null) {
+                status.setText("系统剪贴板不可用，未复制域名。");
+                return;
+            }
+            clipboard.setPrimaryClip(ClipData.newPlainText("FX DNS domains", String.join("\\n", domains)));
+            status.setText("已复制 " + domains.size() + " 个去重域名（匹配 " + matchedRows
+                    + " 条记录，合并 " + duplicateRows + " 条重复域名）。仅使用当前本地筛选结果。");
+        } catch (RuntimeException failure) {
+            status.setText("复制域名失败：" + safe(failure.getMessage()));
+        }
+    }
 
     /** Share all locally loaded rows matching the current query, independent of pagination. */
     private void shareFilteredResults() {
