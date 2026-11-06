@@ -6884,3 +6884,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Root 控制接口新增 unbound-anchor-status 与 unbound-anchor-refresh；两个原生 Ad 页面新增 DNSSEC 根信任锚状态卡片与手动维护入口。正常运行中的 Unbound 继续通过 RFC5011 在线维护，不要求人为停止解析服务。
 - 修改文件：fx-module/scripts/unbound.sh、两份 scripts/yulong-ad-control.sh、两份 FxYulongAdActivity.java。
 - 按用户当前提速要求未运行 Shell/Java 测试、静态检查、构建、CI 或 Android 真机验证；本批仅完成源码移植及双源码同步。
+
+## 2026-11-07 — 全局与备用 DNS 上游扩展为安全 IPv4/IPv6 双栈
+
+- 解除全局 DNS 与备用 DNS 仅 IPv4 的应用层限制；现在均可配置任意多条可路由 IPv4、IPv4:port、IPv6 字面地址及 `[IPv6]:port`。自定义 DNS 原有 IPv4/IPv6/DoH/DoT/DoQ 能力保持不变；VPN 节点 `remote_dns/cn_dns` 仍单独保持 IPv4 格式。
+- Root `valid_ipv4_dns_csv` / `valid_fallback_dns_csv` 统一委托双栈 IP 校验；保留 IPv4 的 unspecified、loopback、link-local、multicast 拒绝规则。IPv6 拒绝 unspecified、loopback、`fe80::/10` link-local 和 `ff00::/8` multicast；保留 ULA/private 地址支持，允许常用内网 DNS 服务。
+- AdGuard Home 的 global upstream renderer 改为 `ip` 模式；fallback 与 global 复用同一套双栈格式/地址校验。最终 YAML runtime validator 同步接受带引号的 IPv6 fallback 项，并在校验前剥离 YAML 标量引号。
+- 正式 Root：`3f045d3b7826e3062917a72d2fd6b2c440d4a21c`；模块 Root：`350cc9f1c506d7aa53e1a6f5de1c20f77ec82be2`。正式 AGH renderer：`adf3f57f5b76aca7d3b36919f5663b02bf557364`、`bda12f4cbf58d0ad117929328f92e760c43e2093`；模块 AGH renderer：`43313869480b9c2ecc2ddc71194f9fd3bbcf7704`、`f1a183fe4a84cce7727ecedf5d3d63b193a0e6ab`。
+- 正式 App 的全局/备用输入提示与 DNS profile 导入双栈地址校验提交：`4f0c9f1e0eb621dd6f3366f2901d1bc561414abe`；模块 App：`f7ea2a080cc9783bf02e7abbe7e3d3c4ed7d2a9b`。
+- 按用户当前要求未运行测试、静态检查、Gradle/APK 构建、CI 或 Android 真机验证。
