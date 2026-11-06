@@ -6758,3 +6758,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 将 `FX_ARB_SELF_UID` 环境变量注入限制为 `FX_ARB_TESTING=1` 的回归夹具；生产运行无条件清空该覆盖值，必须通过 Android 当前用户与包管理器解析 `de.privacyguard.adhook` 的真实 UID。
 - 这避免调用者通过伪造 FX UID，改变活动 VPN 的归属判断并误报为第三方 VPN 或 FX 自身 VPN。
 - 按用户要求，本批未运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-06 — AdGuard Home Android DNS 运行时移植与 Root Proxy 生命周期接通
+
+- 新增 `scripts/adguardhome.sh`（`49d01bda`，后续策略收口 `5898a404`）并同步到模块实际调用路径 `fx-module/scripts/adguardhome.sh`（`44f46a24`，后续策略收口 `a909c7e3`）。提供 `ensure/stop/status/render-config` 生命周期；以 PID marker 和 `/proc/PID/cmdline` 的完整 argv 项识别自有进程，启动/停止不触碰其他 AdGuard 实例。
+- 运行目录为 `$PG/adguardhome`，使用私有权限的配置、work、日志及 PID 文件；配置首次安装采用私有临时文件和原子 rename。运行时二进制必须是模块内普通可执行文件且 SHA-256 与 sidecar 相符。
+- 新增 `fx-module/engines/adguardhome/AdGuardHome.yaml`（`3704c4ff`），承接 FX runtime 配置模板。生命周期脚本限制 HTTP 管理端口绑定 `127.0.0.1:0`，DNS 仅监听 `127.0.0.1:53` 与 `::1:53`，唯一上游必须是本地 Unbound `127.0.0.1:5353`；配置不满足此约束时拒绝启动，避免私自引入公网 DNS 上游或暴露 LAN 监听。
+- 更新 `.github/workflows/build-fx-kernelsu.yml`（`debcceb9`，sidecar 格式修正 `ef5de49e`）：KernelSU 打包阶段从 Android ARM64 构建工作流下载 AdGuard Home v0.107.79 产物，按 SHA-256 sidecar 接入 `fx-module/engines/adguardhome/AdGuardHome`，同步配置模板与 lifecycle script。
+- 更新 `.github/workflows/build-adguardhome-android-arm64.yml`（`3c6328e7`），配置模板变更也会触发 Android ARM64 runtime 重建，供打包流程使用。
+- Root Proxy 原有 `ensure/stop` 调用现已对应实际生命周期脚本；Unbound 仍按既有顺序提供本地递归上游。本批仅完成源码和打包链路接线；没有触发 Actions，也没有执行测试、静态检查、构建、CI 或真机验证，因此不代表 Android 设备上的 AGH 启动与 DNS 回答已验证通过。
