@@ -7107,3 +7107,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - README `b348825c9dc17fda5d106470d8f50d73d2bf7337`；根补丁 README 模板 `8ef6be4c904a567d0ae0b9a4a87e7b3d31ff3c70`；模块补丁 README 模板 `707c8cc33e5b106ddbd8dbd131dbaf0f371cf358`。
 - 固定 FX 1.0.0；按当前要求未运行测试、静态检查、构建、CI 或真机验证。
 \n\n## 2026-11-06 — Stash HTTP 脚本 YAML 迁移与统一分流\n\n- 新增 StashScriptYamlImporter，解析 script-providers 与 http.script，按 provider 名称解析 HTTPS URL，迁移 match/type/require-body/disabled；支持参数元数据进入 `$argument` / `$script.argument`。应用初始 importer：3f91df8f35b84a5335c7819f4f2a99e32aa46c89；模块源码副本同步：d30a6f2311fccfd42289172245e0db985a501cfa；参数映射：应用 129fe5dfb8eebe038e006fd764b27d25586c0955、模块 3b38c97321ffcae4c4531e7a048b0041cfdcaffa。\n- 对 provider 不支持选项采取 fail-closed：自定义 headers/path/payload/未知字段和非默认 interval 不降级成 URL-only 订阅；应用 importer 486bdda2e776cdf5ab93d67cefdec1fa4f340dd0，模块 importer 6e990e06e0db40c9b55c0aaca4da531e52111a5c。非空参数/不支持参数组合处理：应用 d4e5f36e2ea11bef6ba1703205c50281bb05db88、模块 d260a133a0c180163cccfd2f3556b3f3b736062e。\n- Script 页面增加独立 Stash YAML 导入入口；应用 MainActivity 提交 345431a37dc11cce77cdc4f64c97c49951a5eb17、64f2836b374bf0e0f259e3528e63a4c45d7ffd5b；模块 MainActivity 提交 16066ed89bd88bc9024e21aa6a9e887598487c8f、349ba55d23673ba5c1038058faa10a34eb9e472e。\n- 修复通用文件导入的 YAML 路由：不再因为扩展名 `.yaml/.yml` 就默认当作 Egern；按内容区分 Egern `scriptings:` 与 Stash `script-providers:` + `http.script`，先路由到各自解析器。应用 MainActivity 提交 a77a6cf9165aa84498db591d5c00e30b5d832b4f、3b7a2af5c257c9e157153bf7a6dbb0350e252823；模块 MainActivity 提交 39e75b2a099dc0992b00f29c7ba3e5e07355af8b、f4ca5cd6d3fde9092c96615db9299a7f72313821。\n- QuickJS README 新增 Stash HTTP YAML 迁移说明与限制：b348825c9dc17fda5d106470d8f50d73d2bf7337。\n- 固定 FX 1.0.0。按当前要求未运行测试、静态检查、构建、CI 或真机验证。\n
+
+## 2026-11-06 — QuickJS Egern 元数据读取兼容修正
+
+- 修复 `fx-module/scripts/jsruntime/host.js` 中 Egern 脚本名称头读取器的换行正则多重转义问题。名称元数据读取现在与环境变量元数据读取一样按真实 CRLF/LF 行拆分，避免脚本名称头存在时无法正确命中。
+- 源码提交：1366975be3f4033147d2193b0f02828fd8033605。
+- 按当前推进要求，本轮未运行测试、静态检查、构建、CI 或真机验证。
