@@ -305,6 +305,8 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
             buttons.setOrientation(LinearLayout.HORIZONTAL);
             buttons.addView(button("编辑", () -> openEditor(name, source)),
                     new LinearLayout.LayoutParams(0, -2, 1));
+            buttons.addView(button("重命名", () -> renameScript(name)),
+                    new LinearLayout.LayoutParams(0, -2, 1));
             buttons.addView(button("复制为草稿", () -> copyAsDraft(name)),
                     new LinearLayout.LayoutParams(0, -2, 1));
             buttons.addView(button("删除", () -> confirmDelete(name)),
@@ -491,6 +493,47 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
             editingName = null;
             setStatus("无法打开 JavaScript 编辑器：" + detail(error));
         }
+    }
+
+    private void renameScript(String oldName) {
+        if (scripts == null || !scripts.has(oldName)) {
+            setStatus("原脚本已不存在，请刷新脚本库。");
+            return;
+        }
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setHint("新的脚本名称");
+        input.setText(oldName);
+        input.setSelection(input.getText().length());
+        fxDialogBuilder().setTitle("重命名 Frida 脚本")
+                .setMessage("只修改本地脚本库中的名称，源码内容保持不变；不会执行或注入脚本。")
+                .setView(input)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("保存名称", (dialog, which) -> {
+                    String newName = FxDiaScriptLibraryPolicy.normalizeName(
+                            input.getText() == null ? "" : input.getText().toString());
+                    String error = FxDiaScriptLibraryPolicy.validateName(newName);
+                    if (error != null) {
+                        setStatus(error);
+                        return;
+                    }
+                    submitIo(() -> {
+                        try {
+                            FxDiaScriptLibraryStore.rename(this, oldName, newName);
+                            JSONObject loaded = FxDiaScriptLibraryStore.read(this);
+                            runOnUiThread(() -> {
+                                if (isFinishing() || isDestroyed()) return;
+                                scripts = loaded;
+                                currentPage = 0;
+                                renderRows();
+                                setStatus(oldName.equals(newName) ? "名称未变化。"
+                                        : "脚本已重命名为：“" + newName + "”。源码保持不变。");
+                            });
+                        } catch (Throwable error) {
+                            runOnUiThread(() -> setStatus("重命名失败：" + detail(error)));
+                        }
+                    });
+                }).show();
     }
 
     private void copyAsDraft(String sourceName) {
