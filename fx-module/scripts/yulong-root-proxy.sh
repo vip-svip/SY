@@ -155,12 +155,32 @@ _valid_package() {
   printf '%s\n' "$1" | grep -Eq '^[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+$'
 }
 _list_whitelist_packages() {
-  [ -f "$CONF" ] && [ ! -L "$CONF" ] || return 1
+  [ -f "$CONF" ] && [ ! -L "$CONF" ] && [ -r "$CONF" ] || return 1
+  # Treat the whitelist as one atomic policy document. Never silently discard
+  # malformed or duplicate entries: doing so can apply a different UID set
+  # from the one the user sees in the settings UI.
   awk -F'|' '
-    $0=="[list:yulong_root_proxy_whitelist]" {inside=1; next}
-    /^\[/ {inside=0}
-    inside && $1 ~ /^[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+$/ &&
-      ($2=="0" || $2=="1") && $2=="1" {print $1}
+    BEGIN {inside=0; sections=0; count=0; invalid=0}
+    {
+      sub(/\r$/, "")
+      if($0=="[list:yulong_root_proxy_whitelist]") {
+        sections++
+        if(sections>1) invalid=1
+        inside=1
+        next
+      }
+      if(/^\[/) {inside=0; next}
+      if(!inside || $0=="" || $0 ~ /^[ \t]*#/) next
+      if(NF!=2 || $1 !~ /^[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+$/ ||
+          ($2!="0" && $2!="1")) {invalid=1; next}
+      if($1 in seen) {invalid=1; next}
+      seen[$1]=1
+      if($2=="1") enabled[++count]=$1
+    }
+    END {
+      if(sections!=1 || invalid) exit 2
+      for(i=1;i<=count;i++) print enabled[i]
+    }
   ' "$CONF"
 }
 _whitelist_set_value() {
