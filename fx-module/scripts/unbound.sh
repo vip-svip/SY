@@ -224,13 +224,15 @@ _render_config() {
   _ub_serve_expired_reply_ttl=$(_unbound_runtime_value UNBOUND_SERVE_EXPIRED_REPLY_TTL) || return 1
   _ub_serve_expired_client_timeout=$(_unbound_runtime_value UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT) || return 1
   _ub_prefetch=$(_unbound_runtime_value UNBOUND_PREFETCH) || return 1
+  _ub_prefetch_key=$(_unbound_runtime_value UNBOUND_PREFETCH_KEY) || return 1
   _ub_qname_minimisation=$(_unbound_runtime_value UNBOUND_QNAME_MINIMISATION) || return 1
-  case "$_ub_serve_expired:$_ub_prefetch:$_ub_qname_minimisation" in
-    0:0:0|0:0:1|0:1:0|0:1:1|1:0:0|1:0:1|1:1:0|1:1:1) : ;;
+  case "$_ub_serve_expired:$_ub_prefetch:$_ub_prefetch_key:$_ub_qname_minimisation" in
+    0:0:0:0|0:0:0:1|0:0:1:0|0:0:1:1|0:1:0:0|0:1:0:1|0:1:1:0|0:1:1:1|1:0:0:0|1:0:0:1|1:0:1:0|1:0:1:1|1:1:0:0|1:1:0:1|1:1:1:0|1:1:1:1) : ;;
     *) _log 'Unbound runtime boolean setting is invalid'; return 1 ;;
   esac
   case "$_ub_serve_expired" in 1) _ub_serve_expired_yaml=yes ;; 0) _ub_serve_expired_yaml=no ;; esac
   case "$_ub_prefetch" in 1) _ub_prefetch_yaml=yes ;; 0) _ub_prefetch_yaml=no ;; esac
+  case "$_ub_prefetch_key" in 1) _ub_prefetch_key_yaml=yes ;; 0) _ub_prefetch_key_yaml=no ;; esac
   case "$_ub_qname_minimisation" in 1) _ub_qname_minimisation_yaml=yes ;; 0) _ub_qname_minimisation_yaml=no ;; esac
   cat <<EOF_CFG
 server:
@@ -258,7 +260,7 @@ $_egress_config  port: 5353
   hide-version: yes
   aggressive-nsec: yes
   prefetch: $_ub_prefetch_yaml
-  prefetch-key: yes
+  prefetch-key: $_ub_prefetch_key_yaml
   serve-expired: $_ub_serve_expired_yaml
   serve-expired-ttl: $_ub_serve_expired_ttl
   serve-expired-reply-ttl: $_ub_serve_expired_reply_ttl
