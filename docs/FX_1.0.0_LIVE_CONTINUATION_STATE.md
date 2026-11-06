@@ -6970,3 +6970,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 四行触发元数据（阶段、URL 匹配、正文标记、显示名称）可能超过旧 512 字符备注上限；将应用端备注容量和模块原生脚本存储备注上限扩展到 4096 字符，同时在导入入口保持显示名称 512 字符限制。应用提交 `ec6e185832ae1740929cf8464a5441827abf0aec` / `038a6f6bc5143d28bf3c8b8fd294172803634dbc`；模块存储脚本副本提交 `305621b5589d79ac91f1ed68d80ec320e04bafe2`、`f12fdbfe1071a3daa8c55e6703399533c990ddd2`、`b07739e9800c6d83a6324f2b1f1eacf3bbe566f5`。
 - 应用/模块列表读取路径使用 CRLF/LF 行分隔，提交 `01dcb58898700c0d05bbd65489db8d779ec5e19e` 与 `4ec4256f9a77a946c5b36e3bd6b13022ca2ddd39`。
 - 固定 FX 1.0.0。本批按要求未运行测试、静态检查、Gradle/NDK 构建、CI 或 Android 真机验证；Egern YAML 与各客户端导入都仅是声明的兼容子集，不代表全量 API 兼容或设备端已验收。
+
+## 2026-11-06 — Egern response body-required 元数据映射
+
+- Egern `http_response` 的 `body_required: true` 现在保留到 FX 四行触发元数据的正文需求位，并复用现有同步器的 `FX-SCRIPT-REQUIRES-BODY` 标记；这让 MITM 现有文本正文协商路径可处理可编辑响应正文脚本。
+- `env` 和 `binary_body` 仍跳过；`body_required` 若出现在 request 项也跳过，避免把响应正文标记错误地套到请求阶段。去重键增加正文需求位，防止同 URL/阶段/匹配规则下不同正文行为互相覆盖。
+- 应用导入器提交：`7dd437892e3d23716558fbab885f017bfd7f8b7a`；模块导入器提交：`3b8ca649c43b7b97be17b7259d4bfdaed76721aa`；README 边界更新提交：`0af0989a7d709dda8e77e53fddceb6aa4bb65332`。
+- 固定 FX 1.0.0；本轮没有运行测试、静态检查、构建、CI 或真机验证。正文行为仍受现有 MITM 正文类型/大小上限约束，不代表二进制正文或完整 Egern API 已支持。
