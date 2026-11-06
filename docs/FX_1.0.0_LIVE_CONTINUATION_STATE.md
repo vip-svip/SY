@@ -1351,3 +1351,11 @@
 - 两份 yulong-ad-control.sh 新增 unbound-root-hints-refresh；两份 FxYulongAdActivity.java 增加更新按钮、限制说明与更新后状态刷新。
 - 安全边界：本批依赖 HTTPS/TLS 证书链和文件结构校验，不执行 PGP detached-signature 校验；不在 Unbound 运行或 VPN egress 绑定时更新，不修改第三方 VPN、系统 DNS 或用户上游配置。
 - 按用户要求未运行 Shell/Java 测试、静态检查、构建、CI 或 Android 真机验证。
+
+## 2026-11-07 — SafeSearch / YouTube 配置档运行契约
+
+- AdGuard Home `_config_contract()` 检查 `filtering.safe_search` 区段唯一、字段完整且无未知字段；Bing、DuckDuckGo、Ecosia、Google、Pixabay、Yandex 和 YouTube 的布尔值必须与 Root `settings.conf` 中的 ProtectionProfile 状态一致。
+- `safe_search.enabled` 必须等于 SafeSearch 与 YouTube 受限模式的逻辑或；启用状态缺字段、渲染不一致或错误降级时，运行配置契约会拒绝报告 DNS 服务就绪。
+- 历史安装缺少 Profile flag 时按关闭处理；默认 YAML 的关闭状态仍为有效值。
+- 同步 `scripts/adguardhome.sh` 与 `fx-module/scripts/adguardhome.sh`。
+- 按用户要求未运行脚本测试、静态检查、构建、CI 或设备验证；本轮仅完成源码提交。

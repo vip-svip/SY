@@ -875,7 +875,18 @@ _install_config() {
 _config_contract() {
   # The DNS listener/admin interface remain loopback-only. Upstream lists may
   # be the local recursive Unbound listener or a validated FX custom/global list.
-  awk '
+  [ -f "$PG/settings.conf" ] && [ ! -L "$PG/settings.conf" ] && [ -r "$PG/settings.conf" ] || return 1
+  _profile_safe_search=$(awk -F= '$1=="yulong_safe_search_enabled" {count++; value=$2} END {if(count>1 || (count==1 && value!~/^[01]$/)) exit 1; print count==0 ? "0" : value}' "$PG/settings.conf") || return 1
+  _profile_youtube_restricted=$(awk -F= '$1=="yulong_youtube_restricted_mode" {count++; value=$2} END {if(count>1 || (count==1 && value!~/^[01]$/)) exit 1; print count==0 ? "0" : value}' "$PG/settings.conf") || return 1
+  _expected_profile_safe_search=false
+  _expected_profile_youtube=false
+  _expected_profile_safe_search_enabled=false
+  [ "$_profile_safe_search" = 1 ] && _expected_profile_safe_search=true
+  [ "$_profile_youtube_restricted" = 1 ] && _expected_profile_youtube=true
+  if [ "$_profile_safe_search" = 1 ] || [ "$_profile_youtube_restricted" = 1 ]; then
+    _expected_profile_safe_search_enabled=true
+  fi
+  awk -v expected_safe_search="$_expected_profile_safe_search" -v expected_youtube="$_expected_profile_youtube" -v expected_safe_search_enabled="$_expected_profile_safe_search_enabled" '
     function valid_duration(value, n, limit) {
       if (value ~ /^[0-9]+ms$/) {
         n=substr(value,1,length(value)-2); limit=9223372036854
@@ -1083,6 +1094,39 @@ _config_contract() {
     filtering && /^  blocked_response_ttl:/ {
       runtime_blocked_response_ttl=scalar($2); blocked_response_ttl_count++
     }
+    filtering && /^  safe_search:/ {
+      safe_search_sections++; safe_search_block=1; next
+    }
+    filtering && safe_search_block && /^  [A-Za-z_][A-Za-z0-9_-]*:/ {
+      safe_search_block=0
+    }
+    filtering && safe_search_block && /^    enabled:/ {
+      runtime_safe_search_enabled=scalar($2); safe_search_enabled_count++; next
+    }
+    filtering && safe_search_block && /^    bing:/ {
+      runtime_safe_bing=scalar($2); safe_search_bing_count++; next
+    }
+    filtering && safe_search_block && /^    duckduckgo:/ {
+      runtime_safe_duckduckgo=scalar($2); safe_search_duckduckgo_count++; next
+    }
+    filtering && safe_search_block && /^    ecosia:/ {
+      runtime_safe_ecosia=scalar($2); safe_search_ecosia_count++; next
+    }
+    filtering && safe_search_block && /^    google:/ {
+      runtime_safe_google=scalar($2); safe_search_google_count++; next
+    }
+    filtering && safe_search_block && /^    pixabay:/ {
+      runtime_safe_pixabay=scalar($2); safe_search_pixabay_count++; next
+    }
+    filtering && safe_search_block && /^    yandex:/ {
+      runtime_safe_yandex=scalar($2); safe_search_yandex_count++; next
+    }
+    filtering && safe_search_block && /^    youtube:/ {
+      runtime_safe_youtube=scalar($2); safe_search_youtube_count++; next
+    }
+    filtering && safe_search_block && /^[[:space:]]*$/ {next}
+    filtering && safe_search_block && /^[[:space:]]*#/ {next}
+    filtering && safe_search_block {unsafe_safe_search=1; next}
     filtering && $0=="  rewrites: []" {rewrite_sections++; next}
     filtering && $0=="  rewrites:" {rewrite_sections++; rewrite_block=1; next}
     filtering && rewrite_block && /^  [A-Za-z_][A-Za-z0-9_-]*:/ {
@@ -1267,6 +1311,19 @@ _config_contract() {
         (runtime_cache_enabled=="true" || runtime_cache_enabled=="false") &&
         (runtime_cache_optimistic=="true" || runtime_cache_optimistic=="false") &&
         (runtime_dnssec=="true" || runtime_dnssec=="false") &&
+        safe_search_sections==1 && !safe_search_block && !unsafe_safe_search &&
+        safe_search_enabled_count==1 && safe_search_bing_count==1 &&
+        safe_search_duckduckgo_count==1 && safe_search_ecosia_count==1 &&
+        safe_search_google_count==1 && safe_search_pixabay_count==1 &&
+        safe_search_yandex_count==1 && safe_search_youtube_count==1 &&
+        runtime_safe_search_enabled==expected_safe_search_enabled &&
+        runtime_safe_bing==expected_safe_search &&
+        runtime_safe_duckduckgo==expected_safe_search &&
+        runtime_safe_ecosia==expected_safe_search &&
+        runtime_safe_google==expected_safe_search &&
+        runtime_safe_pixabay==expected_safe_search &&
+        runtime_safe_yandex==expected_safe_search &&
+        runtime_safe_youtube==expected_youtube &&
         blocking_mode_count==1 &&
         (runtime_blocking_mode=="nxdomain" || runtime_blocking_mode=="refused" ||
          runtime_blocking_mode=="custom_ip") &&
