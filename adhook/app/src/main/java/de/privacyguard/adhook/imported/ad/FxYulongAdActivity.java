@@ -578,6 +578,23 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
     .setPositiveButton(action,(d,w)->apply("rule-set-many "+(enabled?"1":"0")+" "+encoded,"批量"+action+"过滤列表"))
     .show();
  }
+ private void renameRule(Row rule){
+   EditText name=new EditText(this);
+   name.setSingleLine(true);
+   name.setText(rule.title==null?"":rule.title);
+   name.setSelection(name.length());
+   name.setHint("过滤列表名称");
+   fxDialogBuilder().setTitle("重命名过滤列表")
+     .setMessage(rule.value)
+     .setView(name)
+     .setNegativeButton("取消",null)
+     .setPositiveButton("保存",(d,w)->{
+      String value=name.getText()==null?"":name.getText().toString().trim();
+      if(value.isEmpty()){status.setText("过滤列表名称不能为空。");return;}
+      if(value.length()>256){status.setText("过滤列表名称不能超过 256 个字符。");return;}
+      apply("rule-rename "+q(rule.value)+" "+q(value),"过滤列表重命名");
+     }).show();
+  }
  private void removeFilteredRules(){
    String filter=search==null||search.getText()==null?"":search.getText().toString().trim().toLowerCase(Locale.ROOT);
    java.util.LinkedHashSet<String> sources=new java.util.LinkedHashSet<>();
@@ -1278,7 +1295,7 @@ private void saveVpnDns(String key,EditText input){
      TextView ruleSource=txt(e.value,10,0xff718091,false);ruleSource.setTag("fx-list-subtitle");r.addView(ruleSource);
      Switch sw=new Switch(this);sw.setTag("fx-switch-row");sw.setText("启用此列表");sw.setChecked(e.enabled);
      sw.setOnCheckedChangeListener((b,on)->apply("rule-set "+q(e.value)+" "+(on?"1":"0"),"规则状态"));r.addView(sw);
-     r.addView(btn("删除",()->fxDialogBuilder().setTitle("删除过滤列表").setMessage(e.value).setNegativeButton("取消",null).setPositiveButton("删除",(d,w)->apply("rule-remove "+q(e.value),"规则删除")).show()));entries.addView(r);
+     r.addView(btn("重命名",()->renameRule(e)));r.addView(btn("删除",()->fxDialogBuilder().setTitle("删除过滤列表").setMessage(e.value).setNegativeButton("取消",null).setPositiveButton("删除",(d,w)->apply("rule-remove "+q(e.value),"规则删除")).show()));entries.addView(r);
     }
    }
    else if("DNS 设置".equals(page)||"VPN 与 Root Proxy".equals(page)){syncing=true;for(int i=0;i<body.getChildCount();i++)if(body.getChildAt(i) instanceof LinearLayout){LinearLayout p=(LinearLayout)body.getChildAt(i);for(int j=0;j<p.getChildCount();j++)if(p.getChildAt(j) instanceof Switch){Switch sw=(Switch)p.getChildAt(j);if(sw.getTag() instanceof String){sw.setChecked(dnsValue((String)sw.getTag()).equals("1"));sw.setEnabled(true);}}}syncing=false;}
