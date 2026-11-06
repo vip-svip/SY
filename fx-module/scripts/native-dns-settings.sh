@@ -167,15 +167,24 @@ status() {
   _unbound_enabled=$(read_flag dns_forward)
   _configured=0
   _ready=0
+  _readiness_reason=disabled
   if [ "$_agh_enabled" = 1 ] || [ "$_unbound_enabled" = 1 ]; then
     _configured=1
     _ready=1
-    if [ "$_unbound_enabled" = 1 ]; then
-      [ "$_unbound" = ready ] || _ready=0
+    if [ "$_unbound_enabled" = 1 ] && [ "$_unbound" != ready ]; then
+      _ready=0
+      _readiness_reason="unbound_$_unbound"
     fi
     if [ "$_agh_enabled" = 1 ]; then
-      [ "$_unbound_enabled" = 1 ] && [ "$_agh" = ready ] || _ready=0
+      if [ "$_unbound_enabled" != 1 ]; then
+        _ready=0
+        _readiness_reason=unbound_disabled
+      elif [ "$_agh" != ready ]; then
+        _ready=0
+        _readiness_reason="adguardhome_$_agh"
+      fi
     fi
+    [ "$_ready" = 1 ] && _readiness_reason=ready
   fi
   echo FXDNS1
   printf 'dns_engine_adguardhome|%s\n' "$(read_flag dns_engine_adguardhome)"
@@ -203,6 +212,7 @@ status() {
   printf 'vpn_route_probe|%s\n' "$_coexistence_route_probe"
   printf 'dns_stack_enabled|%s\n' "$_configured"
   printf 'dns_stack_ready|%s\n' "$_ready"
+  printf 'dns_stack_readiness_reason|%s\n' "$_readiness_reason"
 }
 mutate() {
   _key=$1
