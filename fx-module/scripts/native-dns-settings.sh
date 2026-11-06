@@ -105,7 +105,50 @@ mutate() {
   declared_flag "$_key" || { echo "DNS setting is not declared by FX defaults" >&2; return 2; }
   _backup=$(umask 077; mktemp "$CONF.native-dns-rollback.XXXXXX") || return 1
   cp -p "$CONF" "$_backup" || { rm -f "$_backup"; return 1; }
-  pg_set "$_key" "$_value" || { rm -f "$_backup"; return 1; }
+  _set_rc=0
+  case "$_key:$_value" in
+    dns_engine_adguardhome:1)
+      # AdGuard's only upstream is local Unbound; enabling the filter must
+      # activate its recursive resolver in the same config transaction.
+      pg_set dns_forward 1 || _set_rc=$?
+      [ "$_set_rc" -ne 0 ] || pg_set dns_engine_adguardhome 1 || _set_rc=$?
+      ;;
+    dns_forward:0)
+      # Do not leave an enabled filter pointing at a resolver that is disabled.
+      pg_set dns_engine_adguardhome 0 || _set_rc=$?
+      [ "$_set_rc" -ne 0 ] || pg_set vpn_external_dns_proxy 0 || _set_rc=$?
+      [ "$_set_rc" -ne 0 ] || pg_set dns_forward 0 || _set_rc=$?
+      ;;
+    vpn_external_compat:0)
+      # Root Proxy is a third-party-VPN fallback and cannot remain armed when
+      # compatibility mode has been disabled.
+      pg_set vpn_external_dns_proxy 0 || _set_rc=$?
+      [ "$_set_rc" -ne 0 ] || pg_set vpn_external_compat 0 || _set_rc=$?
+      ;;
+    vpn_external_dns_proxy:1)
+      # Root Proxy requires both the explicit compatibility path and local
+      # recursive DNS; make those dependencies part of the same transaction.
+      pg_set dns_forward 1 || _set_rc=$?
+      [ "$_set_rc" -ne 0 ] || pg_set vpn_external_compat 1 || _set_rc=$?
+      [ "$_set_rc" -ne 0 ] || pg_set vpn_external_dns_proxy 1 || _set_rc=$?
+      ;;
+    *)
+      pg_set "$_key" "$_value" || _set_rc=$?
+      ;;
+  esac
+  if [ "$_set_rc" -ne 0 ]; then
+    _restore=$(umask 077; mktemp "$CONF.native-dns-restore.XXXXXX") || {
+      echo "DNS setting mutation failed; backup retained at $_backup" >&2
+      return 11
+    }
+    if ! cp -p "$_backup" "$_restore" || ! chmod 600 "$_restore" || ! mv -f "$_restore" "$CONF"; then
+      rm -f "$_restore" 2>/dev/null || :
+      echo "DNS setting mutation and rollback failed; backup retained at $_backup" >&2
+      return 11
+    fi
+    rm -f "$_backup"
+    return "$_set_rc"
+  fi
   if sh "$MP/scripts/apply.sh" full; then
     rm -f "$_backup"
     printf 'saved=1 applied=1 key=%s value=%s\n' "$_key" "$_value"
