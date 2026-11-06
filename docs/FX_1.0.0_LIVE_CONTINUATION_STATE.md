@@ -254,3 +254,12 @@
 - DNS 运行状态页新增显示 AdGuard Home/Unbound 与第三方 VPN 兼容开关、Root Proxy 原因及清理状态、VPN 接口/UID/出口 IPv4、启动时间、DNS 重定向、DNS/路由探测、Android 私有 DNS 模式和 Root Proxy 白名单数量。
 - 字段直接来自原生 DNS 状态命令的既有键值，不新增网络操作或更改 DNS/VPN 配置行为。
 - 按用户要求未运行测试、静态检查、构建、CI 或设备验证。
+
+
+### FX DNS 运行状态响应结构完整性校验（2026-11-07）
+
+- 代码提交：`cf611ced1d65f47894d24f38f088d903f47541e6`。
+- 文件：`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
+- DNS 运行状态页现在要求响应头为 `FXDNS1`，并校验完整的已知字段集合；缺少字段、未知字段、重复字段、空值记录或格式错误均拒绝渲染部分状态，改为显示明确错误。
+- 避免脚本输出截断或格式异常时，界面把部分状态误显示为完整运行状态；不改变服务或路由。
+- 按用户要求未运行测试、静态检查、构建、CI 或设备验证。
