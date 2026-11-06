@@ -1240,7 +1240,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
 private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTtl,
       EditText msgCacheSize,EditText rrsetCacheSize,EditText keyCacheSize,EditText negCacheSize,
       Switch serveExpired,EditText serveExpiredTtl,EditText serveExpiredReplyTtl,
-      EditText serveExpiredClientTimeout,Switch prefetch,Switch prefetchKey,Switch qnameMinimisation,EditText numThreads,TextView state){
+      EditText serveExpiredClientTimeout,Switch serveExpiredTtlReset,Switch prefetch,Switch prefetchKey,Switch qnameMinimisation,EditText numThreads,TextView state){
   root("unbound-runtime-get",result->{
     if(result.exitCode!=0){state.setText("读取 Unbound 递归缓存参数失败："+safe(result.output));return;}
     String raw=result.output==null?"":result.output;
@@ -1260,7 +1260,7 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
     String[] required={"UNBOUND_CACHE_MAX_TTL","UNBOUND_CACHE_MIN_TTL",
         "UNBOUND_SERVE_EXPIRED","UNBOUND_SERVE_EXPIRED_TTL",
         "UNBOUND_SERVE_EXPIRED_REPLY_TTL","UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT",
-        "UNBOUND_PREFETCH","UNBOUND_PREFETCH_KEY","UNBOUND_QNAME_MINIMISATION",
+        "UNBOUND_SERVE_EXPIRED_TTL_RESET","UNBOUND_PREFETCH","UNBOUND_PREFETCH_KEY","UNBOUND_QNAME_MINIMISATION",
         "UNBOUND_MSG_CACHE_SIZE","UNBOUND_RRSET_CACHE_SIZE","UNBOUND_KEY_CACHE_SIZE","UNBOUND_NEG_CACHE_SIZE","UNBOUND_NUM_THREADS","UNBOUND_THREADS_MAX"};
     for(String key:required)if(!values.containsKey(key)){
       state.setText("Unbound 参数响应缺少字段："+key+"。");return;
@@ -1274,7 +1274,7 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
         ||!isValidDnsRuntimeUint32(values.get("UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT"),true)){
       state.setText("Unbound 缓存 TTL 或 serve-expired 时长超出有效范围。");return;
     }
-    for(String key:new String[]{"UNBOUND_SERVE_EXPIRED","UNBOUND_PREFETCH","UNBOUND_PREFETCH_KEY","UNBOUND_QNAME_MINIMISATION"})
+    for(String key:new String[]{"UNBOUND_SERVE_EXPIRED","UNBOUND_SERVE_EXPIRED_TTL_RESET","UNBOUND_PREFETCH","UNBOUND_PREFETCH_KEY","UNBOUND_QNAME_MINIMISATION"})
       if(!"0".equals(values.get(key))&&!"1".equals(values.get(key))){
         state.setText("Unbound 开关值无效："+key+"。");return;
       }
@@ -1291,6 +1291,7 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
     cacheMaxTtl.setText(values.get("UNBOUND_CACHE_MAX_TTL"));
     cacheMinTtl.setText(values.get("UNBOUND_CACHE_MIN_TTL"));
     serveExpired.setChecked("1".equals(values.get("UNBOUND_SERVE_EXPIRED")));
+    serveExpiredTtlReset.setChecked("1".equals(values.get("UNBOUND_SERVE_EXPIRED_TTL_RESET")));
     serveExpiredTtl.setText(values.get("UNBOUND_SERVE_EXPIRED_TTL"));
     serveExpiredReplyTtl.setText(values.get("UNBOUND_SERVE_EXPIRED_REPLY_TTL"));
     serveExpiredClientTimeout.setText(values.get("UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT"));
@@ -1489,6 +1490,8 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
   unboundNumThreads.setHint("正整数，不得超过当前在线 CPU 核心数");
   Switch unboundServeExpired=new Switch(this);
   unboundServeExpired.setText("上游故障时提供过期缓存答案");
+  Switch unboundServeExpiredTtlReset=new Switch(this);
+  unboundServeExpiredTtlReset.setText("上游刷新失败后重置过期缓存年龄");
   EditText unboundServeExpiredTtl=draftField("unbound_serve_expired_ttl");
   unboundServeExpiredTtl.setSingleLine(true);
   unboundServeExpiredTtl.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
@@ -1517,7 +1520,7 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
        txt("DNSSEC Key 缓存池",12,0xff617080,true),unboundKeyCacheSize,
        txt("否定响应缓存池",12,0xff617080,true),unboundNegCacheSize,
        txt("Unbound worker 线程数（在线 CPU 核心内）",12,0xff617080,true),unboundNumThreads,
-       unboundServeExpired,
+       unboundServeExpired,unboundServeExpiredTtlReset,
        txt("过期缓存最大年龄（秒）",12,0xff617080,true),unboundServeExpiredTtl,
        txt("过期答案返回 TTL（秒）",12,0xff617080,true),unboundServeExpiredReplyTtl,
        txt("serve-expired 客户端等待时间（毫秒）",12,0xff617080,true),unboundServeExpiredClientTimeout,
@@ -1549,7 +1552,8 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
          }
          String command="unbound-runtime-set "+q(maxTtl)+" "+q(minTtl)+" "
              +(unboundServeExpired.isChecked()?"1":"0")+" "+q(expiredTtl)+" "+q(replyTtl)+" "
-             +q(clientTimeout)+" "+(unboundPrefetch.isChecked()?"1":"0")+" "
+             +q(clientTimeout)+" "+(unboundServeExpiredTtlReset.isChecked()?"1":"0")+" "
+             +(unboundPrefetch.isChecked()?"1":"0")+" "
              +(unboundPrefetchKey.isChecked()?"1":"0")+" "
              +(unboundQnameMinimisation.isChecked()?"1":"0")+" "
              +q(msgCache)+" "+q(rrsetCache)+" "+q(keyCache)+" "+q(negCache)+" "+q(numThreads);
@@ -1562,7 +1566,7 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
   loadUnboundRuntimeControls(unboundCacheMaxTtl,unboundCacheMinTtl,
       unboundMsgCacheSize,unboundRrsetCacheSize,unboundKeyCacheSize,unboundNegCacheSize,
       unboundServeExpired,unboundServeExpiredTtl,unboundServeExpiredReplyTtl,unboundServeExpiredClientTimeout,
-      unboundPrefetch,unboundPrefetchKey,unboundQnameMinimisation,unboundNumThreads,unboundRuntimeState);
+      unboundServeExpiredTtlReset,unboundPrefetch,unboundPrefetchKey,unboundQnameMinimisation,unboundNumThreads,unboundRuntimeState);
 
     TextView anchorState=txt("DNSSEC 根信任锚状态尚未读取。",12,0xff617080,false);
     card("DNSSEC 根信任锚维护",
