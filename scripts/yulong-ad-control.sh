@@ -896,11 +896,20 @@ schedule_get() {
   return 35
 }
 cache_flush() {
+  target=${1:-all}
+  case "$target" in all|adguardhome|unbound) ;; *) echo "cache target must be all, adguardhome, or unbound" >&2; return 2 ;; esac
   lock="$PG/yulong-cache-flush.lock"
   if ! mkdir "$lock" 2>/dev/null; then echo "DNS cache refresh is already running" >&2; return 30; fi
   _yad_cache_lock=$lock
   agh_enabled=$(pg_get dns_engine_adguardhome 1 2>/dev/null)
   forward_enabled=$(pg_get dns_forward 1 2>/dev/null)
+  if [ "$target" = adguardhome ]; then
+    [ "$agh_enabled" = 1 ] || { echo "AdGuard Home is not enabled in FX; no cache was changed" >&2; return 33; }
+    forward_enabled=0
+  elif [ "$target" = unbound ]; then
+    [ "$forward_enabled" = 1 ] || { echo "Unbound is not enabled in FX; no cache was changed" >&2; return 33; }
+    agh_enabled=0
+  fi
   if [ "$agh_enabled" != 1 ] && [ "$forward_enabled" != 1 ]; then
     echo "dns-engine-disabled"
     return 0
@@ -914,8 +923,7 @@ cache_flush() {
     return 32
   fi
   a_stop_rc=0; u_stop_rc=0; u_rc=0; a_rc=0; apply_rc=0
-  # Restart only the resolver engines that are actually enabled in FX config.
-  # Failed stops, ensures or route re-apply must never emit the success marker.
+  # Restart only the selected FX-owned resolver engines; never touch third-party VPNs.
   if [ "$agh_enabled" = 1 ]; then
     sh "$MP/scripts/adguardhome.sh" stop "$MP" "$PG" || a_stop_rc=$?
   fi
@@ -936,7 +944,7 @@ cache_flush() {
       echo "cache refresh incomplete; FX DNS routing was reconciled on a best-effort basis" >&2
       return 31
     }
-  echo "cache=flushed"
+  echo "cache=flushed target=$target"
 }
 cmd="${1:-list}"
 case "$cmd" in
