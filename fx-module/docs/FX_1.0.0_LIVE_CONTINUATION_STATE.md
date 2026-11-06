@@ -6718,3 +6718,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 两份原生 Ad 页面更新 DNS 快照说明，明确纳入查询日志保留期限、多上游策略与超时、缓存配置和 DNSSEC，并说明兼容旧版快照时使用默认值。
 - 源码提交：状态字段 `04c8136d8a46e6b5701e96a7744bb55b8e7540ae`；AdGuard canonical 合同 `1b33dbed2acdadf051e2521f246b55291b39ca1c`；AdGuard module 合同 `ebd1017fc38893b8ab64f2807b738cf517470369`；canonical UI 快照说明 `67a038de304dbee82f89aa4d30492a63abc52ed6`；module UI 快照说明 `57f1268d12084700256fe109c29bbe28a45ac922`。
 - 按用户要求，未运行测试、Shell/Java 静态检查、构建、CI 或 Android 真机验证。以上完成项仅依据源码读取与写入结果，不代表运行时验收。
+
+## 2026-11-07 — DNS 正式源与模块源一致性修复
+
+- 将模块 Root 脚本已有的 DNS 清空保护补回 canonical `scripts/yulong-ad-control.sh`：清空 custom/global 上游列表时同步关闭对应启用开关，避免保留“已启用但主列表为空”的无效配置；清除 fallback 列表仍不修改主上游开关。
+- 将 DNS 快照恢复前置检查补回 canonical Root 脚本和 canonical 原生 Ad 页面：若快照启用了 custom/global DNS，却未提供相应服务器列表，则在修改配置前拒绝恢复。
+- 本批提交：canonical Root `c0c7b60746dc585211275fc073baf667911d6e1e`；canonical Ad 页面 `c2daee43e0f1e9dfec9ed0c1f15b03dd3e7e3574`。
+- 上述两项与 fx-module 中已有实现对齐，目的是确保构建打包源码与模块实际执行源码行为一致。
+- 按当前要求未运行测试、静态检查、构建、CI 或真机验证；当前仅做 GitHub 源码读取、差异定位及写入。
