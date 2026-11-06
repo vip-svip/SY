@@ -1975,7 +1975,13 @@ public final class MainActivity extends ComponentActivity {
                         + " · 已发布目标：" + json.optInt("hook_native_targets", 0)
                         + "\n隐私目标：" + json.optInt("hook_native_privacy_targets", 0)
                         + " · Wi-Fi 扫描目标：" + json.optInt("hook_native_wifi_scan_targets", 0)
-                        + " · 通知目标：" + json.optInt("hook_native_notification_listen_targets", 0));
+                        + " · 剪贴板隔离目标：" + json.optInt("hook_native_clipboard_isolate_targets", 0)
+                        + " · 通知监听目标：" + json.optInt("hook_native_notification_listen_targets", 0)
+                        + "\n通知权限提示隐藏：" + (json.optBoolean("hook_native_notification_permission_hide_enabled", false) ? "已启用" : "未启用")
+                        + " · 通知监听策略：" + (json.optBoolean("hook_native_notification_listen_enabled", false) ? "已启用" : "未启用")
+                        + "\n会员状态只读诊断目标：" + json.optInt("hook_native_member_diag_targets", 0)
+                        + " · 目标配置用户数：" + json.optInt("hook_native_config_users", 0)
+                        + " · 远程配置：" + (json.optBoolean("hook_native_config_found", false) ? "已发布" : "未发布"));
             } catch (Exception error) {
                 target.setText("隐私状态读取失败：" + error.getMessage());
             }
