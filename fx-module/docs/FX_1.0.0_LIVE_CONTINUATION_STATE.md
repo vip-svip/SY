@@ -6726,3 +6726,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 本批提交：canonical Root `c0c7b60746dc585211275fc073baf667911d6e1e`；canonical Ad 页面 `c2daee43e0f1e9dfec9ed0c1f15b03dd3e7e3574`。
 - 上述两项与 fx-module 中已有实现对齐，目的是确保构建打包源码与模块实际执行源码行为一致。
 - 按当前要求未运行测试、静态检查、构建、CI 或真机验证；当前仅做 GitHub 源码读取、差异定位及写入。
+
+## 2026-11-07 — DNS 运行时解析、恢复守护与状态误报修复
+
+- 原生 AdGuard Home 参数已支持自定义正整数时长（ms/s/m/h），本轮修复两个 APK 源码副本中 `dns-runtime-get` 响应按行拆分时多转义一层的问题，使 7 个运行参数可被正确读取；保留输入值的正整数、单位和平台数值范围校验。
+- 本地 DNS recovery watchdog 已加入模块源与构建源，开机 apply 完成后启动；每 30 秒检查并仅恢复 FX 自有 Unbound/AdGuard Home，不修改第三方 VPN、Android 私有 DNS 或系统路由。卸载流程在 Root Proxy/防火墙清理前协作停止 watchdog，PID/脚本符号链接或身份不能确认时 fail-closed。
+- Native DNS 状态响应接入 watchdog 状态字段，两个 APK 页面均显示本地自动恢复守护状态。
+- 修复 watchdog 状态误报：PID 存活但进程归属无法确认时返回 `identity_unknown`，畸形 PID 返回 `invalid`，危险路径返回 `unsafe`；状态适配器不再把所有非零退出都映射成 `stopped`。
+- 代码提交：watchdog 状态误报修复 `27773d276ea25bc45acd2777d2bae3750594f25f`、`66d49e953fc4feedea76aea591cb4929bc729ccd`；Root 状态分类 `70e0f8af4da750b008f536b9393730f7056bc249`、`2815fc5d71c50766dc6a6f9b190eaff1013d58cd`；DNS runtime 输出拆分修复 `3e416479f0c8e6945c99c82cf95e43bac6d8ad5d`、`d5286e009e46861b9f08b19bab34f457786619f2`。
+- 按用户要求，本轮未运行 shell/Python/Java 测试、静态检查、构建、CI 或设备验证；这些是源码变更记录，不代表设备验收。
