@@ -253,17 +253,43 @@ scheduler_loop() {
     case "$now" in ''|*[!0-9]*) now=0 ;; esac
     stamp="$STATE_DIR/sub-last"
     prev=0
-    [ -f "$stamp" ] && prev=$(cat "$stamp" 2>/dev/null)
-    case "$prev" in ''|*[!0-9]*) prev=0 ;; esac
+    if [ -L "$stamp" ]; then
+      echo "[$(date '+%F %T')] refusing symlinked subscription timestamp" >> "$STATE_DIR/scheduler.log"
+      return 1
+    elif [ -e "$stamp" ]; then
+      [ -f "$stamp" ] && [ -r "$stamp" ] || return 1
+      _stamp_value=$(cat "$stamp" 2>/dev/null) || return 1
+      case "$_stamp_value" in ''|*[!0-9]*)
+        echo "[$(date '+%F %T')] refusing malformed subscription timestamp" >> "$STATE_DIR/scheduler.log"
+        return 1
+        ;;
+      esac
+      case "$_stamp_value" in *'
+'*) return 1 ;; esac
+      prev=$_stamp_value
+    fi
 
     if [ $((now-prev)) -ge $((interval*3600)) ]; then
       if awk '/^\[list:script\]/{s=1;next} /^\[/{s=0} s && /^https:\/\/[^|]+\|[^|]*\|1([[:space:]]*)?$/{found=1} END{exit !found}' "$PG/settings.conf" 2>/dev/null; then
         sh "$MODDIR/scripts/jsruntime/sync-subs.sh" >> "$STATE_DIR/scheduler.log" 2>&1
         rc=$?
         if [ "$rc" -eq 0 ]; then
-          _stamp_tmp=$(mktemp "$stamp.tmp.XXXXXX") || _stamp_tmp=
-          if [ -n "$_stamp_tmp" ]; then
-            printf '%s\n' "$now" > "$_stamp_tmp" && chmod 600 "$_stamp_tmp" && mv -f "$_stamp_tmp" "$stamp" || rm -f "$_stamp_tmp"
+          if [ -L "$stamp" ] || { [ -e "$stamp" ] && [ ! -f "$stamp" ]; }; then
+            echo "[$(date '+%F %T')] refusing unsafe subscription timestamp target" >> "$STATE_DIR/scheduler.log"
+          else
+            _stamp_tmp=$(mktemp "$STATE_DIR/.sub-last.XXXXXX") || _stamp_tmp=
+            if [ -n "$_stamp_tmp" ]; then
+              if (umask 077; printf '%s\n' "$now" > "$_stamp_tmp" && chmod 600 "$_stamp_tmp") &&
+                 [ -f "$_stamp_tmp" ] && [ ! -L "$_stamp_tmp" ] &&
+                 mv -f "$_stamp_tmp" "$stamp"; then
+                :
+              else
+                rm -f "$_stamp_tmp" 2>/dev/null || :
+                echo "[$(date '+%F %T')] could not safely publish subscription timestamp" >> "$STATE_DIR/scheduler.log"
+              fi
+            else
+              echo "[$(date '+%F %T')] could not stage subscription timestamp" >> "$STATE_DIR/scheduler.log"
+            fi
           fi
         else
           echo "[$(date '+%F %T')] refresh failed rc=$rc; retry next hour" >> "$STATE_DIR/scheduler.log"
@@ -288,6 +314,10 @@ case "$cmd" in
     done
     mkdir -p "$STATE_DIR" 2>/dev/null || exit 1
     [ -d "$STATE_DIR" ] && [ ! -L "$STATE_DIR" ] || exit 22
+    for _state_file in "$STATE_DIR/sub-last" "$STATE_DIR/scheduler.log"; do
+      [ ! -L "$_state_file" ] || { echo "unsafe QuickJS scheduler state file: $_state_file" >&2; exit 22; }
+      [ ! -e "$_state_file" ] || [ -f "$_state_file" ] || { echo "unexpected QuickJS scheduler state object: $_state_file" >&2; exit 22; }
+    done
     _acquire_rc=0
     acquire_owner || _acquire_rc=$?
     [ "$_acquire_rc" -eq 10 ] && exit 0
