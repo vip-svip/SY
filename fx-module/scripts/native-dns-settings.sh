@@ -92,6 +92,7 @@ status() {
   _root_activated_at=unknown
   _root_redirects=unknown
   _root_dns_probe=unavailable
+  _root_route=unknown
   if [ -f "$CONF" ] && [ ! -L "$CONF" ] && [ -r "$CONF" ]; then
     _filter_counts=$(awk -F'|' '
       function valid_url(u, i, ch, allowed) {
@@ -143,6 +144,8 @@ status() {
       case "$_redirects" in attached|detached) _root_redirects=$_redirects ;; esac
       _probe=$(printf '%s\n' "$_root_output" | sed -n 's/^dns_probe=//p' | head -1)
       case "$_probe" in passed|failed|unavailable) _root_dns_probe=$_probe ;; esac
+      _route=$(printf '%s\n' "$_root_output" | sed -n 's/^route=//p' | head -1)
+      case "$_route" in verified|unavailable|not_applicable) _root_route=$_route ;; esac
 
       _mode=$(printf '%s\n' "$_root_output" | sed -n 's/^private_dns_mode=//p' | head -1)
       case "$_mode" in off|opportunistic|hostname) _private_dns_mode=$_mode ;; esac
@@ -187,6 +190,7 @@ status() {
   printf 'rootproxy_activated_at|%s\n' "$_root_activated_at"
   printf 'rootproxy_redirects|%s\n' "$_root_redirects"
   printf 'rootproxy_dns_probe|%s\n' "$_root_dns_probe"
+  printf 'rootproxy_route|%s\n' "$_root_route"
   printf 'rootproxy_whitelist_count|%s\n' "$_whitelist_count"
   printf 'dns_filter_sources_total|%s\n' "$_filter_total"
   printf 'dns_filter_sources_enabled|%s\n' "$_filter_enabled"
