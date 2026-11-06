@@ -7560,3 +7560,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动文件：`adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaMonitorEventsActivity.java`。
 - 监控事件详情弹窗新增“复制事件”，仅复制解析器输出的当前单条白名单元数据；剪贴板不可用时明确提示，不影响事件列表和原始日志。
 - 本批未运行测试、静态检查、Gradle 构建、CI、安装或真机验证。
+
+
+## 2026-11-06 — Dia Frida/Gadget 会话日志筛选导出
+
+- 代码提交：`0808a859380d1ffd743d18b2304f7d215dbb6224`。
+- 改动文件：`adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaSessionLogActivity.java`。
+- 会话日志页新增“导出筛选结果”，通过系统文档创建器保存 UTF-8 文本；导出范围与当前搜索筛选一致，文件名区分 Frida 与 Gadget 目标。
+- 导出内容限制为当前页面已读取的最近 500 行，并设 512 KiB 上限；重新选择文件返回后重新应用当前筛选，空结果不创建内容，写入失败会提示。
+- 本批未运行测试、静态检查、Gradle 构建、CI、安装或真机验证。
