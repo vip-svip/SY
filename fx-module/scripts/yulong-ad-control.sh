@@ -73,8 +73,6 @@ valid_source() {
 }
 valid_text() {
  [ -n "$1" ] || return 1
- n=$(printf '%s' "$1" | wc -c | tr -d ' ')
- [ "$n" -le 180 ] || return 1
  case "$1" in *'|'*|*'
 '*) return 1 ;; esac
 }

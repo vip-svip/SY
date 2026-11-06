@@ -23,7 +23,6 @@ public final class FxDiaCrashStore implements Thread.UncaughtExceptionHandler {
     private static final String PREFS = "fx_dia_crash";
     private static final String FILE_NAME = "crash.log";
     private static final int SCHEMA_VERSION = 1;
-    private static final int MAX_JSON_BYTES = 512 * 1024;
     private static final AtomicBoolean HANDLING = new AtomicBoolean(false);
     private static final AtomicBoolean NATIVE_HANDLING = new AtomicBoolean(false);
     /** Serializes AtomicFile reads, Java/Breakpad writes, pending flags and user clear. */
@@ -122,7 +121,6 @@ public final class FxDiaCrashStore implements Thread.UncaughtExceptionHandler {
             int count;
             while ((count = input.read(buffer)) != -1) {
                 total += count;
-                if (total > MAX_JSON_BYTES) return null;
                 output.write(buffer, 0, count);
             }
             JSONObject json = new JSONObject(new String(output.toByteArray(), StandardCharsets.UTF_8));
@@ -293,7 +291,6 @@ public final class FxDiaCrashStore implements Thread.UncaughtExceptionHandler {
         try {
             output = file.startWrite();
             byte[] bytes = json.toString().getBytes(StandardCharsets.UTF_8);
-            if (bytes.length > MAX_JSON_BYTES) throw new IOException("Crash report exceeds size limit");
             output.write(bytes);
             output.flush();
             output.getFD().sync();

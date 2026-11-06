@@ -15,15 +15,12 @@ import java.util.regex.Pattern;
  * stack traces, filesystem paths and custom script messages are never returned.
  */
 public final class FxDiaMonitorEventParser {
-    public static final int MAX_LOG_CHARS = 256 * 1024;
-    public static final int MAX_EVENTS = 300;
-    private static final int MAX_LINE_CHARS = 2048;
-    private static final Pattern TAG = Pattern.compile("\\[DIA_([A-Z0-9_]{1,24})\\]");
-    private static final Pattern FIELD = Pattern.compile("([A-Za-z][A-Za-z0-9]*)=([^\\s]{1,192})");
-    private static final Pattern SAFE_VALUE = Pattern.compile("[A-Za-z0-9_.$:/+@%\\-]{1,160}");
+    private static final Pattern TAG = Pattern.compile("\\[DIA_([A-Z0-9_]+)\\]");
+    private static final Pattern FIELD = Pattern.compile("([A-Za-z][A-Za-z0-9]*)=([^\\s]+)");
+    private static final Pattern SAFE_VALUE = Pattern.compile("[A-Za-z0-9_.$:/+@%\\-]+");
     private static final Pattern HOST_LABEL = Pattern.compile("(?i)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?");
-    private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z0-9_.$-]{1,160}");
-    private static final Pattern COMPONENT = Pattern.compile("[A-Za-z0-9_.$/-]{1,160}");
+    private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z0-9_.$-]+");
+    private static final Pattern COMPONENT = Pattern.compile("[A-Za-z0-9_.$/-]+");
     private static final Pattern PACKAGE_NAME = Pattern.compile("[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+");
     private static final Pattern NUMBER = Pattern.compile("-?[0-9]{1,12}");
 
@@ -97,12 +94,11 @@ public final class FxDiaMonitorEventParser {
 
     public static List<Event> parse(String log) {
         if (log == null || log.isEmpty()) return Collections.emptyList();
-        String bounded = log.length() > MAX_LOG_CHARS
-                ? log.substring(log.length() - MAX_LOG_CHARS) : log;
+        String bounded = log;
         ArrayList<Event> events = new ArrayList<>();
         String[] lines = bounded.split("\\r?\\n");
         for (String rawLine : lines) {
-            if (rawLine == null || rawLine.length() > MAX_LINE_CHARS) continue;
+            if (rawLine == null) continue;
             Matcher tagMatcher = TAG.matcher(rawLine);
             if (!tagMatcher.find()) continue;
             String tag = tagMatcher.group(1);
@@ -117,9 +113,7 @@ public final class FxDiaMonitorEventParser {
                 String value = fieldMatcher.group(2);
                 if (!isSafeValue(key, value)) continue;
                 safeFields.put(key, value);
-                if (safeFields.size() >= 10) break;
             }
-            if (events.size() == MAX_EVENTS) events.remove(0);
             events.add(new Event(tag, category, safeFields));
         }
         return Collections.unmodifiableList(events);

@@ -102,15 +102,12 @@ object FxGkdRuleStore {
                     val action = item.optString("action", "click")
                     val group = item.optString("group", "默认").trim()
                     val excludeSelector = item.optString("exclude_selector", "").trim()
-                    if (id.length !in 1..64 || !ids.add(id) ||
+                    if (id.isEmpty() || !ids.add(id) ||
                         !isValidPackageName(pkg) ||
-                        selector.isBlank() || selector.length > 512 ||
-                        !FxGkdSelectorEngine.compile(selector).isValid ||
+                        selector.isBlank() ||                         !FxGkdSelectorEngine.compile(selector).isValid ||
                         cooldown !in MIN_COOLDOWN_MS..MAX_COOLDOWN_MS ||
                         (action != "click" && action != "long_click") ||
-                        group.isEmpty() || group.length > 40 ||
-                        excludeSelector.length > 512 ||
-                        (excludeSelector.isNotEmpty() && !FxGkdSelectorEngine.compile(excludeSelector).isValid)
+                        group.isEmpty() ||                                                 (excludeSelector.isNotEmpty() && !FxGkdSelectorEngine.compile(excludeSelector).isValid)
                     ) {
                         throw IllegalArgumentException("Invalid or duplicate GKD rule at index $index")
                     }
@@ -192,12 +189,9 @@ object FxGkdRuleStore {
             val excludeSelector = item.optString("exclude_selector", "").trim()
             if (
                 !isValidPackageName(packageName) || packageName == context.packageName ||
-                selector.isEmpty() || selector.length > 512 ||
-                cooldown !in MIN_COOLDOWN_MS..MAX_COOLDOWN_MS ||
+                selector.isEmpty() ||                 cooldown !in MIN_COOLDOWN_MS..MAX_COOLDOWN_MS ||
                 (action != "click" && action != "long_click") ||
-                group.isEmpty() || group.length > 40 ||
-                excludeSelector.length > 512 ||
-                (excludeSelector.isNotEmpty() && !FxGkdSelectorEngine.compile(excludeSelector).isValid) ||
+                group.isEmpty() ||                                 (excludeSelector.isNotEmpty() && !FxGkdSelectorEngine.compile(excludeSelector).isValid) ||
                 !isInstalledUserApplication(context, packageName) ||
                 !FxGkdSelectorEngine.compile(selector).isValid ||
                 !known.add(packageName + "\u0000" + selector)
@@ -257,13 +251,13 @@ object FxGkdRuleStore {
         val expression = selector.trim()
         if (!isValidPackageName(pkg) || pkg == context.packageName ||
             !isInstalledUserApplication(context, pkg) ||
-            expression.isEmpty() || expression.length > 512
+            expression.isEmpty()
         ) return null
         val compiled = FxGkdSelectorEngine.compile(expression)
         val safeGroup = group.trim().ifEmpty { "默认" }
         val safeExclude = excludeSelector.trim()
         if (!compiled.isValid || (action != "click" && action != "long_click") ||
-            safeGroup.length > 40 || safeExclude.length > 512 ||
+            
             (safeExclude.isNotEmpty() && !FxGkdSelectorEngine.compile(safeExclude).isValid)
         ) return null
         val existing = getRules(context)
@@ -324,17 +318,15 @@ object FxGkdRuleStore {
         excludeSelector: String? = null
     ): FxGkdRule? {
         val expression = selector.trim()
-        if (expression.isEmpty() || expression.length > 512 ||
+        if (expression.isEmpty() ||
             cooldownMillis !in MIN_COOLDOWN_MS..MAX_COOLDOWN_MS ||
             !FxGkdSelectorEngine.compile(expression).isValid ||
             (action != "click" && action != "long_click") ||
-            (excludeSelector != null && (excludeSelector.length > 512 ||
-                (excludeSelector.isNotBlank() && !FxGkdSelectorEngine.compile(excludeSelector).isValid)))
+            (excludeSelector != null && excludeSelector.isNotBlank() && !FxGkdSelectorEngine.compile(excludeSelector).isValid)
         ) return null
         val rules = getRules(context)
         val current = rules.firstOrNull { it.id == id } ?: return null
         val safeGroup = (group ?: current.group).trim().ifEmpty { "默认" }
-        if (safeGroup.length > 40) return null
         val safeExclude = (excludeSelector ?: current.excludeSelector).trim()
         val updated = current.copy(selector = expression, cooldownMillis = cooldownMillis, action = action,
             group = safeGroup, excludeSelector = safeExclude)
@@ -367,7 +359,7 @@ object FxGkdRuleStore {
     fun renameGroup(context: Context, oldGroup: String, newGroup: String): Int {
         val source = oldGroup.trim()
         val target = newGroup.trim()
-        if (source.isEmpty() || source.length > 40 || target.isEmpty() || target.length > 40 ||
+        if (source.isEmpty() || target.isEmpty() ||
             target.any { it == '\\n' || it == '\\r' }) return -1
         val rules = getRules(context)
         val changed = rules.count { it.group == source }

@@ -131,8 +131,8 @@ list_rows() {
       enabled=(NF==2 ? "1" : $3)
       key=(kind=="rule" ? value : tolower(value))
       valid=(NF==2 || NF==3)
-      valid=valid && value!="" && length(value)<=4096
-      valid=valid && length(note)<=180
+      valid=valid && value!=""
+      valid=valid
       valid=valid && value !~ /[[:cntrl:]]/ && note !~ /[[:cntrl:]]/
       valid=valid && (enabled=="0" || enabled=="1")
       if(kind=="rule") {
