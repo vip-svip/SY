@@ -197,8 +197,7 @@ valid_dns_csv() {
       if(n!=4) return 0
       for(j=1;j<=4;j++) if(a[j]==""||a[j]!~/^[0-9]+$/||length(a[j])>3||a[j]+0>255) return 0
       if(v=="0.0.0.0"||v=="255.255.255.255") return 0
-      return 1
-    }
+      return 1    }
     function dns_host(v) {
       return v~/^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/ && v!~/\.\./
     }
@@ -298,6 +297,21 @@ write_dns_response() {
   return 1
 }
 m_dns_response() { write_dns_response "$1"; }
+dns_filter_policy_set() {
+  _policy_quic=$1; _policy_dot=$2; _policy_plain=$3; _policy_ipv6=$4; _policy_track=$5
+  for _policy_value in "$_policy_quic" "$_policy_dot" "$_policy_plain" "$_policy_ipv6" "$_policy_track"; do
+    case "$_policy_value" in 0|1) : ;; *) echo "DNS filter policy values must be 0 or 1" >&2; return 2 ;; esac
+  done
+  m_dns block_quic "$_policy_quic" &&
+    m_dns block_dot "$_policy_dot" &&
+    m_dns block_plain_dns "$_policy_plain" &&
+    m_dns block_ipv6 "$_policy_ipv6" &&
+    m_dns block_track_domains "$_policy_track" || {
+      echo "unable to apply complete DNS filter policy" >&2
+      return 1
+    }
+  echo "policy=updated quic=$_policy_quic dot=$_policy_dot plain_dns=$_policy_plain ipv6=$_policy_ipv6 tracking=$_policy_track"
+}
 
 write_vpn_dns() {
   key=$1; value=$2; tmp=$(mktemp "$CONF.yulong-vpn-dns.XXXXXX") || return 1
@@ -397,8 +411,7 @@ rule_set_many() {
   while IFS= read -r _rule_source || [ -n "$_rule_source" ]; do
     [ -n "$_rule_source" ] || continue
     valid_source "$_rule_source" || { echo "invalid rule source in batch" >&2; return 2; }
-    if ! grep -F -x -q "$_rule_source" "$_rule_clean"; then
-      printf '%s\n' "$_rule_source" >> "$_rule_clean" || return 1
+    if ! grep -F -x -q "$_rule_source" "$_rule_clean"; then      printf '%s\n' "$_rule_source" >> "$_rule_clean" || return 1
       _rule_count=$((_rule_count + 1))
       [ "$_rule_count" -le 2000 ] || { echo "rule batch is limited to 2000 sources" >&2; return 2; }
     fi
@@ -597,8 +610,7 @@ schedule_get() {
     fi
   fi
   echo "watcher=$watcher"
-}
-schedule_set() {
+}schedule_set() {
   enabled=$1; start=$2; end=$3; days=$4
   { [ "$enabled" = 0 ] || [ "$enabled" = 1 ]; } || return 2
   valid_time "$start" && valid_time "$end" && valid_days "$days" || {
@@ -797,8 +809,7 @@ case "$cmd" in
  block-import)
   [ "$#" -eq 2 ] || { echo "usage: $0 block-import base64-domain-list" >&2; exit 2; }
   with_lock transaction m_block_import "$2" ;;
- block-remove-many)
-  [ "$#" -eq 2 ] || { echo "usage: $0 block-remove-many base64-domain-list" >&2; exit 2; }
+ block-remove-many)  [ "$#" -eq 2 ] || { echo "usage: $0 block-remove-many base64-domain-list" >&2; exit 2; }
   with_lock transaction m_block_remove_many "$2" ;;
  block-add)
   [ "$#" -ge 2 ] && [ "$#" -le 3 ] || exit 2
@@ -823,6 +834,10 @@ case "$cmd" in
       with_lock transaction m_dns "$2" "$3"
       ;;
   esac ;;
+ dns-filter-policy-set)
+  [ "$#" -eq 6 ] || { echo "usage: $0 dns-filter-policy-set QUIC DOT PLAIN_DNS IPV6 TRACKING" >&2; exit 2; }
+  with_lock transaction dns_filter_policy_set "$2" "$3" "$4" "$5" "$6"
+  ;;
  dns-config-get)
   dns_config_get
   ;;
