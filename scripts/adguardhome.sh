@@ -17,6 +17,7 @@ CFG="$STATE/AdGuardHome.yaml"
 WORK="$STATE/work"
 PIDFILE="$STATE/managed.pid"
 CONFIG_HASH="$STATE/config.sha256"
+LIFECYCLE_LOCK="$STATE/lifecycle.lock"
 LOG="$STATE/engine.log"
 PATH=/system/bin:/system/xbin:/sbin:/vendor/bin:/usr/bin:/bin
 export PATH
@@ -74,7 +75,10 @@ _prepare_state_dirs() {
   else
     (umask 077; mkdir "$WORK") || return 1
   fi
-  chmod 700 "$STATE" "$WORK" 2>/dev/null || :
+  chmod 700 "$STATE" "$WORK" 2>/dev/null || {
+    echo "cannot enforce private AdGuard Home state/work directory permissions" >&2
+    return 1
+  }
   for _candidate in "$BIN" "$BIN.sha256" "$TEMPLATE" "$CFG" "$PIDFILE" "$CONFIG_HASH" "$LOG"; do
     _safe_file_or_absent "$_candidate" || {
       echo "AdGuard Home refuses a symlink or non-regular state/runtime file: $_candidate" >&2
@@ -133,21 +137,28 @@ _build_user_rules() {
 
   # Only the dedicated [list:rule] subscription entry enables Yulong's bundled
   # ad-domain data. It never reads the protected [list:fx] anti-fraud section.
-  _yulong_enabled=$(awk -F'|' '
-    /^\[list:rule\][[:space:]]*$/ {section="rule"; next}
-    /^\[/ {section=""; next}
-    section=="rule" && $1=="builtin://Yulong_AdBlock.txt" && $3=="1" {enabled=1}
-    END {print enabled+0}
-  ' "$PG/settings.conf" 2>/dev/null)
+  # Read subscription state through the same strict parser as the native UI.
+  # Duplicate or malformed rows must not be silently ignored when deciding
+  # whether the bundled Yulong source is active.
+  _rule_rows=$(MP="$MODDIR" PG="$PG" sh "$MODDIR/scripts/native-managed-lists.sh" list ruleList) || {
+    _log 'managed rule subscription list is invalid; refusing partial DNS rule render'
+    return 1
+  }
+  _yulong_enabled=$(printf '%s\\n' "$_rule_rows" | awk -F'|' '
+    NR==1 {if($0!="FXLIST1") exit 2; next}
+    NF!=4 || $1 !~ /^[0-9]+$/ || $4 !~ /^[01]$/ {exit 2}
+    $2=="builtin://Yulong_AdBlock.txt" && $4=="1" {enabled=1}
+    END {if(NR<1) exit 2; print enabled+0}
+  ') || return 1
   _yulong_file=""
   if [ "$_yulong_enabled" = "1" ]; then
     _yulong_file="$PG/rulefiles-user/Yulong_AdBlock.txt"
     if ! _safe_file_or_absent "$_yulong_file" || [ ! -r "$_yulong_file" ]; then
       _yulong_file="$MODDIR/rulefiles/Yulong_AdBlock.txt"
     fi
-    if ! _safe_file_or_absent "$_yulong_file" || [ ! -r "$_yulong_file" ]; then
-      _yulong_file=""
-      _log 'Yulong ad-domain source is enabled but its rule file is unavailable; continuing with other DNS rules'
+    if ! _safe_file_or_absent "$_yulong_file" || [ ! -r "$_yulong_file" ] || [ ! -s "$_yulong_file" ]; then
+      _log 'Yulong ad-domain source is enabled but its rule file is missing, empty or unsafe; refusing partial DNS rule render'
+      return 1
     fi
   fi
   if [ -n "$_yulong_file" ]; then
@@ -162,22 +173,35 @@ _build_user_rules() {
     ' "$_yulong_file" >> "$_output" || return 1
   fi
 
-  # User allow/block lists are translated to AdGuard syntax. Strict domain
-  # validation happens again here so corrupted settings cannot inject YAML.
-  awk -F'|' '
-    function valid(d) {
-      return d ~ /^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/
+  # Consume the same strict, duplicate-aware managed-list reader as the
+  # native UI. A malformed row must fail the complete render rather than be
+  # silently skipped and leave a partially applied allow/block policy.
+  _domain_rows=$(MP="$MODDIR" PG="$PG" sh "$MODDIR/scripts/native-managed-lists.sh" list domainList) || {
+    _log 'managed allowlist is invalid; refusing partial DNS rule render'
+    return 1
+  }
+  _block_rows=$(MP="$MODDIR" PG="$PG" sh "$MODDIR/scripts/native-managed-lists.sh" list blockList) || {
+    _log 'managed blocklist is invalid; refusing partial DNS rule render'
+    return 1
+  }
+  printf '%s\\n' "$_domain_rows" | awk -F'|' '
+    NR==1 {if($0!="FXLIST1") exit 2; next}
+    NF!=4 || $1 !~ /^[0-9]+$/ || $4 !~ /^[01]$/ {exit 2}
+    $4=="1" {
+      d=tolower($2)
+      if(d !~ /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/ || length(d)>253) exit 2
+      print "  - \\"@@||" d "^\\""
     }
-    $0=="[list:domain]" {section="domain"; next}
-    $0=="[list:block]" {section="block"; next}
-    /^\[/ {section=""; next}
-    section=="domain" && valid($1) && (NF<3 || $3=="1") {
-      print "  - \"@@||" tolower($1) "^\""
+  ' >> "$_output" || return 1
+  printf '%s\\n' "$_block_rows" | awk -F'|' '
+    NR==1 {if($0!="FXLIST1") exit 2; next}
+    NF!=4 || $1 !~ /^[0-9]+$/ || $4 !~ /^[01]$/ {exit 2}
+    $4=="1" {
+      d=tolower($2)
+      if(d !~ /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/ || length(d)>253) exit 2
+      print "  - \\"||" d "^\\""
     }
-    section=="block" && valid($1) && (NF<3 || $3=="1") {
-      print "  - \"||" tolower($1) "^\""
-    }
-  ' "$PG/settings.conf" >> "$_output" || return 1
+  ' >> "$_output" || return 1
 
   _unique=$(_new_private_temp "$STATE/user-rules.unique.XXXXXX") || return 1
   if ! awk '!seen[$0]++' "$_output" > "$_unique" || ! cat "$_unique" > "$_output"; then
@@ -230,6 +254,94 @@ _build_filter_sources() {
   chmod 600 "$_output" 2>/dev/null || return 1
   return 0
 }
+
+# FX_YULONG_UPSTREAMS_BEGIN
+_dns_setting_flag() {
+  _flag_key=$1
+  awk -F= -v key="$_flag_key" '
+    function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
+    /^[[:space:]]*#/ { next }
+    index($0, "=") {
+      line=$0
+      split(line, pair, "=")
+      name=trim(pair[1])
+      if (name==key) {
+        count++
+        value=trim(substr(line, index(line, "=")+1))
+        if (value !~ /^[01]$/) bad=1
+      }
+    }
+    END {
+      if (count==0) { print "0"; exit }
+      if (count!=1 || bad) exit 1
+      print value
+    }
+  ' "$PG/settings.conf"
+}
+_build_dns_upstreams() {
+  _section=$1
+  _mode=$2
+  _output=$3
+  awk -v section="$_section" -v mode="$_mode" '
+    function valid_ipv4(v, n, a, i) {
+      n=split(v,a,".")
+      if(n!=4) return 0
+      for(i=1;i<=4;i++)
+        if(a[i]!~/^[0-9]+$/ || length(a[i])>3 || a[i]+0>255 ||
+           (a[i]!="0" && a[i]~/^0/)) return 0
+      if(v=="0.0.0.0" || v=="255.255.255.255") return 0
+      return 1
+    }
+    function dns_host(v) {
+      return v~/^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/ && v!~/\\.\\./
+    }
+    function valid_hostport(v, n, a) {
+      n=split(v,a,":")
+      if(n==1) return dns_host(a[1])
+      if(n==2) return dns_host(a[1]) && a[2]~/^[0-9]+$/ &&
+        a[2]+0>=1 && a[2]+0<=65535
+      return 0
+    }
+    function valid_endpoint(v, rest, parts, authority) {
+      if(valid_ipv4(v)) return 1
+      if(substr(v,1,8)=="https://") {
+        rest=substr(v,9)
+        split(rest,parts,"/")
+        authority=parts[1]
+        if(!valid_hostport(authority)) return 0
+        return rest~/^[A-Za-z0-9.-]+(:[0-9]+)?(\\/[A-Za-z0-9._~!$&()*+,;=:@%/?#-]*)?$/
+      }
+      if(substr(v,1,6)=="tls://") return valid_hostport(substr(v,7))
+      if(substr(v,1,7)=="quic://") return valid_hostport(substr(v,8))
+      return 0
+    }
+    BEGIN { inside=0; sections=0; count=0; bad=0 }
+    $0=="[conf:" section "]" {
+      sections++
+      if(sections>1 || inside) bad=1
+      inside=1
+      next
+    }
+    /^\\[/ { inside=0 }
+    inside && /^[[:space:]]*#/ { next }
+    inside && /^[[:space:]]*$/ { next }
+    inside {
+      if(NF!=2 || $1!="nameserver") {bad=1; next}
+      server=$2
+      if(mode=="ipv4" ? !valid_ipv4(server) : !valid_endpoint(server)) {
+        bad=1
+        next
+      }
+      normalized=tolower(server)
+      if(seen[normalized]++) {bad=1; next}
+      print "  - \\"" server "\\""
+      count++
+    }
+    END { if(bad || sections!=1 || count<1) exit 1 }
+  ' "$PG/settings.conf" > "$_output"
+}
+# FX_YULONG_UPSTREAMS_END
+
 _render_managed_config() {
   _rules_file=$(_new_private_temp "$STATE/user-rules.XXXXXX") || return 1
   _filters_file=$(_new_private_temp "$STATE/filter-sources.XXXXXX") || {
@@ -240,32 +352,140 @@ _render_managed_config() {
     rm -f "$_rules_file" "$_filters_file" 2>/dev/null || :
     return 1
   }
-  _config_file=$(_new_private_temp "$STATE/AdGuardHome.yaml.tmp.XXXXXX") || {
+  _upstream_file=$(_new_private_temp "$STATE/upstream-dns.XXXXXX") || {
     rm -f "$_rules_file" "$_filters_file" "$_fallback_file" 2>/dev/null || :
     return 1
   }
+  _bootstrap_file=$(_new_private_temp "$STATE/bootstrap-dns.XXXXXX") || {
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" 2>/dev/null || :
+    return 1
+  }
+  _config_file=$(_new_private_temp "$STATE/AdGuardHome.yaml.tmp.XXXXXX") || {
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" 2>/dev/null || :
+    return 1
+  }
+  [ -f "$PG/settings.conf" ] && [ ! -L "$PG/settings.conf" ] && [ -r "$PG/settings.conf" ] || {
+    _log 'settings.conf is missing, unreadable or unsafe; refusing DNS config render'
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
+    return 1
+  }
   if ! _build_user_rules "$_rules_file" || ! _build_filter_sources "$_filters_file"; then
-    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_config_file" 2>/dev/null || :
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
     return 1
   fi
-  _querylog_interval=$(awk '$0=="[conf:yulong_dns_querylog_retention]"{inside=1;next} /^\\[/{inside=0} inside&&/^interval=/{sub(/^interval=/,"");print;exit}' "$PG/settings.conf" 2>/dev/null)
-  case "$_querylog_interval" in 1d|3d|7d|30d) : ;; *) _querylog_interval=7d ;; esac
-  _dns_response_mode=$(awk '$0=="[conf:yulong_dns_response]"{inside=1;next} /^\\[/{inside=0} inside&&/^mode=/{sub(/^mode=/,"");print;exit}' "$PG/settings.conf" 2>/dev/null)
-  case "$_dns_response_mode" in nxdomain|refused|custom_ip) : ;; *) _dns_response_mode=nxdomain ;; esac
+  _custom_dns_enabled=$(_dns_setting_flag custom_dns) || {
+    _log 'custom DNS enable flag is duplicated or malformed'
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
+    return 1
+  }
+  _global_dns_enabled=$(_dns_setting_flag global_dns) || {
+    _log 'global DNS enable flag is duplicated or malformed'
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
+    return 1
+  }
+  if [ "$_global_dns_enabled" = 1 ]; then
+    _build_dns_upstreams global_dns ipv4 "$_upstream_file" || {
+      _log 'global DNS is enabled but its complete upstream list is invalid'
+      rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
+      return 1
+    }
+  elif [ "$_custom_dns_enabled" = 1 ]; then
+    _build_dns_upstreams custom_dns any "$_upstream_file" || {
+      _log 'custom DNS is enabled but its complete upstream list is invalid'
+      rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
+      return 1
+    }
+  else
+    printf '  - 127.0.0.1:5353\n' > "$_upstream_file" || return 1
+  fi
+  : > "$_bootstrap_file" || return 1
+  if grep -Eq 'https://|tls://|quic://' "$_upstream_file"; then
+    printf '  - 223.5.5.5\n  - 1.1.1.1\n' > "$_bootstrap_file" || return 1
+  fi
+  _querylog_interval=$(awk '
+    BEGIN { inside=0; sections=0; intervals=0; value=""; bad=0 }
+    $0=="[conf:yulong_dns_querylog_retention]" {
+      sections++
+      if (inside) bad=1
+      inside=1
+      next
+    }
+    /^\\[/ { inside=0 }
+    inside && /^[[:space:]]*#/ { next }
+    inside && /^[[:space:]]*$/ { next }
+    inside && /^interval=/ {
+      intervals++
+      value=substr($0,10)
+      if (value!="1d" && value!="3d" && value!="7d" && value!="30d") bad=1
+      next
+    }
+    inside { bad=1 }
+    END {
+      if (sections>1 || intervals>1 || bad) exit 1
+      if (sections==0) print "7d"
+      else if (intervals==1) print value
+      else exit 1
+    }
+  ' "$PG/settings.conf" 2>/dev/null) || {
+    _log 'saved DNS query-log retention setting is ambiguous or invalid; refusing to render AdGuard config'
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_config_file" 2>/dev/null || :
+    return 1
+  }
+  _dns_response_mode=$(awk '
+    BEGIN { inside=0; sections=0; modes=0; value=""; bad=0 }
+    $0=="[conf:yulong_dns_response]" {
+      sections++
+      if (inside) bad=1
+      inside=1
+      next
+    }
+    /^\\[/ { inside=0 }
+    inside && /^[[:space:]]*#/ { next }
+    inside && /^[[:space:]]*$/ { next }
+    inside && /^mode=/ {
+      modes++
+      value=substr($0,6)
+      if (value!="nxdomain" && value!="refused" && value!="custom_ip") bad=1
+      next
+    }
+    inside { bad=1 }
+    END {
+      if (sections>1 || modes>1 || bad) exit 1
+      if (sections==0) print "nxdomain"
+      else if (modes==1) print value
+      else exit 1
+    }
+  ' "$PG/settings.conf" 2>/dev/null) || {
+    _log 'saved DNS blocking response mode is ambiguous or invalid; refusing to render AdGuard config'
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_config_file" 2>/dev/null || :
+    return 1
+  }
   if ! awk '
     function valid_ipv4(s, n,a,i) {
       n=split(s,a,".")
       if(n!=4) return 0
       for(i=1;i<=4;i++) if(a[i]!~/^[0-9]+$/ || length(a[i])>3 || a[i]+0>255 || (a[i]!="0" && a[i]~/^0/)) return 0
-      if(a[1]+0==0 || a[1]+0>=224) return 0
+      # Fallback resolvers must be externally routable IPv4 endpoints.
+      # Loopback would send a failed query back into AdGuard itself, while
+      # link-local addresses are not stable upstream resolver destinations.
+      if(a[1]+0==0 || a[1]+0==127 || a[1]+0>=224) return 0
+      if(a[1]+0==169 && a[2]+0==254) return 0
       return 1
     }
     $0=="[conf:yulong_dns_fallback]" {inside=1;next}
     /^\[/ {inside=0}
-    inside && /^[[:space:]]*nameserver[[:space:]]+/ {
+    inside && /^[[:space:]]*nameserver([[:space:]]|$)/ {
+      # Each entry is one exact key/value pair. Extra tokens, missing values,
+      # malformed keys, and duplicate nameserver keys are configuration errors.
+      if(NF!=2 || $1!="nameserver") {bad=1; next}
       server=$2
       if(!valid_ipv4(server)) {bad=1; next}
-      if(!seen[server]++) {count++; if(count>3) bad=1; else print "  - " server}
+      if(seen[server]++) {bad=1; next}
+      count++
+      print "  - " server
+    }
+    inside && /^[[:space:]]*[^#[:space:]][^[:space:]]*[[:space:]]+/ {
+      if($1!="nameserver") bad=1
     }
     END {if(bad) exit 1}
   ' "$PG/settings.conf" > "$_fallback_file"; then
@@ -273,11 +493,31 @@ _render_managed_config() {
     _log 'saved fallback DNS list is invalid; refusing to render AdGuard config'
     return 1
   fi
-  if ! awk -v querylog_interval="$_querylog_interval" -v dns_response_mode="$_dns_response_mode" -v rules_file="$_rules_file" -v filters_file="$_filters_file" -v fallback_file="$_fallback_file" '
+  if ! awk -v querylog_interval="$_querylog_interval" -v dns_response_mode="$_dns_response_mode" -v rules_file="$_rules_file" -v filters_file="$_filters_file" -v fallback_file="$_fallback_file" -v upstream_file="$_upstream_file" -v bootstrap_file="$_bootstrap_file" '
     /^querylog:[[:space:]]*$/ {in_querylog=1; print; next}
     in_querylog && /^[^[:space:]]/ {in_querylog=0}
     in_querylog && /^  interval:/ {print "  interval: " querylog_interval; next}
-    /^  blocking_mode:/ {print "  blocking_mode: " dns_response_mode; next}
+    # FX_YULONG_DNS_RESPONSE_BEGIN
+    /^  blocking_mode:/ {
+      print "  blocking_mode: " dns_response_mode
+      if (dns_response_mode=="custom_ip") {
+        print "  blocking_ipv4: \"0.0.0.0\""
+        print "  blocking_ipv6: \"::\""
+      }
+      next
+    }
+    /^  upstream_dns:[[:space:]]*$/ {
+      print
+      while ((getline upstream < upstream_file) > 0) print upstream
+      close(upstream_file)
+      if ((getline bootstrap < bootstrap_file) > 0) {
+        print "  bootstrap_dns:"
+        print bootstrap
+        while ((getline bootstrap < bootstrap_file) > 0) print bootstrap
+      }
+      close(bootstrap_file)
+      next
+    }
     /^  fallback_dns:[[:space:]]*\[\][[:space:]]*$/ {
       if ((getline fallback < fallback_file) > 0) {
         print "  fallback_dns:"
@@ -313,11 +553,11 @@ _render_managed_config() {
     {print}
     END {if (!found_rules) exit 2}
   ' "$TEMPLATE" > "$_config_file"; then
-    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_config_file" 2>/dev/null || :
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
     _log 'unable to compose AdGuard Home config with managed subscriptions and DNS rules'
     return 1
   fi
-  rm -f "$_rules_file" "$_filters_file" "$_fallback_file" 2>/dev/null || :
+  rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" 2>/dev/null || :
   chmod 600 "$_config_file" 2>/dev/null || {
     rm -f "$_config_file" 2>/dev/null || :
     return 1
@@ -335,15 +575,49 @@ _install_config() {
     _log 'unable to atomically publish AdGuard Home config'
     return 1
   fi
-  chmod 600 "$CFG" 2>/dev/null || return 1
+  # The rendered file was created by _new_private_temp (umask 077 + chmod 600);
+  # atomic rename preserves its private mode, so no post-publication chmod is needed.
   _log 'published loopback-only config with current Yulong and managed allow/block DNS rules'
 }
 
 _config_contract() {
+  # The DNS listener/admin interface remain loopback-only. Upstream lists may
+  # be the local recursive Unbound listener or a validated FX custom/global list.
+  awk '
+    function valid_ipv4(v, n, a, i) {
+      n=split(v,a,".")
+      if(n!=4) return 0
+      for(i=1;i<=4;i++)
+        if(a[i]!~/^[0-9]+$/ || length(a[i])>3 || a[i]+0>255 ||
+           (a[i]!="0" && a[i]~/^0/)) return 0
+      if(v=="0.0.0.0" || v=="255.255.255.255") return 0
+      return 1
+    }
+    function dns_host(v) {
+      return v~/^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/ && v!~/\.\./
+    }
+    function valid_hostport(v, n, a) {
+      n=split(v,a,":")
+      if(n==1) return dns_host(a[1])
+      if(n==2) return dns_host(a[1]) && a[2]~/^[0-9]+$/ &&
+        a[2]+0>=1 && a[2]+0<=65535
+      return 0
+    }
+    function valid_endpoint(v, rest, parts, authority) {
+      if(valid_ipv4(v)) return 1
+      if(substr(v,1,8)=="https://") {
+        rest=substr(v,9); split(rest,parts,"/"); authority=parts[1]
+        if(!valid_hostport(authority)) return 0
+        return rest~/^[A-Za-z0-9.-]+(:[0-9]+)?(\/[A-Za-z0-9._~!_config_contract() {
   # AdGuard must remain a loopback-only DNS filter. Its sole upstream is the
   # local recursive Unbound listener; never allow a saved config to introduce
   # a public resolver or expose the DNS/admin listeners on LAN interfaces.
-  awk '
+  awk '()*+,;=:@%/?#-]*)?$/
+      }
+      if(substr(v,1,6)=="tls://") return valid_hostport(substr(v,7))
+      if(substr(v,1,7)=="quic://") return valid_hostport(substr(v,8))
+      return 0
+    }
     /^http:$/ {http=1; next}
     http && /^[^[:space:]]/ {http=0}
     http && /^  address:/ {
@@ -360,13 +634,35 @@ _config_contract() {
     dns && /^  upstream_dns:/ {upstream=1; next}
     dns && upstream && /^  [A-Za-z_][A-Za-z0-9_-]*:/ {upstream=0}
     dns && upstream && /^  - / {
+      server=$2
+      sub(/^"/,"",server); sub(/"$/,"",server)
       upstream_count++
-      if ($2=="127.0.0.1:5353") local_upstream=1
-      else unsafe_upstream=1
+      if (server=="127.0.0.1:5353") {
+        local_upstream=1
+        local_count++
+      } else if (!valid_endpoint(server)) {
+        unsafe_upstream=1
+      }
+      if (upstream_seen[tolower(server)]++) unsafe_upstream=1
+    }
+    dns && /^  bootstrap_dns:/ {bootstrap=1; next}
+    dns && bootstrap && /^  [A-Za-z_][A-Za-z0-9_-]*:/ {bootstrap=0}
+    dns && bootstrap && /^  - / {
+      server=$2
+      sub(/^"/,"",server); sub(/"$/,"",server)
+      bootstrap_count++
+      if (!valid_ipv4(server) || bootstrap_seen[server]++) unsafe_bootstrap=1
+      first=split(server,octets,".")
+      if(octets[1]+0==0 || octets[1]+0==127 || octets[1]+0>=224 ||
+         (octets[1]+0==169 && octets[2]+0==254)) unsafe_bootstrap=1
     }
     dns && /^  fallback_dns:/ {
       fallback=1
-      if ($2=="[]") fallback_empty=1
+      # Only the empty-list form or a block sequence is accepted. A scalar,
+      # extra token, or malformed inline value must not silently pass as an
+      # empty fallback list.
+      if (NF==2 && $2=="[]") fallback_empty=1
+      else if (NF!=1) unsafe_fallback=1
       next
     }
     dns && fallback && /^  [A-Za-z_][A-Za-z0-9_-]*:/ {fallback=0}
@@ -376,14 +672,16 @@ _config_contract() {
       n=split(server,octets,".")
       valid=(n==4)
       for(i=1;i<=n;i++) if(octets[i]!~/^[0-9]+$/ || length(octets[i])>3 || octets[i]+0>255 || (octets[i]!="0" && octets[i]~/^0/)) valid=0
-      if(octets[1]+0==0 || octets[1]+0>=224) valid=0
+      if(octets[1]+0==0 || octets[1]+0==127 || octets[1]+0>=224) valid=0
+      if(octets[1]+0==169 && octets[2]+0==254) valid=0
       if(!valid || fallback_seen[server]++) unsafe_fallback=1
     }
     END {
       exit (http_loopback && dns_port=="53" &&
         hosts["127.0.0.1"] && hosts["::1"] && bind_count==2 &&
-        upstream_count==1 && local_upstream && !unsafe_upstream &&
-        !unsafe_fallback && fallback_count<=3) ? 0 : 1
+        upstream_count>=1 && !unsafe_upstream &&
+        (!local_upstream || (local_count==1 && upstream_count==1)) &&
+        !unsafe_bootstrap && !unsafe_fallback) ? 0 : 1
     }
   ' "$CFG" || {
     _log 'AdGuard config violates FX loopback/listener/local-Unbound policy'
@@ -419,9 +717,27 @@ _remove_pid_marker_if_matches() {
   _expected=$1
   _safe_file_or_absent "$PIDFILE" || return 1
   [ -f "$PIDFILE" ] || return 0
-  _current=$(cat "$PIDFILE" 2>/dev/null)
+  _current=$(cat "$PIDFILE" 2>/dev/null) || return 1
   [ "$_current" = "$_expected" ] || return 0
-  rm -f "$PIDFILE" 2>/dev/null || :
+  # Isolate the marker before deletion, then verify the moved contents.
+  # This prevents a stale lifecycle operation from unlinking a newer PID.
+  _release="$PIDFILE.release.$$"
+  _n=0
+  while { [ -e "$_release" ] || [ -L "$_release" ]; } && [ "$_n" -lt 20 ]; do
+    _n=$((_n + 1))
+    _release="$PIDFILE.release.$$.\${_n}"
+  done
+  [ ! -e "$_release" ] && [ ! -L "$_release" ] || return 1
+  mv "$PIDFILE" "$_release" 2>/dev/null || return 1
+  _moved=$(cat "$_release" 2>/dev/null || true)
+  if [ "$_moved" = "$_expected" ] && [ ! -L "$_release" ] && [ -f "$_release" ]; then
+    rm -f "$_release" 2>/dev/null || return 1
+    return 0
+  fi
+  if [ ! -e "$PIDFILE" ] && [ ! -L "$PIDFILE" ]; then
+    mv "$_release" "$PIDFILE" 2>/dev/null || :
+  fi
+  return 1
 }
 _owned_pid() {
   _safe_file_or_absent "$PIDFILE" && [ -f "$PIDFILE" ] || return 1
@@ -483,6 +799,13 @@ _stop() {
     fi
     _log 'AdGuard Home is already stopped'
     return 0
+  fi
+  # Revalidate ownership immediately before signalling, matching the
+  # guarded Unbound stop path and avoiding a stale/reused PID target.
+  _same=$(_owned_pid 2>/dev/null) || _same=
+  if [ "$_same" != "$_p" ]; then
+    _log "refusing to signal PID $_p because process ownership changed before TERM"
+    return 1
   fi
   kill -TERM "$_p" 2>/dev/null || :
   _now=
@@ -582,13 +905,54 @@ _ensure() {
   return 1
 }
 
+
+_release_lifecycle_lock() {
+  [ -d "$LIFECYCLE_LOCK" ] && [ ! -L "$LIFECYCLE_LOCK" ] || return 0
+  _lock_owner_file="$LIFECYCLE_LOCK/owner"
+  [ -f "$_lock_owner_file" ] && [ ! -L "$_lock_owner_file" ] || return 0
+  _lock_owner=$(cat "$_lock_owner_file" 2>/dev/null) || return 0
+  [ "$_lock_owner" = "$$" ] || return 0
+  rm -f "$_lock_owner_file" 2>/dev/null || return 1
+  rmdir "$LIFECYCLE_LOCK" 2>/dev/null || return 1
+  return 0
+}
+_with_lifecycle_lock() {
+  _locked_action=$1
+  _prepare_state_dirs || return 1
+  _wait=0
+  while ! mkdir "$LIFECYCLE_LOCK" 2>/dev/null; do
+    [ ! -L "$LIFECYCLE_LOCK" ] && [ -d "$LIFECYCLE_LOCK" ] || {
+      _log 'unsafe AdGuard Home lifecycle lock path'
+      return 1
+    }
+    if [ "$_wait" -ge 35 ]; then
+      _log 'AdGuard Home lifecycle operation is busy; refusing concurrent start/stop'
+      return 1
+    fi
+    sleep 1
+    _wait=$((_wait+1))
+  done
+  if ! printf '%s\n' "$$" > "$LIFECYCLE_LOCK/owner"; then
+    rmdir "$LIFECYCLE_LOCK" 2>/dev/null || :
+    _log 'unable to publish AdGuard Home lifecycle lock owner'
+    return 1
+  fi
+  chmod 700 "$LIFECYCLE_LOCK" 2>/dev/null || {
+    rm -f "$LIFECYCLE_LOCK/owner" 2>/dev/null || :
+    rmdir "$LIFECYCLE_LOCK" 2>/dev/null || :
+    return 1
+  }
+  trap '_release_lifecycle_lock' EXIT
+  trap 'exit 1' HUP INT TERM
+  "$_locked_action"
+}
+
 case "$ACTION" in
   ensure)
-    _ensure
+    _with_lifecycle_lock _ensure
     ;;
   stop)
-    _prepare_state_dirs || exit 1
-    _stop
+    _with_lifecycle_lock _stop
     ;;
   status)
     if [ -z "$PG" ] || [ ! -d "$PG" ] || [ -L "$PG" ] || ! _path_components_are_safe "$PG"; then

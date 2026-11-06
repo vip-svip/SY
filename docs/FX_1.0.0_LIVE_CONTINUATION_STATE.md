@@ -1,5 +1,13 @@
 
 
+### FX DNS 引擎与配置控制器同步至打包权威源码（2026-11-07）
+
+- 文件：`scripts/adguardhome.sh`、`scripts/yulong-ad-control.sh`。
+- 将已集成的 FX 自定义/全局上游选择、DoH/DoT/DoQ 和 IPv4 逐条验证、bootstrap 生成、备用上游列表、AdGuard 配置契约及 DNS 查询日志保留期限快照等实现同步到仓库根目录权威源码。
+- 修复打包流程的源文件漂移：`build-fx-kernelsu.yml` 会先将根目录 `scripts/adguardhome.sh`、`scripts/yulong-ad-control.sh` 安装覆盖到 `fx-module/scripts/`，因此仅修改 `fx-module/scripts/` 会在正式打包时丢失；本轮使构建输入与当前模块实现保持一致。
+- 继续保留本地 Unbound 递归解析默认路径、AdGuard loopback 监听契约、端点格式校验、DNS 配置事务与回滚；本轮未运行测试、静态检查、构建、CI 或设备验证。
+
+
 ### FX AdGuard Home 上游设置实际接入运行渲染（2026-11-07）
 
 - 文件：\`fx-module/scripts/adguardhome.sh\`、\`fx-module/engines/adguardhome/AdGuardHome.yaml\`、\`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java\`。
