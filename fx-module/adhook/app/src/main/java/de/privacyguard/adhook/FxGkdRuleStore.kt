@@ -452,7 +452,7 @@ object FxGkdRuleStore {
     fun setRuleEnabled(context: Context, id: String, enabled: Boolean): Boolean {
         val rules = getRules(context)
         if (rules.none { it.id == id }) return false
-        return writeRules(context, rules.map { if (it.id == id) it.copy(enabled = enabled) else it })
+        return writeRules(context, rules.map { if (it.id == id) it.copy(enabled = enabled) else it }, enableMasterOnEnabled = enabled)
     }
 
     @JvmStatic
