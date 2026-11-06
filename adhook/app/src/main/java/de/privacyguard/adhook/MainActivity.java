@@ -2031,16 +2031,29 @@ public final class MainActivity extends ComponentActivity {
     private static String nativeScriptMetadataSummary(String note) {
         String decoded = nativeScriptMetadataText(note);
         if (decoded.isEmpty()) return "";
-        String[] fields = decoded.split("\n", -1);
+        String[] fields = decoded.split("\\n", -1);
         if (fields.length < 2) return "";
         String trigger = "request".equals(fields[0]) ? "请求"
                 : "response".equals(fields[0]) ? "响应"
                 : "both".equals(fields[0]) ? "请求 + 响应" : fields[0];
         boolean requiresBody = fields.length > 2 && "1".equals(fields[2]);
-        return "触发阶段：" + trigger + "\nURL 匹配：" + fields[1]
-                + "\n需要响应正文：" + (requiresBody ? "是" : "否");
+        StringBuilder summary = new StringBuilder("触发阶段：").append(trigger)
+                .append("\\nURL 匹配：").append(fields[1])
+                .append("\\n需要响应正文：").append(requiresBody ? "是" : "否");
+        if (fields.length > 4 && !fields[4].trim().isEmpty()) {
+            try {
+                JSONObject env = new JSONObject(fields[4]);
+                java.util.List<String> keys = new java.util.ArrayList<>();
+                java.util.Iterator<String> iterator = env.keys();
+                while (iterator.hasNext()) keys.add(iterator.next());
+                java.util.Collections.sort(keys);
+                if (!keys.isEmpty()) summary.append("\\n脚本环境变量：").append(android.text.TextUtils.join("、", keys));
+            } catch (Exception ignored) {
+                summary.append("\\n脚本环境变量：已配置");
+            }
+        }
+        return summary.toString();
     }
-
     private static String nativeScriptMetadataWithName(String note, String displayName) {
         String decoded = nativeScriptMetadataText(note);
         if (decoded.isEmpty()) return displayName;
