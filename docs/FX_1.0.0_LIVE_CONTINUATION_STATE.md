@@ -7305,3 +7305,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 脚本中心新增 Surge / Loon / Quantumult X 配置导入入口，复用现有原生文件导入与模块配置解析/转换路径，不新增独立运行时或外部 APK。
 - 文件扩展名识别增加 `.surge`、`.quanx`、`.qx`，与现有 `.conf`、`.ini`、`.sgmodule`、`.loon`、`.qxconf` 一并进入模块配置导入路径；内容识别仍保留 `[script]` / `[rewrite_local]` 兜底。
 - 本轮按用户要求未运行测试、静态检查、构建、CI 或真机验证；新增格式是否覆盖所有厂商方言仍待后续验证与补齐。
+
+
+## 2026-11-06 — Root Proxy 路由验证状态接入 DNS 管理页
+
+- 本批代码提交：
+  - `090ede01399d5e5f1ce8cd104b0ee605837a0b7a` — 主源码 `scripts/native-dns-settings.sh` 读取 Root Proxy 的 `route` 状态并输出 `rootproxy_route`。
+  - `1f84838f88520925a1508074592a7cde608f384e` — 模块源码 `fx-module/scripts/native-dns-settings.sh` 同步同一状态协议。
+  - `c4e5c1d6e1e904bf6e17b5799eb57eca0868bd99` — `MainActivity.java` 的 DNS 状态卡片与 DNS 引擎详情均显示路由验证状态，并为 verified / unavailable / not_applicable 提供中文标签。
+- 本批行为：DNS UI 将“DNS 重定向规则已挂载”与“Root Proxy 路由已验证”分开展示，避免把规则存在误当成路由验证通过。
+- 验证：按当前提速要求，未运行测试、静态检查、构建、CI 或真机验证；本批只记录源码改动，不宣称运行时验收通过。
+- 下一批：继续批量移植 Ad/DNS 管理与 Hook/隐私页面中尚未接通的真实功能，优先处理有现成后端契约的功能组。
