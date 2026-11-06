@@ -924,7 +924,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
 
     private static String cleanExportField(String value) {
         return value == null ? "" : value.replace('\\t', ' ')
-                .replace('\\r', ' ').replace('\\n', ' ');
+                .replace('\r', ' ').replace('\n', ' ');
     }
 
     private void confirmCacheFlush(String target, String label) {

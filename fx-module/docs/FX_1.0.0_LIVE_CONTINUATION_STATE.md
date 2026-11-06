@@ -6855,3 +6855,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - DNS 配置快照新增 `DNS_REWRITES`，纳入导出、导入、验证、差异预览与恢复；旧版快照缺少该字段时默认空列表。重写规则与 DNS 上游、过滤名单和逐条日志排除配置独立保存。
 - 主要提交：Root 后端 canonical `7ffd15ffadcd8274474df9f0b340d535673ad75c` / module `b47f65a030df7afd6b739ba548efbbc2fdede975`；profile 导出 fail-closed `86f78810df4883dfe7d7a488e09b14057824c5ad` / module `6b47fba0a7ef179cc0c1dcc98db1a0e4f9a7f2f2`；AdGuard renderer canonical `341cb269c3da1fdab92a26fe9b5cd9795816ef3b`、精确模板匹配 `72803dbf9a3a6aefeb3cbd3d0725989c826ac703`、配置契约 `65d75ea6f88cf234f9c98d6dd2d88d7297dabb3d`、YAML 缩进 `79a169c49320688fd0f42eed148f5e18275db36d`；module renderer `7adf47a24129cd3cc5f7ab3d895a83e75f59235d`、`3d28da043a997e975d980f0b4f0064da19466047`、`97cc0bcacfb1f0729c7134f75dc31a7beb7424b3`、`4c3ce2d7e5080cf16d56d818e681068bc9493128`；原生 UI canonical `df0a132742598446fcff7dd5fd33532e5f6ca47a` / module `4e124c5605a151008ee668e47a861fd77ebbf434`；无应用条数限制文案 canonical `15811220e469af35443dd359dce656f13a5b870a` / module `defb7d5375f95cae612169efc7eaa88ac67598c3`。
 - 按当前要求未运行测试、静态检查、构建、CI 或 Android 真机验证；源码提交不代表设备验收通过。
+
+
+## 2026-11-07 — DNS 重写 UI 与快照换行协议收尾
+
+- 对 DNS 重写编辑器及快照链路统一修复 Java 换行协议：批量订阅导入、DNS 快照文本标准化、导入差异行、DNS 状态摘要均写入真正的换行字符；快照头检查与实际标准化换行保持一致。
+- 修复 DNS 查询日志 TSV 导出字段清理中的换行/回车字符字面量，避免将多字符 char literal 留在 Java 源码中。
+- DNS 地址重写贯通 Root 持久化、AdGuard Home `filtering.rewrites` 运行时渲染、原生编辑/清空入口、DNS 快照导出/导入/预览/恢复；规则数量不设应用层上限，由 Root 后端整批校验和原子写入。
+- 同步正式源码与模块打包源码，并更新两份续接记录。
+- 按当前提速要求未运行测试、静态检查、Gradle/APK 构建、CI 或 Android 真机验证；本批仅完成源码提交。

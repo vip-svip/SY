@@ -1234,3 +1234,12 @@
 - 同步文件：`scripts/yulong-ad-dns-summary.sh`、`fx-module/scripts/yulong-ad-dns-summary.sh`。
 - 本批代码提交：`eeb8c956ca1d47005fe4fcbef70c2ab3e45e9d4e`。
 - 按当前要求未运行脚本、测试、静态检查、构建、CI 或 Android 真机验证；本次仅进行源码修改与 GitHub 提交。
+
+
+## 2026-11-07 — DNS 重写 UI 与快照换行协议收尾
+
+- 对 DNS 重写编辑器及快照链路统一修复 Java 换行协议：批量订阅导入、DNS 快照文本标准化、导入差异行、DNS 状态摘要均写入真正的换行字符；快照头检查与实际标准化换行保持一致。
+- 修复 DNS 查询日志 TSV 导出字段清理中的换行/回车字符字面量，避免将多字符 char literal 留在 Java 源码中。
+- DNS 地址重写贯通 Root 持久化、AdGuard Home `filtering.rewrites` 运行时渲染、原生编辑/清空入口、DNS 快照导出/导入/预览/恢复；规则数量不设应用层上限，由 Root 后端整批校验和原子写入。
+- 同步正式源码与模块打包源码，并更新两份续接记录。
+- 按当前提速要求未运行测试、静态检查、Gradle/APK 构建、CI 或 Android 真机验证；本批仅完成源码提交。

@@ -646,7 +646,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
   }
   if(parsed.isEmpty()){status.setText("没有可导入的过滤列表。");return;}
   StringBuilder normalized=new StringBuilder();
-  for(java.util.Map.Entry<String,String> entry:parsed.entrySet())normalized.append(entry.getKey()).append('|').append(entry.getValue()).append('\\n');
+  for(java.util.Map.Entry<String,String> entry:parsed.entrySet())normalized.append(entry.getKey()).append('|').append(entry.getValue()).append('\n');
   byte[] bytes=normalized.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
   String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);
   fxDialogBuilder().setTitle("批量导入过滤列表")
@@ -1706,11 +1706,11 @@ private void restoreDnsProfile(EditText input){
   for(String line:supplied.split("\\r?\\n")){
     String trimmed=line.trim();
     if(trimmed.isEmpty()||trimmed.startsWith("#"))continue;
-    if(normalized.length()>0)normalized.append('\\n');
+    if(normalized.length()>0)normalized.append('\n');
     normalized.append(trimmed);
   }
   String raw=normalized.toString();
-  if(!raw.startsWith("FXYULONGDNSPROFILE1\\n")&&!raw.equals("FXYULONGDNSPROFILE1")){
+  if(!raw.startsWith("FXYULONGDNSPROFILE1\n")&&!raw.equals("FXYULONGDNSPROFILE1")){
     status.setText("快照版本头不匹配，未修改配置。");return;
   }
   byte[] bytes=raw.getBytes(java.nio.charset.StandardCharsets.UTF_8);
@@ -1878,16 +1878,16 @@ private void restoreDnsProfile(EditText input){
   if("1".equals(preview.get("QUERYLOG_IGNORED_ENABLED")))enabled++;
   if("1".equals(preview.get("STATISTICS_ENABLED")))enabled++;
   if("1".equals(preview.get("STATISTICS_IGNORED_ENABLED")))enabled++;
-  String summary="快照包含 "+allowed.length+" 项字段、22 个开关（启用 "+enabled+" 项）。\\n"
+  String summary="快照包含 "+allowed.length+" 项字段、22 个开关（启用 "+enabled+" 项）。\n"
       +"自定义上游："+countDnsEndpoints(preview.get("CUSTOM_SERVERS"))+" 条；"
       +"全局上游："+countDnsEndpoints(preview.get("GLOBAL_SERVERS"))+" 条；"
-      +"备用上游："+countDnsEndpoints(preview.get("FALLBACK_SERVERS"))+" 条。\\n"
-      +"VPN 远端 DNS："+preview.get("VPN_REMOTE")+"；国内 DNS："+preview.get("VPN_CN")+"。\\n"
+      +"备用上游："+countDnsEndpoints(preview.get("FALLBACK_SERVERS"))+" 条。\n"
+      +"VPN 远端 DNS："+preview.get("VPN_REMOTE")+"；国内 DNS："+preview.get("VPN_CN")+"。\n"
       +"拦截响应模式："+preview.get("RESPONSE_MODE")+"；查询日志保留："+querylogRetention
-      +"；内存刷盘批量："+preview.get("QUERYLOG_MEMORY_SIZE")+"（0 表示逐条写盘）；逐条日志排除："+preview.get("QUERYLOG_IGNORED_ENABLED")+"（"+(preview.get("QUERYLOG_IGNORED").isEmpty()?0:preview.get("QUERYLOG_IGNORED").split(",").length)+" 个）；DNS 重写："+(preview.get("DNS_REWRITES").isEmpty()?0:preview.get("DNS_REWRITES").split(",").length)+" 条；聚合统计："+preview.get("STATISTICS_ENABLED")+"，周期 "+preview.get("STATISTICS_INTERVAL")+"；统计排除："+preview.get("STATISTICS_IGNORED_ENABLED")+"（"+(preview.get("STATISTICS_IGNORED").isEmpty()?0:preview.get("STATISTICS_IGNORED").split(",").length)+" 个）。\\n"
-      +"上游策略："+preview.get("UPSTREAM_MODE")+"；fastest 超时："+preview.get("FASTEST_TIMEOUT")+"；上游超时："+preview.get("UPSTREAM_TIMEOUT")+"。\\n"
-      +"DNS 缓存："+preview.get("CACHE_SIZE")+" 字节；缓存 TTL："+preview.get("CACHE_TTL_MIN")+"~"+preview.get("CACHE_TTL_MAX")+" 秒；乐观缓存："+preview.get("CACHE_OPTIMISTIC")+"（答复 TTL "+preview.get("CACHE_OPTIMISTIC_ANSWER_TTL")+"，最大年龄 "+preview.get("CACHE_OPTIMISTIC_MAX_AGE")+"）；DNSSEC："+preview.get("ENABLE_DNSSEC")+"。\\n"
-      +"Unbound 工作线程："+preview.get("UNBOUND_NUM_THREADS")+"（设备在线核心数由 Root 恢复时再次校验）；缓存 TTL："+preview.get("UNBOUND_CACHE_MIN_TTL")+"~"+preview.get("UNBOUND_CACHE_MAX_TTL")+" 秒；消息/RRset/Key/否定缓存池："+preview.get("UNBOUND_MSG_CACHE_SIZE")+"/"+preview.get("UNBOUND_RRSET_CACHE_SIZE")+"/"+preview.get("UNBOUND_KEY_CACHE_SIZE")+"/"+preview.get("UNBOUND_NEG_CACHE_SIZE")+"；serve-expired："+preview.get("UNBOUND_SERVE_EXPIRED")+"（最大年龄 "+preview.get("UNBOUND_SERVE_EXPIRED_TTL")+" 秒、答复 TTL "+preview.get("UNBOUND_SERVE_EXPIRED_REPLY_TTL")+" 秒、客户端等待 "+preview.get("UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT")+" 毫秒）；预取："+preview.get("UNBOUND_PREFETCH")+"；DNSSEC 密钥预取："+preview.get("UNBOUND_PREFETCH_KEY")+"；QNAME minimisation："+preview.get("UNBOUND_QNAME_MINIMISATION")+"。\\n\\n"
+      +"；内存刷盘批量："+preview.get("QUERYLOG_MEMORY_SIZE")+"（0 表示逐条写盘）；逐条日志排除："+preview.get("QUERYLOG_IGNORED_ENABLED")+"（"+(preview.get("QUERYLOG_IGNORED").isEmpty()?0:preview.get("QUERYLOG_IGNORED").split(",").length)+" 个）；DNS 重写："+(preview.get("DNS_REWRITES").isEmpty()?0:preview.get("DNS_REWRITES").split(",").length)+" 条；聚合统计："+preview.get("STATISTICS_ENABLED")+"，周期 "+preview.get("STATISTICS_INTERVAL")+"；统计排除："+preview.get("STATISTICS_IGNORED_ENABLED")+"（"+(preview.get("STATISTICS_IGNORED").isEmpty()?0:preview.get("STATISTICS_IGNORED").split(",").length)+" 个）。\n"
+      +"上游策略："+preview.get("UPSTREAM_MODE")+"；fastest 超时："+preview.get("FASTEST_TIMEOUT")+"；上游超时："+preview.get("UPSTREAM_TIMEOUT")+"。\n"
+      +"DNS 缓存："+preview.get("CACHE_SIZE")+" 字节；缓存 TTL："+preview.get("CACHE_TTL_MIN")+"~"+preview.get("CACHE_TTL_MAX")+" 秒；乐观缓存："+preview.get("CACHE_OPTIMISTIC")+"（答复 TTL "+preview.get("CACHE_OPTIMISTIC_ANSWER_TTL")+"，最大年龄 "+preview.get("CACHE_OPTIMISTIC_MAX_AGE")+"）；DNSSEC："+preview.get("ENABLE_DNSSEC")+"。\n"
+      +"Unbound 工作线程："+preview.get("UNBOUND_NUM_THREADS")+"（设备在线核心数由 Root 恢复时再次校验）；缓存 TTL："+preview.get("UNBOUND_CACHE_MIN_TTL")+"~"+preview.get("UNBOUND_CACHE_MAX_TTL")+" 秒；消息/RRset/Key/否定缓存池："+preview.get("UNBOUND_MSG_CACHE_SIZE")+"/"+preview.get("UNBOUND_RRSET_CACHE_SIZE")+"/"+preview.get("UNBOUND_KEY_CACHE_SIZE")+"/"+preview.get("UNBOUND_NEG_CACHE_SIZE")+"；serve-expired："+preview.get("UNBOUND_SERVE_EXPIRED")+"（最大年龄 "+preview.get("UNBOUND_SERVE_EXPIRED_TTL")+" 秒、答复 TTL "+preview.get("UNBOUND_SERVE_EXPIRED_REPLY_TTL")+" 秒、客户端等待 "+preview.get("UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT")+" 毫秒）；预取："+preview.get("UNBOUND_PREFETCH")+"；DNSSEC 密钥预取："+preview.get("UNBOUND_PREFETCH_KEY")+"；QNAME minimisation："+preview.get("UNBOUND_QNAME_MINIMISATION")+"。\n\n"
       +"这是本地结构预览，不代表端点及配置语义已通过后端校验；继续后仍由 FX Root 后端完整校验。";
   String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);
   root("dns-profile-get",currentResult->{
@@ -1920,12 +1920,12 @@ private void restoreDnsProfile(EditText input){
       String oldValue=current.get(key),newValue=preview.get(key);
       if(oldValue==null){status.setText("当前 DNS 配置缺少字段："+key+"，已停止恢复预览。");return;}
       if(!oldValue.equals(newValue))changes.append(key).append("：").append(oldValue)
-          .append(" → ").append(newValue).append('\\n');
+          .append(" → ").append(newValue).append('\n');
     }
     String changeText=changes.length()==0?"与当前 DNS 配置完全一致，无字段变化。":
-        "将变更以下字段：\\n"+changes;
+        "将变更以下字段：\n"+changes;
     fxDialogBuilder().setTitle("DNS 快照导入预览")
-      .setMessage(summary+"\\n\\n"+changeText)
+      .setMessage(summary+"\n\n"+changeText)
       .setNegativeButton("取消",null)
       .setPositiveButton("继续恢复",(d,w)->fxDialogBuilder().setTitle("确认完整替换 DNS 配置")
         .setMessage("将完整替换当前 DNS 引擎开关、过滤策略、全部上游服务器、VPN DNS、拦截响应模式、日志保留期限/内存刷盘批量/逐条日志排除域名/DNS 域名重写规则、DNS 聚合统计开关/周期/排除域名、上游选择/超时、AdGuard Home 缓存容量/TTL/乐观缓存策略、DNSSEC，以及 Unbound 缓存 TTL、消息/RRset/DNSSEC Key/否定响应四类缓存池、serve-expired、域名预取、DNSSEC 密钥预取和 QNAME minimisation。后端会再次校验全部字段；恢复应用失败会回滚原配置。不会修改 VPN 节点或其他 FX 模块设置。")
@@ -2158,7 +2158,7 @@ private void loadDnsRuntimeStatus(TextView target){
 }
 private void appendDnsStatus(StringBuilder out,String label,String value){
   if(value==null||value.isEmpty())return;
-  out.append(label).append("：").append(value).append('\\n');
+  out.append(label).append("：").append(value).append('\n');
 }
 private void loadDnsLists(EditText custom,EditText global,EditText fallback,EditText remote,EditText domestic){
   root("dns-config-get",r->{
@@ -2485,7 +2485,7 @@ private void saveVpnDns(String key,EditText input){
  }
  private static String cleanDomainExportField(String value){
   return value==null?"":value.replace('|',' ').replace('\\t',' ')
-      .replace('\\r',' ').replace('\\n',' ');
+      .replace('\\r',' ').replace('\n',' ');
  }
  private void importDomainBundle(EditText input){
   String raw=input.getText()==null?"":input.getText().toString();
