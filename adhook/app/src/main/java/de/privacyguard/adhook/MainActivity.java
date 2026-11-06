@@ -2285,6 +2285,8 @@ public final class MainActivity extends ComponentActivity {
         actions.addView(nativeAction("导入 Stash YAML HTTP 脚本", this::pickNativeStashScriptConfig));
         actions.addView(nativeAction("导入 Surge / Loon / Quantumult X 配置", this::pickNativeScriptFile));
         actions.addView(nativeAction("导出脚本配置", this::exportNativeScripts));
+        actions.addView(nativeAction("全部启用脚本", () -> setNativeScriptsEnabledAll(true, rows, status)));
+        actions.addView(nativeAction("全部停用脚本", () -> setNativeScriptsEnabledAll(false, rows, status)));
         actions.addView(nativeAction("刷新脚本订阅", this::refreshNativeScripts));
         actions.addView(nativeAction("查看脚本运行日志", this::showNativeScriptLogs));
         actions.addView(nativeAction("查看 MITM / 证书状态", () -> showNativeMitmStatus()));
@@ -3222,6 +3224,33 @@ public final class MainActivity extends ComponentActivity {
                 Toast.makeText(this, "导出准备失败：" + error.getMessage(), Toast.LENGTH_LONG).show();
             }
         });
+    }
+
+    private void setNativeScriptsEnabledAll(boolean enabled, LinearLayout rows, TextView status) {
+        String action = enabled ? "全部启用脚本" : "全部停用脚本";
+        FxNativeSkin.builder(this).setTitle(action)
+                .setMessage(enabled
+                        ? "将批量启用脚本列表中的所有条目。启用订阅会允许同步器获取订阅内容；本地 JS 仍不会自动执行。"
+                        : "将批量停用脚本列表中的所有条目。已保存的脚本内容不会删除。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("确认", (dialog, which) -> {
+                    if (status != null) status.setText("正在批量更新脚本状态…");
+                    runNativeModuleCommand(nativeScriptStoreCommand("toggle-all", enabled ? "1" : "0"),
+                            30000L, result -> {
+                                if (result.exitCode == 0 && result.output != null
+                                        && result.output.contains("OK")) {
+                                    Toast.makeText(this, action + "完成", Toast.LENGTH_SHORT).show();
+                                    refreshNativeScriptList(rows, status);
+                                    syncNativeScriptRuntime();
+                                } else {
+                                    if (status != null) status.setText(action + "失败：" +
+                                            (result.output == null ? "未知错误" : result.output.trim()));
+                                    FxNativeSkin.builder(this).setTitle(action + "失败")
+                                            .setMessage(result.output == null ? "模块未返回错误详情。" : result.output.trim())
+                                            .setPositiveButton("关闭", null).show();
+                                }
+                            });
+                }).show();
     }
 
     private void refreshNativeScripts() {
