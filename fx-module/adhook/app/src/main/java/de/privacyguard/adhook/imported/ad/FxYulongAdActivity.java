@@ -874,7 +874,8 @@ private void loadDnsRuntimeStatus(TextView target){
         "rootproxy_whitelist_count","dns_filter_sources_total",
         "dns_filter_sources_enabled","private_dns_mode","dns_filter_coverage",
         "vpn_coexistence_verdict","vpn_route_probe","dns_stack_enabled",
-        "dns_stack_ready"));
+        "dns_stack_ready",
+        "dns_stack_readiness_reason"));
     for(int index=1;index<lines.length;index++){
       String line=lines[index].trim();
       if(line.isEmpty())continue;
@@ -916,6 +917,7 @@ private void loadDnsRuntimeStatus(TextView target){
     appendDnsStatus(out,"Android 私有 DNS 模式",values.get("private_dns_mode"));
     appendDnsStatus(out,"Root Proxy 白名单数量",values.get("rootproxy_whitelist_count"));
     appendDnsStatus(out,"DNS 栈就绪",values.get("dns_stack_ready"));
+    appendDnsStatus(out,"DNS 栈未就绪原因",values.get("dns_stack_readiness_reason"));
     appendDnsStatus(out,"过滤规则总数",values.get("dns_filter_sources_total"));
     appendDnsStatus(out,"已启用过滤规则",values.get("dns_filter_sources_enabled"));
     target.setText(out.length()==0?"未收到可识别的 DNS 状态字段。":out.toString().trim());
