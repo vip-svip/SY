@@ -15,16 +15,11 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 /**
- * Bounded, read-only DEX index parser for Dia's class/method/field browser.
+ * Read-only DEX index parser for Dia's class/method/field browser.
  * It never defines or executes classes from the inspected APK.
  */
 public final class FxDiaDexIndex {
-    private static final int MAX_DEX_BYTES = 96 * 1024 * 1024;
-    private static final int MAX_CLASSES = 100000;
-    private static final int MAX_MEMBERS_PER_CLASS = 20000;
-    private static final int MAX_CALLS_PER_CLASS = 512;
-    private static final int MAX_CALLS_PER_DEX = 150000;
-    private static final int MAX_CODE_UNITS_PER_METHOD = 2 * 1024 * 1024;
+    private static final int MAX_DEX_BYTES = Integer.MAX_VALUE;
 
     public static final class Member {
         public final boolean method;
@@ -74,7 +69,7 @@ public final class FxDiaDexIndex {
         }
     }
 
-    private int parsedCallEdges;
+    private long parsedCallEdges;
     private final byte[] data;
     private final int stringsSize, stringsOff, typesSize, typesOff;
     private final int protosSize, protosOff, fieldsSize, fieldsOff;
@@ -152,7 +147,6 @@ public final class FxDiaDexIndex {
                     }
                     FxDiaDexIndex index = new FxDiaDexIndex(bytes, cancelled);
                     index.appendClasses(all);
-                    if (all.size() >= MAX_CLASSES) return all;
                 }
             }
         }
@@ -195,7 +189,7 @@ public final class FxDiaDexIndex {
     }
 
     private void appendClasses(Map<String, DexClass> output) throws IOException {
-        for (int i = 0; i < classesSize && output.size() < MAX_CLASSES; i++) {
+        for (int i = 0; i < classesSize; i++) {
             checkCancellation();
             int base = classesOff + i * 32;
             int classIndex = u32(base);
@@ -214,7 +208,7 @@ public final class FxDiaDexIndex {
             int interfacesOff = u32(base + 16);
             if (interfacesOff > 0) {
                 int interfaceCount = u32(interfacesOff);
-                if (interfaceCount > 4096) throw new IOException("class interface count exceeds limit");
+                if ((long) interfaceCount * 2L > Integer.MAX_VALUE) throw new IOException("DEX interface table exceeds addressable range");
                 checkRange(interfacesOff + 4, interfaceCount * 2);
                 for (int j = 0; j < interfaceCount; j++) {
                     String iface = type(u16(interfacesOff + 4 + j * 2));
@@ -235,8 +229,6 @@ public final class FxDiaDexIndex {
         int virtualMethods = readUleb(cursor);
         long fieldTotal = (long) staticFields + instanceFields;
         long methodTotal = (long) directMethods + virtualMethods;
-        if (fieldTotal > MAX_MEMBERS_PER_CLASS || methodTotal > MAX_MEMBERS_PER_CLASS)
-            throw new IOException("class member count exceeds safety limit");
         parseFieldList(cursor, staticFields, item);
         parseFieldList(cursor, instanceFields, item);
         parseMethodList(cursor, directMethods, item);
@@ -275,7 +267,7 @@ public final class FxDiaDexIndex {
             String signature = proto(protoIndex);
             if (name == null || signature == null) continue;
             item.methods.add(new Member(true, name, signature, access));
-            if (codeOff != 0 && item.calls.size() < MAX_CALLS_PER_CLASS) {
+            if (codeOff != 0) {
                 String caller = item.descriptor + "->" + name + signature;
                 try { parseCodeCalls(codeOff, caller, item); }
                 catch (IOException malformedCode) {
@@ -290,11 +282,10 @@ public final class FxDiaDexIndex {
         if ((codeOffset & 3) != 0) return;
         checkRange(codeOffset, 16);
         int units = u32(codeOffset + 12);
-        if (units <= 0 || units > MAX_CODE_UNITS_PER_METHOD) return;
+        if (units <= 0 || (long) units * 2L > Integer.MAX_VALUE) return;
         int instructions = codeOffset + 16;
         checkRange(instructions, units * 2);
-        for (int pc = 0; pc < units && item.calls.size() < MAX_CALLS_PER_CLASS
-                && parsedCallEdges < MAX_CALLS_PER_DEX;) {
+        for (int pc = 0; pc < units;) {
             if ((pc & 0x3ff) == 0) checkCancellation();
             int first = u16(instructions + pc * 2);
             int opcode = first & 0xff;
@@ -410,7 +401,7 @@ public final class FxDiaDexIndex {
         StringBuilder signature = new StringBuilder("(");
         if (parametersOff != 0) {
             int count = u32(parametersOff);
-            if (count > 4096) throw new IOException("method parameter count exceeds limit");
+            if ((long) count * 2L > Integer.MAX_VALUE) throw new IOException("DEX parameter table exceeds addressable range");
             checkRange(parametersOff + 4, count * 2);
             for (int i = 0; i < count; i++) signature.append(type(u16(parametersOff + 4 + i * 2)));
         }
