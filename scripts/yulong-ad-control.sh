@@ -24,6 +24,8 @@ _yad_cache_lock=
 _yad_import_raw=
 _yad_import_clean=
 _yad_remove_raw=
+_yad_set_raw=
+_yad_set_clean=
 _yad_rule_raw=
 _yad_rule_clean=
 _yad_rule_add_raw=
@@ -43,6 +45,8 @@ _yad_cleanup() {
   [ -z "$_yad_import_raw" ] || rm -f "$_yad_import_raw" 2>/dev/null || :
   [ -z "$_yad_import_clean" ] || rm -f "$_yad_import_clean" 2>/dev/null || :
   [ -z "$_yad_remove_raw" ] || rm -f "$_yad_remove_raw" 2>/dev/null || :
+  [ -z "$_yad_set_raw" ] || rm -f "$_yad_set_raw" 2>/dev/null || :
+  [ -z "$_yad_set_clean" ] || rm -f "$_yad_set_clean" 2>/dev/null || :
   [ -z "$_yad_rule_raw" ] || rm -f "$_yad_rule_raw" 2>/dev/null || :
   [ -z "$_yad_rule_clean" ] || rm -f "$_yad_rule_clean" 2>/dev/null || :
   [ -z "$_yad_rule_add_raw" ] || rm -f "$_yad_rule_add_raw" 2>/dev/null || :
@@ -798,6 +802,44 @@ m_allow_remove(){ sh "$MP/scripts/whitelist.sh" remove "$1"; }
 m_allow_import(){ import_domains allow "$1"; }
 m_block_add(){ write_block "$1" "$2" 1 add; }
 m_block_set(){ old_note=$(pg_list block|awk -F'|' -v d="$1" '$1==d{print $2;exit}'); [ -n "$old_note" ] || return 3; write_block "$1" "$old_note" "$2" set; }
+block_set_many() {
+  _set_enabled=$1
+  _set_encoded=$2
+  case "$_set_enabled" in 0|1) : ;; *) echo "blacklist state must be 0 or 1" >&2; return 2 ;; esac
+  case "$_set_encoded" in ''|*[!A-Za-z0-9+/=]*) echo "invalid base64 blacklist state list" >&2; return 2 ;; esac
+  [ "${#_set_encoded}" -le 87384 ] || { echo "blacklist state list exceeds 64 KiB" >&2; return 2; }
+  _yad_set_raw=$(mktemp "$PG/yulong-block-set.XXXXXX") || return 1
+  _yad_set_clean=$(mktemp "$PG/yulong-block-set-clean.XXXXXX") || return 1
+  chmod 600 "$_yad_set_raw" "$_yad_set_clean" || return 1
+  (umask 077; printf '%s' "$_set_encoded" | base64 -d > "$_yad_set_raw") || { echo "unable to decode blacklist state list" >&2; return 2; }
+  _set_bytes=$(wc -c < "$_yad_set_raw" | tr -d ' ')
+  [ "$_set_bytes" -le 65536 ] || { echo "blacklist state list exceeds 64 KiB" >&2; return 2; }
+  _set_count=0
+  while IFS= read -r _set_line || [ -n "$_set_line" ]; do
+    _set_line=$(printf '%s' "$_set_line" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    [ -n "$_set_line" ] || continue
+    _set_domain=$(valid_domain "$_set_line") || { echo "invalid domain in blacklist state list" >&2; return 2; }
+    if ! awk -F'|' -v d="$_set_domain" '$1==d{found=1} END{exit !found}' <<EOF_BLOCK_LIST
+$(pg_list block)
+EOF_BLOCK_LIST
+    then
+      echo "blacklist domain no longer exists: $_set_domain" >&2
+      return 3
+    fi
+    if ! grep -Fxq "$_set_domain" "$_yad_set_clean"; then
+      printf '%s\n' "$_set_domain" >> "$_yad_set_clean" || return 1
+      _set_count=$((_set_count + 1))
+      [ "$_set_count" -le 2000 ] || { echo "blacklist state list is limited to 2000 rows" >&2; return 2; }
+    fi
+  done < "$_yad_set_raw"
+  [ "$_set_count" -gt 0 ] || { echo "no blacklist domains to update" >&2; return 2; }
+  while IFS= read -r _set_domain; do
+    m_block_set "$_set_domain" "$_set_enabled" || { echo "failed to update blacklist domain: $_set_domain" >&2; return 1; }
+  done < "$_yad_set_clean"
+  rm -f "$_yad_set_raw" "$_yad_set_clean"
+  _yad_set_raw=; _yad_set_clean=
+  echo "updated=$_set_count enabled=$_set_enabled"
+}
 m_block_remove(){ write_block "$1" "" 0 remove; }
 m_block_import(){ import_domains block "$1"; }
 domain_clear_all() {
@@ -1091,6 +1133,9 @@ case "$cmd" in
   d=$(valid_domain "$2") || exit 2
   { [ "$3" = 0 ] || [ "$3" = 1 ]; } || exit 2
   with_lock transaction m_block_set "$d" "$3" ;;
+ block-set-many)
+  [ "$#" -eq 3 ] || { echo "usage: $0 block-set-many 0|1 base64-domain-list" >&2; exit 2; }
+  with_lock transaction block_set_many "$2" "$3" ;;
  block-remove)
   [ "$#" -eq 2 ] || exit 2; d=$(valid_domain "$2") || exit 2
   with_lock transaction m_block_remove "$d" ;;
