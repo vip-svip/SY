@@ -41,6 +41,7 @@ public final class EgernScriptYamlImporter {
         boolean binaryBody = false;
         boolean hasEnvironment = false;
         boolean invalidEnvironment = false;
+        boolean unsupportedLimits = false;
         int environmentIndent = -1;
         JSONObject scriptEnvironment = new JSONObject();
 
@@ -81,6 +82,7 @@ public final class EgernScriptYamlImporter {
                 binaryBody = false;
                 hasEnvironment = false;
                 invalidEnvironment = false;
+                unsupportedLimits = false;
                 environmentIndent = -1;
                 scriptEnvironment = new JSONObject();
                 continue;
@@ -109,6 +111,7 @@ public final class EgernScriptYamlImporter {
                         invalidEnvironment = true;
                         continue;
                     }
+                    hasEnvironment = true;
                     scriptEnvironment.put(envKey, envValue);
                     if (scriptEnvironment.toString().length() > 2048) invalidEnvironment = true;
                     continue;
@@ -127,13 +130,19 @@ public final class EgernScriptYamlImporter {
                 case "disabled": disabled = truthy(value); break;
                 case "body_required": bodyRequired = truthy(value); break;
                 case "binary_body": binaryBody = truthy(value); break;
+                case "timeout": unsupportedLimits |= !isDefaultInteger(value, 10); break;
+                case "max_size": unsupportedLimits |= !isDefaultInteger(value, 1048576); break;
+                case "update_interval": unsupportedLimits |= !isDefaultInteger(value, 86400); break;
                 case "env":
+                    hasEnvironment = true;
                     String rawEnvironment = line.substring(colon + 1).trim();
                     if (rawEnvironment.isEmpty()) {
                         environmentIndent = indent;
                     } else if (!"{}".equals(rawEnvironment)
                             && !"null".equalsIgnoreCase(rawEnvironment) && !"~".equals(rawEnvironment)) {
-                        invalidEnvironment = true;
+                        if (!parseInlineEnvironment(rawEnvironment, scriptEnvironment)) {
+                            invalidEnvironment = true;
+                        }
                     }
                     break;
                 default: break;
@@ -164,7 +173,7 @@ public final class EgernScriptYamlImporter {
         if (name == null || name.trim().isEmpty() || name.trim().length() > 512
                 || match == null || match.isEmpty() || match.length() > 2048
                 || scriptUrl == null || !scriptUrl.regionMatches(true, 0, "https://", 0, 8)) return;
-        if (binaryBody || invalidEnvironment) return;
+        if (binaryBody || invalidEnvironment || unsupportedLimits) return;
 
         Uri uri = Uri.parse(scriptUrl);
         if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null
@@ -189,6 +198,86 @@ public final class EgernScriptYamlImporter {
         entry.put("name", storedMetadata);
         entry.put("enabled", !disabled);
         scripts.put(entry);
+    }
+
+
+    private static boolean parseInlineEnvironment(String raw, JSONObject target) {
+        if (raw == null) return false;
+        String value = raw.trim();
+        if (!value.startsWith("{") || !value.endsWith("}")) return false;
+        String body = value.substring(1, value.length() - 1).trim();
+        if (body.isEmpty()) return true;
+        java.util.List<String> fields = new java.util.ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        boolean single = false, dual = false, escaped = false;
+        for (int i = 0; i < body.length(); i++) {
+            char c = body.charAt(i);
+            if (dual) {
+                current.append(c);
+                if (escaped) escaped = false;
+                else if (c == '\\') escaped = true;
+                else if (c == '"') dual = false;
+            } else if (single) {
+                current.append(c);
+                if (c == '\'' && i + 1 < body.length() && body.charAt(i + 1) == '\'') {
+                    current.append(body.charAt(++i));
+                } else if (c == '\'') {
+                    single = false;
+                }
+            } else if (c == '"') {
+                dual = true;
+                current.append(c);
+            } else if (c == '\'') {
+                single = true;
+                current.append(c);
+            } else if (c == ',') {
+                fields.add(current.toString().trim());
+                current.setLength(0);
+            } else {
+                current.append(c);
+            }
+        }
+        if (single || dual || escaped) return false;
+        if (current.length() > 0) fields.add(current.toString().trim());
+        if (fields.size() > 32) return false;
+        for (String field : fields) {
+            int colon = -1;
+            single = false; dual = false; escaped = false;
+            for (int i = 0; i < field.length(); i++) {
+                char c = field.charAt(i);
+                if (dual) {
+                    if (escaped) escaped = false;
+                    else if (c == '\\') escaped = true;
+                    else if (c == '"') dual = false;
+                } else if (single) {
+                    if (c == '\'' && i + 1 < field.length() && field.charAt(i + 1) == '\'') i++;
+                    else if (c == '\'') single = false;
+                } else if (c == '"') dual = true;
+                else if (c == '\'') single = true;
+                else if (c == ':') { colon = i; break; }
+            }
+            if (colon <= 0) return false;
+            String key = scalar(field.substring(0, colon));
+            String rawValue = field.substring(colon + 1).trim();
+            if (!key.matches("[A-Za-z_][A-Za-z0-9_.-]{0,63}") || rawValue.isEmpty()
+                    || rawValue.startsWith("[") || rawValue.startsWith("{")
+                    || rawValue.startsWith("|") || rawValue.startsWith(">")) return false;
+            String envValue = scalar(rawValue);
+            if (envValue.length() > 512) return false;
+            if (!target.has(key) && target.length() >= 32) return false;
+            target.put(key, envValue);
+            if (target.toString().length() > 2048) return false;
+        }
+        return true;
+    }
+
+    private static boolean isDefaultInteger(String value, int expected) {
+        if (value == null || value.trim().isEmpty()) return true;
+        try {
+            return Integer.parseInt(value.trim()) == expected;
+        } catch (NumberFormatException invalid) {
+            return false;
+        }
     }
 
     private static int indentation(String line) {
