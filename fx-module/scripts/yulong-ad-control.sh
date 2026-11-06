@@ -778,7 +778,7 @@ write_dns_runtime_settings() {
   valid_dns_runtime_uint32 "$_runtime_cache_size" 0 || { echo "DNS cache size must be a positive uint32 byte count" >&2; return 2; }
   valid_dns_runtime_uint32 "$_runtime_cache_ttl_min" 1 &&
     valid_dns_runtime_uint32 "$_runtime_cache_ttl_max" 1 &&
-    [ "$_runtime_cache_ttl_min" -le "$_runtime_cache_ttl_max" ] || {
+    awk -v min="$_runtime_cache_ttl_min" -v max="$_runtime_cache_ttl_max" 'BEGIN{exit !(min+0<=max+0)}' || {
       echo "DNS cache minimum/maximum TTL must be uint32 seconds with minimum <= maximum" >&2
       return 2
     }
@@ -916,7 +916,7 @@ write_unbound_runtime_settings() {
 
   valid_dns_runtime_uint32 "$_ub_cache_max_ttl" 0 &&
     valid_dns_runtime_uint32 "$_ub_cache_min_ttl" 1 &&
-    [ "$_ub_cache_min_ttl" -le "$_ub_cache_max_ttl" ] || {
+    awk -v min="$_ub_cache_min_ttl" -v max="$_ub_cache_max_ttl" 'BEGIN{exit !(min+0<=max+0)}' || {
       echo "Unbound cache TTL must use uint32 seconds with minimum <= maximum" >&2
       return 2
     }
@@ -1190,7 +1190,7 @@ dns_profile_restore() {
     echo "custom DNS is enabled in this profile but its upstream list is empty" >&2
     return 2
   fi
-  [ "$_profile_unbound_cache_min_ttl" -le "$_profile_unbound_cache_max_ttl" ] || {
+  awk -v min="$_profile_unbound_cache_min_ttl" -v max="$_profile_unbound_cache_max_ttl" 'BEGIN{exit !(min+0<=max+0)}' || {
     echo "Unbound cache minimum TTL exceeds maximum TTL" >&2
     return 2
   }
@@ -1214,7 +1214,7 @@ dns_profile_restore() {
     pg_set block_track_domains "$_profile_track" &&
     pg_set dns_querylog_enabled "$_profile_querylog" || return 1
   write_dns_querylog_retention "$_profile_querylog_retention" || return 1
-  [ "$_profile_runtime_cache_ttl_min" -le "$_profile_runtime_cache_ttl_max" ] || { echo "DNS profile cache TTL minimum exceeds maximum" >&2; return 2; }
+  awk -v min="$_profile_runtime_cache_ttl_min" -v max="$_profile_runtime_cache_ttl_max" 'BEGIN{exit !(min+0<=max+0)}' || { echo "DNS profile cache TTL minimum exceeds maximum" >&2; return 2; }
   write_dns_runtime_settings "$_profile_runtime_mode" "$_profile_runtime_fastest" "$_profile_runtime_timeout" "$_profile_runtime_cache_size" "$_profile_runtime_cache_enabled" "$_profile_runtime_cache_optimistic" "$_profile_runtime_dnssec" "$_profile_runtime_cache_ttl_min" "$_profile_runtime_cache_ttl_max" "$_profile_runtime_optimistic_answer_ttl" "$_profile_runtime_optimistic_max_age" || return 1
   write_unbound_runtime_settings "$_profile_unbound_cache_max_ttl" "$_profile_unbound_cache_min_ttl" "$_profile_unbound_serve_expired" "$_profile_unbound_serve_expired_ttl" "$_profile_unbound_serve_expired_reply_ttl" "$_profile_unbound_serve_expired_client_timeout" "$_profile_unbound_prefetch" "$_profile_unbound_qname_minimisation" || return 1
   if [ -n "$_profile_custom" ]; then m_dns_servers custom_dns "$_profile_custom" || return 1
