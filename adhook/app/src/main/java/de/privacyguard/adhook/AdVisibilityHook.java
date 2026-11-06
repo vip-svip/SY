@@ -1602,7 +1602,7 @@ private boolean targetDeveloperOptIn(String packageName) {
                                         : args[0] instanceof Integer && opCode != Integer.MIN_VALUE
                                                 && ((Integer) args[0]).intValue() == opCode;
                                 if (postNotificationOp && uid == android.os.Process.myUid()
-                                        && shouldHidePostNotificationsPermission(opName, packageName)) {
+                                        && shouldHidePostNotificationsPermission("android.permission.POST_NOTIFICATIONS", packageName)) {
                                     return Integer.valueOf(ignoredMode);
                                 }
                                 return chain.proceed();
