@@ -823,14 +823,6 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
 
  private void renderDns(){
   EditText dnsProfileImport=draftField("dns_profile_import");dnsProfileImport.setSingleLine(false);dnsProfileImport.setMinLines(5);dnsProfileImport.setHint("粘贴完整 FXYULONGDNSPROFILE1 快照文本");dnsProfileImportField=dnsProfileImport;
- private void refreshDnsCache(String target,String label){
-   fxDialogBuilder().setTitle("刷新"+label+"缓存")
-     .setMessage("FX 将仅重启所选的自有 DNS 解析服务并重新应用路由。刷新期间相关 DNS 查询可能短暂重试；不会操作第三方 VPN。若所选引擎未启用，FX 会拒绝操作。是否继续？")
-     .setNegativeButton("取消",null).setPositiveButton("刷新",(d,w)->root("cache-flush "+target,r->{
-       fxDialogBuilder().setTitle(r.exitCode==0?"DNS 缓存已刷新":"DNS 刷新未完全成功")
-         .setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
-     })).show();
- }
   card("DNS 配置备份与恢复","快照导入会完整替换 DNS 引擎开关、过滤策略、三组上游、VPN DNS、拦截响应模式、查询日志保留期限、多上游策略与超时、缓存容量/模式及 DNSSEC；兼容旧版快照并为新增字段补齐默认值，提交前由 Root 后端再次校验，应用失败时回滚原配置。",btn("分享 DNS 配置快照",()->shareDnsProfile()),btn("保存 DNS 快照到文件",()->saveDnsProfileToFile()),btn("从文件读取 DNS 快照",()->openDnsProfileFile()),dnsProfileImport,btn("校验并恢复 DNS 配置快照",()->restoreDnsProfile(dnsProfileImport)));
   TextView dnsRuntimeState=txt("DNS 运行状态尚未读取。",12,0xff617080,false);
   card("DNS 引擎运行状态","读取 AdGuard Home、Unbound、第三方 VPN Root Proxy、DNS 过滤覆盖范围与 VPN 共存判定。此操作只读取状态，不会更改服务或网络路由。",dnsRuntimeState,btn("刷新 DNS 运行状态",()->loadDnsRuntimeStatus(dnsRuntimeState)));
@@ -1020,6 +1012,14 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
        btn("刷新 Root Proxy 状态",()->root("rootproxy-status",r->{fxDialogBuilder().setTitle("Root Proxy 状态").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();})));
   loadDnsLists(customServers,globalServers,fallbackServers,remoteDns,cnDns);
 }
+ private void refreshDnsCache(String target,String label){
+   fxDialogBuilder().setTitle("刷新"+label+"缓存")
+     .setMessage("FX 将仅重启所选的自有 DNS 解析服务并重新应用路由。刷新期间相关 DNS 查询可能短暂重试；不会操作第三方 VPN。若所选引擎未启用，FX 会拒绝操作。是否继续？")
+     .setNegativeButton("取消",null).setPositiveButton("刷新",(d,w)->root("cache-flush "+target,r->{
+       fxDialogBuilder().setTitle(r.exitCode==0?"DNS 缓存已刷新":"DNS 刷新未完全成功")
+         .setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
+     })).show();
+ }
 private void shareDnsProfile(){
   root("dns-profile-get",r->{
     if(r.exitCode!=0){status.setText("DNS 配置快照读取失败："+safe(r.output));return;}
