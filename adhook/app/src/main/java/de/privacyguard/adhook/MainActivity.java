@@ -1174,6 +1174,10 @@ public final class MainActivity extends ComponentActivity {
                 if ("attached".equals(value)) return "已挂载";
                 if ("detached".equals(value)) return "未挂载";
                 return "状态未知";
+            case "rootproxy_cleanup":
+                if ("complete".equals(value)) return "清理完成";
+                if ("failed".equals(value)) return "清理失败";
+                return "无需清理或尚无记录";
             case "rootproxy_reason":
                 switch (value) {
                     case "disabled": return "功能未启用";
@@ -1292,6 +1296,7 @@ public final class MainActivity extends ComponentActivity {
                         + " / " + state.getOrDefault("rootproxy_vpn_uid", "unknown")
                         + "\nRoot Proxy 出口 IPv4：" + state.getOrDefault("rootproxy_egress_ipv4", "unknown")
                         + "\nRoot Proxy 状态原因：" + nativeDnsStatusLabel("rootproxy_reason", state.getOrDefault("rootproxy_reason", "unknown"))
+                        + "\nRoot Proxy 残留规则清理：" + nativeDnsStatusLabel("rootproxy_cleanup", state.getOrDefault("rootproxy_cleanup", "not_required"))
                         + "\nDNS 重定向：" + nativeDnsStatusLabel("rootproxy_redirects", state.getOrDefault("rootproxy_redirects", "unknown"))
                         + " · DNS 探测：" + nativeDnsStatusLabel("vpn_route_probe", state.getOrDefault("rootproxy_dns_probe", "unavailable"))
                         + "\nDNS 订阅源：" + state.getOrDefault("dns_filter_sources_enabled", "unknown")
