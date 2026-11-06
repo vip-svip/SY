@@ -12,6 +12,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -46,6 +47,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
             new ThreadPoolExecutor.AbortPolicy());
     private final List<Entry> data = new ArrayList<>();
     private LinearLayout rows;
+    private LinearLayout typeFilters;
     private TextView status;
     private EditText search;
     private Button cacheFlushButton;
@@ -176,17 +178,14 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         timeFilters.addView(button("近 24 小时", () -> setTimeFilter(2)), new LinearLayout.LayoutParams(0, -2, 1));
         timeFilters.addView(button("近 7 天", () -> setTimeFilter(3)), new LinearLayout.LayoutParams(0, -2, 1));
         card(body, "时间范围筛选", "按日志时间筛选；无法识别时间格式的记录仍保留显示，避免误隐藏本地日志。分享时同步应用。", timeFilters);
-        LinearLayout typeFilters = new LinearLayout(this);
+        typeFilters = new LinearLayout(this);
         typeFilters.setOrientation(LinearLayout.HORIZONTAL);
-        String[] rrTypes = {"全部", "A", "AAAA", "HTTPS", "TXT", "MX", "CNAME"};
-        String[] rrValues = {"", "A", "AAAA", "HTTPS", "TXT", "MX", "CNAME"};
-        for (int i = 0; i < rrTypes.length; i++) {
-            final String value = rrValues[i];
-            typeFilters.addView(button(rrTypes[i], () -> setTypeFilter(value)),
-                    new LinearLayout.LayoutParams(0, -2, 1));
-        }
-        card(body, "DNS 记录类型筛选", "支持常用类型快捷筛选，也可输入任意 RR 类型（如 PTR、NS、SOA、SRV、CAA、SVCB 或 TYPE65）；可与其他条件叠加。",
-                typeFilters, button("自定义 DNS 记录类型…", this::promptCustomTypeFilter));
+        HorizontalScrollView typeScroll = new HorizontalScrollView(this);
+        typeScroll.setHorizontalScrollBarEnabled(false);
+        typeScroll.addView(typeFilters, new HorizontalScrollView.LayoutParams(-2, -2));
+        card(body, "DNS 记录类型筛选", "常用类型与当前本地日志中实际出现的全部 RR 类型会自动生成快捷筛选项；类型较多时可横向滑动，也可输入任意 RR 类型。",
+                typeScroll, button("自定义 DNS 记录类型…", this::promptCustomTypeFilter));
+        refreshTypeFilterChoices();
         LinearLayout rcodeFilters = new LinearLayout(this);
         rcodeFilters.setOrientation(LinearLayout.HORIZONTAL);
         String[] rcodeLabels = {"全部", "NOERROR", "NXDOMAIN", "SERVFAIL", "REFUSED", "其他"};
@@ -225,6 +224,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
                 data.clear(); render(); restoreScrollIfNeeded(); return;
             }
             parse(result.output);
+            refreshTypeFilterChoices();
             restoreScrollIfNeeded();
         });
     }
@@ -345,6 +345,25 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
     private boolean matchesTypeFilter(Entry item) {
         return typeFilter.isEmpty() || (item != null && typeFilter.equals(
                 item.type == null ? "" : item.type.trim().toUpperCase(Locale.ROOT)));
+    }
+
+    private void refreshTypeFilterChoices() {
+        if (typeFilters == null) return;
+        typeFilters.removeAllViews();
+        java.util.LinkedHashSet<String> available = new java.util.LinkedHashSet<>();
+        String[] commonTypes = {"", "A", "AAAA", "CNAME", "MX", "NS", "PTR",
+                "SOA", "SRV", "TXT", "HTTPS", "SVCB", "CAA"};
+        java.util.Collections.addAll(available, commonTypes);
+        for (Entry entry : data) {
+            String value = normalizeTypeFilter(entry.type);
+            if (!value.isEmpty()) available.add(value);
+        }
+        if (!typeFilter.isEmpty()) available.add(typeFilter);
+        for (String value : available) {
+            String label = value.isEmpty() ? "全部" : value;
+            typeFilters.addView(button(label, () -> setTypeFilter(value)),
+                    new LinearLayout.LayoutParams(-2, -2));
+        }
     }
 
     private void setTypeFilter(String value) {
