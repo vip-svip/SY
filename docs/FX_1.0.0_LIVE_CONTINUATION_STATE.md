@@ -8104,3 +8104,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - 白名单、黑名单每条记录新增“编辑备注”入口；保存后沿用现有 Root 写入与页面刷新流程。
   - 备注编辑不触碰域名、启用开关及其他名单记录。
 - 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证；本批尚未验收。
+
+
+## 2026-11-07 — Ad 域名白/黑名单清除备注
+
+- 后端提交：`a8adc378044369bbc5b05eeb59fe9331d530bf14`，文件 `scripts/yulong-ad-control.sh`。
+  - 新增 `allow-note-clear DOMAIN` 与 `block-note-clear DOMAIN`。
+  - 在既有配置事务锁内将指定记录备注置空，同时读取并保留原启用状态；不改变域名或名单归属。
+- UI 提交：`b9410476758ded2250a73fce0cbf3bb4628b8cbc`，文件 `adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
+  - 有备注的白名单/黑名单记录新增“清除备注”入口，二次确认后执行；无备注记录不显示该入口。
+- 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证；本批尚未验收。
