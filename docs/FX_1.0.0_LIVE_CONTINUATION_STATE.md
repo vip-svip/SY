@@ -8238,3 +8238,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 将统一主应用已有的脚本中心管理能力补入模块原生 UI：增加全部启用/全部停用脚本入口，调用既有 `native-list.sh toggle-all` 批量事务并刷新列表与运行时。
 - 增加 QuickJS HTTPS 订阅调度器状态读取、启动和停止入口，调用模块已有 `native-script-scheduler.sh`；明确订阅轮询只同步启用的 HTTPS 订阅，不会自动执行本地 JavaScript。
 - 本次补齐主应用与模块脚本中心的 UI 功能差异，不改动脚本执行权限或订阅存储格式。按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证。
+
+
+### FX 模块脚本中心补齐 Surge / Loon / Quantumult X 配置导入入口（2026-11-07）
+
+- 代码提交：`f41b9bd57686432745c4f5a27ca4320b24d107b3`。
+- 文件：`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`。
+- 在模块原生脚本中心补出“导入 Surge / Loon / Quantumult X 配置”入口，复用现有 `pickNativeScriptFile` 文件选择及格式识别/导入流程，不新增另一套解析器，也不改变脚本执行行为。
+- 该入口此前已在统一主应用脚本中心显示，模块页面遗漏；本次只补齐 UI 入口。按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证。
