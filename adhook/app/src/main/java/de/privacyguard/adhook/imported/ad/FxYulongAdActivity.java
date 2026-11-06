@@ -727,9 +727,61 @@ private void saveVpnDns(String key,EditText input){
   card("批量导入黑名单","最多 2000 条、48 Ki 字符（导入字节仍限制为 64 KiB）。整批验证并通过一次 FX apply 事务；失败会回滚。",
       blockBulk,btn("验证并批量导入黑名单",()->importDomains("block",blockBulk)));
 
+  card("域名名单导出",
+      "导出设备端当前保存的用户白名单与黑名单，不包含内置规则源；导出文件可作为备份或供其他工具编辑。",
+      btn("分享全部白名单",()->shareDomainList("ALLOW")),
+      btn("分享全部黑名单",()->shareDomainList("BLOCK")),
+      btn("分享白名单 + 黑名单",()->shareDomainList("BOTH")));
   entries=new LinearLayout(this); entries.setOrientation(1); body.addView(entries);
  }
 
+
+ private void shareDomainList(String kind){
+  if(snapshot==null||snapshot.isEmpty()){
+   status.setText("尚未读取设备端域名名单；请先刷新页面。");
+   return;
+  }
+  List<Row> allowRows=rows("ALLOW"),blockRows=rows("BLOCK");
+  List<Row> selected=new ArrayList<>();
+  if("ALLOW".equals(kind)||"BOTH".equals(kind))selected.addAll(allowRows);
+  if("BLOCK".equals(kind)||"BOTH".equals(kind))selected.addAll(blockRows);
+  if(selected.isEmpty()){
+   status.setText("所选域名名单为空，没有可导出的条目。");
+   return;
+  }
+  StringBuilder payload=new StringBuilder();
+  payload.append("# FX Ad domain list export\\n")
+      .append("# format: allow|domain|note or block|domain|note\\n");
+  int included=0,omitted=0;
+  final int maxBytes=64*1024;
+  for(Row row:selected){
+   String line=row.kind.toLowerCase(Locale.ROOT)+"|"
+       +cleanDomainExportField(row.value)+"|"
+       +cleanDomainExportField(row.title)+"\\n";
+   int used=payload.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+   int bytes=line.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+   if(used+bytes>maxBytes){omitted++;continue;}
+   payload.append(line);included++;
+  }
+  if(included==0){status.setText("名单内容超过导出限制，没有生成导出数据。");return;}
+  if(omitted>0)payload.append("# omitted ").append(omitted)
+      .append(" rows at 64 KiB export limit\\n");
+  try{
+   Intent send=new Intent(Intent.ACTION_SEND);
+   send.setType("text/plain");
+   send.putExtra(Intent.EXTRA_SUBJECT,"FX Ad 域名名单备份");
+   send.putExtra(Intent.EXTRA_TEXT,payload.toString());
+   startActivity(Intent.createChooser(send,"分享域名名单"));
+   status.setText("已准备分享 "+included+" 条域名名单"
+       +(omitted>0?"；另有 "+omitted+" 条因 64 KiB 上限省略。":"。"));
+  }catch(RuntimeException unavailable){
+   status.setText("无法打开系统分享面板："+safe(unavailable.getMessage()));
+  }
+ }
+ private static String cleanDomainExportField(String value){
+  return value==null?"":value.replace('|',' ').replace('\\t',' ')
+      .replace('\\r',' ').replace('\\n',' ');
+ }
  private void importDomains(String kind,EditText input){
   String raw=input.getText()==null?"":input.getText().toString();
   java.util.ArrayList<String> lines=new java.util.ArrayList<>();
