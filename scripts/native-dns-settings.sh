@@ -406,6 +406,40 @@ status() {
       ;;
     *) _dns_fallback_mode=explicit ;;
   esac
+  _querylog_memory_size=unknown
+  _querylog_memory_max=unknown
+  _querylog_runtime=$(MP="$MP" PG="$PG" sh "$MP/scripts/yulong-ad-control.sh" dns-querylog-runtime-get 2>/dev/null) || _querylog_runtime=
+  if [ -n "$_querylog_runtime" ]; then
+    _querylog_header=$(printf '%s\n' "$_querylog_runtime" | sed -n '1p')
+    _querylog_size=$(printf '%s\n' "$_querylog_runtime" | sed -n 's/^memory_size=//p')
+    _querylog_max=$(printf '%s\n' "$_querylog_runtime" | sed -n 's/^memory_max=//p')
+    case "$_querylog_header:$_querylog_size:$_querylog_max" in
+      FXYULONGDNSQUERYLOG1:*[!0-9:]*|*:|*:) : ;;
+      FXYULONGDNSQUERYLOG1:*)
+        _querylog_memory_size=$_querylog_size
+        _querylog_memory_max=$_querylog_max
+        ;;
+    esac
+  fi
+  _statistics_enabled=unknown
+  _statistics_interval=unknown
+  _statistics_runtime=$(MP="$MP" PG="$PG" sh "$MP/scripts/yulong-ad-control.sh" dns-statistics-get 2>/dev/null) || _statistics_runtime=
+  if [ -n "$_statistics_runtime" ]; then
+    _statistics_header=$(printf '%s\n' "$_statistics_runtime" | sed -n '1p')
+    _statistics_flag=$(printf '%s\n' "$_statistics_runtime" | sed -n 's/^STATISTICS_ENABLED=//p')
+    _statistics_period=$(printf '%s\n' "$_statistics_runtime" | sed -n 's/^STATISTICS_INTERVAL=//p')
+    case "$_statistics_flag" in 0|1)
+      case "$_statistics_period" in *h|*d)
+        case "$_statistics_period" in ''|*[!0-9hd]*) : ;;
+          *) [ "$_statistics_header" = FXYULONGDNSSTAT1 ] && {
+            _statistics_enabled=$_statistics_flag
+            _statistics_interval=$_statistics_period
+          } ;;
+        esac
+        ;;
+      esac
+    esac
+  fi
   _local_dns_watchdog=unavailable
   if [ -L "$PG/localdns-watchdog.pid" ] || [ -L "$MP/scripts/localdns-watchdog.sh" ]; then
     _local_dns_watchdog=unsafe
@@ -521,6 +555,10 @@ status() {
   printf 'block_ipv6|%s\n' "$(read_flag block_ipv6)"
   printf 'block_track_domains|%s\n' "$(read_flag block_track_domains)"
   printf 'dns_querylog_enabled|%s\n' "$(read_flag dns_querylog_enabled)"
+  printf 'dns_querylog_memory_size|%s\n' "$_querylog_memory_size"
+  printf 'dns_querylog_memory_max|%s\n' "$_querylog_memory_max"
+  printf 'dns_statistics_enabled|%s\n' "$_statistics_enabled"
+  printf 'dns_statistics_interval|%s\n' "$_statistics_interval"
 }
 mutate() {
   _key=$1
