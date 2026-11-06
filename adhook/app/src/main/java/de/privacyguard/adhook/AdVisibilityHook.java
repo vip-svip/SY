@@ -1192,6 +1192,41 @@ private boolean targetDeveloperOptIn(String packageName) {
                     logFx(Log.DEBUG, "sensor hook unavailable: " + name + "(" + parameters.length + ")");
                 }
             }
+            try {
+                Class<?> callbackType = Class.forName(
+                        "android.hardware.SensorManager$DynamicSensorCallback", false, null);
+                for (final Method callbackMethod : callbackType.getDeclaredMethods()) {
+                    Class<?>[] callbackParameters = callbackMethod.getParameterTypes();
+                    if (!"onDynamicSensorConnected".equals(callbackMethod.getName())
+                            || callbackParameters.length != 1
+                            || !"android.hardware.Sensor".equals(callbackParameters[0].getName())) continue;
+                    try {
+                        hook(callbackMethod).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                                .intercept(chain -> {
+                                    Object sensor = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
+                                    if (sensor != null) {
+                                        try {
+                                            Object sensorType = sensor.getClass().getMethod("getType").invoke(sensor);
+                                            if (sensorType instanceof Integer && SensorPrivacyPolicy.shouldHide(
+                                                    privacyEnabled, processPackages.size(), currentPackage,
+                                                    targets.get(currentPackage), ((Integer) sensorType).intValue())) {
+                                                return null;
+                                            }
+                                        } catch (Throwable ignored) {
+                                            // Unknown / OEM sensor handles remain visible.
+                                        }
+                                    }
+                                    return chain.proceed();
+                                });
+                        installed++;
+                    } catch (Throwable t) {
+                        logFx(Log.DEBUG, "dynamic sensor callback hook unavailable");
+                    }
+                }
+            } catch (Throwable ignored) {
+                // Dynamic sensors are API-level and vendor dependent; enumeration
+                // and direct registration filters remain active when absent.
+            }
         } catch (Throwable t) {
             logFx(Log.WARN, "SensorManager unavailable; sensor privacy fails open (" + t.getClass().getSimpleName() + ")");
             return false;
