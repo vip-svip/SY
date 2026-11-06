@@ -7330,3 +7330,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`：DNS 首页摘要与 DNS 引擎详情中的 Root Proxy 启动时间由 Unix 秒转换为本地日期时间；无记录、无效时间戳明确显示，不将原始秒数误作可读时间。
 - 同一状态原因映射补充 VPN 所有者不可用、VPN UID 不匹配的中文说明。提交：`dd0b57c198e568b8c6ad093aeecdc4df3f07bccd`；随后清理重复原因分支：`7e80bb1971a1ba71f5f7386c54e42d7aa5a95006`。
 - 按提速要求未运行测试、静态检查、构建、CI 或真机验证；不代表设备端状态已验收。
+
+
+## 2026-11-06 — DNS 服务重新协调入口
+
+- `fx-module/scripts/native-dns-settings.sh` 与 `scripts/native-dns-settings.sh`：新增 `reconcile` 命令，复用现有 `apply.sh full` 完整协调路径，成功后回读并输出统一的 `FXDNS1` 状态；不引入第二套 DNS 服务或 VPN。
+- `adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`：Ad 页增加“重新应用 DNS 服务配置”操作，执行前确认，完成后刷新 DNS 引擎详情，失败时提供重试入口。
+- 提交：模块脚本 `175a32fa35eec3e39fc1e79a301fe14f1a14dd16`；源码脚本 `69cbf1082d36e108f272ed5ea965e67ebfc8b431`；UI `d232857ef0cadb8be5bf456f88ced9c80e4e5d32`。
+- 按提速要求未运行测试、静态检查、构建、CI 或真机验证。
