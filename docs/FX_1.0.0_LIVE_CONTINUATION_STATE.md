@@ -6784,3 +6784,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 更新 `adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`（`9365713e`）：Ad 页面增加“本地 DNS 引擎”状态区和 DNS 设置入口，可查看两套 DNS 引擎状态及 Root Proxy 状态，并切换上述四项开关。
 - 继续沿用此前 VPN 控制器已经提供的 `dns_adguardhome_status`、`dns_unbound_status`、`dns_stack_ready` 状态字段；本轮没有重复改写其既有实现。
 - 按用户要求，没有运行 Gradle、Shell 检查、测试、构建、CI 或真机验证；本批记录的是源码接线，不代表开关变更在设备上的真实路由效果已验证。
+
+## 2026-11-06 — AdGuard 规则动态编译、变更重载与 DNS 开关依赖
+
+- 修改 `scripts/adguardhome.sh`（`c3ae2139`、`bdd4bf8d`）及模块运行路径 `fx-module/scripts/adguardhome.sh`（`a92b6fb8`、`c3b71269`）：每次 ensure 从受信任 runtime 模板生成当前 AdGuard `user_rules`，保留模板自带规则；只在 `[list:rule]` 中对应 Yulong 内置来源启用时读取其 Hosts 格式规则文件；从 `[list:domain]` 生成 AdGuard 例外规则，从 `[list:block]` 生成拦截规则。域名再次严格校验，规则输出去重，且不读取/混写保留给 FX 96110/反诈用途的 `[list:fx]`。
+- AdGuard 的规则文件不再只在首次安装时复制模板；每次启动前均原子发布当前生成配置。新增私有 `config.sha256` 指纹记录，受管进程发现配置指纹变化时会先停止旧实例再启动新实例，确保 Hosts/白名单/黑名单更改能进入运行中的 DNS 引擎。
+- 更新 `scripts/integrate_yulong_ad_rules.py`（`16aa0013`）：打包迁移逻辑识别新的原生动态规则渲染器，不再要求旧 AdGuard 脚本中的静态 `_rules` heredoc 锚点；对旧发布包仍保留兼容插入路径。
+- 修改 `scripts/native-dns-settings.sh`（`5614d30a`）与 `fx-module/scripts/native-dns-settings.sh`（`6989a8f3`）：启用 AdGuard Home 时自动在同一配置事务中启用本地 Unbound；关闭 Unbound 时同时关闭依赖它的 AdGuard Home 和第三方 VPN Root Proxy；关闭第三方 VPN 兼容模式时关闭 Root Proxy；启用 Root Proxy 时同步启用兼容模式及 Unbound。配置应用失败时继续恢复原设置文件。
+- 按用户当前要求，本批没有运行 Shell/Python/Gradle 检查、回归测试、构建、CI 或 Android 真机验证；不能把源码提交等同于 DNS 设备运行通过。
