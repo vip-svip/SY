@@ -241,6 +241,9 @@ public final class FxDiaScriptLibraryStore {
         if (scripts == null) {
             throw new IllegalArgumentException("脚本库对象为空。");
         }
+        if (scripts.length() > 500) {
+            throw new IllegalArgumentException("脚本库最多保存 500 个脚本。");
+        }
         Iterator<String> keys = scripts.keys();
         while (keys.hasNext()) {
             String name = keys.next();
