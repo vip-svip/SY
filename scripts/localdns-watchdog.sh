@@ -300,12 +300,31 @@ case "$ACTION" in
   stop) [ "$#" -eq 3 ] || exit 2; _stop ;;
   status)
     [ "$#" -eq 3 ] || exit 2
-    _prepare || exit 1
-    if _pid=$(_read_pid 2>/dev/null) && _owned_pid "$_pid" >/dev/null 2>&1; then
+    if [ -L "$PIDFILE" ]; then
+      echo unsafe
+      exit 22
+    fi
+    _prepare || {
+      echo unsafe
+      exit 22
+    }
+    if [ ! -e "$PIDFILE" ]; then
+      echo stopped
+      exit 1
+    fi
+    _pid=$(_read_pid 2>/dev/null) || {
+      echo invalid
+      exit 22
+    }
+    if _owned_pid "$_pid" >/dev/null 2>&1; then
       echo "running pid=$_pid"
       exit 0
     fi
-    echo stopped
+    if kill -0 "$_pid" 2>/dev/null; then
+      echo "identity_unknown pid=$_pid"
+      exit 23
+    fi
+    echo "stopped stale-pid=$_pid"
     exit 1
     ;;
   watch) [ "$#" -eq 3 ] || exit 2; _watch ;;
