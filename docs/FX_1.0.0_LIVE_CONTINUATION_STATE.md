@@ -1081,3 +1081,14 @@
 - 移除黑名单批量启停 64 KiB payload 限制，修复其批量域名分隔符为真实换行。
 - 移除过滤订阅分享的 64 KiB 导出容量与超限省略行逻辑，改为完整输出所有有效订阅。
 - 本轮保留名单数据校验、Root 命令白名单和后端事务处理；未运行构建、测试、静态检查、CI 或设备验证。
+
+
+### FX DNS 上游本地容错、快照恢复与构建入口同步（2026-11-07）
+
+- DNS 日志保留期限自定义值现在贯通配置快照恢复：Root profile parser 复用 `valid_dns_querylog_retention`，不再只接受 1d/3d/7d/30d；根目录和 `fx-module` 两份脚本均已更新。
+- AdGuard Home 外部自定义/全局上游若未配置显式 fallback，运行时自动写入 `fallback_dns: 127.0.0.1:5353`，让上游无响应时回退到 FX 本地 Unbound；显式填写的用户备用 DNS 列表保持优先。配置安全校验只允许这个精确本地地址作为特例，普通用户备用服务器仍要求可路由 IPv4。
+- DoH/DoT/DoQ 的 hostname bootstrap 使用本地 Unbound 递归解析，不再依赖固定公共 DNS；运行时配置验证已允许精确的 `127.0.0.1:5353` bootstrap 地址。
+- 两个 DNS build patcher 已同步全局 DNS 优先于自定义 DNS、未显式填写 fallback 时使用本地 Unbound、加密 upstream bootstrap 使用本地 Unbound 的生成规则。
+- 原生 Ad 页说明同步解释自动本地回退与用户显式 fallback 的优先级。
+- 相关提交：`fac8e359a14b3bcd8f7a020c27f5051b74694d49`、`06e72554a19933fdd95aa7cac73b2e0f3e796167`、`04d095f762a1063e94d27ad7ea4c1d2f2d501446`、`bf19291670d88a64df2dd1be5e0a1b7a7808f527`、`cdba5c63a9a0bf9684ae49cece0d46f87ef99046`、`f49591575cbf300eb73aa38ea46cd4656e27899b`、`5ac6097b02c58767b4482f12e612e44db6880407`、`046d468d6068e0627341a32ac91d17e7e198dd03`、`2a3264c44a8346f4282351527efd0abd325c4214`、`ddff0fecec21c40df51090dbd93c6c9592835d91`。
+- 按要求未运行测试、静态检查、构建、CI 或 Android 真机验证；不能把上述源码变更描述为已通过验证。
