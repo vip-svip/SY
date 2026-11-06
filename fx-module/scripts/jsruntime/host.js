@@ -298,7 +298,7 @@
     if(!scriptPath) return '';
     const source=_fxRead(scriptPath,'');
     const prefix='// FX-SCRIPT-NAME: ';
-    const lines=source.split(/\\r?\\n/);
+    const lines=source.split(/\r?\n/);
     for(let i=0;i<lines.length&&i<16;i++){
       if(lines[i].indexOf(prefix)!==0) continue;
       const name=lines[i].slice(prefix.length).replace(/[\\x00-\\x1f\\x7f]/g,' ').trim();
