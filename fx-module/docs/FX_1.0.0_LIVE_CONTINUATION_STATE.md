@@ -6764,3 +6764,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - canonical 与 fx-module 的 `yulong-ad-control.sh` 已回到逐字一致；两份 `FxYulongAdActivity.java` 也已逐字一致。Unbound renderer 当前位于 fx-module 的实际模块运行路径。
 - 相关实现提交：Root 后端 `ae4837253138bf347bb119e43f60f94232193891`；Unbound 配置渲染 `c296011533f90a41996b23fcece66ff4d5b6bf60`；canonical/module UI 与快照 `97f28f610dbf`、`1666f252cfd9`、`60748bf88543`、`e3085863be61`；Shell TTL 比较溢出保护 `c7d8b2ce37ca`、`f0fdc1ce0e4b`。
 - 按用户当前要求，本批没有运行 Shell/Java 测试、静态检查、构建、CI 或 Android 真机验证；上述为源码写入与读取状态，不代表设备验收。
+
+## 2026-11-07 — Unbound 四类内存缓存池贯通原生 UI 与快照
+
+- 在前序协作提交已将 Unbound 消息、RRset、DNSSEC Key、否定响应缓存池接入 Root 参数读写，并将四项容量写入 Unbound YAML 后，本批完成原生 Ad 页面与正式 APK 源码侧的闭环。
+- 原生页面新增四项缓存池容量输入/回显/保存入口；支持字节数以及 k/m/g 单位，保留 `0` 作为 Unbound 配置可接受的禁用值，不引入应用层固定容量上限。
+- Root 命令保存时沿用既有 `unbound-runtime-set` 事务，一次性传入四个容量字段；Unbound 配置渲染使用配置值生成 `msg-cache-size`、`rrset-cache-size`、`key-cache-size`、`neg-cache-size`，不再在运行 YAML 中写死默认值。
+- DNS 配置快照扩展为 43 项字段；导入校验、差异预览和确认说明都包含四类缓存池。旧版 39/38/30/26/19/18 项快照缺少新字段时，分别回填 8m/16m/4m/2m 默认值。
+- 修改文件：`fx-module/scripts/unbound.sh`、`adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`、`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。前序协作已经更新 canonical/module Root 参数脚本及 profile 输出。
+- 本批代码提交：`532f3d2fac9d9cd65c4411dfba84e0667b40d860`。
+- 按当前推进要求未运行测试、静态检查、构建、CI 或 Android 真机验证；此提交是源码落地，不代表设备验收。
