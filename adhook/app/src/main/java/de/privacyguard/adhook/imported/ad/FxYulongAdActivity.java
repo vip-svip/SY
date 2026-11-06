@@ -603,7 +603,8 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
  }
  private void renderRules(){EditText url=draftField("rule_url");url.setSingleLine(true);url.setHint("https://… 或 builtin://…");EditText name=draftField("rule_name");name.setSingleLine(true);name.setHint("列表名称");card("添加过滤列表","仅允许 HTTPS 订阅及 FX 本地资源。",url,name,btn("添加并应用",()->{String u=url.getText().toString().trim(),n=name.getText().toString().trim();if(!u.isEmpty()&&!n.isEmpty())apply("rule-add "+q(u)+" "+q(n)+" 1","规则添加");}));EditText ruleImport=draftField("rule_import_text");ruleImport.setSingleLine(false);ruleImport.setMinLines(4);ruleImport.setHint("每行：HTTPS或builtin来源|列表名称");card("批量导入过滤列表","支持多行来源|名称；空行和 # 注释行忽略。新订阅默认启用，已存在来源不会被覆盖。",ruleImport,btn("批量导入",()->importRuleSubscriptions(ruleImport)));search=draftField("rule_search");search.setSingleLine(true);search.setHint("搜索过滤列表");card("搜索","输入来源或列表名称",search,btn("启用当前筛选全部列表",()->setFilteredRules(true)),btn("暂停当前筛选全部列表",()->setFilteredRules(false)));search.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int st,int c,int a){}public void onTextChanged(CharSequence s,int st,int be,int co){bind();}public void afterTextChanged(Editable e){}});entries=new LinearLayout(this);entries.setOrientation(1);body.addView(entries);}
  private void renderDns(){
-  card("DNS 配置备份","导出当前 FX DNS 引擎、过滤策略、上游服务器、VPN DNS 与拦截响应模式；仅读取本机配置，不会上传或修改设置。",btn("分享 DNS 配置快照",()->shareDnsProfile()));
+  EditText dnsProfileImport=draftField("dns_profile_import");dnsProfileImport.setSingleLine(false);dnsProfileImport.setMinLines(5);dnsProfileImport.setHint("粘贴完整 FXYULONGDNSPROFILE1 快照文本");
+  card("DNS 配置备份与恢复","快照导入会完整替换 DNS 引擎开关、过滤策略、三组上游、VPN DNS 与拦截响应模式；提交前校验全部字段，失败时恢复原配置。",btn("分享 DNS 配置快照",()->shareDnsProfile()),dnsProfileImport,btn("校验并恢复 DNS 配置快照",()->restoreDnsProfile(dnsProfileImport)));
   TextView dnsRuntimeState=txt("DNS 运行状态尚未读取。",12,0xff617080,false);
   card("DNS 引擎运行状态","读取 AdGuard Home、Unbound、第三方 VPN Root Proxy、DNS 过滤覆盖范围与 VPN 共存判定。此操作只读取状态，不会更改服务或网络路由。",dnsRuntimeState,btn("刷新 DNS 运行状态",()->loadDnsRuntimeStatus(dnsRuntimeState)));
   card("本地 DNS 引擎",
@@ -737,6 +738,23 @@ private void shareDnsProfile(){
       status.setText("无法打开系统分享面板："+safe(unavailable.getMessage()));
     }
   });
+}
+private void restoreDnsProfile(EditText input){
+  String raw=input.getText()==null?"":input.getText().toString().trim();
+  if(raw.isEmpty()){status.setText("请先粘贴 DNS 配置快照。");return;}
+  if(!raw.startsWith("FXYULONGDNSPROFILE1\\n")&&!raw.equals("FXYULONGDNSPROFILE1")&&!raw.startsWith("FXYULONGDNSPROFILE1\r\\n")){
+    status.setText("快照版本头不匹配，未修改配置。");return;
+  }
+  byte[] bytes=raw.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+  if(bytes.length>48*1024){status.setText("快照超过 48 KiB，未提交。");return;}
+  String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);
+  fxDialogBuilder().setTitle("恢复 DNS 配置快照")
+    .setMessage("将完整替换当前 DNS 引擎开关、过滤策略、上游服务器、VPN DNS 与拦截响应模式。所有字段会先校验；恢复应用失败会回滚原配置。此操作不会修改 VPN 节点或其他 FX 模块设置。是否继续？")
+    .setNegativeButton("取消",null)
+    .setPositiveButton("恢复", (d,w)->root("dns-profile-restore "+encoded,r->{
+      if(r.exitCode==0){status.setText("DNS 配置快照已恢复并应用。");input.setText("");load();}
+      else fxDialogBuilder().setTitle("DNS 快照恢复失败").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
+    })).show();
 }
 private void loadDnsRuntimeStatus(TextView target){
   target.setText("正在读取 DNS 服务状态…");
