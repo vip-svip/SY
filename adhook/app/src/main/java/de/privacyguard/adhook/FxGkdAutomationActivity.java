@@ -271,6 +271,14 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
                 new String[]{"单击", "长按"}));
         form.addView(actionInput);
 
+        EditText excludeInput = new EditText(this);
+        excludeInput.setHint("排除选择器（可选；命中时整条规则跳过）");
+        excludeInput.setSingleLine(false);
+        excludeInput.setMinLines(1);
+        excludeInput.setMaxLines(3);
+        excludeInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        form.addView(excludeInput);
+
         EditText groupInput = new EditText(this);
         groupInput.setSingleLine(true);
         groupInput.setHint("规则组（最多 40 字，默认：默认）");
@@ -313,10 +321,16 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
                         Toast.makeText(this, "选择器无效：" + compiled.getError(), Toast.LENGTH_LONG).show();
                         return;
                     }
+                    String excludeSelector = excludeInput.getText().toString().trim();
+                    if (!excludeSelector.isEmpty() && !FxGkdSelectorEngine.compile(excludeSelector).isValid()) {
+                        Toast.makeText(this, "排除选择器无效：" +
+                                FxGkdSelectorEngine.compile(excludeSelector).getError(), Toast.LENGTH_LONG).show();
+                        return;
+                    }
                     FxGkdRule saved = FxGkdRuleStore.addRule(
                             this, pkg, selector, cooldownSeconds * 1000L,
                             actionInput.getSelectedItemPosition() == 1 ? "long_click" : "click",
-                            groupInput.getText().toString());
+                            groupInput.getText().toString(), excludeSelector);
                     if (saved == null) {
                         Toast.makeText(this, "保存失败：请检查规则格式或本地存储是否可写。", Toast.LENGTH_LONG).show();
                         return;
@@ -408,6 +422,15 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
         actionInput.setSelection("long_click".equals(rule.getAction()) ? 1 : 0);
         form.addView(actionInput);
 
+        EditText excludeInput = new EditText(this);
+        excludeInput.setHint("排除选择器（可选；命中时整条规则跳过）");
+        excludeInput.setSingleLine(false);
+        excludeInput.setMinLines(1);
+        excludeInput.setMaxLines(3);
+        excludeInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        excludeInput.setText(rule.getExcludeSelector());
+        form.addView(excludeInput);
+
         EditText groupInput = new EditText(this);
         groupInput.setSingleLine(true);
         groupInput.setHint("规则组（最多 40 字）");
@@ -446,10 +469,16 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
                         Toast.makeText(this, "选择器无效：" + compiled.getError(), Toast.LENGTH_LONG).show();
                         return;
                     }
+                    String excludeSelector = excludeInput.getText().toString().trim();
+                    if (!excludeSelector.isEmpty() && !FxGkdSelectorEngine.compile(excludeSelector).isValid()) {
+                        Toast.makeText(this, "排除选择器无效：" +
+                                FxGkdSelectorEngine.compile(excludeSelector).getError(), Toast.LENGTH_LONG).show();
+                        return;
+                    }
                     FxGkdRule updated = FxGkdRuleStore.updateRule(
                             this, rule.getId(), selector, seconds * 1000L,
                             actionInput.getSelectedItemPosition() == 1 ? "long_click" : "click",
-                            groupInput.getText().toString());
+                            groupInput.getText().toString(), excludeSelector);
                     if (updated == null) {
                         Toast.makeText(this, "保存失败，原规则保持不变。", Toast.LENGTH_LONG).show();
                         return;
@@ -528,6 +557,7 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
             row.setPadding(dp(14), dp(8), dp(14), dp(8));
             row.setBackgroundColor(0xfff0f3f7);
             TextView label = text("规则组：" + rule.getGroup() + "\n" + rule.getPackageName() + "\n" + rule.getSelector()
+                    + (rule.getExcludeSelector().isEmpty() ? "" : "\n排除：" + rule.getExcludeSelector())
                     + "\n动作：" + ("long_click".equals(rule.getAction()) ? "长按" : "单击")
                     + " · 冷却：" + (rule.getCooldownMillis() / 1000L) + " 秒",
                     0xff17212b, 13);
