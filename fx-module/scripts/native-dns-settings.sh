@@ -87,8 +87,7 @@ status() {
   if [ -f "$CONF" ] && [ ! -L "$CONF" ] && [ -r "$CONF" ]; then
     _filter_counts=$(awk -F'|' '
       function valid_url(u) {
-        return length(u)<=2048 && u ~ /^https?:\/\/[A-Za-z0-9._~:\/?#@!  _coexistence_route_probe=unavailable
-()*+,;=%-]+$/
+        return length(u)<=2048 && u ~ /^https?:\\/\\// && u !~ /[[:space:]|]/
       }
       $0=="[list:rule]" {section="rule"; next}
       /^\[/ {section=""; next}
