@@ -44,6 +44,48 @@ elif [ -s "$_FX_SCHEDULER_STATE_DIR/jsruntime/scheduler.pid" ]; then
 fi
 unset _FX_SCHEDULER_STATE_DIR _FX_SCHEDULER_LOG
 # FX_QUICKJS_SCHEDULER_STOP_END
+# FX_LOCALDNS_WATCHDOG_FAIL_CLOSED_BEGIN
+# FX_LOCALDNS_WATCHDOG_SYMLINK_GUARD_BEGIN
+_PG_LOCALDNS_EARLY=$STATE_DIR
+_WD_HELPER="$MODDIR/scripts/localdns-watchdog.sh"
+_WD_FILE="$_PG_LOCALDNS_EARLY/localdns-watchdog.pid"
+if [ -L "$_WD_FILE" ]; then
+  PG_KEEP_DATA=1
+  _mitm_warn "local DNS watchdog PID record is a symlink; aborting uninstall before firewall cleanup and preserving $_PG_LOCALDNS_EARLY"
+  exit 1
+fi
+if [ -L "$_WD_HELPER" ] || { [ -e "$_WD_HELPER" ] && [ ! -f "$_WD_HELPER" ]; }; then
+  PG_KEEP_DATA=1
+  _mitm_warn "local DNS watchdog helper is a symlink or non-regular file; aborting uninstall before firewall cleanup and preserving $_PG_LOCALDNS_EARLY"
+  exit 1
+fi
+if [ -f "$_WD_HELPER" ]; then
+  if ! sh "$_WD_HELPER" stop "$MODDIR" "$STATE_DIR" >> "$STATE_DIR/localdns-watchdog.log" 2>&1; then
+    PG_KEEP_DATA=1
+    _mitm_warn "could not confirm stopping local DNS watchdog; aborting uninstall before firewall cleanup and preserving $PG"
+    exit 1
+  fi
+elif [ -e "$_WD_FILE" ]; then
+  _wd_pid=$(cat "$_WD_FILE" 2>/dev/null || :)
+  case "$_wd_pid" in
+    ''|*[!0-9]*|0|1)
+      PG_KEEP_DATA=1
+      _mitm_warn "local DNS watchdog PID record is invalid; aborting uninstall before firewall cleanup and preserving $_PG_LOCALDNS_EARLY"
+      exit 1
+      ;;
+    *)
+      if kill -0 "$_wd_pid" 2>/dev/null; then
+        PG_KEEP_DATA=1
+        _mitm_warn "local DNS watchdog PID $_wd_pid is still live but its helper is missing; aborting uninstall before firewall cleanup and preserving $_PG_LOCALDNS_EARLY"
+        exit 1
+      fi
+      rm -f "$_WD_FILE"
+      _mitm_warn "cleared stale local DNS watchdog PID record for exited PID $_wd_pid"
+      ;;
+  esac
+fi
+# FX_LOCALDNS_WATCHDOG_SYMLINK_GUARD_END
+# FX_LOCALDNS_WATCHDOG_FAIL_CLOSED_END
 # Stop the published external-VPN state watcher before removing Root Proxy
 # redirects. Its stop command owns only the watcher process; Root Proxy teardown
 # remains an explicit, separately verified step below.
