@@ -1457,3 +1457,11 @@
 - 打包补丁器同步要求 Root `FXYULONGDNSRW2` 与 per-rule enabled 实现，避免 Release source restore 回退到旧两列逻辑。
 - 同步正式/模块两份 Root、AdGuard renderer、原生 Ad 页、打包 patcher 和续接文档。
 - 按用户要求未运行 Shell/Java/Python 测试、静态检查、构建、CI 或 Android 真机验证；本轮仅完成源码改动。
+
+
+## 2026-11-07 — AdGuard Home 正式源码健康探测补齐 TCP/UDP 双栈
+
+- 将正式构建源码 `scripts/adguardhome.sh` 的 `_probe()` 与模块运行版对齐：分别对 IPv4 loopback（127.0.0.1）和 IPv6 loopback（::1）执行 UDP、TCP DNS 健康探测。
+- 保留本地探测器生成随机查询标签与事务 ID的行为，避免缓存答复掩盖上游故障；UDP-only 监听不再被误判为完整就绪。
+- 本次只更新正式源码，不覆盖模块目录中已有的更严格探测实现。
+- 按当前提速要求未运行测试、静态检查、构建、CI 或设备验证；源码同步不代表运行验收。
