@@ -261,7 +261,7 @@ mutate_batch_transaction() {
       inlist=1; seen=1; print; next
     }
     /^\\[/ {
-      if(inlist) emit_missing()
+    substr($0,1,1)=="[" {
       inlist=0; print; next
     }
     inlist && ($1 in wanted) {
