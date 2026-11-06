@@ -7096,3 +7096,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 脚本中心新增“导入 Stash YAML HTTP 脚本”独立入口，应用提交 `345431a37dc11cce77cdc4f64c97c49951a5eb17`，模块提交 `16066ed89bd88bc9024e21aa6a9e887598487c8f`。通用文件导入器也按 `scriptings:` 与 `http:` + `script-providers:` 实际内容分流；不识别的 YAML 明确拒绝，不当作普通 JS 存储。应用入口提交 `3b7a2af5c257c9e157153bf7a6dbb0350e252823`，模块同步 `f4ca5cd6d3fde9092c96615db9299a7f72313821`。
 - QuickJS 中文说明新增 Stash HTTP YAML 子集和限制说明，提交 `8e86d2129ee430ee5d6a2c0df7fed237a81de14a`。
 - 固定 FX 1.0.0；按用户当前要求未运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-06 — Stash HTTP YAML 脚本迁移与 `$argument` 接线
+
+- 新增 `StashScriptYamlImporter.java`：从 Stash `http.script` 读取 URL match、request/response 类型和正文需求，并通过 `script-providers` 名称解析 HTTPS 脚本 URL；保留 disabled 状态，按 URL/类型/match/body flag 去重。只接受默认可映射选项：provider interval 86400、timeout 10、max-size 1048576、engine auto、binary-mode false；本地 provider、非 HTTPS、二进制模式及非默认资源设置不会被伪装为可用功能。
+- Stash `argument` 已扩展进第 6 个订阅元数据字段；`sync-subs.sh` 将其安全清理并写成 `FX-SCRIPT-ARGUMENT`，QuickJS `host.js` 将它映射到全局 `$argument` 与 `$script.argument`。
+- 应用导入入口按 YAML 内容区分 Egern `scriptings:` 与 Stash `http:` + `script-providers:`，两者继续进入同一 FX JSON 批量导入和 `[list:script]` 存储，不新建脚本库。
+- Stash importer：应用 `129fe5dfb8eebe038e006fd764b27d25586c0955`，模块 `3b38c97321ffcae4c4531e7a048b0041cfdcaffa`。Activity：应用 `64f2836b374bf0e0f259e3528e63a4c45d7ffd5b`，模块 `349ba55d23673ba5c1038058faa10a34eb9e472e`。
+- 订阅同步器 `c0c7fc9fc283a0aa39db9896ce104e88451abef8`；QuickJS host `d9e7c69db22eb8d325480e871e6f67f5453d1e24`；根构建补丁 `f86990a5e54ca22d6638f20767c16378546d0ef5`；模块构建补丁 `fa16129d0a360be5d4b28b0dd6a5b3d53af1444e`。
+- README `b348825c9dc17fda5d106470d8f50d73d2bf7337`；根补丁 README 模板 `8ef6be4c904a567d0ae0b9a4a87e7b3d31ff3c70`；模块补丁 README 模板 `707c8cc33e5b106ddbd8dbd131dbaf0f371cf358`。
+- 固定 FX 1.0.0；按当前要求未运行测试、静态检查、构建、CI 或真机验证。
