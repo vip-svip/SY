@@ -6887,3 +6887,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 更新 `fx-module/scripts/jsruntime/README-zh-CN.md`（`027bf4a704f17cdd5808c482559a6b3276cb709e`）：记录 Egern 首批支持 API 与边界，明确暂不支持 ESM import、流/Blob/ArrayBuffer、SSH、`ctx.respond()`、`ctx.abort()` 和策略/网络专属接口。
 - 更新 `.github/workflows/build-fx-kernelsu.yml`（`d2e2ab61b25d563fab0f11ff0b480551f1ca4894`）：恢复旧 FX 1.0.0 Release 模块归档后，重新放回当前分支的 QuickJS host、runner 和 README，避免迁移内容被旧归档覆盖。
 - 按当前推进要求，本批未执行测试、静态检查、Gradle/Android 构建、CI 或设备验证；Egern API 为首批兼容子集，尚不能描述为完整 Egern 运行时。
+
+
+## 2026-11-06 — 扩展 Android 传感器隐私分组
+
+- 本批在现有逐应用传感器配置上增加四个可持久化分组：`sensor_environment`（温度/湿度）、`sensor_fusion`（方向/姿态/旋转/铰链/头部跟踪）、`sensor_gesture`（显著运动、计步、手势、静止/运动检测）和 `sensor_biometric`（心率/心跳）。保留现有加速度、陀螺仪、磁场、光线、气压、距离及采样频率开关。
+- `SensorPrivacyPolicy.java` 将 Android 公开传感器类型映射到上述类别；动态传感器元数据、附加信息及未知/厂商私有类型仍按 fail-open 处理，不会因未知类型被批量隐藏。类型映射提交：`0831da3638d4d11d82618127476c0d878cc49ed4`（应用源码）及 `0f75c3698b5d9f2a602a961e62892d3186cf854c`（模块源码）。
+- 配置端提交：`fcc34f33c4fb8d9b0959c24ea6b502e6c7a1375c` / `fafd0bcf912828990895786d60cdd579138189ac`（Parser）；`5a6403750bf3692d9c501b965e7fc3053ce134ac` / `030b1b2baeffdeb6c695ae0c9533bcc3c3429e1e`（Serializer）。
+- Hook 激活条件提交：`1f99c19ce8bf11cfb5206e2e6e1da0b34edb4e0f` / `2f45c5e0c07d7df8a1647b21988fb279890e8431`，新增分组的任一配置开启后即纳入传感器策略路径。
+- 隐私页新增四个分组开关，并纳入配置发布及旧设置迁移映射：`df2280d601fc916784f7c5181ff7c32c2a0c5895`（应用源码）和 `5829f550e0dc071584b3cb641580cc4396029e9b`（模块源码）。
+- 固定 FX 1.0.0；本批未运行测试、静态检查、Gradle/NDK 构建、CI 或设备验证。传感器 API 类型映射和各 OEM 实际可见性仍待后续设备验证，不将源码接线视为已完成真机验收。
