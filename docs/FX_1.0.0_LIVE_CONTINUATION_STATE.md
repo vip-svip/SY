@@ -8197,3 +8197,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 自动化运行时提交：`cdafa627b7272439182e9a2d6d138deadd8d379a`，文件 `fx-module/adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAutomationRuntime.kt`。同步主应用的 GKD 规则执行实现及动作/冷却处理。
 - 原生 UI 提交：`2826c2c4acd3be4a7dc600233aefa1f65b417e83`，文件 `fx-module/adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAutomationActivity.java`。同步分组、状态/文本筛选、批量管理、导入导出及分组重命名等完整页面能力。
 - 本轮是将统一主应用中已存在的较完整 GKD 功能回灌到 FX 模块源码，避免模块打包源码落后于主应用；未新建第二套入口。按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证。
+
+
+### FX Hook OBSERVE 日志筛选导出同步到模块源码（2026-11-07）
+
+- 提交：`f0b438e2728b7bf585f9f59beb0a5479f276a986`。
+- 文件：`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/FxHookObservationLogsActivity.java`。
+- 将主应用已有的“导出当前筛选日志”能力同步到 FX 模块源码：通过系统文档创建器选择目标文件，以 UTF-8 导出当前搜索筛选命中的记录；空结果不创建导出内容，导出长度受 64 KiB 上限约束。保留原有包名精确过滤、Root 命令参数转义、后台读取与界面状态处理。
+- 本次只同步已存在的原生页面能力，不新增独立入口。按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证。
