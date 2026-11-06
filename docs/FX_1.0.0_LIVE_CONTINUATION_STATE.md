@@ -8143,3 +8143,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 规范脚本提交：`1824f9e529bbdef6b923b356c059b142eccac3f9`，文件 `scripts/adguardhome.sh`。
 - AdGuard Home 配置渲染现在读取 `[conf:yulong_dns_response]` 的 `mode`，并将 `nxdomain`、`refused` 或 `custom_ip` 写入 `dns.blocking_mode`；缺省或非法值回退到 `nxdomain`。此前 UI/后端已有的响应模式设置由此接入实际过滤引擎配置。
 - 本批未运行测试、静态检查、构建、CI 或设备验证。
+
+
+## 2026-11-07 — AdGuard Home 备用 DNS 接入实际故障回退
+
+- 模块运行脚本提交：`4d602cb4bb0ca7597443708e9315ca9967dd2c66`，文件 `fx-module/scripts/adguardhome.sh`。
+- 规范脚本同步提交：`6375f1b9fd2caa1b39fb984e67f6b848464eea91`，文件 `scripts/adguardhome.sh`。
+- AdGuard Home 模板提交：`f6117313a46e4d5329a1195c363bd3fe29026231`，文件 `fx-module/engines/adguardhome/AdGuardHome.yaml`。
+  - 从现有 `[conf:yulong_dns_fallback]` 读取 1–3 个 IPv4 nameserver，去重后渲染为 AdGuard Home 的 `dns.fallback_dns`。
+  - 空配置生成空列表；非法地址或超过数量限制时拒绝生成配置，避免把未校验文本写入 YAML。
+  - 保持 `upstream_dns` 唯一指向本机 Unbound `127.0.0.1:5353`；备用 DNS 仅作为 AdGuard Home 上游失效时的 fallback，不替换本地递归主链。
+- 按用户要求未运行测试、静态检查、构建、CI、安装或设备验证；本批运行行为尚未验收。
