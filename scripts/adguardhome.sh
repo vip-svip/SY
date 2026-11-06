@@ -747,7 +747,7 @@ _render_managed_config() {
       }
       next
     }
-    /^  rewrites: \\[\\]$/ {
+    $0=="  rewrites: []" {
       if ((getline rewrite < rewrites_file) > 0) {
         print "  rewrites:"
         print rewrite
