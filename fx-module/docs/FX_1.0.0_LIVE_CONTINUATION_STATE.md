@@ -7057,3 +7057,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 保留旧模板补丁路径作为向前兼容的迁移处理，但补丁结束后必须通过 FX 1.0.0 完整运行契约；因此旧模板无法单独通过当前成品打包门。
 - 同步 `fx-patches/patch_yulong_dns_upstreams.py` 与 `fx-module/build-tools/patches/patch_yulong_dns_upstreams.py`。
 - 按当前要求未运行 patcher、回归、Shell/Java 静态检查、构建、CI 或 Android 真机验证；仅完成打包链源码更新。
+
+
+## 2026-11-07 — DNSDIAG4 正式与模块 Root 协议统一
+
+- 将正式源码 `scripts/yulong-ad-control.sh` 的 `dns-diagnose` 命令升级到与模块实际运行版相同的 `FXYULONGDNSDIAG4` 字段协议，补齐 Root Proxy cleanup、DNS 拦截地址/TTL、DNS Rewrite 数量、查询日志与聚合统计排除项状态。
+- 修复两份 Root 诊断命令中的双重转义换行：模块版此前 10 个输出字段会把字面 `\\n` 留在 value 中，导致 DIAG4 严格字段解析器不能按行读取；Rewrite 数量统计的输入分隔符也一并改为真实换行。
+- 两份 `FxYulongAdActivity.java` 已在前序并行提交中同步到 DIAG4，本批保留该最新版本，不重复覆盖 UI、字段校验或 SAF 报告导出。
+- 修改：`scripts/yulong-ad-control.sh`、`fx-module/scripts/yulong-ad-control.sh`、两份续接文档。
+- 本批未运行 Shell/Java 测试、静态检查、构建、CI 或 Android 真机验证；本批完成源码协议同步，不代表运行验收。

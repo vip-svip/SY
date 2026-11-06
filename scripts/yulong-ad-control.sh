@@ -3213,6 +3213,35 @@ case "$cmd" in
   _diag_upstream_state=$(_diag_value "$_diag_status" dns_upstream_state 2>/dev/null) || _diag_upstream_state=unknown
   _diag_bootstrap_mode=$(_diag_value "$_diag_status" dns_bootstrap_mode 2>/dev/null) || _diag_bootstrap_mode=unknown
   _diag_fallback_mode=$(_diag_value "$_diag_status" dns_fallback_mode 2>/dev/null) || _diag_fallback_mode=unknown
+  _diag_rootproxy_cleanup=$(_diag_value "$_diag_status" rootproxy_cleanup 2>/dev/null) || _diag_rootproxy_cleanup=unknown
+  case "$_diag_rootproxy_cleanup" in complete|failed|not_required) : ;; *) _diag_rootproxy_cleanup=unknown ;; esac
+  _diag_querylog_ignored_enabled=$(_diag_value "$_diag_status" dns_querylog_ignored_enabled 2>/dev/null) || _diag_querylog_ignored_enabled=unknown
+  _diag_querylog_ignored_count=$(_diag_value "$_diag_status" dns_querylog_ignored_count 2>/dev/null) || _diag_querylog_ignored_count=unknown
+  _diag_statistics_ignored_enabled=$(_diag_value "$_diag_status" dns_statistics_ignored_enabled 2>/dev/null) || _diag_statistics_ignored_enabled=unknown
+  _diag_statistics_ignored_count=$(_diag_value "$_diag_status" dns_statistics_ignored_count 2>/dev/null) || _diag_statistics_ignored_count=unknown
+  case "$_diag_querylog_ignored_enabled" in 0|1|unknown) : ;; *) _diag_querylog_ignored_enabled=unknown ;; esac
+  case "$_diag_statistics_ignored_enabled" in 0|1|unknown) : ;; *) _diag_statistics_ignored_enabled=unknown ;; esac
+  case "$_diag_querylog_ignored_count" in ''|*[!0-9]*) _diag_querylog_ignored_count=unknown ;; esac
+  case "$_diag_statistics_ignored_count" in ''|*[!0-9]*) _diag_statistics_ignored_count=unknown ;; esac
+  _diag_response_mode=unknown
+  _diag_response_ipv4=unknown
+  _diag_response_ipv6=unknown
+  _diag_response_ttl=unknown
+  if _diag_response_raw=$(dns_response_values 2>/dev/null); then
+    _diag_response_mode=$(_diag_kv_value "$_diag_response_raw" mode 2>/dev/null) || _diag_response_mode=unknown
+    _diag_response_ipv4=$(_diag_kv_value "$_diag_response_raw" blocking_ipv4 2>/dev/null) || _diag_response_ipv4=unknown
+    _diag_response_ipv6=$(_diag_kv_value "$_diag_response_raw" blocking_ipv6 2>/dev/null) || _diag_response_ipv6=unknown
+    _diag_response_ttl=$(_diag_kv_value "$_diag_response_raw" blocked_response_ttl 2>/dev/null) || _diag_response_ttl=unknown
+  fi
+  case "$_diag_response_mode" in nxdomain|refused|custom_ip|unknown) : ;; *) _diag_response_mode=unknown ;; esac
+  case "$_diag_response_ipv4" in ''|*[!0-9.]*) _diag_response_ipv4=unknown ;; esac
+  case "$_diag_response_ipv6" in ''|*[!0-9A-Fa-f:]*) _diag_response_ipv6=unknown ;; esac
+  case "$_diag_response_ttl" in ''|*[!0-9]*) _diag_response_ttl=unknown ;; esac
+  _diag_rewrites_count=unknown
+  if _diag_rewrites_rows=$(dns_rewrites_values 2>/dev/null); then
+    _diag_rewrites_count=$(printf '%s\n' "$_diag_rewrites_rows" | awk 'NF{n++} END{print n+0}')
+  fi
+  case "$_diag_rewrites_count" in ''|*[!0-9]*) _diag_rewrites_count=unknown ;; esac
   case "$_diag_upstream_mode" in local_recursive|custom|global|unknown) : ;; *) _diag_upstream_mode=unknown ;; esac
   case "$_diag_upstream_state" in ready|missing_primary|unknown) : ;; *) _diag_upstream_state=unknown ;; esac
   case "$_diag_bootstrap_mode" in not_required|local_unbound|unknown) : ;; *) _diag_bootstrap_mode=unknown ;; esac
@@ -3324,7 +3353,7 @@ case "$cmd" in
   case "$_diag_anchor_resolver_state" in running|stopped|unknown) : ;; *) _diag_anchor_resolver_state=unknown ;; esac
   case "$_diag_root_hints_state" in valid|missing|invalid|unsafe) : ;; *) _diag_root_hints_state=unknown ;; esac
   case "$_diag_root_hints_bytes" in ''|*[!0-9]*) _diag_root_hints_bytes=unknown ;; esac
-  echo FXYULONGDNSDIAG3
+  echo FXYULONGDNSDIAG4
   printf 'dns_stack_ready=%s\n' "$_diag_ready"
   printf 'dns_stack_readiness_reason=%s\n' "$_diag_reason"
   printf 'unbound_process=%s\n' "$_diag_unbound_process"
@@ -3340,6 +3369,16 @@ case "$cmd" in
   printf 'dns_upstream_state=%s\n' "$_diag_upstream_state"
   printf 'dns_bootstrap_mode=%s\n' "$_diag_bootstrap_mode"
   printf 'dns_fallback_mode=%s\n' "$_diag_fallback_mode"
+  printf 'rootproxy_cleanup=%s\n' "$_diag_rootproxy_cleanup"
+  printf 'dns_response_mode=%s\n' "$_diag_response_mode"
+  printf 'dns_blocking_ipv4=%s\n' "$_diag_response_ipv4"
+  printf 'dns_blocking_ipv6=%s\n' "$_diag_response_ipv6"
+  printf 'dns_blocked_response_ttl=%s\n' "$_diag_response_ttl"
+  printf 'dns_rewrites_count=%s\n' "$_diag_rewrites_count"
+  printf 'dns_querylog_ignored_enabled=%s\n' "$_diag_querylog_ignored_enabled"
+  printf 'dns_querylog_ignored_count=%s\n' "$_diag_querylog_ignored_count"
+  printf 'dns_statistics_ignored_enabled=%s\n' "$_diag_statistics_ignored_enabled"
+  printf 'dns_statistics_ignored_count=%s\n' "$_diag_statistics_ignored_count"
   printf 'dnssec_anchor_state=%s\n' "$_diag_anchor_state"
   printf 'root_hints_state=%s\n' "$_diag_root_hints_state"
   printf 'root_hints_bytes=%s\n' "$_diag_root_hints_bytes"

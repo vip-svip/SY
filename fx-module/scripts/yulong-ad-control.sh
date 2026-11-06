@@ -3239,7 +3239,7 @@ case "$cmd" in
   case "$_diag_response_ttl" in ''|*[!0-9]*) _diag_response_ttl=unknown ;; esac
   _diag_rewrites_count=unknown
   if _diag_rewrites_rows=$(dns_rewrites_values 2>/dev/null); then
-    _diag_rewrites_count=$(printf '%s\\n' "$_diag_rewrites_rows" | awk 'NF{n++} END{print n+0}')
+    _diag_rewrites_count=$(printf '%s\n' "$_diag_rewrites_rows" | awk 'NF{n++} END{print n+0}')
   fi
   case "$_diag_rewrites_count" in ''|*[!0-9]*) _diag_rewrites_count=unknown ;; esac
   case "$_diag_upstream_mode" in local_recursive|custom|global|unknown) : ;; *) _diag_upstream_mode=unknown ;; esac
@@ -3369,16 +3369,16 @@ case "$cmd" in
   printf 'dns_upstream_state=%s\n' "$_diag_upstream_state"
   printf 'dns_bootstrap_mode=%s\n' "$_diag_bootstrap_mode"
   printf 'dns_fallback_mode=%s\n' "$_diag_fallback_mode"
-  printf 'rootproxy_cleanup=%s\\n' "$_diag_rootproxy_cleanup"
-  printf 'dns_response_mode=%s\\n' "$_diag_response_mode"
-  printf 'dns_blocking_ipv4=%s\\n' "$_diag_response_ipv4"
-  printf 'dns_blocking_ipv6=%s\\n' "$_diag_response_ipv6"
-  printf 'dns_blocked_response_ttl=%s\\n' "$_diag_response_ttl"
-  printf 'dns_rewrites_count=%s\\n' "$_diag_rewrites_count"
-  printf 'dns_querylog_ignored_enabled=%s\\n' "$_diag_querylog_ignored_enabled"
-  printf 'dns_querylog_ignored_count=%s\\n' "$_diag_querylog_ignored_count"
-  printf 'dns_statistics_ignored_enabled=%s\\n' "$_diag_statistics_ignored_enabled"
-  printf 'dns_statistics_ignored_count=%s\\n' "$_diag_statistics_ignored_count"
+  printf 'rootproxy_cleanup=%s\n' "$_diag_rootproxy_cleanup"
+  printf 'dns_response_mode=%s\n' "$_diag_response_mode"
+  printf 'dns_blocking_ipv4=%s\n' "$_diag_response_ipv4"
+  printf 'dns_blocking_ipv6=%s\n' "$_diag_response_ipv6"
+  printf 'dns_blocked_response_ttl=%s\n' "$_diag_response_ttl"
+  printf 'dns_rewrites_count=%s\n' "$_diag_rewrites_count"
+  printf 'dns_querylog_ignored_enabled=%s\n' "$_diag_querylog_ignored_enabled"
+  printf 'dns_querylog_ignored_count=%s\n' "$_diag_querylog_ignored_count"
+  printf 'dns_statistics_ignored_enabled=%s\n' "$_diag_statistics_ignored_enabled"
+  printf 'dns_statistics_ignored_count=%s\n' "$_diag_statistics_ignored_count"
   printf 'dnssec_anchor_state=%s\n' "$_diag_anchor_state"
   printf 'root_hints_state=%s\n' "$_diag_root_hints_state"
   printf 'root_hints_bytes=%s\n' "$_diag_root_hints_bytes"
