@@ -976,7 +976,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
   });
   EditText customServers=draftField("dns_custom_servers");
   customServers.setSingleLine(false);customServers.setMinLines(2);
-  customServers.setHint("IPv4 / https://DoH / tls://DoT / quic://DoQ");
+  customServers.setHint("IPv4[:端口] / https://DoH / tls://DoT / quic://DoQ");
   EditText fallbackServers=draftField("dns_fallback_servers");
   fallbackServers.setSingleLine(false);fallbackServers.setMinLines(2);
   fallbackServers.setHint("备用 DNS IPv4，例如：1.1.1.1,8.8.8.8");
@@ -1313,13 +1313,17 @@ private boolean isValidProfileDnsHostPort(String authority){
   String host=colon<0?authority:authority.substring(0,colon);
   return authority.matches(hostPort)&&isValidProfileDnsHost(host)&&validProfilePort(authority);
 }
+private boolean isValidProfileDnsIpv4Port(String value){
+  int colon=value==null?-1:value.lastIndexOf(':');
+  return colon>0&&isValidProfileIpv4(value.substring(0,colon))&&validProfilePort(value);
+}
 private boolean isValidProfileDnsCsv(String value,boolean encryptedAllowed){
   if(value==null||value.isEmpty())return true;
   String[] entries=value.split(",",-1);
   java.util.Set<String> seen=new java.util.HashSet<>();
   for(String entry:entries){
     if(entry.isEmpty()||!seen.add(entry.toLowerCase(java.util.Locale.ROOT)))return false;
-    if(isValidProfileIpv4(entry))continue;
+    if(isValidProfileIpv4(entry)||(encryptedAllowed&&isValidProfileDnsIpv4Port(entry)))continue;
     if(!encryptedAllowed)return false;
     if(entry.startsWith("tls://")||entry.startsWith("quic://")){
       String authority=entry.substring(entry.indexOf("://")+3);
