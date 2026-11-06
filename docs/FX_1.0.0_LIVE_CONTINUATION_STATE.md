@@ -1446,3 +1446,14 @@
 - `.github/workflows/check-adguardhome-config.yml` canonical/module 镜像新增精确断言：FX runtime template 必须恰好有一个 `  rewrites_enabled: true`；官方二进制 YAML check 之后仍保留原有本地 Unbound 上游与规则隔离条件。
 - 这一层防止 Release-source restore、补丁器和实际模板不同步时，将 Rewrite 全局关闭的旧 AdGuard 配置误打入 FX 包。
 - 按用户要求未运行 patcher、工作流、测试、静态检查、构建、CI 或真机验证；仅提交源码门控和续接文档。
+
+
+## 2026-11-07 — DNS Rewrite 单条规则启用/停用与旧格式兼容
+
+- DNS 重写持久化行扩展为 `rewrite=domain|answer|enabled`；旧的两列 `domain|answer` 自动按 enabled=1 读取。`dns_rewrites_values()` 标准化后统一返回三列，`dns_rewrites-get` 升级到 `FXYULONGDNSRW2`。
+- 原生编辑器每条规则可写 `域名|答案|1`（启用）或 `域名|答案|0`（停用）；读取仍兼容旧 `FXYULONGDNSRW1` 响应和两列旧规则。Root 批量写入拒绝额外列及非 0/1 标志，旧两列自动补 1。
+- AdGuard Home YAML 按每条规则实际状态输出 `enabled: true/false`；运行配置契约只接受唯一布尔字段，仍要求全局 `rewrites_enabled: true`，因此停用项可保留在规则表而不执行。
+- DNS profile 原字段 `DNS_REWRITES` 原样保留；新快照保存三列，旧快照两列在 Root 导入时默认启用，不升级快照版本/字段数。
+- 打包补丁器同步要求 Root `FXYULONGDNSRW2` 与 per-rule enabled 实现，避免 Release source restore 回退到旧两列逻辑。
+- 同步正式/模块两份 Root、AdGuard renderer、原生 Ad 页、打包 patcher 和续接文档。
+- 按用户要求未运行 Shell/Java/Python 测试、静态检查、构建、CI 或 Android 真机验证；本轮仅完成源码改动。

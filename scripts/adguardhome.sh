@@ -1175,7 +1175,8 @@ _config_contract() {
     }
     filtering && rewrite_block && /^      enabled:/ {
       value=scalar($2)
-      if(rewrite_domain=="" || rewrite_has_enabled || value!="true") unsafe_rewrites=1
+      if(rewrite_domain=="" || rewrite_has_enabled ||
+         (value!="true" && value!="false")) unsafe_rewrites=1
       rewrite_has_enabled=1
       next
     }

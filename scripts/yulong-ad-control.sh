@@ -2052,15 +2052,17 @@ dns_rewrites_values() {
       value=substr($0,9)
       parts=split(value,p,/[|]/)
       host=tolower(p[1]); answer=tolower(p[2])
+      enabled=(parts==3 ? p[3] : "1")
       if(answer=="a" || answer=="aaaa") answer=toupper(answer)
-      if(parts!=2 || !valid_source_domain(host) || !valid_answer(answer) || seen[host]++){bad=1;next}
-      print host "|" answer
+      if((parts!=2 && parts!=3) || enabled!~/^[01]$/ ||
+         !valid_source_domain(host) || !valid_answer(answer) || seen[host]++){bad=1;next}
+      print host "|" answer "|" enabled
     }
     END {if(sections>1 || bad)exit 1}
   ' "$CONF" 2>/dev/null
 }
 dns_rewrites_get() {
-  echo FXYULONGDNSRW1
+  echo FXYULONGDNSRW2
   dns_rewrites_values
 }
 dns_rewrites_yaml() {
@@ -2069,9 +2071,14 @@ dns_rewrites_yaml() {
     return 22
   }
   [ -n "$_rewrite_rows" ] || return 0
-  while IFS='|' read -r _rewrite_domain _rewrite_answer; do
+  while IFS='|' read -r _rewrite_domain _rewrite_answer _rewrite_enabled; do
     [ -n "$_rewrite_domain" ] || continue
-    printf '    - domain: "%s"\n      answer: "%s"\n      enabled: true\n' "$_rewrite_domain" "$_rewrite_answer"
+    case "$_rewrite_enabled" in
+      0) _rewrite_enabled_yaml=false ;;
+      1) _rewrite_enabled_yaml=true ;;
+      *) echo "DNS rewrite enabled flag is invalid" >&2; return 22 ;;
+    esac
+    printf '    - domain: "%s"\n      answer: "%s"\n      enabled: %s\n' "$_rewrite_domain" "$_rewrite_answer" "$_rewrite_enabled_yaml"
   done <<EOF_REWRITE_ROWS
 $_rewrite_rows
 EOF_REWRITE_ROWS
@@ -2091,19 +2098,22 @@ dns_rewrites_set_many() {
     return 22
   }
   _rewrite_count=0
-  while IFS='|' read -r _rewrite_domain _rewrite_answer _rewrite_extra ||
-        [ -n "$_rewrite_domain$_rewrite_answer$_rewrite_extra" ]; do
+  while IFS='|' read -r _rewrite_domain _rewrite_answer _rewrite_enabled _rewrite_extra ||
+        [ -n "$_rewrite_domain$_rewrite_answer$_rewrite_enabled$_rewrite_extra" ]; do
     _rewrite_domain=$(printf '%s' "$_rewrite_domain" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
     _rewrite_answer=$(printf '%s' "$_rewrite_answer" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-    [ -n "$_rewrite_domain$_rewrite_answer$_rewrite_extra" ] || continue
-    [ -z "$_rewrite_extra" ] || { echo "DNS rewrite rows must use domain|answer" >&2; return 2; }
+    _rewrite_enabled=$(printf '%s' "$_rewrite_enabled" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    [ -n "$_rewrite_domain$_rewrite_answer$_rewrite_enabled$_rewrite_extra" ] || continue
+    [ -z "$_rewrite_extra" ] || { echo "DNS rewrite rows must use domain|answer|enabled" >&2; return 2; }
+    [ -n "$_rewrite_enabled" ] || _rewrite_enabled=1
+    case "$_rewrite_enabled" in 0|1) : ;; *) echo "DNS rewrite enabled flag must be 0 or 1" >&2; return 2 ;; esac
     _rewrite_domain=$(valid_dns_rewrite_source_domain "$_rewrite_domain") || { echo "invalid DNS rewrite source domain or wildcard pattern" >&2; return 2; }
     _rewrite_answer=$(valid_dns_rewrite_answer "$_rewrite_answer") || { echo "invalid DNS rewrite answer for $_rewrite_domain" >&2; return 2; }
     if awk -F'|' -v domain="$_rewrite_domain" '$1==domain{found=1} END{exit !found}' "$_yad_rewrite_clean"; then
       echo "duplicate DNS rewrite source domain: $_rewrite_domain" >&2
       return 2
     fi
-    printf '%s|%s\n' "$_rewrite_domain" "$_rewrite_answer" >> "$_yad_rewrite_clean" || return 1
+    printf '%s|%s|%s\n' "$_rewrite_domain" "$_rewrite_answer" "$_rewrite_enabled" >> "$_yad_rewrite_clean" || return 1
     _rewrite_count=$((_rewrite_count + 1))
   done < "$_yad_rewrite_raw"
   _rewrite_tmp=$(mktemp "$CONF.yulong-dns-rewrites.XXXXXX") || return 1
