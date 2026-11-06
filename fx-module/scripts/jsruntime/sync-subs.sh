@@ -107,7 +107,6 @@ while IFS='|' read -r url note enabled; do
       meta_env_json=$(printf '%s\n' "$meta" | sed -n '5p')
       meta_argument=$(printf '%s\n' "$meta" | sed -n '6p')
       meta_extra=$(printf '%s\n' "$meta" | sed -n '7,$p')
-      meta_argument=$(printf '%s\n' "$meta" | sed -n '6p')
       case "$meta_type" in request|response|both) ;; *) meta_type='' ;; esac
       case "$meta_match" in ''|*"$(printf '\r')"*) meta_match='' ;; esac
       case "$meta_requires_body" in ''|0) meta_requires_body=0 ;; 1) ;; *) meta_requires_body='' ;; esac
@@ -144,7 +143,6 @@ while IFS='|' read -r url note enabled; do
         if [ "$meta_requires_body" = 1 ]; then printf '// FX-SCRIPT-REQUIRES-BODY: 1\n'; fi
         if [ -n "$meta_display_name" ]; then printf '// FX-SCRIPT-NAME: %s\n' "$meta_display_name"; fi
         if [ -n "$meta_env_json" ]; then printf '// FX-SCRIPT-ENV-JSON: %s\n' "$meta_env_json"; fi
-        if [ -n "$meta_argument" ]; then printf '// FX-SCRIPT-ARGUMENT: %s\n' "$meta_argument"; fi
         if [ -n "$meta_argument" ]; then printf '// FX-SCRIPT-ARGUMENT: %s\n' "$meta_argument"; fi
         cat "$tmp"
       } > "$wrapped"; then
