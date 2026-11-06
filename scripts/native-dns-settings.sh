@@ -86,10 +86,14 @@ status() {
   _filter_enabled=unknown
   if [ -f "$CONF" ] && [ ! -L "$CONF" ] && [ -r "$CONF" ]; then
     _filter_counts=$(awk -F'|' '
-      function valid_url(u) {
-        return length(u)<=2048 &&
-          (index(u,"http://")==1 || index(u,"https://")==1) &&
-          u !~ /[[:space:]|]/
+      function valid_url(u, i, ch, allowed) {
+        if (length(u)>2048 || (index(u,"http://")!=1 && index(u,"https://")!=1)) return 0
+        allowed="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._~:/?#@!$&\\047()*+,;=%-"
+        for (i=1; i<=length(u); i++) {
+          ch=substr(u,i,1)
+          if (!index(allowed,ch)) return 0
+        }
+        return 1
       }
       $0=="[list:rule]" {section="rule"; next}
       /^\[/ {section=""; next}
