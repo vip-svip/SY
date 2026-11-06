@@ -554,12 +554,39 @@ _render_managed_config() {
   }
   _statistics_enabled=$(printf '%s\n' "$_statistics_output" | sed -n 's/^STATISTICS_ENABLED=//p')
   _statistics_interval=$(printf '%s\n' "$_statistics_output" | sed -n 's/^STATISTICS_INTERVAL=//p')
+  _statistics_ignored_enabled=$(printf '%s\n' "$_statistics_output" | sed -n 's/^STATISTICS_IGNORED_ENABLED=//p')
+  _statistics_ignored=$(printf '%s\n' "$_statistics_output" | sed -n 's/^STATISTICS_IGNORED=//p')
   case "$_statistics_enabled" in 0|1) : ;; *)
     _log 'local DNS statistics enabled flag is malformed'
     rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
     return 1
     ;;
   esac
+  case "$_statistics_ignored_enabled" in 0|1) : ;; *)
+    _log 'local DNS statistics ignored-domain flag is malformed'
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
+    return 1
+    ;;
+  esac
+  if ! printf '%s\n' "$_statistics_ignored" | awk -F, '
+    function valid_domain(v,n,a,i) {
+      if(v=="" || length(v)>253 || v~/\.\./ || v~/^[.]|[.]$/ || v~/[^A-Za-z0-9.-]/) return 0
+      n=split(v,a,".")
+      for(i=1;i<=n;i++)
+        if(length(a[i])<1 || length(a[i])>63 ||
+           a[i]!~/^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$/) return 0
+      return 1
+    }
+    {
+      if($0=="") exit 0
+      for(i=1;i<=NF;i++)
+        if(!valid_domain($i) || seen[tolower($i)]++) exit 1
+    }
+  '; then
+    _log 'local DNS statistics ignored-domain list is malformed or duplicated'
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
+    return 1
+  fi
   if ! awk -v interval="$_statistics_interval" '
     BEGIN {
       if (interval !~ /^[0-9]+[hd]$/) exit 1
@@ -647,7 +674,7 @@ _render_managed_config() {
      { [ "$_custom_dns_enabled" = 1 ] || [ "$_global_dns_enabled" = 1 ]; }; then
     printf '  - 127.0.0.1:5353\n' > "$_fallback_file" || return 1
   fi
-  if ! awk -v querylog_interval="$_querylog_interval" -v querylog_memory_size="$_querylog_memory_size" -v querylog_enabled="$_dns_querylog_enabled" -v statistics_enabled="$_statistics_enabled" -v statistics_interval="$_statistics_interval" -v dns_response_mode="$_dns_response_mode" -v upstream_mode="$_dns_runtime_upstream_mode" -v fastest_timeout="$_dns_runtime_fastest_timeout" -v upstream_timeout="$_dns_runtime_upstream_timeout" -v cache_size="$_dns_runtime_cache_size" -v cache_ttl_min="$_dns_runtime_cache_ttl_min" -v cache_ttl_max="$_dns_runtime_cache_ttl_max" -v optimistic_answer_ttl="$_dns_runtime_optimistic_answer_ttl" -v optimistic_max_age="$_dns_runtime_optimistic_max_age" -v cache_enabled="$_dns_runtime_cache_enabled" -v cache_optimistic="$_dns_runtime_cache_optimistic" -v dnssec="$_dns_runtime_dnssec" -v rules_file="$_rules_file" -v filters_file="$_filters_file" -v fallback_file="$_fallback_file" -v upstream_file="$_upstream_file" -v bootstrap_file="$_bootstrap_file" '
+  if ! awk -v querylog_interval="$_querylog_interval" -v querylog_memory_size="$_querylog_memory_size" -v querylog_enabled="$_dns_querylog_enabled" -v statistics_enabled="$_statistics_enabled" -v statistics_interval="$_statistics_interval" -v statistics_ignored_enabled="$_statistics_ignored_enabled" -v statistics_ignored="$_statistics_ignored" -v dns_response_mode="$_dns_response_mode" -v upstream_mode="$_dns_runtime_upstream_mode" -v fastest_timeout="$_dns_runtime_fastest_timeout" -v upstream_timeout="$_dns_runtime_upstream_timeout" -v cache_size="$_dns_runtime_cache_size" -v cache_ttl_min="$_dns_runtime_cache_ttl_min" -v cache_ttl_max="$_dns_runtime_cache_ttl_max" -v optimistic_answer_ttl="$_dns_runtime_optimistic_answer_ttl" -v optimistic_max_age="$_dns_runtime_optimistic_max_age" -v cache_enabled="$_dns_runtime_cache_enabled" -v cache_optimistic="$_dns_runtime_cache_optimistic" -v dnssec="$_dns_runtime_dnssec" -v rules_file="$_rules_file" -v filters_file="$_filters_file" -v fallback_file="$_fallback_file" -v upstream_file="$_upstream_file" -v bootstrap_file="$_bootstrap_file" '
     /^querylog:[[:space:]]*$/ {in_querylog=1; print; next}
     in_querylog && /^[^[:space:]]/ {in_querylog=0}
     in_querylog && /^  enabled:/ {
@@ -667,6 +694,20 @@ _render_managed_config() {
       next
     }
     in_statistics && /^  interval:/ {print "  interval: " statistics_interval; next}
+    in_statistics && /^  ignored_enabled:/ {
+      print "  ignored_enabled: " (statistics_ignored_enabled=="1" ? "true" : "false")
+      next
+    }
+    in_statistics && /^  ignored: \\[\\]$/ {
+      if (statistics_ignored=="") {
+        print "  ignored: []"
+      } else {
+        count=split(statistics_ignored, ignored_domains, ",")
+        print "  ignored:"
+        for (i=1;i<=count;i++) print "    - " ignored_domains[i]
+      }
+      next
+    }
     /^  upstream_mode:/ {print "  upstream_mode: " upstream_mode; next}
     /^  fastest_timeout:/ {print "  fastest_timeout: " fastest_timeout; next}
     /^  upstream_timeout:/ {print "  upstream_timeout: " upstream_timeout; next}
@@ -788,6 +829,14 @@ _config_contract() {
       maximum=(unit=="h" ? 8760 : 365)
       return amount+0>=1 && amount+0<=maximum && int(amount+0)==amount+0
     }
+    function valid_statistics_domain(v, n, a, i) {
+      if(v=="" || length(v)>253 || v~/\.\./ || v~/^[.]|[.]$/ || v~/[^A-Za-z0-9.-]/) return 0
+      n=split(v,a,".")
+      for(i=1;i<=n;i++)
+        if(length(a[i])<1 || length(a[i])>63 ||
+           a[i]!~/^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$/) return 0
+      return 1
+    }
     function valid_optimistic_answer_ttl(value, n, seconds) {
       if (value ~ /^[0-9]+ms$/) {
         n=substr(value,1,length(value)-2); seconds=n/1000
@@ -891,8 +940,25 @@ _config_contract() {
     }
     /^statistics:[[:space:]]*$/ {statistics=1; next}
     statistics && /^[^[:space:]]/ {statistics=0}
+    statistics && ignored_sequence && /^  [A-Za-z_][A-Za-z0-9_-]*:/ {ignored_sequence=0}
     statistics && /^  enabled:/ {runtime_statistics_enabled=$2; statistics_enabled_count++}
     statistics && /^  interval:/ {runtime_statistics_interval=$2; statistics_interval_count++}
+    statistics && /^  ignored_enabled:/ {runtime_statistics_ignored_enabled=$2; statistics_ignored_enabled_count++}
+    statistics && /^  ignored:/ {
+      statistics_ignored_count++
+      if(NF==2 && $2=="[]") {ignored_empty=1; next}
+      if(NF==1) {ignored_sequence=1; next}
+      unsafe_statistics_ignored=1
+      next
+    }
+    statistics && ignored_sequence && /^    - / {
+      domain=$2
+      if(!valid_statistics_domain(domain) || ignored_domains_seen[tolower(domain)]++)
+        unsafe_statistics_ignored=1
+      ignored_domains_count++
+      next
+    }
+    statistics && ignored_sequence {unsafe_statistics_ignored=1; next}
     /^dns:$/ {dns=1; next}
     dns && /^[^[:space:]]/ {dns=0}
     dns && /^  port:/ {dns_port=$2}
@@ -975,7 +1041,10 @@ _config_contract() {
         valid_optimistic_answer_ttl(runtime_optimistic_answer_ttl) &&
         valid_duration(runtime_optimistic_max_age) &&
         statistics_enabled_count==1 && statistics_interval_count==1 &&
+        statistics_ignored_enabled_count==1 && statistics_ignored_count==1 &&
+        !unsafe_statistics_ignored &&
         (runtime_statistics_enabled=="true" || runtime_statistics_enabled=="false") &&
+        (runtime_statistics_ignored_enabled=="true" || runtime_statistics_ignored_enabled=="false") &&
         valid_statistics_interval(runtime_statistics_interval) &&
         (runtime_cache_enabled=="true" || runtime_cache_enabled=="false") &&
         (runtime_cache_optimistic=="true" || runtime_cache_optimistic=="false") &&
