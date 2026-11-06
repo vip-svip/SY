@@ -19,6 +19,7 @@ _YW_TEMP=
 _YW_BACKUP=
 _YW_RESTORE=
 _YW_PID_TEMP=
+_YW_PACKAGES=
 umask 077
 
 # Reject symlinked ancestors before creating or reading the private FX state.
@@ -161,6 +162,7 @@ with_lock() {
     [ -z "$_YW_BACKUP" ] || rm -f "$_YW_BACKUP" 2>/dev/null || :
     [ -z "$_YW_RESTORE" ] || rm -f "$_YW_RESTORE" 2>/dev/null || :
     [ -z "$_YW_PID_TEMP" ] || rm -f "$_YW_PID_TEMP" 2>/dev/null || :
+    [ -z "$_YW_PACKAGES" ] || rm -f "$_YW_PACKAGES" 2>/dev/null || :
     [ -L "$LOCK/pid" ] || rm -f "$LOCK/pid" 2>/dev/null || :
     rmdir "$LOCK" 2>/dev/null || :
   }
@@ -209,6 +211,118 @@ mutate_transaction() {
   echo "apply failed; previous whitelist restored" >&2
   return 1
 }
+prune_transaction() {
+  [ -f "$CONF" ] && [ ! -L "$CONF" ] || { echo "FX settings.conf missing or unsafe" >&2; return 21; }
+  _snapshot=$(cmd package list packages -U 2>/dev/null) || {
+    echo "cannot read PackageManager snapshot; app whitelist unchanged" >&2; return 1;
+  }
+  [ -n "$_snapshot" ] || { echo "PackageManager returned an empty snapshot; app whitelist unchanged" >&2; return 1; }
+  _YW_PACKAGES=$(mktemp "$PG/yulong-app-whitelist-packages.XXXXXX") || return 1
+  if ! printf '%s\n' "$_snapshot" | awk '
+    $1 ~ /^package:[A-Za-z0-9_.-]+$/ {
+      pkg=substr($1,9); uid_ok=0
+      for(i=2;i<=NF;i++) if($i ~ /^uid:[0-9]+$/) {uid_ok=1; break}
+      if(uid_ok && pkg ~ /^[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+$/) {
+        if(!seen[pkg]++) print pkg
+        valid++
+      }
+    }
+    END {exit !valid}
+  ' > "$_YW_PACKAGES"; then
+    rm -f "$_YW_PACKAGES"; _YW_PACKAGES=
+    echo "PackageManager snapshot is malformed; app whitelist unchanged" >&2
+    return 1
+  fi
+  [ -s "$_YW_PACKAGES" ] && chmod 600 "$_YW_PACKAGES" || {
+    rm -f "$_YW_PACKAGES"; _YW_PACKAGES=
+    echo "PackageManager snapshot has no usable package/UID rows; app whitelist unchanged" >&2
+    return 1
+  }
+  _removed=$(awk -F'|' '
+    FNR==NR {installed[$1]=1; next}
+    $0=="[list:yulong_app_whitelist]" {inside=1; next}
+    /^\[/ {inside=0}
+    inside && NF>=3 && $1 ~ /^[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+$/
+      && ($3=="0" || $3=="1") && !($1 in installed) {count++}
+    END {print count+0}
+  ' "$_YW_PACKAGES" "$CONF") || {
+    rm -f "$_YW_PACKAGES"; _YW_PACKAGES=; return 1;
+  }
+  case "$_removed" in ''|*[!0-9]*)
+    rm -f "$_YW_PACKAGES"; _YW_PACKAGES=
+    echo "invalid stale whitelist count; configuration unchanged" >&2
+    return 1
+    ;;
+  esac
+  if [ "$_removed" -eq 0 ]; then
+    rm -f "$_YW_PACKAGES"; _YW_PACKAGES=
+    echo "removed=0 applied=0"
+    return 0
+  fi
+
+  _YW_BACKUP=$(mktemp "$CONF.yulong-white-rollback.XXXXXX") || {
+    rm -f "$_YW_PACKAGES"; _YW_PACKAGES=; return 1;
+  }
+  if ! cat "$CONF" > "$_YW_BACKUP" || ! chmod 600 "$_YW_BACKUP"; then
+    rm -f "$_YW_BACKUP" "$_YW_PACKAGES"
+    _YW_BACKUP=; _YW_PACKAGES=
+    echo "unable to snapshot app whitelist before prune" >&2
+    return 1
+  fi
+  _YW_TEMP=$(mktemp "$CONF.yulong-white-prune.XXXXXX") || {
+    rm -f "$_YW_BACKUP" "$_YW_PACKAGES"
+    _YW_BACKUP=; _YW_PACKAGES=; return 1;
+  }
+  if ! awk -F'|' '
+    FNR==NR {installed[$1]=1; next}
+    $0=="[list:yulong_app_whitelist]" {inside=1; print; next}
+    /^\[/ {inside=0}
+    inside && NF>=3 && $1 ~ /^[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+$/
+      && ($3=="0" || $3=="1") && !($1 in installed) {next}
+    {print}
+  ' "$_YW_PACKAGES" "$CONF" > "$_YW_TEMP"; then
+    rm -f "$_YW_TEMP" "$_YW_BACKUP" "$_YW_PACKAGES"
+    _YW_TEMP=; _YW_BACKUP=; _YW_PACKAGES=
+    echo "unable to stage app whitelist prune; configuration unchanged" >&2
+    return 1
+  fi
+  if [ ! -s "$_YW_TEMP" ] || [ ! -f "$_YW_TEMP" ] || [ -L "$_YW_TEMP" ] \
+      || [ ! -f "$CONF" ] || [ -L "$CONF" ] \
+      || ! chmod 600 "$_YW_TEMP" || ! mv -f "$_YW_TEMP" "$CONF"; then
+    rm -f "$_YW_TEMP" "$_YW_BACKUP" "$_YW_PACKAGES"
+    _YW_TEMP=; _YW_BACKUP=; _YW_PACKAGES=
+    echo "atomic app whitelist prune commit failed; configuration unchanged" >&2
+    return 1
+  fi
+  _YW_TEMP=
+  rm -f "$_YW_PACKAGES"; _YW_PACKAGES=
+  if sh "$MP/scripts/apply.sh" fast; then
+    rm -f "$_YW_BACKUP"; _YW_BACKUP=
+    echo "removed=$_removed applied=1"
+    return 0
+  fi
+  _YW_RESTORE=$(mktemp "$CONF.restore.XXXXXX") || {
+    rm -f "$_YW_BACKUP"; _YW_BACKUP=
+    echo "unable to create app whitelist prune rollback file" >&2
+    return 11
+  }
+  if cat "$_YW_BACKUP" > "$_YW_RESTORE" && chmod 600 "$_YW_RESTORE" \
+      && [ -f "$CONF" ] && [ ! -L "$CONF" ] \
+      && [ -f "$_YW_RESTORE" ] && [ ! -L "$_YW_RESTORE" ] \
+      && mv -f "$_YW_RESTORE" "$CONF"; then
+    _YW_RESTORE=
+  else
+    rm -f "$_YW_RESTORE" "$_YW_BACKUP"
+    _YW_RESTORE=; _YW_BACKUP=
+    echo "app whitelist prune rollback failed" >&2
+    return 11
+  fi
+  sh "$MP/scripts/apply.sh" fast >/dev/null 2>&1 || echo "previous whitelist restored; runtime reconcile failed" >&2
+  rm -f "$_YW_BACKUP"; _YW_BACKUP=
+  echo "app whitelist apply failed; previous selection restored" >&2
+  return 1
+}
+
 cmd=${1:-list}
 case "$cmd" in
   list)
@@ -223,11 +337,15 @@ case "$cmd" in
     [ "$#" -eq 2 ] && valid_package "$2" || { echo "usage: $0 remove PACKAGE" >&2; exit 2; }
     with_lock mutate_transaction 0 "$2"
     ;;
+  prune)
+    [ "$#" -eq 1 ] || { echo "usage: $0 prune" >&2; exit 2; }
+    with_lock prune_transaction
+    ;;
   apply)
     sh "$MP/scripts/apply.sh" fast
     ;;
   *)
-    echo "usage: $0 list|add PACKAGE|remove PACKAGE|apply" >&2
+    echo "usage: $0 list|add PACKAGE|remove PACKAGE|prune|apply" >&2
     exit 2
     ;;
 esac
