@@ -674,3 +674,12 @@
 - 单项 DNS 设置仍使用原有单项写入入口。
 - 按用户要求未运行测试、静态检查、构建、CI 或设备验证。
 
+### FX Custom/Global/Fallback DNS 三组服务器单次原子更新（2026-11-07）
+
+- 代码提交：`317283d80434ebc0f5b6a0374e796cddbf9a669d`。
+- 文件：`fx-module/scripts/yulong-ad-control.sh`。
+- 新增 `write_dns_sections_many`：先完整校验三组现有 DNS 配置，再在同一临时文件中同时重写或清除 custom、global、fallback 三个配置段，最后只执行一次原子替换。
+- `dns-config-set-many` 不再依次替换三个独立配置段；任一配置写入失败不会留下只更新一部分的中间文件状态。输入地址格式及 fallback 专用地址限制保持不变。
+- 保留原有外层事务备份、失败回滚和运行配置应用流程。
+- 按用户要求未运行测试、静态检查、构建、CI 或设备验证。
+
