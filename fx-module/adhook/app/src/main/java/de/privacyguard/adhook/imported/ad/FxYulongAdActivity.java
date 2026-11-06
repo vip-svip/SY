@@ -657,31 +657,41 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
  }
  private void renderRules(){EditText url=draftField("rule_url");url.setSingleLine(true);url.setHint("https://… 或 builtin://…");EditText name=draftField("rule_name");name.setSingleLine(true);name.setHint("列表名称");card("添加过滤列表","仅允许 HTTPS 订阅及 FX 本地资源。",url,name,btn("添加并应用",()->{String u=url.getText().toString().trim(),n=name.getText().toString().trim();if(!u.isEmpty()&&!n.isEmpty())apply("rule-add "+q(u)+" "+q(n)+" 1","规则添加");}));EditText ruleImport=draftField("rule_import_text");ruleImport.setSingleLine(false);ruleImport.setMinLines(4);ruleImport.setHint("每行：HTTPS或builtin来源|列表名称");card("批量导入过滤列表","支持多行来源|名称；空行和 # 注释行忽略。新订阅默认启用，已存在来源不会被覆盖。",ruleImport,btn("批量导入",()->importRuleSubscriptions(ruleImport)),btn("分享全部过滤订阅",()->shareRuleSubscriptions()));search=draftField("rule_search");search.setSingleLine(true);search.setHint("搜索过滤列表");card("搜索","输入来源或列表名称",search,btn("启用当前筛选全部列表",()->setFilteredRules(true)),btn("暂停当前筛选全部列表",()->setFilteredRules(false)),btn("移除当前筛选全部列表",()->removeFilteredRules()));search.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int st,int c,int a){}public void onTextChanged(CharSequence s,int st,int be,int co){bind();}public void afterTextChanged(Editable e){}});entries=new LinearLayout(this);entries.setOrientation(1);body.addView(entries);}
  private static boolean isValidDnsQueryLogRetention(String value){
-  return value!=null&&value.matches("[0-9]+d")&&!value.matches("0+d");
+  if(value==null)return false;
+  String normalized=value.trim().toLowerCase(java.util.Locale.ROOT);
+  boolean days=normalized.endsWith("d");
+  boolean hours=normalized.endsWith("h");
+  if(!days&&!hours)return false;
+  String number=normalized.substring(0,normalized.length()-1);
+  if(!number.matches("[0-9]+"))return false;
+  try{
+   java.math.BigInteger amount=new java.math.BigInteger(number);
+   java.math.BigInteger maximum=new java.math.BigInteger(days?"365":"8760");
+   return amount.signum()>0&&amount.compareTo(maximum)<=0;
+  }catch(NumberFormatException invalid){return false;}
  }
  private void saveDnsQueryLogRetention(String value){
   root("dns-querylog-retention-set "+q(value),result->{
-    if(result.exitCode==0)status.setText("DNS 查询日志保留期限已更新为 "+value+"；AdGuard Home 将按新期限轮转日志。请留意本地存储空间。");
+    if(result.exitCode==0)status.setText("DNS 查询日志轮转周期已更新为 "+value+"；有效范围为 1 小时至 8760 小时。请留意本地存储空间。");
     else fxDialogBuilder().setTitle("保留期限未更新").setMessage(safe(result.output)).setPositiveButton("关闭",null).show();
   });
  }
- private void promptDnsQueryLogRetentionDays(String currentValue){
-  EditText days=new EditText(this);
-  days.setSingleLine(true);
-  days.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
-  days.setHint("输入正整数天数");
-  String initial=currentValue!=null&&currentValue.endsWith("d")
-      ?currentValue.substring(0,currentValue.length()-1):"7";
-  days.setText(initial.matches("[0-9]+")?initial:"7");
-  fxDialogBuilder().setTitle("自定义 DNS 查询日志保留期限")
-    .setMessage("输入任意正整数天数。保留时间越长，占用本地存储空间越多。")
-    .setView(days)
+ private void promptDnsQueryLogRetentionDuration(String currentValue){
+  EditText duration=new EditText(this);
+  duration.setSingleLine(true);
+  duration.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+      |android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+  duration.setHint("例如 12h、90d（范围 1h–8760h）");
+  duration.setText(isValidDnsQueryLogRetention(currentValue)?currentValue:"7d");
+  fxDialogBuilder().setTitle("自定义 DNS 查询日志轮转周期")
+    .setMessage("使用 h 表示小时、d 表示天。允许范围为 1h 至 8760h（最长 365d）。")
+    .setView(duration)
     .setNegativeButton("取消",null)
     .setPositiveButton("保存",(dialog,which)->{
-      String supplied=days.getText()==null?"":days.getText().toString().trim();
-      String value=supplied+"d";
+      String value=duration.getText()==null?""
+          :duration.getText().toString().trim().toLowerCase(java.util.Locale.ROOT);
       if(!isValidDnsQueryLogRetention(value)){
-        status.setText("保留天数必须是大于零的整数，未修改配置。");
+        status.setText("轮转周期须为 1h–8760h 或 1d–365d 的正整数时长，未修改配置。");
         return;
       }
       saveDnsQueryLogRetention(value);
@@ -689,20 +699,20 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
  }
  private void chooseDnsQueryLogRetention(){
   final String[] values={"1d","3d","7d","30d"};
-  final String[] labels={"保留 1 天","保留 3 天","保留 7 天","保留 30 天","自定义天数…"};
+  final String[] labels={"保留 1 天","保留 3 天","保留 7 天","保留 30 天","自定义时长…"};
   root("dns-querylog-retention-get",current->{
     String selectedValue="7d";
     if(current.exitCode==0&&current.output!=null)
-      for(String line:current.output.split("\\r?\\n"))
+      for(String line:current.output.split("\\\\r?\\\\n"))
         if(line.startsWith("querylog_retention="))selectedValue=line.substring("querylog_retention=".length()).trim();
     int selected=-1;
     for(int i=0;i<values.length;i++)if(values[i].equals(selectedValue))selected=i;
     final String currentRetention=selectedValue;
-    new AlertDialog.Builder(this).setTitle("DNS 查询日志保留期限")
+    new AlertDialog.Builder(this).setTitle("DNS 查询日志轮转周期")
       .setSingleChoiceItems(labels,selected,(dialog,which)->{
         dialog.dismiss();
         if(which>=values.length){
-          promptDnsQueryLogRetentionDays(currentRetention);
+          promptDnsQueryLogRetentionDuration(currentRetention);
           return;
         }
         saveDnsQueryLogRetention(values[which]);
