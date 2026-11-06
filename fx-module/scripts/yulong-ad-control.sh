@@ -176,7 +176,9 @@ valid_ipv4() {
   printf '%s\n' "$1" | awk -F. '
     {
       if(NF!=4){bad=1;exit}
-      for(i=1;i<=4;i++)if($i==""||$i!~/^[0-9]+$/||length($i)>3||$i+0>255){bad=1;exit}
+      for(i=1;i<=4;i++)if($i==""||$i!~/^[0-9]+$/||length($i)>3||$i+0>255||($i!="0"&&$i~/^0/)){bad=1;exit}
+      first=$1+0; second=$2+0
+      if(first==0||first==127||first>=224||(first==169&&second==254))bad=1
     }
     END{exit bad}
   '
