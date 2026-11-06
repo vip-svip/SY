@@ -6846,3 +6846,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - AdGuard Home 运行时重写 YAML 的键、嵌套缩进和模板契约已由正式/模块脚本同步修正；渲染器对重复源域名、无效地址及格式不完整的重写条目拒绝启用，保持已有过滤/上游配置边界。
 - Root 快照输出提交：`0dd0c4d8ea8c242eae57b84ad8bfcdf66d692804`、`b7bd53115b59213c54ed7ce0308473c023eba59c`。原生 UI/快照支持提交：`4e124c5605a1`、`df0a13274259`。运行时契约/模板同步提交：`65d75ea6f88c`、`97cc0bcacfb1`、`72803dbf9a3a`、`3d28da043a99`、`7adf47a24129`、`b7ff48c37bac`、`25622ac0d8e2`、`4c3ce2d7e508`、`79a169c49320`。
 - 按推进要求未运行测试、静态检查、构建、CI 或 Android 真机验证。
+## 2026-11-07 — AdGuard Home DNS Rewrites 域名重写功能
+
+- 新增 `[conf:yulong_dns_rewrites]` 持久化配置，按 `rewrite=source-domain|answer` 保存条目；支持任意条合法规则，同一源域名唯一，修改通过私有临时文件与原子替换写入。
+- Root 接口新增 `dns-rewrites-get`、`dns-rewrites-set` 和 `dns-rewrites-yaml`；批量写入使用 Base64 传输和 `domain|answer` 行格式，目标支持 IPv4、IPv6 与 CNAME 域名。IPv4/IPv6 answer 校验允许合法 loopback/空地址等重写目标，不套用 DNS 上游地址的路由限制。
+- AdGuard Home canonical/module renderer 将规则生成到 `filtering.rewrites`，使用严格引用的 `domain` 和 `answer` YAML 字段；运行配置契约检查重写区段唯一、源域名唯一、answer 格式有效，并拒绝不完整或多余字段。
+- 原生 Ad 页面新增 DNS 域名重写批量编辑器；每行一条 `域名|IPv4/IPv6/CNAME`，可同时编辑、清空和应用，不设置应用层条数上限。
+- DNS 配置快照新增 `DNS_REWRITES`，纳入导出、导入、验证、差异预览与恢复；旧版快照缺少该字段时默认空列表。重写规则与 DNS 上游、过滤名单和逐条日志排除配置独立保存。
+- 主要提交：Root 后端 canonical `7ffd15ffadcd8274474df9f0b340d535673ad75c` / module `b47f65a030df7afd6b739ba548efbbc2fdede975`；profile 导出 fail-closed `86f78810df4883dfe7d7a488e09b14057824c5ad` / module `6b47fba0a7ef179cc0c1dcc98db1a0e4f9a7f2f2`；AdGuard renderer canonical `341cb269c3da1fdab92a26fe9b5cd9795816ef3b`、精确模板匹配 `72803dbf9a3a6aefeb3cbd3d0725989c826ac703`、配置契约 `65d75ea6f88cf234f9c98d6dd2d88d7297dabb3d`、YAML 缩进 `79a169c49320688fd0f42eed148f5e18275db36d`；module renderer `7adf47a24129cd3cc5f7ab3d895a83e75f59235d`、`3d28da043a997e975d980f0b4f0064da19466047`、`97cc0bcacfb1f0729c7134f75dc31a7beb7424b3`、`4c3ce2d7e5080cf16d56d818e681068bc9493128`；原生 UI canonical `df0a132742598446fcff7dd5fd33532e5f6ca47a` / module `4e124c5605a151008ee668e47a861fd77ebbf434`；无应用条数限制文案 canonical `15811220e469af35443dd359dce656f13a5b870a` / module `defb7d5375f95cae612169efc7eaa88ac67598c3`。
+- 按当前要求未运行测试、静态检查、构建、CI 或 Android 真机验证；源码提交不代表设备验收通过。
