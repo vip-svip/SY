@@ -2371,8 +2371,8 @@ public final class MainActivity extends ComponentActivity {
             return;
         }
         String safeNote = note == null ? "" : note.trim();
-        if (safeNote.length() > 512) {
-            if (callback != null) callback.onComplete(false, "脚本名称超过 512 字符");
+        if (safeNote.length() > 4096) {
+            if (callback != null) callback.onComplete(false, "脚本备注元数据超过 4096 字符");
             return;
         }
         String command = nativeScriptStoreCommand("add-file", shellQuote(staged.getAbsolutePath()),
@@ -2591,7 +2591,7 @@ public final class MainActivity extends ComponentActivity {
                 if (!isSupportedNativeScriptValue(value)) {
                     throw new IllegalArgumentException("第 " + (i + 1) + " 项脚本内容无效。");
                 }
-                if (name.length() > 512) throw new IllegalArgumentException("第 " + (i + 1) + " 项名称超过 512 字符");
+                if (name.length() > 4096) throw new IllegalArgumentException("第 " + (i + 1) + " 项备注元数据超过 4096 字符");
             }
             runNativeModuleCommand(nativeScriptStoreCommand("list"), 30000L, current -> {
                 if (current.exitCode != 0) {
