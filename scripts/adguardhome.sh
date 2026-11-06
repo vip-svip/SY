@@ -334,7 +334,7 @@ _build_dns_upstreams() {
       }
       normalized=tolower(server)
       if(seen[normalized]++) {bad=1; next}
-      print "  - \\"" server "\\""
+      print "  - \"" server "\""
       count++
     }
     END { if(bad || sections!=1 || count<1) exit 1 }
