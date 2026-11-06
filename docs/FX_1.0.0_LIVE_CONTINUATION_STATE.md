@@ -7113,3 +7113,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 修复 `fx-module/scripts/jsruntime/host.js` 中 Egern 脚本名称头读取器的换行正则多重转义问题。名称元数据读取现在与环境变量元数据读取一样按真实 CRLF/LF 行拆分，避免脚本名称头存在时无法正确命中。
 - 源码提交：1366975be3f4033147d2193b0f02828fd8033605。
 - 按当前推进要求，本轮未运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-06 — 剪贴板隐私读取面扩展
+
+- 将剪贴板按应用读取保护从 ClipboardManager 的 `getPrimaryClip` / `hasPrimaryClip` / `getText` 扩展到 `getPrimaryClipDescription`、`hasText`、`getPrimaryClipSource` 和剪贴板变化监听器注册。
+- 同时覆盖已缓存对象路径：`ClipData` 容器的条目数量/读取/描述接口、`ClipData.Item` 的文本/HTML/URI/Intent/文本转换接口，以及 `ClipDescription` 的标签、MIME 类型和过滤接口。命中策略时按返回类型返回空值、false、0 或空数组；剪贴板写入接口不拦截。
+- 仍复用 `ClipboardPrivacyPolicy.shouldBlockRead()`：隐私总开关、按应用目标开关、单包进程条件和系统/FX/LSPosed 保护名单不变；共享包进程继续 fail-open。
+- 应用 Hook 提交：`1988afd9a7b420d9ca827f38466652fc749507f6`；模块 Hook 提交：`3a30f3cc9088c595bf4ec913c000fa9e2e1c12e0`。
+- 按要求未运行测试、静态检查、构建、CI 或真机验证。
