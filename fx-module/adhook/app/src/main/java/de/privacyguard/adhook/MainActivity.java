@@ -2017,6 +2017,73 @@ public final class MainActivity extends ComponentActivity {
         });
     }
 
+    private static String scriptModuleOption(String options, String key) {
+        if (options == null || key == null) return "";
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+                "(?:^|,)\\s*" + java.util.regex.Pattern.quote(key)
+                        + "\\s*=\\s*(.*?)(?=,\\s*[A-Za-z0-9_-]+\\s*=|$)",
+                java.util.regex.Pattern.CASE_INSENSITIVE);
+        java.util.regex.Matcher matcher = pattern.matcher(options);
+        return matcher.find() ? matcher.group(1).trim().replaceAll("^[\\\"']|[\\\"']$", "") : "";
+    }
+
+    /**
+     * Imports the common Surge/Loon [Script] module syntax. Only remote HTTPS
+     * script-path entries with explicit HTTP trigger metadata are activated.
+     * Unsupported task/timer/cron entries are skipped rather than guessed.
+     */
+    private void importNativeScriptModuleConfig(String payload) {
+        try {
+            JSONArray entries = new JSONArray();
+            boolean inScript = false;
+            String[] lines = (payload == null ? "" : payload).split("\\r?\\n");
+            for (int i = 0; i < lines.length; i++) {
+                String line = lines[i].trim();
+                if (line.isEmpty() || line.startsWith("#") || line.startsWith(";")) continue;
+                if (line.startsWith("[") && line.endsWith("]")) {
+                    inScript = "script".equalsIgnoreCase(line.substring(1, line.length() - 1).trim());
+                    continue;
+                }
+                if (!inScript) continue;
+                int equals = line.indexOf('=');
+                if (equals <= 0) continue;
+                String name = line.substring(0, equals).trim();
+                String options = line.substring(equals + 1).trim();
+                String scriptPath = scriptModuleOption(options, "script-path");
+                String type = scriptModuleOption(options, "type").toLowerCase(Locale.ROOT);
+                String pattern = scriptModuleOption(options, "pattern");
+                if (!scriptPath.regionMatches(true, 0, "https://", 0, 8)
+                        || pattern.isEmpty() || name.isEmpty()) continue;
+                String normalizedType;
+                if ("http-request".equals(type)) normalizedType = "request";
+                else if ("http-response".equals(type)) normalizedType = "response";
+                else if ("http-request, http-response".equals(type)
+                        || "http-response, http-request".equals(type)) normalizedType = "both";
+                else continue;
+                if (pattern.length() > 2048 || name.length() > 512) continue;
+                String metadata = normalizedType + "\\n" + pattern;
+                String encoded = "FXMETA_B64:" + Base64.encodeToString(
+                        metadata.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
+                JSONObject entry = new JSONObject();
+                entry.put("value", scriptPath);
+                entry.put("name", encoded);
+                entry.put("enabled", true);
+                entries.put(entry);
+            }
+            if (entries.length() == 0) {
+                throw new IllegalArgumentException("未找到可迁移的 HTTPS [Script] 请求/响应脚本；任务脚本、定时脚本和本地相对路径暂不自动导入");
+            }
+            JSONObject document = new JSONObject();
+            document.put("format", "FX-SCRIPT-LIST");
+            document.put("version", 1);
+            document.put("scripts", entries);
+            importNativeScriptDocument(document.toString());
+        } catch (Exception error) {
+            Toast.makeText(this, "Surge/Loon 脚本配置导入失败：" + error.getMessage(),
+                    Toast.LENGTH_LONG).show();
+        }
+    }
+
     private void importNativeScriptDocument(String payload) {
         try {
             JSONObject document = new JSONObject(payload);
@@ -4704,8 +4771,11 @@ public final class MainActivity extends ComponentActivity {
                 }
                 if (staged.length() <= 0) throw new IllegalStateException("所选脚本文件为空");
                 String name = uri.getLastPathSegment();
-                boolean isJson = name != null && name.toLowerCase(Locale.ROOT).endsWith(".json");
-                if (!isJson) {
+                String lowerName = name == null ? "" : name.toLowerCase(Locale.ROOT);
+                boolean isJson = lowerName.endsWith(".json");
+                boolean isModuleConfig = lowerName.endsWith(".conf") || lowerName.endsWith(".ini")
+                        || lowerName.endsWith(".sgmodule") || lowerName.endsWith(".loon");
+                if (!isJson && !isModuleConfig) {
                     byte[] prefix = new byte[8192];
                     int count;
                     try (InputStream probe = new java.io.FileInputStream(staged)) {
@@ -4713,8 +4783,18 @@ public final class MainActivity extends ComponentActivity {
                     }
                     String header = count > 0 ? new String(prefix, 0, count, StandardCharsets.UTF_8) : "";
                     isJson = header.contains("FX-SCRIPT-LIST");
+                    isModuleConfig = header.contains("[Script]") || header.contains("[script]");
                 }
-                if (isJson) {
+                if (isModuleConfig && !isJson) {
+                    try (InputStream input = new java.io.FileInputStream(staged);
+                         ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+                        byte[] buffer = new byte[64 * 1024];
+                        int count;
+                        while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
+                        importNativeScriptModuleConfig(new String(output.toByteArray(), StandardCharsets.UTF_8));
+                    }
+                    staged.delete();
+                } else if (isJson) {
                     try (InputStream input = new java.io.FileInputStream(staged);
                          ByteArrayOutputStream output = new ByteArrayOutputStream()) {
                         byte[] buffer = new byte[64 * 1024];
