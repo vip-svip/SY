@@ -8352,3 +8352,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 同步主应用已有的监控事件类别与字段白名单，补齐 FRAGMENT、STACK、RUNTIME、MEMORY 等事件类别及其允许字段；保留逐类别字段约束、数值/标识符校验、Host/Endpoint authority 校验、事件数量和日志长度上限。
 - 不将原始 Intent extras、URI payload 或未列入白名单的字段开放到 UI；模块解析器与主应用版本保持一致。
 - 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证。
+
+### FX 模块 DNS 安全预设与域名名单管理原生页面整批同步（2026-11-07）
+
+- 代码提交：`608928695a5fea78baee3900b60313b67229e8bd`。
+- 文件：`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
+- 将主应用完整的 Ad/DNS 管理 Activity 同步到 FX 模块，补齐严格/基础 DNS 安全预设、白/黑名单一键清空、批量移除、按筛选结果批量启停、白/黑名单及合并名单分享、合并名单导入校验/恢复、域名备注编辑等此前缺失的原生 UI 和交互。
+- 复用已移植的 `yulong-ad-control.sh` 后端事务命令；未另造名单存储格式或 DNS 配置协议。模块 Activity 与主应用源文件内容同步。
+- 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证。
