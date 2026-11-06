@@ -174,7 +174,9 @@ public final class StashScriptYamlImporter {
                 break;
             case "binary-mode":
             case "binary_mode":
-                if (!booleanValue(value, script, false)) script.supported = false;
+                if (!booleanValue(value, script, false) || script.binaryMode) {
+                    script.supported = false;
+                }
                 break;
             case "timeout":
                 script.timeout = value;
@@ -229,7 +231,7 @@ public final class StashScriptYamlImporter {
 
     private static void addScript(JSONArray output, Set<String> seen, Script script,
                                   Map<String, Provider> providers) throws JSONException {
-        if (!script.supported || script.name.isEmpty() || script.match.isEmpty()
+        if (!script.supported || script.binaryMode || script.name.isEmpty() || script.match.isEmpty()
                 || script.match.length() > 2048 || hasControl(script.match)
                 || !script.match.matches("(?is).*https?://.*")) return;
         if (!"request".equals(script.type) && !"response".equals(script.type)) return;
