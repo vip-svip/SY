@@ -154,7 +154,7 @@ public final class EgernScriptYamlImporter {
                 invalidEnvironment, unsupportedLimits, scriptEnvironment);
         if (scripts.length() == 0) {
             throw new IllegalArgumentException(
-                    "没有可安全迁移的 Egern HTTPS HTTP 脚本；定时/通用/网络脚本，以及含 env 或 binary_body 的条目暂不导入");
+                    "没有可安全迁移的 Egern HTTPS HTTP 脚本；定时/通用/网络脚本、无法表示的 env 结构或 binary_body 条目暂不导入");
         }
 
         JSONObject document = new JSONObject();
