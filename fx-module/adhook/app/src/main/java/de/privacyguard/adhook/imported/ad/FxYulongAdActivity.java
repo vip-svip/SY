@@ -1145,20 +1145,50 @@ private void appendDnsStatus(StringBuilder out,String label,String value){
 private void loadDnsLists(EditText custom,EditText global,EditText fallback,EditText remote,EditText domestic){
   root("dns-config-get",r->{
     if(r.exitCode!=0){status.setText("DNS 地址读取失败："+safe(r.output));return;}
-    List<String> a=new ArrayList<>(),b=new ArrayList<>(),f=new ArrayList<>();
-    String remoteValue="1.1.1.1",cnValue="223.5.5.5";
-    for(String line:r.output.split("\\r?\\n")){
-      String[] p=line.split("\\|",-1);
-      if(p.length==2&&"CUSTOM".equals(p[0]))a.add(p[1]);
-      else if(p.length==2&&"GLOBAL".equals(p[0]))b.add(p[1]);
-      else if(p.length==2&&"FALLBACK".equals(p[0]))f.add(p[1]);
-      else if(p.length==2&&"VPN_REMOTE".equals(p[0])&&!p[1].isEmpty())remoteValue=p[1];
-      else if(p.length==2&&"VPN_CN".equals(p[0])&&!p[1].isEmpty())cnValue=p[1];
+    String raw=r.output==null?"":r.output;
+    String[] lines=raw.split("\\r?\\n",-1);
+    if(lines.length==0||!"FXYULONGDNS1".equals(lines[0].trim())){
+      status.setText("DNS 配置响应版本不匹配，拒绝显示可能不完整的数据。");return;
     }
-    if(!a.isEmpty())custom.setText(android.text.TextUtils.join(",",a));
-    if(!b.isEmpty())global.setText(android.text.TextUtils.join(",",b));
-    if(!f.isEmpty())fallback.setText(android.text.TextUtils.join(",",f));
-    remote.setText(remoteValue);domestic.setText(cnValue);
+    List<String> a=new ArrayList<>(),b=new ArrayList<>(),f=new ArrayList<>();
+    java.util.Map<String,String> singleton=new java.util.HashMap<>();
+    java.util.Set<String> allowed=new java.util.HashSet<>(java.util.Arrays.asList(
+        "CUSTOM_ENABLED","GLOBAL_ENABLED","VPN_REMOTE","VPN_CN"));
+    for(int index=1;index<lines.length;index++){
+      String line=lines[index].trim();
+      if(line.isEmpty())continue;
+      int split=line.indexOf('|');
+      if(split<=0){status.setText("DNS 配置响应包含格式错误的记录，未更新输入框。");return;}
+      String key=line.substring(0,split),value=line.substring(split+1);
+      if("CUSTOM".equals(key)){if(value.isEmpty()){status.setText("自定义 DNS 响应包含空服务器记录。");return;}a.add(value);}
+      else if("GLOBAL".equals(key)){if(value.isEmpty()){status.setText("全局 DNS 响应包含空服务器记录。");return;}b.add(value);}
+      else if("FALLBACK".equals(key)){if(value.isEmpty()){status.setText("备用 DNS 响应包含空服务器记录。");return;}f.add(value);}
+      else if(allowed.contains(key)){
+        if(singleton.containsKey(key)){status.setText("DNS 配置响应包含重复字段："+key+"。");return;}
+        singleton.put(key,value);
+      }else{status.setText("DNS 配置响应包含未知字段："+key+"。");return;}
+    }
+    for(String key:allowed)if(!singleton.containsKey(key)){
+      status.setText("DNS 配置响应缺少字段："+key+"，未更新输入框。");return;
+    }
+    for(String key:new String[]{"CUSTOM_ENABLED","GLOBAL_ENABLED"}){
+      String value=singleton.get(key);
+      if(!"0".equals(value)&&!"1".equals(value)){
+        status.setText("DNS 配置响应开关值非法："+key+"。");return;
+      }
+    }
+    String remoteValue=singleton.get("VPN_REMOTE"),cnValue=singleton.get("VPN_CN");
+    if(!remoteValue.isEmpty()&&!isValidProfileIpv4(remoteValue)){
+      status.setText("DNS 配置响应中的 VPN 远端地址无效。");return;
+    }
+    if(!cnValue.isEmpty()&&!isValidProfileIpv4(cnValue)){
+      status.setText("DNS 配置响应中的 VPN 国内地址无效。");return;
+    }
+    custom.setText(android.text.TextUtils.join(",",a));
+    global.setText(android.text.TextUtils.join(",",b));
+    fallback.setText(android.text.TextUtils.join(",",f));
+    remote.setText(remoteValue.isEmpty()?"1.1.1.1":remoteValue);
+    domestic.setText(cnValue.isEmpty()?"223.5.5.5":cnValue);
   });
 }
 private void clearDnsSection(String kind,EditText input){
