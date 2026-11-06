@@ -652,6 +652,8 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
            else responseState.setText("保存失败："+safe(r.output));
          });
        }),
+       btn("一键应用严格 DNS 保护配置",()->applyDnsSecurityProfile("nxdomain",true,responseState,responseGroup,responseNx,responseRefused,responseNull)),
+       btn("恢复基础 DNS 拦截配置",()->applyDnsSecurityProfile("nxdomain",false,responseState,responseGroup,responseNx,responseRefused,responseNull)),
        responseState);
   root("dns-response-get",r->{
     if(r.exitCode!=0){responseState.setText("读取失败："+safe(r.output));return;}
@@ -802,6 +804,24 @@ private void setDnsEngineProfile(boolean enabled){
       .setPositiveButton("确认",(dialog,which)->root(command,r->{
         if(r.exitCode==0){status.setText("本地 DNS 引擎组已"+action+"并应用。");load();}
         else fxDialogBuilder().setTitle("DNS 引擎设置未更新").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
+      })).show();
+}
+private void applyDnsSecurityProfile(String mode,boolean strict,TextView state,
+    android.widget.RadioGroup group,android.widget.RadioButton nx,
+    android.widget.RadioButton refused,android.widget.RadioButton empty){
+  String action=strict?"严格 DNS 保护":"基础 DNS 拦截";
+  new AlertDialog.Builder(this).setTitle("应用"+action+"？")
+      .setMessage(strict
+          ?"统一设置为 NXDOMAIN，并同时启用 QUIC、DNS-over-TLS、明文 DNS、IPv6 与跟踪域名保护五项策略。"
+          :"统一设置为 NXDOMAIN，并关闭上述五项附加过滤策略；域名名单与 DNS 上游保持不变。")
+      .setNegativeButton("取消",null)
+      .setPositiveButton("应用",(dialog,which)->root("dns-security-profile-set "+mode+" "+(strict?"1":"0"),r->{
+        if(r.exitCode==0){
+          group.check(nx.getId());
+          state.setText(action+"已在同一配置事务中保存并应用。");
+          status.setText(action+"已应用。");
+          load();
+        }else fxDialogBuilder().setTitle("DNS 配置未更新").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
       })).show();
 }
 private void setDnsFilterPolicy(boolean enabled){
