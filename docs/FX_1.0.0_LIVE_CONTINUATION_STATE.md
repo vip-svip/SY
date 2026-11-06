@@ -7637,3 +7637,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动文件：`adhook/app/src/main/java/de/privacyguard/adhook/FxGkdRuleStore.kt`、`adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAutomationActivity.java`。
 - 每条规则卡片新增“复制规则 JSON”，按 FX-GKD-LOCAL-RULES schema v1 输出单条规则的完整 JSON 信封，可粘贴保存后通过现有导入流程迁移；不复制运行日志或屏幕内容。剪贴板不可用、规则已不存在时提示。
 - 未运行测试、静态检查、构建、CI 或设备验证。
+
+
+## 2026-11-06 — 自定义 Hook 规则按筛选批量启停
+
+- 代码提交：`d32c6fa0d7a80a2d9c1a68e8834ccaf932835852`。
+- 改动文件：`adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`。
+- Hook 自定义规则页新增“批量启用当前筛选 / 批量暂停当前筛选”，操作范围严格沿用当前分组与文本筛选；一次性提交匹配规则的启停字段，保留规则签名、动作、优先级、常量和分组。
+- 批量启用前逐条重新解析规则；非 debuggable 目标仅允许 OBSERVE，替换动作会跳过。格式损坏或签名/动作无效的规则不启用；保存失败时不刷新为成功状态。操作后提示修改数与跳过数，并明确仍需发布配置。
+- 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或真机验证。
