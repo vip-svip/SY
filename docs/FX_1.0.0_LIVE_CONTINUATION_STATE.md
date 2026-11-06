@@ -8135,3 +8135,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 规范 AdGuard 脚本同步提交：`d57a2b6229988d1f7426573fd8dba1521225153c`，文件 `scripts/adguardhome.sh`。
   - 与 `fx-module/scripts/adguardhome.sh` 对齐，确保规范脚本和模块运行脚本都将保留期限渲染到 `querylog.interval`。
 - 本次为运行时镜像补齐，不新增 UI 行为；按用户要求未运行任何测试、构建、CI 或设备验证。
+
+
+### DNS 拦截响应模式接入 AdGuard Home 运行配置（2026-11-07）
+
+- 模块运行脚本提交：`f5f28bd6b330e28104d5c1497cadf09a8e554fe1`，文件 `fx-module/scripts/adguardhome.sh`。
+- 规范脚本提交：`1824f9e529bbdef6b923b356c059b142eccac3f9`，文件 `scripts/adguardhome.sh`。
+- AdGuard Home 配置渲染现在读取 `[conf:yulong_dns_response]` 的 `mode`，并将 `nxdomain`、`refused` 或 `custom_ip` 写入 `dns.blocking_mode`；缺省或非法值回退到 `nxdomain`。此前 UI/后端已有的响应模式设置由此接入实际过滤引擎配置。
+- 本批未运行测试、静态检查、构建、CI 或设备验证。
