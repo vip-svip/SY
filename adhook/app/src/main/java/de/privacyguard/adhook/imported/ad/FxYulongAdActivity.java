@@ -564,6 +564,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
 }
  private void renderRules(){EditText url=draftField("rule_url");url.setSingleLine(true);url.setHint("https://… 或 builtin://…");EditText name=draftField("rule_name");name.setSingleLine(true);name.setHint("列表名称");card("添加过滤列表","仅允许 HTTPS 订阅及 FX 本地资源。",url,name,btn("添加并应用",()->{String u=url.getText().toString().trim(),n=name.getText().toString().trim();if(!u.isEmpty()&&!n.isEmpty())apply("rule-add "+q(u)+" "+q(n)+" 1","规则添加");}));search=draftField("rule_search");search.setSingleLine(true);search.setHint("搜索过滤列表");card("搜索","输入来源或列表名称",search);search.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int st,int c,int a){}public void onTextChanged(CharSequence s,int st,int be,int co){bind();}public void afterTextChanged(Editable e){}});entries=new LinearLayout(this);entries.setOrientation(1);body.addView(entries);}
  private void renderDns(){
+  card("DNS 配置备份","导出当前 FX DNS 引擎、过滤策略、上游服务器、VPN DNS 与拦截响应模式；仅读取本机配置，不会上传或修改设置。",btn("分享 DNS 配置快照",()->shareDnsProfile()));
   card("本地 DNS 引擎",
        "启用时使用 FX 自有 AdGuard Home 过滤服务；关闭后按 FX 当前安全 DNS 回退配置处理。",
        dnsSwitch("启用本地 AdGuard Home","dns_engine_adguardhome"));
@@ -667,6 +668,26 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
        dnsSwitch("第三方 VPN 下启用 Root DNS 过滤","vpn_external_dns_proxy"),
        btn("刷新 Root Proxy 状态",()->root("rootproxy-status",r->{fxDialogBuilder().setTitle("Root Proxy 状态").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();})));
   loadDnsLists(customServers,globalServers,fallbackServers,remoteDns,cnDns);
+}
+private void shareDnsProfile(){
+  root("dns-profile-get",r->{
+    if(r.exitCode!=0){status.setText("DNS 配置快照读取失败："+safe(r.output));return;}
+    String raw=r.output==null?"":r.output.trim();
+    if(!raw.startsWith("FXYULONGDNSPROFILE1")){status.setText("DNS 配置快照格式不受支持，未生成备份。");return;}
+    String payload="# FX Hook DNS profile backup\\n# format: FXYULONGDNSPROFILE1\\n# Restore only through a compatible FX version.\\n"+raw.substring("FXYULONGDNSPROFILE1".length()).trim()+"\\n";
+    int bytes=payload.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+    if(bytes>48*1024){status.setText("DNS 配置快照超过 48 KiB，未打开分享面板。");return;}
+    try{
+      Intent send=new Intent(Intent.ACTION_SEND);
+      send.setType("text/plain");
+      send.putExtra(Intent.EXTRA_SUBJECT,"FX Hook DNS 配置备份");
+      send.putExtra(Intent.EXTRA_TEXT,payload);
+      startActivity(Intent.createChooser(send,"分享 DNS 配置快照"));
+      status.setText("已准备 DNS 配置快照（"+bytes+" 字节）；请自行选择安全的保存位置。");
+    }catch(RuntimeException unavailable){
+      status.setText("无法打开系统分享面板："+safe(unavailable.getMessage()));
+    }
+  });
 }
 private void loadDnsLists(EditText custom,EditText global,EditText fallback,EditText remote,EditText domestic){
   root("dns-config-get",r->{
