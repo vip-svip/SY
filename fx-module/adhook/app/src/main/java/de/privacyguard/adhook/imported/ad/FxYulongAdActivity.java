@@ -746,7 +746,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
   root("dns-runtime-get",result->{
     if(result.exitCode!=0){state.setText("读取 AdGuard Home 引擎参数失败："+safe(result.output));return;}
     java.util.Map<String,String> values=new java.util.LinkedHashMap<>();
-    String[] lines=(result.output==null?"":result.output).split("\\\\r?\\\\n");
+    String[] lines=(result.output==null?"":result.output).split("\\r?\\n");
     if(lines.length==0||!"FXYULONGDNSRUNTIME1".equals(lines[0].trim())){
       state.setText("DNS 引擎参数响应版本错误，未更新界面。");return;
     }
