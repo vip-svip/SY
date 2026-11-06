@@ -263,3 +263,12 @@
 - DNS 运行状态页现在要求响应头为 `FXDNS1`，并校验完整的已知字段集合；缺少字段、未知字段、重复字段、空值记录或格式错误均拒绝渲染部分状态，改为显示明确错误。
 - 避免脚本输出截断或格式异常时，界面把部分状态误显示为完整运行状态；不改变服务或路由。
 - 按用户要求未运行测试、静态检查、构建、CI 或设备验证。
+
+
+### FX DNS 引擎就绪原因诊断（2026-11-07）
+
+- 后端提交：`7ecd727de246d067319f0a39ae876694d53b267c`，文件 `fx-module/scripts/native-dns-settings.sh`。
+- UI 提交：`a4dc79065e0b0558adaa3a7c31dca1da2c7adfe1`，文件 `fx-module/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
+- DNS 状态响应新增 `dns_stack_readiness_reason`：区分 `disabled`、`ready`、Unbound 不可用/未启用，以及 AdGuard Home 不可用等状态。
+- 原生 DNS 状态页展示该原因，便于区分配置未启用和服务未就绪；未更改 DNS 引擎启停、上游或路由策略。
+- 按用户要求未运行测试、静态检查、构建、CI 或设备验证。
