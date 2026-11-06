@@ -343,10 +343,19 @@ _render_managed_config() {
     }
     $0=="[conf:yulong_dns_fallback]" {inside=1;next}
     /^\[/ {inside=0}
-    inside && /^[[:space:]]*nameserver[[:space:]]+/ {
+    inside && /^[[:space:]]*nameserver([[:space:]]|$)/ {
+      # Each entry is one exact key/value pair. Extra tokens, missing values,
+      # malformed keys, and duplicate nameserver keys are configuration errors.
+      if(NF!=2 || $1!="nameserver") {bad=1; next}
       server=$2
       if(!valid_ipv4(server)) {bad=1; next}
-      if(!seen[server]++) {count++; if(count>3) bad=1; else print "  - " server}
+      if(seen[server]++) {bad=1; next}
+      count++
+      if(count>3) {bad=1; next}
+      print "  - " server
+    }
+    inside && /^[[:space:]]*[^#[:space:]][^[:space:]]*[[:space:]]+/ {
+      if($1!="nameserver") bad=1
     }
     END {if(bad) exit 1}
   ' "$PG/settings.conf" > "$_fallback_file"; then
