@@ -312,6 +312,22 @@ write_vpn_dns() {
 m_dns_servers() { write_dns_section "$1" "$2"; }
 m_vpn_dns() { write_vpn_dns "$1" "$2"; }
 m_vpn_dns_reset() { write_vpn_dns remote_dns 1.1.1.1 && write_vpn_dns cn_dns 223.5.5.5; }
+dns_profile_get() {
+  echo FXYULONGDNSPROFILE1
+  for key in dns_engine_adguardhome dns_forward custom_dns global_dns block_quic block_dot block_plain_dns block_ipv6 block_track_domains vpn_external_dns_proxy vpn_external_compat dns_querylog_enabled; do
+    printf '%s=%s\n' "$key" "$(pg_get "$key" 0)"
+  done
+  for pair in custom_dns:CUSTOM global_dns:GLOBAL yulong_dns_fallback:FALLBACK; do
+    section=${pair%%:*}; label=${pair#*:}
+    value=$(pg_conf "$section" 2>/dev/null | awk '/^[[:space:]]*nameserver[[:space:]]+/{if(n++)printf ",";printf "%s",$2}')
+    printf '%s_SERVERS=%s\n' "$label" "$value"
+  done
+  printf 'VPN_REMOTE=%s\n' "$(pg_conf vpn 2>/dev/null | sed -n 's/^remote_dns=//p' | head -n1)"
+  printf 'VPN_CN=%s\n' "$(pg_conf vpn 2>/dev/null | sed -n 's/^cn_dns=//p' | head -n1)"
+  mode=$(awk -F= '$0=="[conf:yulong_dns_response]"{inside=1;next} /^\[/{inside=0} inside&&$1=="mode"{v=$2} END{print v}' "$CONF" 2>/dev/null)
+  case "$mode" in nxdomain|refused|custom_ip) ;; *) mode=nxdomain ;; esac
+  printf 'RESPONSE_MODE=%s\n' "$mode"
+}
 dns_config_get() {
   echo FXYULONGDNS1
   echo "CUSTOM_ENABLED|$(pg_get custom_dns 0)"
@@ -735,6 +751,10 @@ case "$cmd" in
   esac ;;
  dns-config-get)
   dns_config_get
+  ;;
+ dns-profile-get)
+  [ "$#" -eq 1 ] || exit 2
+  dns_profile_get
   ;;
  dns-config-set)
   [ "$#" -eq 3 ] || { echo "usage: $0 dns-config-set custom|global|fallback server[,server...]" >&2; exit 2; }
