@@ -387,7 +387,15 @@ remove_dns_section() {
   _yad_conf_tmp=
   return 1
 }
-m_dns_section_clear() { remove_dns_section "$1"; }
+m_dns_section_clear() {
+  _clear_dns_section=$1
+  remove_dns_section "$_clear_dns_section" || return 1
+  case "$_clear_dns_section" in
+    custom_dns|global_dns) pg_set "$_clear_dns_section" 0 ;;
+    yulong_dns_fallback) return 0 ;;
+    *) return 2 ;;
+  esac
+}
 
 
 validate_dns_response_config() {
@@ -718,6 +726,17 @@ dns_profile_restore() {
       RESPONSE_MODE) _profile_mode=$_profile_value ;;
     esac
   done < "$_yad_profile_raw"
+  # An enabled upstream list must be present before any live setting changes.
+  # Global DNS still has priority at runtime, but each enabled toggle must be
+  # restorable without silently changing the saved switch state.
+  if [ "$_profile_global_enabled" = 1 ] && [ -z "$_profile_global" ]; then
+    echo "global DNS is enabled in this profile but its upstream list is empty" >&2
+    return 2
+  fi
+  if [ "$_profile_custom_enabled" = 1 ] && [ -z "$_profile_custom" ]; then
+    echo "custom DNS is enabled in this profile but its upstream list is empty" >&2
+    return 2
+  fi
   # Preserve the native DNS dependency invariants before touching the live config.
   if [ "$_profile_forward" != 1 ]; then _profile_agh=0; _profile_proxy=0; fi
   if [ "$_profile_agh" != 1 ]; then _profile_proxy=0; fi

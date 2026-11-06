@@ -1,5 +1,15 @@
 
 
+### FX DNS 主上游清空与快照恢复状态一致性（2026-11-07）
+
+- 文件：`fx-module/scripts/yulong-ad-control.sh`、`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
+- 清空自定义 DNS 或全局 DNS 列表时，在配置事务内同时关闭对应开关；清空备用 DNS 不影响主上游开关。
+- DNS 快照导入预览和 Root 后端同时要求：启用全局 DNS 时必须有全局服务器列表；启用自定义 DNS 时必须有自定义服务器列表。无效快照在修改运行设置前被拒绝，避免恢复后上游缺失、引擎无法生成配置。
+- m_dns_section_clear 仍经现有配置事务执行，失败时由外层备份恢复整个 settings.conf 并重新应用旧配置。
+- 按用户要求未执行测试、静态检查、构建、CI 或设备验证。
+
+
+
 ### FX DNS 快照恢复改为单次完整应用事务（2026-11-07）
 
 - 文件：`scripts/native-dns-settings.sh`、`scripts/yulong-ad-control.sh`。
