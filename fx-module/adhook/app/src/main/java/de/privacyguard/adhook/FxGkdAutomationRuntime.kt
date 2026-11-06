@@ -43,7 +43,7 @@ object FxGkdAutomationRuntime {
         eventPackage: String,
         rootHandle: AccessibilityNodeInfo
     ): Boolean {
-        if (!FxGkdRuleStore.isEnabled(service) || !FxAccessibilityService.isConnected()) {
+        if (!FxGkdRuleStore.isEnabled(service) || !FxAccessibilityService.isGkdAvailable()) {
             try { rootHandle.recycle() } catch (_: RuntimeException) {}
             return false
         }
@@ -103,7 +103,7 @@ object FxGkdAutomationRuntime {
                     ) continue
                     // Honor a user disable or per-rule revocation that arrives while
                     // a bounded snapshot is being matched.
-                    if (!FxAccessibilityService.isConnected()
+                    if (!FxAccessibilityService.isGkdAvailable()
                         || !FxGkdRuleStore.isEnabled(service)
                         || !FxGkdRuleStore.isRuleEnabled(service, rule.source.id, eventPackage)
                         || !isTargetStillForeground(service, eventPackage)
