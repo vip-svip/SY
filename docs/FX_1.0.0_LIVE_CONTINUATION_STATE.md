@@ -33,3 +33,12 @@
 - 在 `mutate_transaction()` 已取得防火墙配置锁后，对 `set_item_value` 与 `set_rule_value` 再次读取 PackageManager UID 快照并核对包名/UID。
 - CLI 入锁前校验仍作为快速拒绝；锁内复核消除等待锁期间应用卸载或 UID 变化导致陈旧 UID 写入配置的窗口。其他事务操作不受影响。
 - 按用户要求未运行脚本、测试、静态检查、构建、CI 或设备验证。
+
+
+### FX 模块 DNS reconcile 与设置写入统一串行化（2026-11-07）
+
+- 代码提交：`e331d1383af6ecaa34bb68915125aee6e4e733f1`。
+- 文件：`fx-module/scripts/native-dns-settings.sh`。
+- 将 `reconcile` 从无锁直接调用改为通过既有 `with_lock` 执行 `reconcile_locked`，使完整 DNS 服务协调与 `set` / `set-many` 设置事务共用同一把锁。
+- 避免用户触发的重新协调与并发设置写入交错执行，减少旧配置运行态覆盖新配置的竞态窗口；状态输出仍在协调成功后返回。
+- 按用户要求未运行脚本、测试、静态检查、构建、CI 或设备验证。
