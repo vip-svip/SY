@@ -7004,3 +7004,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 模块源码提交：Egern env 透传 `4ae5a93ca2ad3c942e06aee2ddee3d8b5101980e`；拒绝嵌套 env 扁平化 `c61425b71f09d04a6ac2a0e749fe9fe5282cc82f`。
 - `fx-module/scripts/jsruntime/sync-subs.sh` 再次修正元数据包装临时文件为进程 PID 独立路径，提交 `2e469c26361336ff256e05e47e6574cd057287d9`。
 - 本轮仅提交源码与文档，未运行测试、静态检查、构建、CI 或设备验证。
+
+## 2026-11-06 — Native Script 存储层并发去重
+
+- `fx-patches/native-script-list.sh` 与 `fx-module/scripts/jsruntime/native-list.sh` 在既有写锁内增加重复项比较：HTTPS URL/订阅按完整 value+metadata 去重，本地源码按文件内容 Base64 快照与名称去重；不把完整本地源码读入 shell 变量。
+- `add` / `add-file` 遇到相同条目返回 `OK DUPLICATE` 且不写入；`update` 若会与其他条目形成相同 value+metadata 则拒绝更新。与 UI 预读取去重叠加，减少多 AI 或连续导入时的竞态重复。
+- 构建来源脚本提交 `4ebcaa98a5b51a3631735e0ea6d95609418f6670`；模块运行时副本提交 `5adc21d2607b859738a3a13b975e2ec6dcb8a2eb`。
+- 应用与模块 `MainActivity.java` 现在识别 `OK DUPLICATE`，导入统计会把写锁阶段拦截的重复项计入“重复跳过”，手动添加也会显示未重复添加，并且不为重复项触发多余订阅同步。提交：应用 `a9a283c87a56bfd0713ca8d2806924e73f33e1d3`；模块 `bba91fda781fa56b86ed5858733b06bb524b8d85`。
+- 固定 FX 1.0.0；本批按要求未运行测试、静态检查、构建、CI 或真机验证。
