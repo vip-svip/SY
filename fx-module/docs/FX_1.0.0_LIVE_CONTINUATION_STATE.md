@@ -6839,3 +6839,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 同步 `scripts/yulong-ad-control.sh` 与 `fx-module/scripts/yulong-ad-control.sh`。提交：`583626ec3f655dbcf19b2061e37224dda4fbb474`、`87588f6d7d2c326fdbbfe8113d0393a973c5dde3`。
 - DNS querylog 内存刷盘批量上限仍由设备物理内存动态推导（约 1/64），属于运行资源安全保护，不是固定业务条数门槛，本批未移除。
 - 按用户推进要求未运行 Shell/Java 测试、静态检查、Gradle/APK 构建、CI 或 Android 真机验证；此记录只代表源码提交。
+## 2026-11-07 — DNS 域名重写管理 UI、快照与运行时渲染同步
+
+- DNS 重写链路已贯通原生 UI、DNS 配置快照、Root 后端与 AdGuard Home 运行 YAML：原生页可读取现有 domain|answer 列表、批量完整替换或清空；支持 IPv4、IPv6 与 CNAME 目标；重复源域名和非法答案由前端提示并由 Root 后端再次校验。
+- DNS 快照新增 `DNS_REWRITES`，旧版快照缺失该字段时默认空列表；快照预览显示重写条数，导入按已有域名/答案格式校验。Root 快照导出修复 `DNS_REWRITES` 的换行转义，避免该字段与后续统计字段粘连。
+- AdGuard Home 运行时重写 YAML 的键、嵌套缩进和模板契约已由正式/模块脚本同步修正；渲染器对重复源域名、无效地址及格式不完整的重写条目拒绝启用，保持已有过滤/上游配置边界。
+- Root 快照输出提交：`0dd0c4d8ea8c242eae57b84ad8bfcdf66d692804`、`b7bd53115b59213c54ed7ce0308473c023eba59c`。原生 UI/快照支持提交：`4e124c5605a1`、`df0a13274259`。运行时契约/模板同步提交：`65d75ea6f88c`、`97cc0bcacfb1`、`72803dbf9a3a`、`3d28da043a99`、`7adf47a24129`、`b7ff48c37bac`、`25622ac0d8e2`、`4c3ce2d7e508`、`79a169c49320`。
+- 按推进要求未运行测试、静态检查、构建、CI 或 Android 真机验证。
