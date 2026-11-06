@@ -224,8 +224,14 @@ valid_dns_csv() {
       for(j=1;j<=4;j++) if(a[j]==""||a[j]!~/^[0-9]+$/||length(a[j])>3||a[j]+0>255) return 0
       if(v=="0.0.0.0"||v=="255.255.255.255") return 0
       return 1    }
-    function dns_host(v) {
-      return v~/^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/ && v!~/\.\./
+    function dns_host(v, n, labels, i) {
+      if(v~/^[0-9.]+$/) return ipv4(v)
+      if(length(v)>253 || substr(v,1,1)=="." || substr(v,length(v),1)==".") return 0
+      n=split(v,labels,".")
+      for(i=1;i<=n;i++)
+        if(length(labels[i])<1 || length(labels[i])>63 ||
+           labels[i]!~/^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$/) return 0
+      return 1
     }
     function valid_hostport(v, n, a) {
       n=split(v,a,":")
