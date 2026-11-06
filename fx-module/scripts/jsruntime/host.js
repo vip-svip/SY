@@ -86,7 +86,7 @@
   }
   // Match common proxy-script semantics: the first $done wins. If no value is
   // supplied, return the mutable request/response object for the current hook.
-  globalThis.$done=function(value){if(_fxDone)return;_fxDone=true;if(value!==undefined)_fxDoneValue=value;else if(_fxEvent.stage==='response')_fxDoneValue=globalThis.$response;else _fxDoneValue=globalThis.$request;_fxSaveResult(true,null);};
+  globalThis.$done=function(value){if(_fxDone)return;_fxDone=true;if(value!==undefined)_fxDoneValue=value;else if(_fxEvent.stage==='response'||_fxEvent.stage==='http-response')_fxDoneValue=globalThis.$response;else _fxDoneValue=globalThis.$request;_fxSaveResult(true,null);};
 
   function _fxRequest(options,cb) {
     if(typeof options==='string') options={url:options};
