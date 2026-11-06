@@ -28,6 +28,29 @@ decode_b64() {
   # The argument is never evaluated by the shell, only passed to printf as data.
   printf '%s' "$1" | base64 -d 2>/dev/null
 }
+
+is_duplicate_pair() {
+  printf '%s' "$1" > "$VALUE_FILE" || return 1
+  printf '%s' "$2" > "$NOTE_FILE" || return 1
+  awk -F'|' -v vf="$VALUE_FILE" -v nf="$NOTE_FILE" '
+    BEGIN { getline v < vf; getline n < nf; close(vf); close(nf) }
+    $1 == v && $2 == n { found=1 }
+    END { exit !found }
+  ' "$ROWS"
+}
+is_duplicate_local_source() {
+  base64 < "$VALUE_FILE" | tr -d '\n' > "$VALUE_B64_FILE" || return 1
+  printf '%s' "$1" > "$NOTE_FILE" || return 1
+  awk -F'|' -v bf="$VALUE_B64_FILE" -v nf="$NOTE_FILE" '
+    BEGIN {
+      getline encoded < bf; close(bf)
+      getline n < nf; close(nf)
+      expected = "FXSRC_B64:" encoded
+    }
+    $1 == expected && $2 == n { found=1 }
+    END { exit !found }
+  ' "$ROWS"
+}
 ACTION=${1:-}
 shift || :
 case "$ACTION" in
@@ -62,11 +85,12 @@ case "$ACTION" in
     printf '%s\n' "$$" > "$LOCK/pid"
     ROWS="$PG/jsruntime/native-script-rows.$$"
     VALUE_FILE="$PG/jsruntime/native-script-value.$$"
+    VALUE_B64_FILE="$PG/jsruntime/native-script-value64.$$"
     NOTE_FILE="$PG/jsruntime/native-script-note.$$"
     TMP="$CONF.native.tmp.$$"
     BACKUP="$CONF.native.bak.$$"
     cleanup() {
-      rm -f "$ROWS" "$VALUE_FILE" "$NOTE_FILE" "$TMP" "$BACKUP"
+      rm -f "$ROWS" "$VALUE_FILE" "$VALUE_B64_FILE" "$NOTE_FILE" "$TMP" "$BACKUP"
       owner=$(cat "$LOCK/pid" 2>/dev/null || true)
       if [ "$owner" = "$$" ]; then rm -f "$LOCK/pid"; rmdir "$LOCK" 2>/dev/null || :; fi
     }
@@ -89,7 +113,128 @@ case "$ACTION" in
         [ "${#note}" -le 4096 ] || { echo "ERROR script metadata exceeds 4096 characters"; exit 65; }
         value=$(encode_script_value "$value") || { echo "ERROR only HTTPS URLs or local JS source are supported"; exit 65; }; note=$(sanitize_field "$note")
         [ -n "$note" ] || note=$(printf '%s' "$value" | cut -c1-80)
+        if is_duplicate_pair "$value" "$note"; then
+          echo "OK DUPLICATE"
+          exit 0
+        fi
         printf '%s|%s|%s\n' "$value" "$note" "$enabled" >> "$ROWS"
+        ;;
+      add-batch)
+        [ "$#" -eq 1 ] || { echo "ERROR add-batch expects manifest_path"; exit 64; }
+        manifest=$1
+        case "$manifest" in
+          /data/user/[0-9]*/de.privacyguard.adhook/cache/fx-native-script-batch-*|/data/data/de.privacyguard.adhook/cache/fx-native-script-batch-*) ;;
+          *) echo "ERROR batch manifest is outside the approved app cache"; exit 65 ;;
+        esac
+        [ -f "$manifest" ] && [ ! -L "$manifest" ] || { echo "ERROR batch manifest is missing or unsafe"; exit 65; }
+        manifest_size=$(wc -c < "$manifest" 2>/dev/null | tr -d ' ')
+        case "$manifest_size" in ''|*[!0-9]*) manifest_size=0 ;; esac
+        [ "$manifest_size" -le 8388608 ] || { echo "ERROR batch manifest exceeds 8 MiB"; exit 65; }
+        batch_added=0
+        batch_duplicate=0
+        batch_failed=0
+        batch_lines=0
+        while IFS='|' read -r kind value64 note64 enabled extra; do
+          [ -n "$kind" ] || continue
+          batch_lines=$((batch_lines+1))
+          if [ "$batch_lines" -gt 512 ] || [ -n "$extra" ]; then
+            batch_failed=$((batch_failed+1))
+            continue
+          fi
+          case "$enabled" in 0|1) ;; *) batch_failed=$((batch_failed+1)); continue ;; esac
+          case "$kind" in
+            URL)
+              url=$(decode_b64 "$value64") || { batch_failed=$((batch_failed+1)); continue; }
+              note=$(decode_b64 "$note64") || { batch_failed=$((batch_failed+1)); continue; }
+              [ -n "$url" ] && [ "${#note}" -le 4096 ] || { batch_failed=$((batch_failed+1)); continue; }
+              case "$url" in
+                https://*) ;;
+                *) batch_failed=$((batch_failed+1)); continue ;;
+              esac
+              case "$url" in *[[:space:]]*) batch_failed=$((batch_failed+1)); continue ;; esac
+              value=$(encode_script_value "$url") || { batch_failed=$((batch_failed+1)); continue; }
+              note=$(sanitize_field "$note")
+              [ -n "$note" ] || note=$(printf '%s' "$value" | cut -c1-80)
+              if is_duplicate_pair "$value" "$note"; then
+                batch_duplicate=$((batch_duplicate+1))
+                continue
+              fi
+              printf '%s|%s|%s\n' "$value" "$note" "$enabled" >> "$ROWS" || {
+                batch_failed=$((batch_failed+1)); continue;
+              }
+              batch_added=$((batch_added+1))
+              ;;
+            SOURCE)
+              note=$(decode_b64 "$note64") || { batch_failed=$((batch_failed+1)); continue; }
+              [ "${#note}" -le 4096 ] || { batch_failed=$((batch_failed+1)); continue; }
+              : > "$VALUE_FILE"
+              decode_b64 "$value64" > "$VALUE_FILE" || { batch_failed=$((batch_failed+1)); continue; }
+              source_size=$(wc -c < "$VALUE_FILE" 2>/dev/null | tr -d ' ')
+              case "$source_size" in ''|*[!0-9]*) source_size=0 ;; esac
+              [ "$source_size" -gt 0 ] && [ "$source_size" -le 1048576 ] || {
+                batch_failed=$((batch_failed+1)); continue;
+              }
+              first_line=$(sed -n '1{p;q;}' "$VALUE_FILE")
+              if printf '%s' "$first_line" | grep -Eq '^[[:space:]]*[A-Za-z][A-Za-z0-9+.-]*://'; then
+                batch_failed=$((batch_failed+1)); continue
+              fi
+              note=$(sanitize_field "$note")
+              [ -n "$note" ] || note="Local JavaScript"
+              if is_duplicate_local_source "$note"; then
+                batch_duplicate=$((batch_duplicate+1))
+                continue
+              fi
+              printf 'FXSRC_B64:' >> "$ROWS" || { batch_failed=$((batch_failed+1)); continue; }
+              if ! base64 < "$VALUE_FILE" | tr -d '\\n' >> "$ROWS"; then
+                batch_failed=$((batch_failed+1)); continue
+              fi
+              printf '|%s|%s\\n' "$note" "$enabled" >> "$ROWS" || {
+                batch_failed=$((batch_failed+1)); continue;
+              }
+              batch_added=$((batch_added+1))
+              ;;
+            SOURCE)
+              note=$(decode_b64 "$note64") || { batch_failed=$((batch_failed+1)); continue; }
+              [ "${#note}" -le 4096 ] || { batch_failed=$((batch_failed+1)); continue; }
+              : > "$VALUE_FILE"
+              decode_b64 "$value64" > "$VALUE_FILE" || { batch_failed=$((batch_failed+1)); continue; }
+              source_size=$(wc -c < "$VALUE_FILE" 2>/dev/null | tr -d ' ')
+              case "$source_size" in ''|*[!0-9]*) source_size=0 ;; esac
+              [ "$source_size" -gt 0 ] && [ "$source_size" -le 1048576 ] || {
+                batch_failed=$((batch_failed+1)); continue;
+              }
+              first_line=$(sed -n '1{p;q;}' "$VALUE_FILE")
+              if printf '%s' "$first_line" | grep -Eq '^[[:space:]]*[A-Za-z][A-Za-z0-9+.-]*://'; then
+                batch_failed=$((batch_failed+1)); continue
+              fi
+              note=$(sanitize_field "$note")
+              [ -n "$note" ] || note="Local JavaScript"
+              if is_duplicate_local_source "$note"; then
+                batch_duplicate=$((batch_duplicate+1))
+                continue
+              fi
+              printf 'FXSRC_B64:' >> "$ROWS" || { batch_failed=$((batch_failed+1)); continue; }
+              if ! base64 < "$VALUE_FILE" | tr -d '\\n' >> "$ROWS"; then
+                batch_failed=$((batch_failed+1)); continue;
+              fi
+              printf '|%s|%s\\n' "$note" "$enabled" >> "$ROWS" || {
+                batch_failed=$((batch_failed+1)); continue;
+              }
+              batch_added=$((batch_added+1))
+              ;;
+            *)
+              batch_failed=$((batch_failed+1))
+              ;;
+          esac
+        done < "$manifest"
+        if [ "$batch_lines" -eq 0 ]; then
+          echo "ERROR batch manifest is empty or invalid"
+          exit 64
+        fi
+        if [ "$batch_added" -eq 0 ]; then
+          echo "OK added=0 duplicate=$batch_duplicate failed=$batch_failed"
+          exit 0
+        fi
         ;;
       add-file)
         [ "$#" -eq 3 ] || { echo "ERROR add-file expects source_path note64 enabled"; exit 64; }
@@ -114,7 +259,12 @@ case "$ACTION" in
             value=$(cat "$VALUE_FILE") || { echo "ERROR unable to read HTTPS subscription"; exit 1; }
             case "$value" in *[[:space:]]*) echo "ERROR invalid HTTPS subscription URL"; exit 65 ;; esac
             value=$(encode_script_value "$value") || { echo "ERROR invalid HTTPS subscription URL"; exit 65; }
-            printf '%s|%s|%s\n' "$value" "$(sanitize_field "$note")" "$enabled" >> "$ROWS"
+            note=$(sanitize_field "$note")
+            if is_duplicate_pair "$value" "$note"; then
+              echo "OK DUPLICATE"
+              exit 0
+            fi
+            printf '%s|%s|%s\n' "$value" "$note" "$enabled" >> "$ROWS"
             ;;
           *)
             if printf '%s' "$first_line" | grep -Eq '^[A-Za-z][A-Za-z0-9+.-]*://'; then
@@ -122,6 +272,10 @@ case "$ACTION" in
             fi
             note=$(sanitize_field "$note")
             [ -n "$note" ] || note="Local JavaScript"
+            if is_duplicate_local_source "$note"; then
+              echo "OK DUPLICATE"
+              exit 0
+            fi
             printf 'FXSRC_B64:' >> "$ROWS"
             base64 < "$VALUE_FILE" | tr -d '\n' >> "$ROWS"
             printf '|%s|%s\n' "$note" "$enabled" >> "$ROWS"
@@ -137,6 +291,14 @@ case "$ACTION" in
         value=$(encode_script_value "$value") || { echo "ERROR only HTTPS URLs or local JS source are supported"; exit 65; }; note=$(sanitize_field "$note")
         [ -n "$note" ] || note=$(printf '%s' "$value" | cut -c1-80)
         printf '%s' "$value" > "$VALUE_FILE"; printf '%s' "$note" > "$NOTE_FILE"
+        if awk -F'|' -v n="$index" -v vf="$VALUE_FILE" -v nf="$NOTE_FILE" '
+          BEGIN { getline v < vf; getline d < nf; close(vf); close(nf) }
+          { i++; if(i != n && $1 == v && $2 == d) found=1 }
+          END { exit !found }
+        ' "$ROWS"; then
+          echo "ERROR duplicate script item already exists"
+          exit 65
+        fi
         awk -F'|' -v n="$index" -v vf="$VALUE_FILE" -v nf="$NOTE_FILE" 'BEGIN{getline v < vf; getline d < nf; OFS="|"} {i++; if(i==n){print v,d,$3; found=1}else print} END{if(!found)exit 4}' "$ROWS" > "$TMP.rows" || { rm -f "$TMP.rows"; echo "ERROR script index not found"; exit 66; }
         mv "$TMP.rows" "$ROWS"
         ;;
@@ -174,7 +336,11 @@ case "$ACTION" in
       chown 0:0 "$CONF" 2>/dev/null || { cp -p "$BACKUP" "$CONF"; echo "ERROR unable to restore settings ownership"; exit 1; }
     fi
     [ -f "$CONF" ] || { cp -p "$BACKUP" "$CONF"; echo "ERROR committed settings.conf missing"; exit 1; }
-    echo "OK"
+    if [ "$ACTION" = "add-batch" ]; then
+      echo "OK added=$batch_added duplicate=$batch_duplicate failed=$batch_failed"
+    else
+      echo "OK"
+    fi
     ;;
-  *) echo "ERROR usage: native-list.sh list|add|update|toggle|delete"; exit 64 ;;
+  *) echo "ERROR usage: native-list.sh list|add|add-file|add-batch|update|toggle|delete"; exit 64 ;;
 esac
