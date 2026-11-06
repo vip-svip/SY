@@ -135,6 +135,7 @@ def main():
     # older insertion path only for legacy module archives.
     native_managed_rules = (
         "_build_user_rules() {" in agh_text
+        and "_build_filter_sources() {" in agh_text
         and "_render_managed_config() {" in agh_text
         and '_yulong_enabled=$(awk -F\'|\'' in agh_text
         and 'if [ -n "$_yulong_file" ]; then' in agh_text
