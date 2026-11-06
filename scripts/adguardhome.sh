@@ -637,6 +637,18 @@ _config_contract() {
   # The DNS listener/admin interface remain loopback-only. Upstream lists may
   # be the local recursive Unbound listener or a validated FX custom/global list.
   awk '
+    function valid_duration(value, n, limit) {
+      if (value ~ /^[0-9]+ms$/) {
+        n=substr(value,1,length(value)-2); limit=9223372036854
+      } else if (value ~ /^[0-9]+s$/) {
+        n=substr(value,1,length(value)-1); limit=9223372036
+      } else if (value ~ /^[0-9]+m$/) {
+        n=substr(value,1,length(value)-1); limit=153722867
+      } else if (value ~ /^[0-9]+h$/) {
+        n=substr(value,1,length(value)-1); limit=2562047
+      } else return 0
+      return n ~ /^[0-9]+$/ && n+0>=1 && n+0<=limit && int(n+0)==n+0
+    }
     function valid_ipv4(v, n, a, i) {
       n=split(v,a,".")
       if(n!=4) return 0
@@ -755,8 +767,7 @@ _config_contract() {
         (!local_upstream || (local_count==1 && upstream_count==1)) &&
         !unsafe_bootstrap && !unsafe_fallback &&
         (runtime_mode=="load_balance" || runtime_mode=="parallel" || runtime_mode=="fastest_addr") &&
-        (runtime_fastest=="500ms" || runtime_fastest=="1s" || runtime_fastest=="2s" || runtime_fastest=="5s") &&
-        (runtime_timeout=="3s" || runtime_timeout=="5s" || runtime_timeout=="10s" || runtime_timeout=="15s" || runtime_timeout=="30s") &&
+        valid_duration(runtime_fastest) && valid_duration(runtime_timeout) &&
         runtime_cache_size~/^[0-9]+$/ && runtime_cache_size+0>0 &&
         (runtime_cache_enabled=="true" || runtime_cache_enabled=="false") &&
         (runtime_cache_optimistic=="true" || runtime_cache_optimistic=="false") &&
