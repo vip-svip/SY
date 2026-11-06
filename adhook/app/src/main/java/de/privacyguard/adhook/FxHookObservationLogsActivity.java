@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class FxHookObservationLogsActivity extends FxNativeTabActivity {
     public static final String EXTRA_TARGET_PACKAGE = "fx_hook_observation_target_package";
     public static final String EXTRA_TARGET_LABEL = "fx_hook_observation_target_label";
+    private static final int REQUEST_EXPORT_LOGS = 7481;
     private static final int ROOT_OUTPUT_LIMIT = 64 * 1024;
     private static final int DISPLAY_LIMIT = 24 * 1024;
 
@@ -160,6 +161,7 @@ public final class FxHookObservationLogsActivity extends FxNativeTabActivity {
         actions.addView(refreshButton, new LinearLayout.LayoutParams(0, -2, 1));
         actions.addView(button("清除筛选", () -> search.setText("")),
                 new LinearLayout.LayoutParams(0, -2, 1));
+        controls.addView(button("导出当前筛选日志", this::openExportPicker));
         controls.addView(actions);
         root.addView(controls);
 
@@ -191,6 +193,41 @@ public final class FxHookObservationLogsActivity extends FxNativeTabActivity {
         });
     }
 
+    private void openExportPicker() {
+        if (rawOutput.isEmpty()) { Toast.makeText(this, "当前没有可导出的 OBSERVE 记录。", Toast.LENGTH_SHORT).show(); return; }
+        Intent picker = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        picker.addCategory(Intent.CATEGORY_OPENABLE);
+        picker.setType("text/plain");
+        picker.putExtra(Intent.EXTRA_TITLE, "FX-Hook-OBSERVE-" + targetPackage + ".log");
+        picker.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+        try { startActivityForResult(picker, REQUEST_EXPORT_LOGS); }
+        catch (Exception error) { Toast.makeText(this, "无法打开日志导出选择器：" + error.getMessage(), Toast.LENGTH_LONG).show(); }
+    }
+
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQUEST_EXPORT_LOGS || resultCode != RESULT_OK || data == null || data.getData() == null) return;
+        String content = filteredOutputForExport();
+        if (content.isEmpty()) { Toast.makeText(this, "当前筛选结果为空，没有导出文件。", Toast.LENGTH_SHORT).show(); return; }
+        try (java.io.OutputStream stream = getContentResolver().openOutputStream(data.getData(), "wt")) {
+            if (stream == null) throw new java.io.IOException("无法打开目标文件");
+            stream.write(content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            stream.flush();
+            Toast.makeText(this, "当前筛选的 OBSERVE 日志已导出。", Toast.LENGTH_LONG).show();
+        } catch (Exception error) { Toast.makeText(this, "日志导出失败：" + error.getMessage(), Toast.LENGTH_LONG).show(); }
+    }
+
+    private String filteredOutputForExport() {
+        String needle = search == null || search.getText() == null ? "" : search.getText().toString().trim().toLowerCase(Locale.ROOT);
+        StringBuilder result = new StringBuilder();
+        for (String line : rawOutput.split("\\r?\\n")) {
+            if (!needle.isEmpty() && !line.toLowerCase(Locale.ROOT).contains(needle)) continue;
+            if (result.length() > 0) result.append('\n');
+            if (result.length() + line.length() > ROOT_OUTPUT_LIMIT) break;
+            result.append(line);
+        }
+        return result.toString();
+    }
     private void refresh() {
         if (destroyed || targetPackage == null) return;
         if (!refreshInFlight.compareAndSet(false, true)) {
