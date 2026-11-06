@@ -58,17 +58,15 @@ jobs:
           canonical_post_fs_data="$RUNNER_TEMP/fx-canonical-post-fs-data.sh"
           [[ -s fx-module/post-fs-data.sh ]] || { echo "::error::Canonical post-fs-data.sh is missing from checkout."; exit 1; }
           install -m 0755 fx-module/post-fs-data.sh "$canonical_post_fs_data"
-          # Preserve the checked-in QuickJS host/runner API additions when an older Release archive
-          # is restored into this packaging workspace.
-          canonical_qjs_host="$RUNNER_TEMP/fx-canonical-quickjs-host.js"
-          canonical_qjs_runner="$RUNNER_TEMP/fx-canonical-quickjs-runner.sh"
-          canonical_qjs_readme="$RUNNER_TEMP/fx-canonical-quickjs-readme.md"
-          [[ -s fx-module/scripts/jsruntime/host.js ]] || { echo "::error::Canonical QuickJS host is missing from checkout."; exit 1; }
-          [[ -s fx-module/scripts/jsruntime/runner.sh ]] || { echo "::error::Canonical QuickJS runner is missing from checkout."; exit 1; }
-          [[ -s fx-module/scripts/jsruntime/README-zh-CN.md ]] || { echo "::error::Canonical QuickJS README is missing from checkout."; exit 1; }
-          install -m 0644 fx-module/scripts/jsruntime/host.js "$canonical_qjs_host"
-          install -m 0755 fx-module/scripts/jsruntime/runner.sh "$canonical_qjs_runner"
-          install -m 0644 fx-module/scripts/jsruntime/README-zh-CN.md "$canonical_qjs_readme"
+          # Preserve the complete checked-in QuickJS runtime surface when an older
+          # Release archive is restored into this packaging workspace. This includes
+          # the script store, HTTPS subscription synchronizer and scheduler.
+          canonical_qjs_dir="$RUNNER_TEMP/fx-canonical-jsruntime"
+          [[ -d fx-module/scripts/jsruntime && ! -L fx-module/scripts/jsruntime ]] || {
+            echo "::error::Canonical QuickJS runtime directory is missing or unsafe."; exit 1;
+          }
+          mkdir -p "$canonical_qjs_dir"
+          cp -a fx-module/scripts/jsruntime/. "$canonical_qjs_dir/"
           required=(
             module.prop customize.sh post-fs-data.sh service.sh uninstall.sh
             scripts/apply.sh scripts/default.conf scripts/util.sh
@@ -98,9 +96,8 @@ jobs:
           fi
           install -m 0755 "$canonical_post_fs_data" fx-module/post-fs-data.sh
           cmp -s "$canonical_post_fs_data" fx-module/post-fs-data.sh
-          install -D -m 0644 "$canonical_qjs_host" fx-module/scripts/jsruntime/host.js
-          install -D -m 0755 "$canonical_qjs_runner" fx-module/scripts/jsruntime/runner.sh
-          install -D -m 0644 "$canonical_qjs_readme" fx-module/scripts/jsruntime/README-zh-CN.md
+          mkdir -p fx-module/scripts/jsruntime
+          cp -a "$canonical_qjs_dir/." fx-module/scripts/jsruntime/
           test -s fx-module/scripts/apply.sh
           test -s fx-module/scripts/util.sh
           # The stable KernelSU ZIP retires the old WebUI URL with a tiny notice page.
