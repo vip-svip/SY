@@ -7019,3 +7019,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 将兼容入口 `native-script-list.sh` 收敛为转发到 `native-list.sh` 的薄包装，避免两套脚本清单实现的去重、锁、暂存路径和配置事务行为继续分叉；旧调用路径仍保留。
 - 提交：`d7af60479cff809a5c1cf87d77455d727f9bf02f`（临时文件隔离）；`f0da8a85d9cf1efae5be81837de31d7fe2841944`（兼容入口统一）。
 - 按用户要求未运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-06 — Egern 请求正文脚本导入兼容
+
+- 对齐独立 Egern YAML importer 与 QuickJS host 的实际能力：保留 `http_request` 与 `http_response` 两类 `body_required` 元数据，不再仅因请求阶段需要正文而丢弃条目。FX host 的 request/response 消息对象均保留 body，并提供文本/JSON读取入口。
+- 同步应用源码和模块内 APK 源码：`EgernScriptYamlImporter.java`。
+- 提交：应用 `f9bf52ee29389d5fc036d0c406b25f1ff1d039c5`；模块 `99dfdf5a101d66323c8bf591553f4f98917a8a57`。
+- 本轮所有 QuickJS 改动仍未运行测试、静态检查、构建、CI 或真机验证。
