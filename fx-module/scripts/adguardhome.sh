@@ -136,12 +136,19 @@ _build_user_rules() {
 
   # Only the dedicated [list:rule] subscription entry enables Yulong's bundled
   # ad-domain data. It never reads the protected [list:fx] anti-fraud section.
-  _yulong_enabled=$(awk -F'|' '
-    /^\[list:rule\][[:space:]]*$/ {section="rule"; next}
-    /^\[/ {section=""; next}
-    section=="rule" && $1=="builtin://Yulong_AdBlock.txt" && $3=="1" {enabled=1}
-    END {print enabled+0}
-  ' "$PG/settings.conf" 2>/dev/null)
+  # Read subscription state through the same strict parser as the native UI.
+  # Duplicate or malformed rows must not be silently ignored when deciding
+  # whether the bundled Yulong source is active.
+  _rule_rows=$(MP="$MODDIR" PG="$PG" sh "$MODDIR/scripts/native-managed-lists.sh" list ruleList) || {
+    _log 'managed rule subscription list is invalid; refusing partial DNS rule render'
+    return 1
+  }
+  _yulong_enabled=$(printf '%s\\n' "$_rule_rows" | awk -F'|' '
+    NR==1 {if($0!="FXLIST1") exit 2; next}
+    NF!=4 || $1 !~ /^[0-9]+$/ || $4 !~ /^[01]$/ {exit 2}
+    $2=="builtin://Yulong_AdBlock.txt" && $4=="1" {enabled=1}
+    END {if(NR<1) exit 2; print enabled+0}
+  ') || return 1
   _yulong_file=""
   if [ "$_yulong_enabled" = "1" ]; then
     _yulong_file="$PG/rulefiles-user/Yulong_AdBlock.txt"
