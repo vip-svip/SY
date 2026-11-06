@@ -114,14 +114,14 @@ package_snapshot_hash() {
   # A partial PackageManager listing must never become the new baseline:
   # otherwise a malformed row could hide a package/UID change and leave
   # Root Proxy applying stale per-UID exclusions.
-  _rows=$(printf '%s\\n' "$_raw" | awk '
+  _rows=$(printf '%s\n' "$_raw" | awk '
     BEGIN {valid=1; count=0}
     {
-      if($0 ~ /^[ \\t]*$/) next
+      if($0 ~ /^[ \t]*$/) next
       line=$0
-      sub(/^[ \\t]+/, "", line)
-      sub(/[ \\t]+$/, "", line)
-      n=split(line, field, /[ \\t]+/)
+      sub(/^[ \t]+/, "", line)
+      sub(/[ \t]+$/, "", line)
+      n=split(line, field, /[ \t]+/)
       if(n!=2 || field[1] !~ /^package:[A-Za-z0-9_.-]+$/ ||
           field[2] !~ /^uid:[0-9]+$/) {valid=0; next}
       pkg=substr(field[1],9); uid=substr(field[2],5)
