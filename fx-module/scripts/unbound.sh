@@ -259,11 +259,20 @@ _maybe_refresh_anchor() {
   if command -v timeout >/dev/null 2>&1; then
     _tmp_anchor=$(_new_private_temp "$STATE/root.key.before-refresh.XXXXXX") || return 0
     cp "$STATE/root.key" "$_tmp_anchor" 2>/dev/null || { rm -f "$_tmp_anchor"; return 0; }
-    if timeout 5 "$ANCHOR" -a "$STATE/root.key" >> "$LOG" 2>&1; then
-      _log 'stale root trust anchor refresh helper completed'
-    else
-      _log 'bounded root trust-anchor refresh unavailable; retaining previous valid anchor if output is invalid'
+    _refresh_rc=0
+    timeout 5 "$ANCHOR" -a "$STATE/root.key" >> "$LOG" 2>&1 || _refresh_rc=$?
+    if [ "$_refresh_rc" -ne 0 ]; then
+      # A failed/timed-out helper may leave a syntactically plausible but
+      # incomplete replacement. Never promote its output merely because a
+      # single DNSKEY line survived; restore the exact pre-refresh file.
+      if ! mv -f "$_tmp_anchor" "$STATE/root.key" 2>/dev/null; then
+        _log 'trust-anchor refresh failed and previous anchor rollback failed; preserving recovery copy'
+        return 1
+      fi
+      _log 'bounded trust-anchor refresh failed; previous anchor restored'
+      return 0
     fi
+    _log 'stale root trust anchor refresh helper completed'
     if ! grep -Eq '^\\.[[:space:]]+IN[[:space:]]+DNSKEY[[:space:]]+257[[:space:]]+3[[:space:]]+8[[:space:]]' "$STATE/root.key" 2>/dev/null; then
       # Never continue with an invalid refreshed anchor if rollback itself
       # fails. Keep the private pre-refresh copy for recovery and abort startup.
