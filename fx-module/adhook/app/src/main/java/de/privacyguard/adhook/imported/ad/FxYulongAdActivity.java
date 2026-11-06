@@ -1969,7 +1969,9 @@ private void loadDnsRuntimeStatus(TextView target){
         "custom_dns","global_dns","block_quic","block_dot","block_plain_dns",
         "block_ipv6","block_track_domains","dns_querylog_enabled",
         "dns_querylog_memory_size","dns_querylog_memory_max",
-        "dns_statistics_enabled","dns_statistics_interval"));
+        "dns_querylog_ignored_enabled","dns_querylog_ignored_count",
+        "dns_statistics_enabled","dns_statistics_interval",
+        "dns_statistics_ignored_enabled","dns_statistics_ignored_count"));
     for(int index=1;index<lines.length;index++){
       String line=lines[index].trim();
       if(line.isEmpty())continue;
@@ -2033,8 +2035,12 @@ private void loadDnsRuntimeStatus(TextView target){
     appendDnsStatus(out,"DNS 查询日志开关",values.get("dns_querylog_enabled"));
     appendDnsStatus(out,"查询日志内存刷盘批量",values.get("dns_querylog_memory_size"));
     appendDnsStatus(out,"查询日志设备缓冲上限",values.get("dns_querylog_memory_max"));
+    appendDnsStatus(out,"逐条查询日志排除域名开关",values.get("dns_querylog_ignored_enabled"));
+    appendDnsStatus(out,"逐条查询日志排除域名数量",values.get("dns_querylog_ignored_count"));
     appendDnsStatus(out,"聚合统计数据库开关",values.get("dns_statistics_enabled"));
     appendDnsStatus(out,"聚合统计轮转周期",values.get("dns_statistics_interval"));
+    appendDnsStatus(out,"聚合统计排除域名开关",values.get("dns_statistics_ignored_enabled"));
+    appendDnsStatus(out,"聚合统计排除域名数量",values.get("dns_statistics_ignored_count"));
     target.setText(out.length()==0?"未收到可识别的 DNS 状态字段。":out.toString().trim());
   });
 }
