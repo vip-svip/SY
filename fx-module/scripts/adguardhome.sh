@@ -334,7 +334,11 @@ _render_managed_config() {
       n=split(s,a,".")
       if(n!=4) return 0
       for(i=1;i<=4;i++) if(a[i]!~/^[0-9]+$/ || length(a[i])>3 || a[i]+0>255 || (a[i]!="0" && a[i]~/^0/)) return 0
-      if(a[1]+0==0 || a[1]+0>=224) return 0
+      # Fallback resolvers must be externally routable IPv4 endpoints.
+      # Loopback would send a failed query back into AdGuard itself, while
+      # link-local addresses are not stable upstream resolver destinations.
+      if(a[1]+0==0 || a[1]+0==127 || a[1]+0>=224) return 0
+      if(a[1]+0==169 && a[2]+0==254) return 0
       return 1
     }
     $0=="[conf:yulong_dns_fallback]" {inside=1;next}
@@ -454,7 +458,8 @@ _config_contract() {
       n=split(server,octets,".")
       valid=(n==4)
       for(i=1;i<=n;i++) if(octets[i]!~/^[0-9]+$/ || length(octets[i])>3 || octets[i]+0>255 || (octets[i]!="0" && octets[i]~/^0/)) valid=0
-      if(octets[1]+0==0 || octets[1]+0>=224) valid=0
+      if(octets[1]+0==0 || octets[1]+0==127 || octets[1]+0>=224) valid=0
+      if(octets[1]+0==169 && octets[2]+0==254) valid=0
       if(!valid || fallback_seen[server]++) unsafe_fallback=1
     }
     END {
