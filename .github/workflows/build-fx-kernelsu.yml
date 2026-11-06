@@ -207,7 +207,7 @@ jobs:
             echo "::error::AdGuard Home Android ARM64 artifact checksum mismatch."; exit 1;
           }
           install -m 0755 "$source_dir/AdGuardHome" "$destination/AdGuardHome"
-          printf '%s  %s\\n' "$actual" "AdGuardHome" > "$destination/AdGuardHome.sha256"
+          printf '%s  %s\n' "$actual" "AdGuardHome" > "$destination/AdGuardHome.sha256"
           install -m 0644 "$source_dir/BUILD-STATUS.txt" "$destination/BUILD-STATUS.txt"
           install -m 0644 .github/dns/AdGuardHome-FX-runtime-v1.0.0.yaml "$destination/AdGuardHome.yaml"
           (cd "$destination" && sha256sum AdGuardHome > BINARY-SHA256SUMS)
