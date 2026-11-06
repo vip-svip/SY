@@ -987,17 +987,47 @@ private void restoreDnsProfile(EditText input){
       +"拦截响应模式："+preview.get("RESPONSE_MODE")+"。\\n\\n"
       +"这是本地结构预览，不代表端点及配置语义已通过后端校验；继续后仍由 FX Root 后端完整校验。";
   String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);
-  fxDialogBuilder().setTitle("DNS 快照导入预览").setMessage(summary)
-    .setNegativeButton("取消",null)
-    .setPositiveButton("继续恢复",(d,w)->fxDialogBuilder().setTitle("确认完整替换 DNS 配置")
-      .setMessage("将完整替换当前 DNS 引擎开关、过滤策略、上游服务器、VPN DNS 与拦截响应模式。后端会再次校验全部字段；恢复应用失败会回滚原配置。不会修改 VPN 节点或其他 FX 模块设置。")
+  root("dns-profile-get",currentResult->{
+    if(currentResult.exitCode!=0){
+      status.setText("无法读取当前 DNS 配置，已停止恢复预览："+safe(currentResult.output));return;
+    }
+    java.util.Map<String,String> current=new java.util.LinkedHashMap<>();
+    String currentRaw=currentResult.output==null?"":currentResult.output.trim();
+    String[] currentLines=currentRaw.split("\\r?\\n");
+    if(currentLines.length==0||!"FXYULONGDNSPROFILE1".equals(currentLines[0].trim())){
+      status.setText("当前 DNS 配置快照格式异常，已停止恢复预览。");return;
+    }
+    for(int index=1;index<currentLines.length;index++){
+      String line=currentLines[index].trim();int split=line.indexOf('=');
+      if(split<=0||current.put(line.substring(0,split),line.substring(split+1))!=null){
+        status.setText("当前 DNS 配置包含异常或重复字段，已停止恢复预览。");return;
+      }
+    }
+    String[] labels={"dns_engine_adguardhome","dns_forward","custom_dns","global_dns",
+      "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
+      "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled",
+      "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE"};
+    StringBuilder changes=new StringBuilder();
+    for(String key:labels){
+      String oldValue=current.get(key),newValue=preview.get(key);
+      if(oldValue==null){status.setText("当前 DNS 配置缺少字段："+key+"，已停止恢复预览。");return;}
+      if(!oldValue.equals(newValue))changes.append(key).append("：").append(oldValue)
+          .append(" → ").append(newValue).append('\\n');
+    }
+    String changeText=changes.length()==0?"与当前 DNS 配置完全一致，无字段变化。":
+        "将变更以下字段：\\n"+changes;
+    fxDialogBuilder().setTitle("DNS 快照导入预览")
+      .setMessage(summary+"\\n\\n"+changeText)
       .setNegativeButton("取消",null)
-      .setPositiveButton("恢复",(dialog,which)->root("dns-profile-restore "+encoded,r->{
-        if(r.exitCode==0){status.setText("DNS 配置快照已恢复并应用。");input.setText("");load();}
-        else fxDialogBuilder().setTitle("DNS 快照恢复失败").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
-      })).show()).show();
-}
-private boolean isValidProfileIpv4(String value){
+      .setPositiveButton("继续恢复",(d,w)->fxDialogBuilder().setTitle("确认完整替换 DNS 配置")
+        .setMessage("将完整替换当前 DNS 引擎开关、过滤策略、上游服务器、VPN DNS 与拦截响应模式。后端会再次校验全部字段；恢复应用失败会回滚原配置。不会修改 VPN 节点或其他 FX 模块设置。")
+        .setNegativeButton("取消",null)
+        .setPositiveButton("恢复",(dialog,which)->root("dns-profile-restore "+encoded,r->{
+          if(r.exitCode==0){status.setText("DNS 配置快照已恢复并应用。");input.setText("");load();}
+          else fxDialogBuilder().setTitle("DNS 快照恢复失败").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
+        })).show()).show();
+  });
+v4(String value){
   if(value==null||!value.matches("[0-9]{1,3}(\\.[0-9]{1,3}){3}")||
       "0.0.0.0".equals(value)||"255.255.255.255".equals(value))return false;
   for(String part:value.split("\\.")){
