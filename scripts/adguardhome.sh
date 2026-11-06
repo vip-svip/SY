@@ -201,6 +201,7 @@ _stop() {
     return 0
   fi
   kill -TERM "$_p" 2>/dev/null || :
+  _now=
   _tries=0
   while kill -0 "$_p" 2>/dev/null && [ "$_tries" -lt 20 ]; do
     _now=$(_owned_pid 2>/dev/null) || _now=
@@ -212,6 +213,7 @@ _stop() {
     _now=$(_owned_pid 2>/dev/null) || _now=
     if [ "$_now" = "$_p" ]; then kill -KILL "$_p" 2>/dev/null || :; fi
   fi
+  _now=
   _tries=0
   while kill -0 "$_p" 2>/dev/null && [ "$_tries" -lt 5 ]; do
     _now=$(_owned_pid 2>/dev/null) || _now=
