@@ -2327,7 +2327,7 @@ private void runDnsDiagnostics(){
     }
     String raw=result.output==null?"":result.output.trim();
     String[] lines=raw.split("\\r?\\n");
-    if(lines.length<2||!"FXYULONGDNSDIAG4".equals(lines[0].trim())){
+    if(lines.length<2||!"FXYULONGDNSDIAG5".equals(lines[0].trim())){
       status.setText("DNS 诊断响应版本或字段数量错误，拒绝显示不完整报告。");
       return;
     }
@@ -2337,7 +2337,7 @@ private void runDnsDiagnostics(){
       "vpn_coexistence_verdict","vpn_route_probe","private_dns_mode",
       "dns_upstream_mode","dns_upstream_state","dns_bootstrap_mode","dns_fallback_mode",
        "rootproxy_cleanup","dns_response_mode","dns_blocking_ipv4","dns_blocking_ipv6",
-       "dns_blocked_response_ttl","dns_rewrites_count","dns_querylog_ignored_enabled",
+       "dns_blocked_response_ttl","dns_rewrites_count","dns_rewrites_enabled_count","dns_rewrites_disabled_count","dns_querylog_ignored_enabled",
        "dns_querylog_ignored_count","dns_statistics_ignored_enabled","dns_statistics_ignored_count",
       "dnssec_anchor_state","root_hints_state","root_hints_bytes",
       "dns_querylog_enabled","dns_querylog_retention","dns_querylog_memory_size","dns_querylog_memory_max",
@@ -2424,6 +2424,8 @@ private void runDnsDiagnostics(){
             valid=android.text.TextUtils.isDigitsOnly(value)||"unknown".equals(value);break;
          case "dns_blocked_response_ttl":
          case "dns_rewrites_count":
+         case "dns_rewrites_enabled_count":
+         case "dns_rewrites_disabled_count":
          case "dns_querylog_ignored_count":
          case "dns_statistics_ignored_count":
              valid=android.text.TextUtils.isDigitsOnly(value)||"unknown".equals(value);break;
@@ -2485,7 +2487,10 @@ private void runDnsDiagnostics(){
      report.append("DNS 拦截响应：").append(values.get("dns_response_mode"))
          .append("；IPv4/IPv6：").append(values.get("dns_blocking_ipv4")).append("/")
          .append(values.get("dns_blocking_ipv6")).append("；TTL：").append(values.get("dns_blocked_response_ttl")).append('\n');
-     report.append("DNS 地址重写：").append(values.get("dns_rewrites_count")).append(" 条；逐条日志排除：")
+     report.append("DNS 地址重写：总计 ").append(values.get("dns_rewrites_count"))
+         .append(" 条，启用 ").append(values.get("dns_rewrites_enabled_count"))
+         .append(" 条，停用 ").append(values.get("dns_rewrites_disabled_count"))
+         .append(" 条；逐条日志排除：")
          .append(values.get("dns_querylog_ignored_enabled")).append("（")
          .append(values.get("dns_querylog_ignored_count")).append(" 条）；统计排除：")
          .append(values.get("dns_statistics_ignored_enabled")).append("（")

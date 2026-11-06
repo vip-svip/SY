@@ -7104,3 +7104,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 打包补丁器同步要求 Root `FXYULONGDNSRW2` 与 per-rule enabled 实现，避免 Release source restore 回退到旧两列逻辑。
 - 同步正式/模块两份 Root、AdGuard renderer、原生 Ad 页、打包 patcher 和续接文档。
 - 按用户要求未运行 Shell/Java/Python 测试、静态检查、构建、CI 或 Android 真机验证；本轮仅完成源码改动。
+
+
+## 2026-11-07 — DNSDIAG5 单条 Rewrite 启用状态可观测
+
+- Root `dns-diagnose` 升级为 `FXYULONGDNSDIAG5`，新增 `dns_rewrites_enabled_count` 与 `dns_rewrites_disabled_count`；总数继续保留。计数基于标准化后的三列规则数据，遇到非 0/1 标志返回 unknown，不误报数量。
+- 两份原生 Ad 页面同步 DIAG5 响应头、allowlist、数值校验和报告显示，明确区分总数、启用数和停用数；报告文件导出复用同一已校验报告。
+- Release-source DNS patcher 要求 Root DIAG5 与启用/停用计数字段，防止仅恢复 DIAG4 旧控制器却错误通过完整迁移打包门。
+- 修改文件：两份 yulong-ad-control.sh、两份 FxYulongAdActivity.java、两份 patch_yulong_dns_upstreams.py、两份续接文档。
+- 按用户要求未运行测试、静态检查、构建、CI 或 Android 真机验证；本批仅提交源码。
