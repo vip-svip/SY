@@ -7214,3 +7214,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 通知权限查询当前还覆盖 AppOpsManager `post_notification`、NotificationManager 应用/包查询、ContextWrapper/ContextImpl 权限查询，以及 ApplicationPackageManager/PackageManager 查询；按统一 Method 集合去重，避免某一层部分成功后提前退出。
 - Wi-Fi/活动通知读取 Hook 应用提交 `2de7e8659509d32e1b7bb4c41041364748e0f1e1`；模块提交 `2a884613751381c9ddcb6054031fa37f01f7abeb`。剪贴板读取提交 `dcd0237f2bb258ce407b1fbe42a2116e18e6ca94` / `0060e27b45ce0e69028193e395de33eb891f3623`。
 - 本批仅调整注册幂等与部分失败恢复，不改变按应用隐私授权；多包共享进程仍 fail-open，系统/FX/LSPosed 保护名单保留。固定 FX 1.0.0；未运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-06 — QuickJS HTTP 超时与请求体边界
+
+- `host.js` 将非数字、无穷值和非正数 HTTP 超时回退到 10 秒，再将有效值限制在 1–20 秒，避免 NaN 进入桥接层后触发意外超时。
+- `http.sh` 在调用 curl 前限制上传请求体不超过 8 MiB，与响应体上限对齐。
+- 代码提交：`32725616a094bd7998cb67b859f8f81dd1ed2f7d`、`3afd9b24fb71959a43ddb3f84a8bce680d1826e2`。
+- 按当前推进要求未运行测试、检查、构建、CI 或真机验证。
