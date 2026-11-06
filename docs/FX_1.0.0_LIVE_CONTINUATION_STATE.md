@@ -7665,3 +7665,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Activity 浏览器新增“启用当前页筛选中的已禁用 Activity”：沿用当前搜索条件和当前分页，只收集该页处于禁用状态的组件；经二次确认后，按当前 Android 用户逐项执行 `pm enable`，不启用整个应用、不处理其他分页。完成后重新读取 PackageManager 组件状态并显示成功/失败数量。
 - 仅在完整 Activity 列表模式显示；启动器入口模式仍保留原有逐项控制。批量操作仅执行启用，不提供批量禁用，避免误关闭多个应用组件。
 - 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或真机验证；该批功能尚未验收。
+
+
+## 2026-11-06 — Dia Activity 浏览器显式启动与组件名复制
+
+- 代码提交：`5d9c27daa62b167c12f69d54dbef7454a470d009`。
+- 改动文件：`adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaActivityBrowserActivity.java`。
+- Activity 组件卡片新增“复制组件名”，复制完整 `package/class`；剪贴板不可用或写入失败时明确提示。
+- 对 Manifest 标记为 exported 的 Activity 增加显式启动入口。启动前再次确认目标包仍为当前选择，并从已读取组件清单确认该 Activity 仍为 exported 且当前启用；显示组件声明权限及启动影响说明后才调用显式 ComponentName Intent。Android 权限拒绝、组件状态变化和其他启动异常分别反馈。
+- 不向非 exported 组件提供启动入口，不绕过组件权限或 Android 导出规则。
+- 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或真机验证；启动能力仍待设备侧确认。
