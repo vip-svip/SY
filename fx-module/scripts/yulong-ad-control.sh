@@ -498,6 +498,14 @@ dns_vpn_set_many() {
 }
 m_vpn_dns_reset() { write_vpn_dns remote_dns 1.1.1.1 && write_vpn_dns cn_dns 223.5.5.5; }
 dns_profile_get() {
+  validate_existing_dns_section custom_dns || return $?
+  validate_existing_dns_section global_dns || return $?
+  validate_existing_dns_section yulong_dns_fallback || return $?
+  validate_existing_vpn_dns || return $?
+  validate_dns_response_config || {
+    echo "DNS profile contains an ambiguous or malformed response-mode section" >&2
+    return 22
+  }
   echo FXYULONGDNSPROFILE1
   for key in dns_engine_adguardhome dns_forward custom_dns global_dns block_quic block_dot block_plain_dns block_ipv6 block_track_domains vpn_external_dns_proxy vpn_external_compat dns_querylog_enabled; do
     printf '%s=%s\n' "$key" "$(pg_get "$key" 0)"
@@ -509,8 +517,8 @@ dns_profile_get() {
   done
   printf 'VPN_REMOTE=%s\n' "$(pg_conf vpn 2>/dev/null | sed -n 's/^remote_dns=//p' | head -n1)"
   printf 'VPN_CN=%s\n' "$(pg_conf vpn 2>/dev/null | sed -n 's/^cn_dns=//p' | head -n1)"
-  mode=$(awk -F= '$0=="[conf:yulong_dns_response]"{inside=1;next} /^\[/{inside=0} inside&&$1=="mode"{v=$2} END{print v}' "$CONF" 2>/dev/null)
-  case "$mode" in nxdomain|refused|custom_ip) ;; *) mode=nxdomain ;; esac
+  mode=$(awk '$0=="[conf:yulong_dns_response]"{inside=1;next} /^\[/{inside=0} inside&&/^mode=/{sub(/^mode=/,"");print;exit}' "$CONF" 2>/dev/null)
+  [ -n "$mode" ] || mode=nxdomain
   printf 'RESPONSE_MODE=%s\n' "$mode"
 }
 
