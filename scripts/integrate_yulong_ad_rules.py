@@ -130,11 +130,21 @@ def main():
     if "_mg_yulong_entry=" not in util_text:
         replace_once(util, UTIL_MARKER, UTIL_INSERT + UTIL_MARKER)
     agh_text = agh.read_text(encoding="utf-8")
-    if "_yulong_enabled=$(awk -F'|'" not in agh_text:
-        replace_once(agh, AGH_MARKER, AGH_MARKER + AGH_INSERT)
-    agh_text = agh.read_text(encoding="utf-8")
-    if 'if [ -n "$_yulong_file" ]; then' not in agh_text:
-        replace_once(agh, AGH_USER_RULES_MARKER, AGH_USER_RULES_REPLACEMENT)
+    # FX's native AdGuard lifecycle now renders the complete managed user_rules
+    # block directly from the current settings.conf on every ensure. Keep the
+    # older insertion path only for legacy module archives.
+    native_managed_rules = (
+        "_build_user_rules() {" in agh_text
+        and "_render_managed_config() {" in agh_text
+        and '_yulong_enabled=$(awk -F\'|\'' in agh_text
+        and 'if [ -n "$_yulong_file" ]; then' in agh_text
+    )
+    if not native_managed_rules:
+        if "_yulong_enabled=$(awk -F'|'" not in agh_text:
+            replace_once(agh, AGH_MARKER, AGH_MARKER + AGH_INSERT)
+        agh_text = agh.read_text(encoding="utf-8")
+        if 'if [ -n "$_yulong_file" ]; then' not in agh_text:
+            replace_once(agh, AGH_USER_RULES_MARKER, AGH_USER_RULES_REPLACEMENT)
 
     config = default.read_text(encoding="utf-8")
     fx = config.split("[list:fx]", 1)[1] if "[list:fx]" in config else ""
