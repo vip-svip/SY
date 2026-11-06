@@ -327,6 +327,7 @@ _render_config() {
   _ub_serve_expired_ttl=$(_unbound_runtime_value UNBOUND_SERVE_EXPIRED_TTL) || return 1
   _ub_serve_expired_reply_ttl=$(_unbound_runtime_value UNBOUND_SERVE_EXPIRED_REPLY_TTL) || return 1
   _ub_serve_expired_client_timeout=$(_unbound_runtime_value UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT) || return 1
+  _ub_serve_expired_ttl_reset=$(_unbound_runtime_value UNBOUND_SERVE_EXPIRED_TTL_RESET) || return 1
   _ub_prefetch=$(_unbound_runtime_value UNBOUND_PREFETCH) || return 1
   _ub_prefetch_key=$(_unbound_runtime_value UNBOUND_PREFETCH_KEY) || return 1
   _ub_qname_minimisation=$(_unbound_runtime_value UNBOUND_QNAME_MINIMISATION) || return 1
@@ -368,6 +369,7 @@ _render_config() {
     case "$_ub_cache_size_number" in *[kKmMgG]) _ub_cache_size_number=${_ub_cache_size_number%?} ;; esac
     case "$_ub_cache_size_number" in ''|*[!0-9]*) _log 'Unbound cache pool size has invalid numeric value'; return 1 ;; esac
   done
+  case "$_ub_serve_expired_ttl_reset" in 1) _ub_serve_expired_ttl_reset_yaml=yes ;; 0) _ub_serve_expired_ttl_reset_yaml=no ;; *) _log 'invalid serve-expired TTL reset flag'; return 1 ;; esac
   case "$_ub_serve_expired:$_ub_prefetch:$_ub_prefetch_key:$_ub_qname_minimisation" in
     0:0:0:0|0:0:0:1|0:0:1:0|0:0:1:1|0:1:0:0|0:1:0:1|0:1:1:0|0:1:1:1|1:0:0:0|1:0:0:1|1:0:1:0|1:0:1:1|1:1:0:0|1:1:0:1|1:1:1:0|1:1:1:1) : ;;
     *) _log 'Unbound runtime boolean setting is invalid'; return 1 ;;
@@ -405,6 +407,7 @@ $_egress_config  port: 5353
   prefetch-key: $_ub_prefetch_key_yaml
   serve-expired: $_ub_serve_expired_yaml
   serve-expired-ttl: $_ub_serve_expired_ttl
+  serve-expired-ttl-reset: $_ub_serve_expired_ttl_reset_yaml
   serve-expired-reply-ttl: $_ub_serve_expired_reply_ttl
   serve-expired-client-timeout: $_ub_serve_expired_client_timeout
   edns-buffer-size: 1232
