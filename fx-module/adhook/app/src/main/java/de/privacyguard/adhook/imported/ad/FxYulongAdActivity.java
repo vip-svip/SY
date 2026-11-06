@@ -861,9 +861,36 @@ private void loadDnsRuntimeStatus(TextView target){
   root("dns-runtime-status",r->{
     if(r.exitCode!=0){target.setText("DNS 状态读取失败："+safe(r.output));return;}
     java.util.Map<String,String> values=new java.util.LinkedHashMap<>();
-    for(String line:(r.output==null?"":r.output).split("\\r?\\n")){
+    String[] lines=(r.output==null?"":r.output).split("\\r?\\n");
+    if(lines.length==0||!"FXDNS1".equals(lines[0].trim())){
+      target.setText("DNS 状态响应版本不匹配，拒绝显示可能不完整的数据。");return;
+    }
+    java.util.Set<String> allowed=new java.util.HashSet<>(java.util.Arrays.asList(
+        "dns_engine_adguardhome","dns_forward","vpn_external_compat",
+        "vpn_external_dns_proxy","adguardhome","unbound","root_proxy",
+        "rootproxy_reason","rootproxy_cleanup","rootproxy_interface",
+        "rootproxy_vpn_uid","rootproxy_egress_ipv4","rootproxy_activated_at",
+        "rootproxy_redirects","rootproxy_dns_probe","rootproxy_route",
+        "rootproxy_whitelist_count","dns_filter_sources_total",
+        "dns_filter_sources_enabled","private_dns_mode","dns_filter_coverage",
+        "vpn_coexistence_verdict","vpn_route_probe","dns_stack_enabled",
+        "dns_stack_ready"));
+    for(int index=1;index<lines.length;index++){
+      String line=lines[index].trim();
+      if(line.isEmpty())continue;
       int split=line.indexOf('|');
-      if(split>0&&split<line.length()-1)values.put(line.substring(0,split).trim(),line.substring(split+1).trim());
+      if(split<=0||split==line.length()-1){
+        target.setText("DNS 状态响应包含格式错误的记录，拒绝显示不完整数据。");return;
+      }
+      String key=line.substring(0,split).trim();
+      String value=line.substring(split+1).trim();
+      if(!allowed.contains(key)||values.containsKey(key)){
+        target.setText("DNS 状态响应包含未知或重复字段："+key+"；拒绝显示不完整数据。");return;
+      }
+      values.put(key,value);
+    }
+    if(values.size()!=allowed.size()){
+      target.setText("DNS 状态响应字段不完整（"+values.size()+"/"+allowed.size()+"），拒绝显示不完整数据。");return;
     }
     StringBuilder out=new StringBuilder();
     appendDnsStatus(out,"AdGuard Home",values.get("adguardhome"));
@@ -871,7 +898,8 @@ private void loadDnsRuntimeStatus(TextView target){
     appendDnsStatus(out,"第三方 VPN Root Proxy",values.get("root_proxy"));
     appendDnsStatus(out,"DNS 过滤覆盖",values.get("dns_filter_coverage"));
     appendDnsStatus(out,"VPN 共存判定",values.get("vpn_coexistence_verdict"));
-    appendDnsStatus(out,"DNS 路由探测",values.get("vpn_route_probe"));    appendDnsStatus(out,"DNS 栈已启用",values.get("dns_stack_enabled"));
+    appendDnsStatus(out,"DNS 路由探测",values.get("vpn_route_probe"));
+    appendDnsStatus(out,"DNS 栈已启用",values.get("dns_stack_enabled"));
     appendDnsStatus(out,"AdGuard Home 开关",values.get("dns_engine_adguardhome"));
     appendDnsStatus(out,"Unbound 开关",values.get("dns_forward"));
     appendDnsStatus(out,"第三方 VPN 兼容开关",values.get("vpn_external_compat"));
