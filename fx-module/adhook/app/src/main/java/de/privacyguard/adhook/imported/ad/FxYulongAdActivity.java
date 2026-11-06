@@ -606,7 +606,6 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
     if(filter.isEmpty()||(row.value+" "+row.title).toLowerCase(Locale.ROOT).contains(filter))sources.add(row.value);
    }
    if(sources.isEmpty()){status.setText("当前筛选没有可移除的过滤列表。");return;}
-   if(sources.size()>2000){status.setText("当前筛选超过 2000 个列表，请缩小筛选范围。");return;}
    StringBuilder lines=new StringBuilder();
    for(String source:sources)lines.append(source).append('\n');
    String encoded=android.util.Base64.encodeToString(lines.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8),android.util.Base64.NO_WRAP);
@@ -624,15 +623,13 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
        .append("# format: source|name\n")
        .append("# importing adds sources enabled by default\n");
    int included=0,omitted=0;
-   final int maxBytes=64*1024;
    for(Row row:configured){
     String source=row.value==null?"":row.value.trim();
     String name=row.title==null?"":row.title.trim();
     if(source.isEmpty())continue;
     String line=source.replace('|',' ').replace('\r',' ').replace('\n',' ')
         +"|"+name.replace('|',' ').replace('\r',' ').replace('\n',' ')+"\n";
-    int used=payload.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
-    int bytes=line.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+     int bytes=line.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
     if(used+bytes>maxBytes){omitted++;continue;}
     payload.append(line);included++;
    }
@@ -644,7 +641,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
     send.putExtra(Intent.EXTRA_TEXT,payload.toString());
     startActivity(Intent.createChooser(send,"分享过滤订阅"));
     status.setText("已准备分享 "+included+" 个过滤订阅"
-        +(omitted>0?"；另有 "+omitted+" 个因 64 KiB 上限省略。":"。"));
+        "。");
    }catch(RuntimeException unavailable){status.setText("无法打开系统分享面板："+safe(unavailable.getMessage()));}
   }
   private void importRuleSubscriptions(EditText input){

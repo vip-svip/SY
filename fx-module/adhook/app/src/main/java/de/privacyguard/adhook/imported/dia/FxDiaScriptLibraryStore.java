@@ -89,8 +89,7 @@ public final class FxDiaScriptLibraryStore {
             JSONObject scripts = readLocked(context);
             if (!scripts.has(sourceName)) throw new IllegalArgumentException("源脚本已不存在，请刷新列表。");
             if (scripts.has(normalized)) throw new IllegalArgumentException("目标名称已存在，请使用新名称。");
-            if (scripts.length() >= 500) throw new IllegalStateException("脚本库最多保存 500 个脚本。");
-            String source = scripts.getString(sourceName);
+                String source = scripts.getString(sourceName);
             String sourceError = FxDiaScriptLibraryPolicy.validateSource(source);
             if (sourceError != null) throw new IllegalArgumentException("源脚本内容无效：" + sourceError);
             scripts.put(normalized, source);
@@ -240,9 +239,6 @@ public final class FxDiaScriptLibraryStore {
     private static void validateScripts(JSONObject scripts) {
         if (scripts == null) {
             throw new IllegalArgumentException("脚本库对象为空。");
-        }
-        if (scripts.length() > 500) {
-            throw new IllegalArgumentException("脚本库最多保存 500 个脚本。");
         }
         Iterator<String> keys = scripts.keys();
         while (keys.hasNext()) {

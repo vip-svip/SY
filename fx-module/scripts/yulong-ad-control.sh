@@ -649,12 +649,10 @@ dns_profile_get() {
 dns_profile_restore() {
   _profile_encoded=$1
   case "$_profile_encoded" in ''|*[!A-Za-z0-9+/=]*) echo "invalid DNS profile encoding" >&2; return 2 ;; esac
-  [ "${#_profile_encoded}" -le 87384 ] || { echo "DNS profile exceeds 64 KiB" >&2; return 2; }
   _yad_profile_raw=$(mktemp "$PG/yulong-dns-profile.XXXXXX") || return 1
   chmod 600 "$_yad_profile_raw" || return 1
   (umask 077; printf '%s' "$_profile_encoded" | base64 -d > "$_yad_profile_raw") || { echo "unable to decode DNS profile" >&2; return 2; }
   _profile_bytes=$(wc -c < "$_yad_profile_raw" | tr -d ' ')
-  [ "$_profile_bytes" -le 65536 ] || { echo "DNS profile exceeds 64 KiB" >&2; return 2; }
   [ "$(sed -n '1p' "$_yad_profile_raw")" = FXYULONGDNSPROFILE1 ] || { echo "unsupported DNS profile version" >&2; return 2; }
   awk '
     NR==1 {if($0!="FXYULONGDNSPROFILE1")bad=1;next}
@@ -855,7 +853,6 @@ m_rule_remove(){ write_rule "$1" "" 0 remove; }
 rule_add_many() {
   _add_encoded="$1"
   case "$_add_encoded" in ''|*[!A-Za-z0-9+/=]*) echo "invalid base64 rule import" >&2; return 2 ;; esac
-  [ "${#_add_encoded}" -le 87384 ] || { echo "rule import exceeds 64 KiB" >&2; return 2; }
   _add_raw=$(mktemp "$PG/yulong-rule-add.XXXXXX") || return 1
   _yad_rule_add_raw=$_add_raw
   _add_clean=$(mktemp "$PG/yulong-rule-add-clean.XXXXXX") || return 1
@@ -863,7 +860,6 @@ rule_add_many() {
   chmod 600 "$_add_raw" "$_add_clean" || return 1
   (umask 077; printf '%s' "$_add_encoded" | base64 -d > "$_add_raw") || { echo "unable to decode rule import" >&2; return 2; }
   _add_bytes=$(wc -c < "$_add_raw" | tr -d ' ')
-  [ "$_add_bytes" -le 65536 ] || { echo "rule import exceeds 64 KiB" >&2; return 2; }
   _add_count=0
   while IFS='|' read -r _add_source _add_title _add_extra || [ -n "$_add_source$_add_title$_add_extra" ]; do
     [ -n "$_add_source" ] || continue
@@ -875,7 +871,6 @@ rule_add_many() {
     fi
     printf '%s|%s\n' "$_add_source" "$_add_title" >> "$_add_clean" || return 1
     _add_count=$((_add_count + 1))
-    [ "$_add_count" -le 2000 ] || { echo "rule import is limited to 2000 sources" >&2; return 2; }
   done < "$_add_raw"
   [ "$_add_count" -gt 0 ] || { echo "no rule sources to import" >&2; return 2; }
   while IFS='|' read -r _add_source _add_title; do
@@ -886,7 +881,6 @@ rule_add_many() {
 rule_remove_many() {
   _remove_encoded="$1"
   case "$_remove_encoded" in ''|*[!A-Za-z0-9+/=]*) echo "invalid base64 rule source list" >&2; return 2 ;; esac
-  [ "${#_remove_encoded}" -le 87384 ] || { echo "rule source list exceeds 64 KiB" >&2; return 2; }
   _remove_raw=$(mktemp "$PG/yulong-rule-remove.XXXXXX") || return 1
   _yad_rule_remove_raw=$_remove_raw
   _remove_clean=$(mktemp "$PG/yulong-rule-remove-clean.XXXXXX") || return 1
@@ -894,7 +888,6 @@ rule_remove_many() {
   chmod 600 "$_remove_raw" "$_remove_clean" || return 1
   (umask 077; printf '%s' "$_remove_encoded" | base64 -d > "$_remove_raw") || { echo "unable to decode rule source list" >&2; return 2; }
   _remove_bytes=$(wc -c < "$_remove_raw" | tr -d ' ')
-  [ "$_remove_bytes" -le 65536 ] || { echo "rule source list exceeds 64 KiB" >&2; return 2; }
   _remove_count=0
   while IFS= read -r _remove_source || [ -n "$_remove_source" ]; do
     [ -n "$_remove_source" ] || continue
@@ -902,7 +895,6 @@ rule_remove_many() {
     if ! grep -F -x -q "$_remove_source" "$_remove_clean"; then
       printf '%s\n' "$_remove_source" >> "$_remove_clean" || return 1
       _remove_count=$((_remove_count + 1))
-      [ "$_remove_count" -le 2000 ] || { echo "rule batch is limited to 2000 sources" >&2; return 2; }
     fi
   done < "$_remove_raw"
   [ "$_remove_count" -gt 0 ] || { echo "no rule sources to remove" >&2; return 2; }
@@ -921,7 +913,6 @@ rule_set_many() {
   _rule_state="$1"; _rule_encoded="$2"
   [ "$_rule_state" = 0 ] || [ "$_rule_state" = 1 ] || return 2
   case "$_rule_encoded" in ''|*[!A-Za-z0-9+/=]*) echo "invalid base64 rule source list" >&2; return 2 ;; esac
-  [ "${#_rule_encoded}" -le 87384 ] || { echo "rule source list exceeds 64 KiB" >&2; return 2; }
   _rule_raw=$(mktemp "$PG/yulong-rule-set.XXXXXX") || return 1
   _yad_rule_raw=$_rule_raw
   _rule_clean=$(mktemp "$PG/yulong-rule-set-clean.XXXXXX") || return 1
@@ -929,14 +920,12 @@ rule_set_many() {
   chmod 600 "$_rule_raw" "$_rule_clean" || return 1
   (umask 077; printf '%s' "$_rule_encoded" | base64 -d > "$_rule_raw") || { echo "unable to decode rule source list" >&2; return 2; }
   _rule_bytes=$(wc -c < "$_rule_raw" | tr -d ' ')
-  [ "$_rule_bytes" -le 65536 ] || { echo "rule source list exceeds 64 KiB" >&2; return 2; }
   _rule_count=0
   while IFS= read -r _rule_source || [ -n "$_rule_source" ]; do
     [ -n "$_rule_source" ] || continue
     valid_source "$_rule_source" || { echo "invalid rule source in batch" >&2; return 2; }
     if ! grep -F -x -q "$_rule_source" "$_rule_clean"; then      printf '%s\n' "$_rule_source" >> "$_rule_clean" || return 1
       _rule_count=$((_rule_count + 1))
-      [ "$_rule_count" -le 2000 ] || { echo "rule batch is limited to 2000 sources" >&2; return 2; }
     fi
   done < "$_rule_raw"
   [ "$_rule_count" -gt 0 ] || { echo "no rule sources to update" >&2; return 2; }
@@ -950,7 +939,6 @@ import_domains() {
   _import_encoded="$2"
   case "$_import_kind" in allow|block) ;; *) return 2 ;; esac
   case "$_import_encoded" in ''|*[!A-Za-z0-9+/=]*) echo "invalid base64 domain import" >&2; return 2 ;; esac
-  [ "${#_import_encoded}" -le 87384 ] || { echo "domain import exceeds 64 KiB" >&2; return 2; }
 
   _import_raw=$(mktemp "$PG/yulong-domain-import.XXXXXX") || {
     echo "unable to create private domain import staging file" >&2
@@ -972,7 +960,6 @@ import_domains() {
     return 2
   }
   _import_bytes=$(wc -c < "$_import_raw" | tr -d ' ')
-  [ "$_import_bytes" -le 65536 ] || {
     rm -f "$_import_raw" "$_import_clean" 2>/dev/null || :
     echo "domain import exceeds 64 KiB" >&2
     return 2
@@ -1007,7 +994,6 @@ import_domains() {
       return 1
     }
     _import_count=$((_import_count + 1))
-    [ "$_import_count" -le 2000 ] || {
       rm -f "$_import_raw" "$_import_clean" 2>/dev/null || :
       echo "domain import is limited to 2000 rows" >&2
       return 2
@@ -1042,13 +1028,11 @@ import_domains() {
 import_domain_bundle() {
   _bundle_encoded="$1"
   case "$_bundle_encoded" in ''|*[!A-Za-z0-9+/=]*) echo "invalid domain bundle encoding" >&2; return 2 ;; esac
-  [ "${#_bundle_encoded}" -le 87384 ] || { echo "domain bundle exceeds 64 KiB" >&2; return 2; }
   _yad_bundle_raw=$(mktemp "$PG/yulong-domain-bundle.XXXXXX") || return 1
   _yad_bundle_clean=$(mktemp "$PG/yulong-domain-bundle-clean.XXXXXX") || return 1
   chmod 600 "$_yad_bundle_raw" "$_yad_bundle_clean" || return 1
   (umask 077; printf '%s' "$_bundle_encoded" | base64 -d > "$_yad_bundle_raw") || { echo "unable to decode domain bundle" >&2; return 2; }
   _bundle_bytes=$(wc -c < "$_yad_bundle_raw" | tr -d ' ')
-  [ "$_bundle_bytes" -le 65536 ] || { echo "domain bundle exceeds 64 KiB" >&2; return 2; }
   _bundle_count=0
   while IFS='|' read -r _bundle_kind _bundle_domain _bundle_note _bundle_extra || [ -n "$_bundle_kind$_bundle_domain$_bundle_note$_bundle_extra" ]; do
     case "$_bundle_kind" in ''|'#'*) continue ;; allow|block) : ;; *) echo "invalid domain bundle kind" >&2; return 2 ;; esac
@@ -1063,7 +1047,6 @@ import_domain_bundle() {
     if awk -F'|' -v k="$_bundle_kind" -v d="$_bundle_domain" '$1==k && $2==d{found=1} END{exit !found}' "$_yad_bundle_clean"; then continue; fi
     printf '%s|%s|%s\n' "$_bundle_kind" "$_bundle_domain" "$_bundle_note" >> "$_yad_bundle_clean" || return 1
     _bundle_count=$((_bundle_count + 1))
-    [ "$_bundle_count" -le 2000 ] || { echo "domain bundle is limited to 2000 unique rows" >&2; return 2; }
   done < "$_yad_bundle_raw"
   [ "$_bundle_count" -gt 0 ] || { echo "no domains to import" >&2; return 2; }
   while IFS='|' read -r _bundle_kind _bundle_domain _bundle_note; do
@@ -1080,7 +1063,6 @@ remove_domains() {
   _remove_encoded="$2"
   case "$_remove_kind" in allow|block) ;; *) return 2 ;; esac
   case "$_remove_encoded" in ''|*[!A-Za-z0-9+/=]*) echo "invalid base64 domain removal" >&2; return 2 ;; esac
-  [ "${#_remove_encoded}" -le 87384 ] || { echo "domain removal exceeds 64 KiB" >&2; return 2; }
   _remove_raw=$(mktemp "$PG/yulong-domain-remove.XXXXXX") || return 1
   _yad_remove_raw=$_remove_raw
   chmod 600 "$_remove_raw" || return 1
@@ -1088,7 +1070,6 @@ remove_domains() {
     rm -f "$_remove_raw"; _yad_remove_raw=; echo "unable to decode domain removal" >&2; return 2;
   }
   _remove_bytes=$(wc -c < "$_remove_raw" | tr -d ' ')
-  [ "$_remove_bytes" -le 65536 ] || { echo "domain removal exceeds 64 KiB" >&2; return 2; }
   _remove_clean=$(mktemp "$PG/yulong-domain-remove-clean.XXXXXX") || return 1
   chmod 600 "$_remove_clean" || { rm -f "$_remove_clean"; return 1; }
   _remove_count=0
@@ -1100,7 +1081,6 @@ remove_domains() {
     }
     printf '%s\n' "$_remove_domain" >> "$_remove_clean" || { rm -f "$_remove_clean"; return 1; }
     _remove_count=$((_remove_count + 1))
-    [ "$_remove_count" -le 2000 ] || { rm -f "$_remove_clean"; echo "domain removal is limited to 2000 rows" >&2; return 2; }
   done < "$_remove_raw"
   [ "$_remove_count" -gt 0 ] || { rm -f "$_remove_clean"; echo "no domains to remove" >&2; return 2; }
   while IFS= read -r _remove_domain; do
@@ -1139,13 +1119,11 @@ allow_set_many() {
   _allow_enabled=$1; _allow_encoded=$2
   case "$_allow_enabled" in 0|1) : ;; *) echo "whitelist state must be 0 or 1" >&2; return 2 ;; esac
   case "$_allow_encoded" in ''|*[!A-Za-z0-9+/=]*) echo "invalid base64 whitelist state list" >&2; return 2 ;; esac
-  [ "${#_allow_encoded}" -le 87384 ] || { echo "whitelist state list exceeds 64 KiB" >&2; return 2; }
   _yad_set_raw=$(mktemp "$PG/yulong-allow-set.XXXXXX") || return 1
   _yad_set_clean=$(mktemp "$PG/yulong-allow-set-clean.XXXXXX") || return 1
   chmod 600 "$_yad_set_raw" "$_yad_set_clean" || return 1
   (umask 077; printf '%s' "$_allow_encoded" | base64 -d > "$_yad_set_raw") || { echo "unable to decode whitelist state list" >&2; return 2; }
   _allow_bytes=$(wc -c < "$_yad_set_raw" | tr -d ' ')
-  [ "$_allow_bytes" -le 65536 ] || { echo "whitelist state list exceeds 64 KiB" >&2; return 2; }
   _allow_count=0
   while IFS= read -r _allow_line || [ -n "$_allow_line" ]; do
     _allow_line=$(printf '%s' "$_allow_line" | tr -d '\\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
@@ -1157,7 +1135,6 @@ allow_set_many() {
     if ! grep -Fxq "$_allow_domain" "$_yad_set_clean"; then
       printf '%s\\n' "$_allow_domain" >> "$_yad_set_clean" || return 1
       _allow_count=$((_allow_count + 1))
-      [ "$_allow_count" -le 2000 ] || { echo "whitelist state list is limited to 2000 rows" >&2; return 2; }
     fi
   done < "$_yad_set_raw"
   [ "$_allow_count" -gt 0 ] || { echo "no whitelist domains to update" >&2; return 2; }
@@ -1176,13 +1153,11 @@ block_set_many() {
   _set_encoded=$2
   case "$_set_enabled" in 0|1) : ;; *) echo "blacklist state must be 0 or 1" >&2; return 2 ;; esac
   case "$_set_encoded" in ''|*[!A-Za-z0-9+/=]*) echo "invalid base64 blacklist state list" >&2; return 2 ;; esac
-  [ "${#_set_encoded}" -le 87384 ] || { echo "blacklist state list exceeds 64 KiB" >&2; return 2; }
   _yad_set_raw=$(mktemp "$PG/yulong-block-set.XXXXXX") || return 1
   _yad_set_clean=$(mktemp "$PG/yulong-block-set-clean.XXXXXX") || return 1
   chmod 600 "$_yad_set_raw" "$_yad_set_clean" || return 1
   (umask 077; printf '%s' "$_set_encoded" | base64 -d > "$_yad_set_raw") || { echo "unable to decode blacklist state list" >&2; return 2; }
   _set_bytes=$(wc -c < "$_yad_set_raw" | tr -d ' ')
-  [ "$_set_bytes" -le 65536 ] || { echo "blacklist state list exceeds 64 KiB" >&2; return 2; }
   _set_count=0
   while IFS= read -r _set_line || [ -n "$_set_line" ]; do
     _set_line=$(printf '%s' "$_set_line" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
@@ -1195,7 +1170,6 @@ block_set_many() {
     if ! grep -Fxq "$_set_domain" "$_yad_set_clean"; then
       printf '%s\n' "$_set_domain" >> "$_yad_set_clean" || return 1
       _set_count=$((_set_count + 1))
-      [ "$_set_count" -le 2000 ] || { echo "blacklist state list is limited to 2000 rows" >&2; return 2; }
     fi
   done < "$_yad_set_raw"
   [ "$_set_count" -gt 0 ] || { echo "no blacklist domains to update" >&2; return 2; }
