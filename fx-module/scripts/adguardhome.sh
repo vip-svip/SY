@@ -345,7 +345,7 @@ _build_dns_upstreams() {
     inside {
       if(NF!=2 || $1!="nameserver") {bad=1; next}
       server=$2
-      if(mode=="ipv4" ? !valid_ipv4(server) : !valid_endpoint(server)) {
+      if(mode=="ipv4" ? !(valid_ipv4(server) || valid_ipv4_port(server)) : !valid_endpoint(server)) {
         bad=1
         next
       }
@@ -522,6 +522,11 @@ _render_managed_config() {
       if(a[1]+0==169 && a[2]+0==254) return 0
       return 1
     }
+    function valid_ipv4_port(s,n,a) {
+      n=split(s,a,":")
+      return n==2 && valid_ipv4(a[1]) && a[2]~/^[0-9]+$/ &&
+        a[2]+0>=1 && a[2]+0<=65535
+    }
     $0=="[conf:yulong_dns_fallback]" {inside=1;next}
     /^\[/ {inside=0}
     inside && /^[[:space:]]*nameserver([[:space:]]|$)/ {
@@ -529,7 +534,7 @@ _render_managed_config() {
       # malformed keys, and duplicate nameserver keys are configuration errors.
       if(NF!=2 || $1!="nameserver") {bad=1; next}
       server=$2
-      if(!valid_ipv4(server)) {bad=1; next}
+      if(!valid_ipv4(server) && !valid_ipv4_port(server)) {bad=1; next}
       if(seen[server]++) {bad=1; next}
       count++
       print "  - " server
@@ -801,12 +806,8 @@ _config_contract() {
       if (server=="127.0.0.1:5353") {
         if (fallback_seen[server]++) unsafe_fallback=1
       } else {
-        n=split(server,octets,".")
-        valid=(n==4)
-        for(i=1;i<=n;i++) if(octets[i]!~/^[0-9]+$/ || length(octets[i])>3 || octets[i]+0>255 || (octets[i]!="0" && octets[i]~/^0/)) valid=0
-        if(octets[1]+0==0 || octets[1]+0==127 || octets[1]+0>=224) valid=0
-        if(octets[1]+0==169 && octets[2]+0==254) valid=0
-        if(!valid || fallback_seen[server]++) unsafe_fallback=1
+        if((!valid_ipv4(server) && !valid_ipv4_port(server)) || fallback_seen[server]++)
+          unsafe_fallback=1
       }
     }
     END {
