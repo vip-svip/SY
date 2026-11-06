@@ -643,8 +643,49 @@ valid_dns_runtime_duration() {
     BEGIN { if (n+0<1 || n+0>limit || int(n+0)!=(n+0)) exit 1 }
   '
 }
+valid_dns_runtime_uint32() {
+  _uint_value=$1
+  _allow_zero=\${2:-0}
+  case "$_uint_value" in ''|*[!0-9]*) return 1 ;; esac
+  awk -v value="$_uint_value" -v allow_zero="$_allow_zero" '
+    BEGIN {
+      if (value+0>4294967295 || int(value+0)!=value+0) exit 1
+      if (allow_zero=="1" ? value+0<0 : value+0<1) exit 1
+    }
+  '
+}
+valid_dns_runtime_answer_ttl() {
+  _ttl_value=$1
+  valid_dns_runtime_duration "$_ttl_value" || return 1
+  awk -v value="$_ttl_value" '
+    BEGIN {
+      if (value ~ /^[0-9]+ms$/) seconds=substr(value,1,length(value)-2)/1000
+      else if (value ~ /^[0-9]+s$/) seconds=substr(value,1,length(value)-1)
+      else if (value ~ /^[0-9]+m$/) seconds=substr(value,1,length(value)-1)*60
+      else if (value ~ /^[0-9]+h$/) seconds=substr(value,1,length(value)-1)*3600
+      else exit 1
+      if (seconds<1 || seconds>4294967295) exit 1
+    }
+  '
+}
 dns_runtime_values() {
   awk -F= '
+    function valid_uint32(value, allow_zero) {
+      return value ~ /^[0-9]+$/ && value+0<=4294967295 &&
+        int(value+0)==value+0 && (allow_zero ? value+0>=0 : value+0>=1)
+    }
+    function valid_optimistic_answer_ttl(value, n, seconds) {
+      if (value ~ /^[0-9]+ms$/) {
+        n=substr(value,1,length(value)-2); seconds=n/1000
+      } else if (value ~ /^[0-9]+s$/) {
+        n=substr(value,1,length(value)-1); seconds=n
+      } else if (value ~ /^[0-9]+m$/) {
+        n=substr(value,1,length(value)-1); seconds=n*60
+      } else if (value ~ /^[0-9]+h$/) {
+        n=substr(value,1,length(value)-1); seconds=n*3600
+      } else return 0
+      return valid_duration(value) && seconds>=1 && seconds<=4294967295
+    }
     function valid_duration(value, n, limit) {
       if (value ~ /^[0-9]+ms$/) {
         n=substr(value,1,length(value)-2); limit=9223372036854
@@ -659,6 +700,7 @@ dns_runtime_values() {
     }
     BEGIN {
       mode="load_balance"; fastest="1s"; timeout="10s"; cache_size="4194304";
+      cache_ttl_min="0"; cache_ttl_max="0"; optimistic_answer_ttl="30s"; optimistic_max_age="12h";
       cache_enabled="1"; cache_optimistic="0"; dnssec="1";
       inside=0; sections=0; bad=0
     }
@@ -675,6 +717,10 @@ dns_runtime_values() {
       else if(key=="fastest_timeout")fastest=value
       else if(key=="upstream_timeout")timeout=value
       else if(key=="cache_size")cache_size=value
+      else if(key=="cache_ttl_min")cache_ttl_min=value
+      else if(key=="cache_ttl_max")cache_ttl_max=value
+      else if(key=="cache_optimistic_answer_ttl")optimistic_answer_ttl=value
+      else if(key=="cache_optimistic_max_age")optimistic_max_age=value
       else if(key=="cache_enabled")cache_enabled=value
       else if(key=="cache_optimistic")cache_optimistic=value
       else if(key=="enable_dnssec")dnssec=value
@@ -685,7 +731,11 @@ dns_runtime_values() {
       if(mode!="load_balance" && mode!="parallel" && mode!="fastest_addr")exit 1
       if(!valid_duration(fastest))exit 1
       if(!valid_duration(timeout))exit 1
-      if(cache_size!~/^[0-9]+$/ || cache_size+0<=0)exit 1
+      if(!valid_uint32(cache_size,0))exit 1
+      if(!valid_uint32(cache_ttl_min,1) || !valid_uint32(cache_ttl_max,1) ||
+         cache_ttl_min+0>cache_ttl_max+0)exit 1
+      if(!valid_optimistic_answer_ttl(optimistic_answer_ttl) ||
+         !valid_duration(optimistic_max_age))exit 1
       if(cache_enabled!="0" && cache_enabled!="1")exit 1
       if(cache_optimistic!="0" && cache_optimistic!="1")exit 1
       if(dnssec!="0" && dnssec!="1")exit 1
@@ -693,6 +743,10 @@ dns_runtime_values() {
       print "FASTEST_TIMEOUT=" fastest
       print "UPSTREAM_TIMEOUT=" timeout
       print "CACHE_SIZE=" cache_size
+      print "CACHE_TTL_MIN=" cache_ttl_min
+      print "CACHE_TTL_MAX=" cache_ttl_max
+      print "CACHE_OPTIMISTIC_ANSWER_TTL=" optimistic_answer_ttl
+      print "CACHE_OPTIMISTIC_MAX_AGE=" optimistic_max_age
       print "CACHE_ENABLED=" cache_enabled
       print "CACHE_OPTIMISTIC=" cache_optimistic
       print "ENABLE_DNSSEC=" dnssec
@@ -707,10 +761,26 @@ write_dns_runtime_settings() {
   _runtime_mode=$1; _runtime_fastest=$2; _runtime_timeout=$3
   _runtime_cache_size=$4; _runtime_cache_enabled=$5
   _runtime_cache_optimistic=$6; _runtime_dnssec=$7
+  _runtime_cache_ttl_min=$8; _runtime_cache_ttl_max=$9
+  _runtime_optimistic_answer_ttl=\${10}; _runtime_optimistic_max_age=\${11}
   case "$_runtime_mode" in load_balance|parallel|fastest_addr) : ;; *) echo "invalid DNS upstream mode" >&2; return 2 ;; esac
   valid_dns_runtime_duration "$_runtime_fastest" || { echo "invalid DNS fastest-address timeout" >&2; return 2; }
   valid_dns_runtime_duration "$_runtime_timeout" || { echo "invalid DNS upstream timeout" >&2; return 2; }
-  case "$_runtime_cache_size" in ''|*[!0-9]*|0) echo "DNS cache size must be a positive byte count" >&2; return 2 ;; esac
+  valid_dns_runtime_uint32 "$_runtime_cache_size" 0 || { echo "DNS cache size must be a positive uint32 byte count" >&2; return 2; }
+  valid_dns_runtime_uint32 "$_runtime_cache_ttl_min" 1 &&
+    valid_dns_runtime_uint32 "$_runtime_cache_ttl_max" 1 &&
+    [ "$_runtime_cache_ttl_min" -le "$_runtime_cache_ttl_max" ] || {
+      echo "DNS cache minimum/maximum TTL must be uint32 seconds with minimum <= maximum" >&2
+      return 2
+    }
+  valid_dns_runtime_answer_ttl "$_runtime_optimistic_answer_ttl" || {
+    echo "optimistic cache answer TTL must be at least one second and fit uint32 seconds" >&2
+    return 2
+  }
+  valid_dns_runtime_duration "$_runtime_optimistic_max_age" || {
+    echo "optimistic cache maximum age must be a positive duration" >&2
+    return 2
+  }
   for _runtime_flag in "$_runtime_cache_enabled" "$_runtime_cache_optimistic" "$_runtime_dnssec"; do
     case "$_runtime_flag" in 0|1) : ;; *) echo "DNS runtime flags must be 0 or 1" >&2; return 2 ;; esac
   done
@@ -719,6 +789,8 @@ write_dns_runtime_settings() {
   _yad_conf_tmp=$_runtime_tmp
   if ! awk -v mode="$_runtime_mode" -v fastest="$_runtime_fastest" \
       -v timeout="$_runtime_timeout" -v cache_size="$_runtime_cache_size" \
+      -v cache_ttl_min="$_runtime_cache_ttl_min" -v cache_ttl_max="$_runtime_cache_ttl_max" \
+      -v optimistic_answer_ttl="$_runtime_optimistic_answer_ttl" -v optimistic_max_age="$_runtime_optimistic_max_age" \
       -v cache_enabled="$_runtime_cache_enabled" -v cache_optimistic="$_runtime_cache_optimistic" \
       -v dnssec="$_runtime_dnssec" '
     function emit() {
@@ -726,6 +798,10 @@ write_dns_runtime_settings() {
       print "fastest_timeout=" fastest
       print "upstream_timeout=" timeout
       print "cache_size=" cache_size
+      print "cache_ttl_min=" cache_ttl_min
+      print "cache_ttl_max=" cache_ttl_max
+      print "cache_optimistic_answer_ttl=" optimistic_answer_ttl
+      print "cache_optimistic_max_age=" optimistic_max_age
       print "cache_enabled=" cache_enabled
       print "cache_optimistic=" cache_optimistic
       print "enable_dnssec=" dnssec
@@ -808,17 +884,21 @@ dns_profile_restore() {
       if(index($0,"=")<2 || $0 ~ /\r/){bad=1;next}
       key=substr($0,1,index($0,"=")-1)
       value=substr($0,index($0,"=")+1)
-      if(key !~ /^(dns_engine_adguardhome|dns_forward|custom_dns|global_dns|block_quic|block_dot|block_plain_dns|block_ipv6|block_track_domains|vpn_external_dns_proxy|vpn_external_compat|dns_querylog_enabled|CUSTOM_SERVERS|GLOBAL_SERVERS|FALLBACK_SERVERS|VPN_REMOTE|VPN_CN|RESPONSE_MODE|QUERYLOG_RETENTION|UPSTREAM_MODE|FASTEST_TIMEOUT|UPSTREAM_TIMEOUT|CACHE_SIZE|CACHE_ENABLED|CACHE_OPTIMISTIC|ENABLE_DNSSEC)$/)bad=1
+      if(key !~ /^(dns_engine_adguardhome|dns_forward|custom_dns|global_dns|block_quic|block_dot|block_plain_dns|block_ipv6|block_track_domains|vpn_external_dns_proxy|vpn_external_compat|dns_querylog_enabled|CUSTOM_SERVERS|GLOBAL_SERVERS|FALLBACK_SERVERS|VPN_REMOTE|VPN_CN|RESPONSE_MODE|QUERYLOG_RETENTION|UPSTREAM_MODE|FASTEST_TIMEOUT|UPSTREAM_TIMEOUT|CACHE_SIZE|CACHE_TTL_MIN|CACHE_TTL_MAX|CACHE_OPTIMISTIC_ANSWER_TTL|CACHE_OPTIMISTIC_MAX_AGE|CACHE_ENABLED|CACHE_OPTIMISTIC|ENABLE_DNSSEC)$/)bad=1
       if(seen[key]++)bad=1
       count++
     }
-    END{if(bad||(count!=18&&count!=19&&count!=26))exit 1}
+    END{if(bad||(count!=18&&count!=19&&count!=26&&count!=30))exit 1}
   ' "$_yad_profile_raw" || { echo "DNS profile has unknown, duplicate, missing, or malformed fields" >&2; return 2; }
   _profile_querylog_retention=7d
   _profile_runtime_mode=load_balance
   _profile_runtime_fastest=1s
   _profile_runtime_timeout=10s
   _profile_runtime_cache_size=4194304
+  _profile_runtime_cache_ttl_min=0
+  _profile_runtime_cache_ttl_max=0
+  _profile_runtime_optimistic_answer_ttl=30s
+  _profile_runtime_optimistic_max_age=12h
   _profile_runtime_cache_enabled=1
   _profile_runtime_cache_optimistic=0
   _profile_runtime_dnssec=1
@@ -863,7 +943,24 @@ dns_profile_restore() {
         _profile_runtime_timeout=$_profile_value
         ;;
       CACHE_SIZE)
-        case "$_profile_value" in ''|*[!0-9]*|0) echo "invalid DNS cache size" >&2; return 2 ;; *) _profile_runtime_cache_size=$_profile_value ;; esac
+        valid_dns_runtime_uint32 "$_profile_value" 0 || { echo "invalid DNS cache size" >&2; return 2; }
+        _profile_runtime_cache_size=$_profile_value
+        ;;
+      CACHE_TTL_MIN)
+        valid_dns_runtime_uint32 "$_profile_value" 1 || { echo "invalid DNS cache minimum TTL" >&2; return 2; }
+        _profile_runtime_cache_ttl_min=$_profile_value
+        ;;
+      CACHE_TTL_MAX)
+        valid_dns_runtime_uint32 "$_profile_value" 1 || { echo "invalid DNS cache maximum TTL" >&2; return 2; }
+        _profile_runtime_cache_ttl_max=$_profile_value
+        ;;
+      CACHE_OPTIMISTIC_ANSWER_TTL)
+        valid_dns_runtime_answer_ttl "$_profile_value" || { echo "invalid optimistic answer TTL" >&2; return 2; }
+        _profile_runtime_optimistic_answer_ttl=$_profile_value
+        ;;
+      CACHE_OPTIMISTIC_MAX_AGE)
+        valid_dns_runtime_duration "$_profile_value" || { echo "invalid optimistic maximum cache age" >&2; return 2; }
+        _profile_runtime_optimistic_max_age=$_profile_value
         ;;
       CACHE_ENABLED)
         case "$_profile_value" in 0|1) _profile_runtime_cache_enabled=$_profile_value ;; *) return 2 ;; esac
@@ -924,7 +1021,8 @@ dns_profile_restore() {
     pg_set block_track_domains "$_profile_track" &&
     pg_set dns_querylog_enabled "$_profile_querylog" || return 1
   write_dns_querylog_retention "$_profile_querylog_retention" || return 1
-  write_dns_runtime_settings "$_profile_runtime_mode" "$_profile_runtime_fastest" "$_profile_runtime_timeout" "$_profile_runtime_cache_size" "$_profile_runtime_cache_enabled" "$_profile_runtime_cache_optimistic" "$_profile_runtime_dnssec" || return 1
+  [ "$_profile_runtime_cache_ttl_min" -le "$_profile_runtime_cache_ttl_max" ] || { echo "DNS profile cache TTL minimum exceeds maximum" >&2; return 2; }
+  write_dns_runtime_settings "$_profile_runtime_mode" "$_profile_runtime_fastest" "$_profile_runtime_timeout" "$_profile_runtime_cache_size" "$_profile_runtime_cache_enabled" "$_profile_runtime_cache_optimistic" "$_profile_runtime_dnssec" "$_profile_runtime_cache_ttl_min" "$_profile_runtime_cache_ttl_max" "$_profile_runtime_optimistic_answer_ttl" "$_profile_runtime_optimistic_max_age" || return 1
   if [ -n "$_profile_custom" ]; then m_dns_servers custom_dns "$_profile_custom" || return 1
   else m_dns_section_clear custom_dns || return 1; fi
   if [ -n "$_profile_global" ]; then m_dns_servers global_dns "$_profile_global" || return 1
@@ -1791,7 +1889,7 @@ case "$cmd" in
   dns_runtime_get
   ;;
  dns-runtime-set)
-  [ "$#" -eq 8 ] || { echo "usage: $0 dns-runtime-set MODE FASTEST_TIMEOUT UPSTREAM_TIMEOUT CACHE_SIZE CACHE_ENABLED CACHE_OPTIMISTIC DNSSEC" >&2; exit 2; }
+  [ "$#" -eq 12 ] || { echo "usage: $0 dns-runtime-set MODE FASTEST_TIMEOUT UPSTREAM_TIMEOUT CACHE_SIZE CACHE_ENABLED CACHE_OPTIMISTIC DNSSEC CACHE_TTL_MIN CACHE_TTL_MAX OPTIMISTIC_ANSWER_TTL OPTIMISTIC_MAX_AGE" >&2; exit 2; }
   shift
   with_lock transaction dns_runtime_set "$@"
   ;;
