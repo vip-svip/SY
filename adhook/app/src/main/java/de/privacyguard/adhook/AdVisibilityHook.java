@@ -1119,6 +1119,32 @@ private boolean targetDeveloperOptIn(String packageName) {
                     }
                     continue;
                 }
+                if ("requestTriggerSensor".equals(name) && parameters.length >= 2
+                        && "android.hardware.Sensor".equals(parameters[1].getName())) {
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                                .intercept(chain -> {
+                                    Object sensor = chain.getArgs().size() > 1 ? chain.getArgs().get(1) : null;
+                                    if (sensor != null) {
+                                        try {
+                                            Object sensorType = sensor.getClass().getMethod("getType").invoke(sensor);
+                                            if (sensorType instanceof Integer && SensorPrivacyPolicy.shouldHide(
+                                                    privacyEnabled, processPackages.size(), currentPackage,
+                                                    targets.get(currentPackage), ((Integer) sensorType).intValue())) {
+                                                return Boolean.FALSE;
+                                            }
+                                        } catch (Throwable ignored) {
+                                            // Unknown / OEM sensor handles remain available.
+                                        }
+                                    }
+                                    return chain.proceed();
+                                });
+                        installed++;
+                    } catch (Throwable t) {
+                        logFx(Log.DEBUG, "trigger sensor hook unavailable: " + method.toGenericString());
+                    }
+                    continue;
+                }
                 if (!("getSensorList".equals(name) || "getDefaultSensor".equals(name)
                         || "getDynamicSensorList".equals(name))
                         || parameters.length < 1 || parameters[0] != int.class) continue;
