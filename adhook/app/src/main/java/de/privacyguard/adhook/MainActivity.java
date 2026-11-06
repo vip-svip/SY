@@ -2548,7 +2548,7 @@ public final class MainActivity extends ComponentActivity {
                     return;
                 }
                 try {
-                    String[] rows = current.output.split("\\\\r?\\n");
+                    String[] rows = current.output.split("\\r?\\n");
                     if (rows.length == 0 || !"FXSCRIPT1".equals(rows[0].trim())) {
                         throw new IllegalStateException("脚本列表协议不匹配，已取消导入");
                     }
