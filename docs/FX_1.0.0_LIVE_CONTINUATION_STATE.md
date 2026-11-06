@@ -8360,3 +8360,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 将主应用完整的 Ad/DNS 管理 Activity 同步到 FX 模块，补齐严格/基础 DNS 安全预设、白/黑名单一键清空、批量移除、按筛选结果批量启停、白/黑名单及合并名单分享、合并名单导入校验/恢复、域名备注编辑等此前缺失的原生 UI 和交互。
 - 复用已移植的 `yulong-ad-control.sh` 后端事务命令；未另造名单存储格式或 DNS 配置协议。模块 Activity 与主应用源文件内容同步。
 - 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证。
+
+### FX 模块原生 DNS 状态显示 Root Proxy 本地启动时间（2026-11-07）
+
+- 代码提交：`696d26443272aaa74392e0aa84d3acbe90f370c7`。
+- 文件：`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`。
+- 增加 Root Proxy Unix 秒时间戳格式化，状态面板和 DNS 管理详情均显示本地时区的 `yyyy-MM-dd HH:mm:ss`；空值、零值、超范围或非数字值显示明确的无记录/无效提示。
+- 保留 FX 模块专有脚本导入方法和现有 DNS 状态读取路径，没有整文件覆盖主应用版本。
+- 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证。
