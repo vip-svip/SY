@@ -246,7 +246,8 @@ public final class FxDiaActivityBrowserActivity extends de.privacyguard.adhook.F
                 launcherOnly
                         ? "只列出当前目标应用声明的 MAIN/LAUNCHER 组件。启用/禁用操作会显示确认框并通过 Root 修改当前 Android 用户的组件状态。"
                         : "显示目标应用声明的 Activity、导出属性、Manifest 状态和系统当前组件状态。列表最多每页显示 80 项。",
-                activitySearch, activityCount, activityRows, activityPager);
+                activitySearch, activityCount, activityRows, activityPager,
+                button("复制全部筛选结果", this::copyFilteredActivityInventory));
 
         if (!launcherOnly) {
             card(body, "批量管理 Activity 组件",
@@ -541,6 +542,58 @@ public final class FxDiaActivityBrowserActivity extends de.privacyguard.adhook.F
         return text.length() > 180 ? text.substring(0, 180) : text;
     }
 
+    /** Copy every matching Activity metadata row, independent of the visible page. */
+    private void copyFilteredActivityInventory() {
+        if (launcherOnly || selected == null || activitiesLoading || activities.isEmpty()) {
+            Toast.makeText(this, "请先选择应用并完成 Activity 读取。", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String query = activitySearch == null || activitySearch.getText() == null ? ""
+                : activitySearch.getText().toString().trim().toLowerCase(Locale.ROOT);
+        StringBuilder report = new StringBuilder();
+        report.append("FX Activity inventory\npackage=").append(selected.packageName)
+                .append("\nfilter=").append(query)
+                .append("\nclass\texported\tenabled\tmanifestEnabled\tpermission\n");
+        int included = 0;
+        int omitted = 0;
+        final int maxBytes = 256 * 1024;
+        for (ActivityEntry entry : activities) {
+            if (entry == null || entry.info == null) continue;
+            ActivityInfo info = entry.info;
+            String name = info.name == null ? "" : info.name;
+            String permission = info.permission == null ? "" : info.permission;
+            String state = Integer.toString(entry.componentState);
+            if (!query.isEmpty() && !name.toLowerCase(Locale.ROOT).contains(query)
+                    && !permission.toLowerCase(Locale.ROOT).contains(query)
+                    && !state.contains(query)
+                    && !Boolean.toString(info.exported).contains(query)
+                    && !Boolean.toString(entry.enabled).contains(query)) continue;
+            if (!name.matches("[A-Za-z0-9_.$]+")) continue;
+            String row = name + "\t" + info.exported + "\t" + entry.enabled + "\t"
+                    + info.enabled + "\t" + permission.replace('\t', ' ').replace('\n', ' ')
+                    .replace('\r', ' ') + "\n";
+            int used = report.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+            int bytes = row.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+            if (used + bytes > maxBytes) { omitted++; continue; }
+            report.append(row);
+            included++;
+        }
+        if (included == 0) {
+            Toast.makeText(this, "当前筛选没有可复制的 Activity 元数据。", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (omitted > 0) report.append("# truncated: omitted ").append(omitted).append(" rows at 256 KiB limit\n");
+        try {
+            android.content.ClipboardManager clipboard =
+                    (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+            if (clipboard == null) throw new IllegalStateException("系统剪贴板不可用");
+            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("FX Activity inventory", report.toString()));
+            status.setText("已复制 " + included + " 个筛选匹配的 Activity 元数据"
+                    + (omitted > 0 ? "；另有 " + omitted + " 项因 256 KiB 上限省略。" : "。"));
+        } catch (RuntimeException error) {
+            status.setText("复制 Activity 清单失败：" + safeError(error.getMessage()));
+        }
+    }
     private void renderActivities() {
         if (activityRows == null || activitySearch == null || activityCount == null) return;
         activityRows.removeAllViews();
