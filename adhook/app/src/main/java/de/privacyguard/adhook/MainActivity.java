@@ -1197,8 +1197,6 @@ public final class MainActivity extends ComponentActivity {
                     case "ipv4_redirect_missing": return "IPv4 DNS 重定向缺失";
                     case "ipv6_redirect_missing": return "IPv6 DNS 重定向缺失";
                     case "local_dns_probe_failed": return "本地 DNS 探测失败";
-                    case "disabled": return "功能未启用";
-                    case "not_active": return "当前未接管";
                     case "vpn_owner_unavailable": return "未找到可用的第三方 VPN 所有者";
                     case "vpn_uid_mismatch": return "VPN UID 与接管记录不匹配";
                     case "unknown": return "尚无状态原因";
