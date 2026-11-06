@@ -208,6 +208,11 @@ fi
 if [ -f "$MODDIR/scripts/vpn-external-watchdog.sh" ]; then
   sh "$MODDIR/scripts/vpn-external-watchdog.sh" start "$MODDIR" "$PG" >> "$PG/boot.log" 2>&1 || echo "[$(date '+%m-%d %H:%M:%S')] external VPN watcher failed to start" >> "$PG/boot.log"
 fi
+# Recover FX-owned DNS engines after crashes or transient resolver failures.
+if [ -f "$MODDIR/scripts/localdns-watchdog.sh" ] && [ ! -L "$MODDIR/scripts/localdns-watchdog.sh" ]; then
+  sh "$MODDIR/scripts/localdns-watchdog.sh" start "$MODDIR" "$PG" >> "$PG/localdns-watchdog.log" 2>&1 || \
+    echo "[$(date '+%m-%d %H:%M:%S')] local DNS recovery watchdog failed to start" >> "$PG/boot.log"
+fi
 if [ -x "$MODDIR/scripts/yulong-trusted-network.sh" ]; then
   sh "$MODDIR/scripts/yulong-trusted-network.sh" start >> "$PG/boot.log" 2>&1 || echo "[$(date '+%m-%d %H:%M:%S')] Yulong trusted-network watcher failed to start" >> "$PG/boot.log"
 fi
