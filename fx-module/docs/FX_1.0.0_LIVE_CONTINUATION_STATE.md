@@ -6692,3 +6692,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 
 - `fx-module/scripts/jsruntime/sync-subs.sh`（`7a92d1d9fbadf0d3887d3dd61fb72f244b85df89`）修复元数据包装临时路径从 `.wrap.$$` 截断为 `.wrap.$` 的问题，恢复按进程 PID 隔离，避免并发订阅同步时覆盖共享临时文件。
 - 按当前推进要求未运行测试、静态检查、构建、CI 或设备验证。
+## 2026-11-06 — Egern YAML 环境变量透传与临时文件再隔离
+
+- Egern YAML 导入扩展为支持最多 32 项扁平字符串 env：键名限制为 ASCII 标识符，单值不超过 512 字符，JSON 总量不超过 2048 字节；环境 JSON 作为 FXMETA_B64 第五字段保存，订阅同步器输出 FX-SCRIPT-ENV-JSON，QuickJS host 将其合并到 ctx.env。嵌套层级、非法键、非默认资源参数、二进制正文仍会跳过。
+- 应用源码提交：Egern env 透传 `689c5365bdf4af02f112aa849d79420cd3888ad8`；拒绝嵌套 env 扁平化 `ab2cfee7431ae39a3d661cf59c8101fdd8d726f0`。
+- 模块源码提交：Egern env 透传 `4ae5a93ca2ad3c942e06aee2ddee3d8b5101980e`；拒绝嵌套 env 扁平化 `c61425b71f09d04a6ac2a0e749fe9fe5282cc82f`。
+- `fx-module/scripts/jsruntime/sync-subs.sh` 再次修正元数据包装临时文件为进程 PID 独立路径，提交 `2e469c26361336ff256e05e47e6574cd057287d9`。
+- 本轮仅提交源码与文档，未运行测试、静态检查、构建、CI 或设备验证。
