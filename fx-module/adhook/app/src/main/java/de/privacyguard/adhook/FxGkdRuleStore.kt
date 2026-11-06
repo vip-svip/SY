@@ -86,22 +86,43 @@ object FxGkdRuleStore {
 
         val parsed = try {
             val array = JSONArray(raw)
+            if (array.length() > MAX_RULES) throw IllegalArgumentException("Too many persisted GKD rules")
+            val ids = HashSet<String>()
             buildList {
                 for (index in 0 until array.length()) {
-                    val item = array.optJSONObject(index) ?: continue
-                    val id = item.optString("id").takeIf { it.length in 1..64 } ?: continue
-                    val pkg = item.optString("package").takeIf(::isValidPackageName) ?: continue
-                    val selector = item.optString("selector").takeIf { it.isNotBlank() && it.length <= 512 } ?: continue
-                    val cooldown = item.optLong("cooldown_ms", DEFAULT_COOLDOWN_MS)
-                        .coerceIn(MIN_COOLDOWN_MS, MAX_COOLDOWN_MS)
-                    val action = item.optString("action", "click").takeIf { it == "click" || it == "long_click" } ?: "click"
-                    val group = item.optString("group", "默认").trim().takeIf { it.isNotEmpty() && it.length <= 40 } ?: "默认"
+                    val item = array.optJSONObject(index)
+                        ?: throw IllegalArgumentException("Malformed GKD rule at index $index")
+                    val id = item.optString("id")
+                    val pkg = item.optString("package")
+                    val selector = item.optString("selector")
+                    val cooldownValue = if (item.has("cooldown_ms")) item.get("cooldown_ms")
+                        else DEFAULT_COOLDOWN_MS
+                    val cooldown = (cooldownValue as? Number)?.toLong()
+                        ?: throw IllegalArgumentException("Invalid GKD cooldown at index $index")
+                    val enabledValue = if (item.has("enabled")) item.get("enabled") else true
+                    val enabled = enabledValue as? Boolean
+                        ?: throw IllegalArgumentException("Invalid GKD enabled flag at index $index")
+                    val action = item.optString("action", "click")
+                    val group = item.optString("group", "默认").trim()
                     val excludeSelector = item.optString("exclude_selector", "").trim()
-                        .takeIf { it.length <= 512 && (it.isEmpty() || FxGkdSelectorEngine.compile(it).isValid) } ?: ""
-                    add(FxGkdRule(id, pkg, selector, cooldown, item.optBoolean("enabled", true), action, group, excludeSelector))
+                    if (id.length !in 1..64 || !ids.add(id) ||
+                        !isValidPackageName(pkg) ||
+                        selector.isBlank() || selector.length > 512 ||
+                        !FxGkdSelectorEngine.compile(selector).isValid ||
+                        cooldown !in MIN_COOLDOWN_MS..MAX_COOLDOWN_MS ||
+                        (action != "click" && action != "long_click") ||
+                        group.isEmpty() || group.length > 40 ||
+                        excludeSelector.length > 512 ||
+                        (excludeSelector.isNotEmpty() && !FxGkdSelectorEngine.compile(excludeSelector).isValid)
+                    ) {
+                        throw IllegalArgumentException("Invalid or duplicate GKD rule at index $index")
+                    }
+                    add(FxGkdRule(id, pkg, selector, cooldown, enabled, action, group, excludeSelector))
                 }
             }
         } catch (_: Exception) {
+            // The persisted document is one policy unit. Never execute a partial
+            // subset after silently discarding malformed or ambiguous entries.
             emptyList()
         }
         cachedRulesRaw = raw
