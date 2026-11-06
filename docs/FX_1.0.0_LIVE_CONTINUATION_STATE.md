@@ -7153,3 +7153,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 应用源码提交：dda9b249a9b9a0c072801207c3603f285fab5527。
 - 模块源码提交：3201959ddc8aae0325cd1a79f560dd92c21b7fb1。
 - 本轮未运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-06 — 定位隐私扩展到 GNSS / NMEA 回调注册
+
+- 保留现有 LocationManager `getLastKnownLocation`、`getCurrentLocation`、`requestLocationUpdates`、`requestSingleUpdate` 拦截；新增 `registerGnssStatusCallback`、`registerGnssMeasurementsCallback`、`registerGnssNavigationMessageCallback`、`addGpsStatusListener`、`addNmeaListener` 与 `addProximityAlert`。
+- 上述入口沿用 `isLocationAccessBlockAuthorized()` 的隐私总开关、单包进程及当前目标配置条件；命中时以 `SecurityException` 拒绝新增定位/卫星数据访问注册，移除/注销接口不拦截。
+- 应用 Hook 提交：`23b2b81a9521f85b787ce6a3027edc4e7d7c1e60`；模块 Hook 提交：`7d555d6053ab21b97c44f04e90db1d7e288e5142`。
+- 按要求未运行测试、静态检查、构建、CI 或真机验证。
