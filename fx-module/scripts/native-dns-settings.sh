@@ -124,8 +124,20 @@ status() {
     _route_probe=$(printf '%s\n' "$_coexistence" | sed -n 's/.*"route_probe":"\([^"]*\)".*/\1/p' | head -1)
     case "$_route_probe" in passed|failed|unavailable|not_applicable) _coexistence_route_probe=$_route_probe ;; esac
   fi
+  _agh_enabled=$(read_flag dns_engine_adguardhome)
+  _unbound_enabled=$(read_flag dns_forward)
+  _configured=0
   _ready=0
-  [ "$_agh" = ready ] && [ "$_unbound" = ready ] && _ready=1
+  if [ "$_agh_enabled" = 1 ] || [ "$_unbound_enabled" = 1 ]; then
+    _configured=1
+    _ready=1
+    if [ "$_unbound_enabled" = 1 ]; then
+      [ "$_unbound" = ready ] || _ready=0
+    fi
+    if [ "$_agh_enabled" = 1 ]; then
+      [ "$_unbound_enabled" = 1 ] && [ "$_agh" = ready ] || _ready=0
+    fi
+  fi
   echo FXDNS1
   printf 'dns_engine_adguardhome|%s\n' "$(read_flag dns_engine_adguardhome)"
   printf 'dns_forward|%s\n' "$(read_flag dns_forward)"
@@ -141,6 +153,7 @@ status() {
   printf 'dns_filter_coverage|%s\n' "$_dns_filter_coverage"
   printf 'vpn_coexistence_verdict|%s\n' "$_coexistence_verdict"
   printf 'vpn_route_probe|%s\n' "$_coexistence_route_probe"
+  printf 'dns_stack_enabled|%s\n' "$_configured"
   printf 'dns_stack_ready|%s\n' "$_ready"
 }
 mutate() {
