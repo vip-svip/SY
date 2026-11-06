@@ -88,7 +88,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
     private String shell(String args) {
         boolean domainListAdd = args != null && args.matches("(allow-add|block-add) [A-Za-z0-9.-]{1,253}");
         boolean domainListImport = args != null && args.matches("(allow-import|block-import) [A-Za-z0-9+/=]+");
-        if (!"dns-log-tail".equals(args) && !"cache-flush".equals(args)
+        if (!"dns-log-tail".equals(args) && !"dns-log-summary".equals(args) && !"cache-flush".equals(args)
                 && !"cache-flush adguardhome".equals(args)
                 && !"cache-flush unbound".equals(args)
                 && !"cache-flush all".equals(args)
@@ -158,6 +158,10 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         card(body, "本机日志说明",
                 "查询日志默认关闭；启用后 AdGuard Home 按本机保留策略保存记录。这里显示本机保留的完整查询日志，不显示客户端 IP，也不会上传。",
                 status, refreshButton, clearButton, shareButton, copyDomainsButton, allowFilteredButton, blockFilteredButton);
+        TextView summaryStatus = text("尚未读取本机查询统计。", 12, 0xff526170, false);
+        card(body, "查询日志统计摘要",
+                "只统计本机全部保留的活动及轮转日志，输出查询总数、拦截数和未拦截数；不输出域名、客户端 IP 或原始日志。",
+                summaryStatus, button("刷新统计", () -> loadSummary(summaryStatus)));
         cacheFlushButton = button("刷新全部本地 DNS 缓存", () -> confirmCacheFlush("all", "全部本地 DNS"));
         Button aghFlushButton = button("仅刷新 AdGuard Home", () -> confirmCacheFlush("adguardhome", "AdGuard Home"));
         Button unboundFlushButton = button("仅刷新 Unbound", () -> confirmCacheFlush("unbound", "Unbound"));
@@ -209,6 +213,67 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
             @Override public void afterTextChanged(Editable e) {}
         });
         load();
+    }
+
+    private void loadSummary(TextView target) {
+        target.setText("正在统计本机保留的 DNS 查询日志…");
+        root(shell("dns-log-summary"), result -> {
+            if (result.exitCode != 0) {
+                target.setText("统计失败：" + safe(result.output));
+                return;
+            }
+            String raw = result.output == null ? "" : result.output.trim();
+            if ("FXDNSLOG_DISABLED".equals(raw)) {
+                target.setText("DNS 查询日志当前关闭。启用本地查询日志后才能统计。");
+                return;
+            }
+            if ("FXDNSLOG_EMPTY".equals(raw)) {
+                target.setText("本机暂无可统计的 DNS 查询记录。");
+                return;
+            }
+            String[] lines = raw.split("\\r?\\n");
+            if (lines.length == 0 || !"FXYULONGDNSSTATS1".equals(lines[0].trim())) {
+                target.setText("统计响应格式不受支持，拒绝显示可能不完整的数据。");
+                return;
+            }
+            java.util.Map<String, Long> values = new java.util.HashMap<>();
+            for (int i = 1; i < lines.length; i++) {
+                String line = lines[i].trim();
+                if (line.isEmpty()) continue;
+                int split = line.indexOf('=');
+                if (split <= 0 || split == line.length() - 1) {
+                    target.setText("统计响应包含格式错误字段，拒绝显示。");
+                    return;
+                }
+                String key = line.substring(0, split);
+                if (!"queries".equals(key) && !"blocked".equals(key) && !"unblocked".equals(key)) {
+                    target.setText("统计响应包含未知字段：" + key + "；拒绝显示。");
+                    return;
+                }
+                if (values.containsKey(key)) {
+                    target.setText("统计响应包含重复字段：" + key + "；拒绝显示。");
+                    return;
+                }
+                try {
+                    long value = Long.parseLong(line.substring(split + 1));
+                    if (value < 0) throw new NumberFormatException("negative count");
+                    values.put(key, value);
+                } catch (NumberFormatException invalid) {
+                    target.setText("统计响应包含非法数量：" + key + "；拒绝显示。");
+                    return;
+                }
+            }
+            Long queries = values.get("queries");
+            Long blocked = values.get("blocked");
+            Long unblocked = values.get("unblocked");
+            if (queries == null || blocked == null || unblocked == null
+                    || blocked > queries || unblocked != queries - blocked) {
+                target.setText("统计响应缺少字段或总数关系不一致，拒绝显示。");
+                return;
+            }
+            target.setText("本地保留查询总数：" + queries
+                    + " 条\\n已拦截：" + blocked + " 条\\n未拦截：" + unblocked + " 条");
+        });
     }
 
     private void load() {
