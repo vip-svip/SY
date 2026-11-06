@@ -561,6 +561,40 @@ rule_add_many() {
   done < "$_add_clean"
   echo "added=$_add_count"
 }
+rule_remove_many() {
+  _remove_encoded="$1"
+  case "$_remove_encoded" in ''|*[!A-Za-z0-9+/=]*) echo "invalid base64 rule source list" >&2; return 2 ;; esac
+  [ "${#_remove_encoded}" -le 87384 ] || { echo "rule source list exceeds 64 KiB" >&2; return 2; }
+  _remove_raw=$(mktemp "$PG/yulong-rule-remove.XXXXXX") || return 1
+  _yad_rule_remove_raw=$_remove_raw
+  _remove_clean=$(mktemp "$PG/yulong-rule-remove-clean.XXXXXX") || return 1
+  _yad_rule_remove_clean=$_remove_clean
+  chmod 600 "$_remove_raw" "$_remove_clean" || return 1
+  (umask 077; printf '%s' "$_remove_encoded" | base64 -d > "$_remove_raw") || { echo "unable to decode rule source list" >&2; return 2; }
+  _remove_bytes=$(wc -c < "$_remove_raw" | tr -d ' ')
+  [ "$_remove_bytes" -le 65536 ] || { echo "rule source list exceeds 64 KiB" >&2; return 2; }
+  _remove_count=0
+  while IFS= read -r _remove_source || [ -n "$_remove_source" ]; do
+    [ -n "$_remove_source" ] || continue
+    valid_source "$_remove_source" || { echo "invalid rule source in batch" >&2; return 2; }
+    if ! grep -F -x -q "$_remove_source" "$_remove_clean"; then
+      printf '%s\n' "$_remove_source" >> "$_remove_clean" || return 1
+      _remove_count=$((_remove_count + 1))
+      [ "$_remove_count" -le 2000 ] || { echo "rule batch is limited to 2000 sources" >&2; return 2; }
+    fi
+  done < "$_remove_raw"
+  [ "$_remove_count" -gt 0 ] || { echo "no rule sources to remove" >&2; return 2; }
+  while IFS= read -r _remove_source; do
+    pg_list rule | awk -F'|' -v src="$_remove_source" '$1==src{found=1} END{exit !found}' || {
+      echo "rule source is not configured: $_remove_source" >&2
+      return 3
+    }
+  done < "$_remove_clean"
+  while IFS= read -r _remove_source; do
+    m_rule_remove "$_remove_source" || { echo "failed to remove rule source: $_remove_source" >&2; return 1; }
+  done < "$_remove_clean"
+  echo "removed=$_remove_count"
+}
 rule_set_many() {
   _rule_state="$1"; _rule_encoded="$2"
   [ "$_rule_state" = 0 ] || [ "$_rule_state" = 1 ] || return 2
@@ -1007,6 +1041,9 @@ case "$cmd" in
  rule-remove)
   [ "$#" -eq 2 ] && valid_source "$2" || exit 2
   with_lock transaction m_rule_remove "$2" ;;
+ rule-remove-many)
+  [ "$#" -eq 2 ] || { echo "usage: $0 rule-remove-many base64-source-list" >&2; exit 2; }
+  with_lock transaction rule_remove_many "$2" ;;
  rule-set-many)
   [ "$#" -eq 3 ] || { echo "usage: $0 rule-set-many 0|1 base64-source-list" >&2; exit 2; }
   with_lock transaction rule_set_many "$2" "$3" ;;
