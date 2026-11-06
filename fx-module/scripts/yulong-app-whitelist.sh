@@ -163,8 +163,14 @@ with_lock() {
     [ -z "$_YW_RESTORE" ] || rm -f "$_YW_RESTORE" 2>/dev/null || :
     [ -z "$_YW_PID_TEMP" ] || rm -f "$_YW_PID_TEMP" 2>/dev/null || :
     [ -z "$_YW_PACKAGES" ] || rm -f "$_YW_PACKAGES" 2>/dev/null || :
-    [ -L "$LOCK/pid" ] || rm -f "$LOCK/pid" 2>/dev/null || :
-    rmdir "$LOCK" 2>/dev/null || :
+    # The lock path may have been replaced while this transaction ran.
+    # Release only the exact private lock directory whose owner is still us.
+    if [ ! -L "$LOCK" ] && [ -d "$LOCK" ] &&
+        [ ! -L "$LOCK/pid" ] && [ -f "$LOCK/pid" ] &&
+        [ "$(cat "$LOCK/pid" 2>/dev/null || true)" = "$" ]; then
+      rm -f "$LOCK/pid" 2>/dev/null || :
+      rmdir "$LOCK" 2>/dev/null || :
+    fi
   }
   # Keep the lock until the transaction shell has actually exited. A signal
   # must not run cleanup and then resume mutation without owning the lock.
