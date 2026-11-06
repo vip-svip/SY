@@ -190,7 +190,7 @@ valid_ipv4_dns_csv() {
         if($i!~/^[0-9.]+$/){bad=1;exit}
         n=split($i,a,".")
         if(n!=4){bad=1;exit}
-        for(j=1;j<=4;j++)if(a[j]==""||a[j]!~/^[0-9]+$/||length(a[j])>3||a[j]+0>255){bad=1;exit}
+        for(j=1;j<=4;j++)if(a[j]==""||a[j]!~/^[0-9]+$/||length(a[j])>3||a[j]+0>255||(a[j]!="0"&&a[j]~/^0/)){bad=1;exit}
         first=a[1]+0; second=a[2]+0
         if($i=="0.0.0.0"||$i=="255.255.255.255"||
            first==0||first==127||first>=224||(first==169&&second==254)){bad=1;exit}
@@ -207,7 +207,7 @@ valid_fallback_dns_csv() {
         if($i!~/^[0-9.]+$/){bad=1;exit}
         n=split($i,a,".")
         if(n!=4){bad=1;exit}
-        for(j=1;j<=4;j++)if(a[j]==""||a[j]!~/^[0-9]+$/||length(a[j])>3||a[j]+0>255){bad=1;exit}
+        for(j=1;j<=4;j++)if(a[j]==""||a[j]!~/^[0-9]+$/||length(a[j])>3||a[j]+0>255||(a[j]!="0"&&a[j]~/^0/)){bad=1;exit}
         first=a[1]+0; second=a[2]+0
         if($i=="0.0.0.0"||$i=="255.255.255.255" ||
            first==0 || first==127 || first>=224 ||
@@ -223,7 +223,7 @@ valid_dns_csv() {
       if(v!~/^[0-9.]+$/) return 0
       n=split(v,a,".")
       if(n!=4) return 0
-      for(j=1;j<=4;j++) if(a[j]==""||a[j]!~/^[0-9]+$/||length(a[j])>3||a[j]+0>255) return 0
+      for(j=1;j<=4;j++) if(a[j]==""||a[j]!~/^[0-9]+$/||length(a[j])>3||a[j]+0>255||(a[j]!="0"&&a[j]~/^0/)) return 0
       first=a[1]+0; second=a[2]+0
       if(v=="0.0.0.0"||v=="255.255.255.255"||
          first==0||first==127||first>=224||(first==169&&second==254)) return 0
