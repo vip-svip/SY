@@ -35,13 +35,33 @@ LOG_FILE="$DATA_DIR/querylog.json"
 [ -s "$LOG_FILE" ] || { echo FXDNSLOG_EMPTY; exit 0; }
 
 awk '
-function read_json_string(pos,    j,c,escaped) {
-  str_value=""; str_valid=0; j=pos+1; escaped=0
+function read_json_string(pos,    j,c,esc,hex) {
+  str_value=""; str_valid=0; j=pos+1
   while (j <= length(current_line)) {
     c=substr(current_line,j,1)
-    if (escaped) { str_value=str_value c; escaped=0; j++; continue }
-    if (c == "\\") { escaped=1; j++; continue }
+    if (c == "\\") {
+      j++
+      if (j > length(current_line)) { str_end=length(current_line); return }
+      esc=substr(current_line,j,1)
+      if (esc=="u") {
+        hex=substr(current_line,j+1,4)
+        if (length(hex)!=4 || hex !~ /^[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]$/) {
+          str_end=j; return
+        }
+        j+=5
+        str_value=str_value "?"
+        continue
+      }
+      if (esc !~ /^["\\\/bfnrt]$/) { str_end=j; return }
+      if (esc=="b" || esc=="f" || esc=="n" || esc=="r" || esc=="t")
+        str_value=str_value " "
+      else
+        str_value=str_value esc
+      j++
+      continue
+    }
     if (c == "\"") { str_end=j; str_valid=1; return }
+    if (c ~ /[[:cntrl:]]/) { str_end=j; return }
     str_value=str_value c; j++
   }
   str_end=length(current_line)
@@ -73,7 +93,9 @@ function scan_record(line,    i,n,c,j,k,key,value,stack,valid,first,last,nextc,e
           }
         } else if (key=="reason" || key=="status") {
           if (substr(line,k,1)=="\"") {
-            read_json_string(k); value=tolower(str_value)
+            read_json_string(k)
+            if (!str_valid) { valid=0; break }
+            value=tolower(str_value)
             if ((key=="reason" && value ~ /^filtered/) ||
                 (key=="status" && value ~ /(block|filter)/)) filtered=1
           }
