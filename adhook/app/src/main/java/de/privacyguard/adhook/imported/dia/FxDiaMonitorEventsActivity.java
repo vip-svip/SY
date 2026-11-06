@@ -46,7 +46,7 @@ public final class FxDiaMonitorEventsActivity extends de.privacyguard.adhook.FxN
     public static final String EXTRA_TARGET_NAME = "fx_dia_monitor_target_name";
     private static final int MAX_ROOT_OUTPUT = 512 * 1024;
     private static final int REQUEST_EXPORT_EVENTS = 7104;
-    private static final int MAX_EXPORT_CHARS = 256 * 1024;
+    private static final int MAX_EXPORT_BYTES = 256 * 1024;
     private static final long REFRESH_INTERVAL_MS = 15000L;
     private static final int MAX_RESTORED_SEARCH_CHARS = 256;
     private static final String STATE_SEARCH = "fx_dia_monitor_state_search";
@@ -348,22 +348,60 @@ public final class FxDiaMonitorEventsActivity extends de.privacyguard.adhook.FxN
         List<FxDiaMonitorEventParser.Event> filtered = getFilteredEvents();
         if (filtered.isEmpty()) return "";
         StringBuilder output = new StringBuilder();
-        output.append("FX Dia 结构化监控事件\n")
-                .append("目标：").append(targetName).append("\n")
-                .append("包名：").append(targetPackage).append("\n")
+        output.append("FX Dia 结构化监控事件\\n")
+                .append("目标：").append(targetName).append("\\n")
+                .append("包名：").append(targetPackage).append("\\n")
                 .append("导出时间：")
                 .append(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ROOT)
-                        .format(new Date())).append("\n")
-                .append("说明：仅包含内置监控模板解析出的白名单元数据，不含请求正文、SQL 文本、调用栈或自定义脚本原文。\n\n");
+                        .format(new Date())).append("\\n")
+                .append("说明：仅包含内置监控模板解析出的白名单元数据，不含请求正文、SQL 文本、调用栈或自定义脚本原文。\\n\\n");
+        int outputBytes = utf8Length(output);
+        final String marker = "\\n[导出达到 256 KiB 上限，后续事件已省略]\\n";
+        final int markerBytes = utf8Length(marker);
         for (FxDiaMonitorEventParser.Event event : filtered) {
-            String item = event.toDisplayString();
-            if (output.length() + item.length() + 2 > MAX_EXPORT_CHARS) {
-                output.append("\n[导出达到 256 KiB 上限，后续事件已省略]\n");
+            String item = event.toDisplayString() + "\\n\\n";
+            int itemBytes = utf8Length(item);
+            if (outputBytes + itemBytes > MAX_EXPORT_BYTES) {
+                if (outputBytes + markerBytes > MAX_EXPORT_BYTES) {
+                    String bounded = truncateUtf8(output.toString(), MAX_EXPORT_BYTES - markerBytes);
+                    output.setLength(0);
+                    output.append(bounded);
+                }
+                output.append(marker);
                 break;
             }
-            output.append(item).append("\n\n");
+            output.append(item);
+            outputBytes += itemBytes;
         }
         return output.toString();
+    }
+
+    private static int utf8Length(CharSequence value) {
+        if (value == null) return 0;
+        int bytes = 0;
+        for (int i = 0; i < value.length();) {
+            int codePoint = Character.codePointAt(value, i);
+            bytes += codePoint <= 0x7f ? 1 : codePoint <= 0x7ff ? 2
+                    : codePoint <= 0xffff ? 3 : 4;
+            i += Character.charCount(codePoint);
+        }
+        return bytes;
+    }
+
+    private static String truncateUtf8(String value, int maxBytes) {
+        if (value == null || maxBytes <= 0) return "";
+        StringBuilder bounded = new StringBuilder();
+        int bytes = 0;
+        for (int i = 0; i < value.length();) {
+            int codePoint = value.codePointAt(i);
+            int size = codePoint <= 0x7f ? 1 : codePoint <= 0x7ff ? 2
+                    : codePoint <= 0xffff ? 3 : 4;
+            if (bytes + size > maxBytes) break;
+            bounded.appendCodePoint(codePoint);
+            bytes += size;
+            i += Character.charCount(codePoint);
+        }
+        return bounded.toString();
     }
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
