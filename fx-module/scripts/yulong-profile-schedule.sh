@@ -49,17 +49,44 @@ for _yps_path in "$PIDFILE" "$LOG" "$LOCK"; do
 done
 [ ! -e "$LOCK" ] || [ -d "$LOCK" ] || exit 21
 log(){ printf '[%s] profile-schedule: %s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" "$*" >> "$LOG" 2>/dev/null || :; }
-proc_start(){ [ -r "/proc/$1/stat" ] || return 1; awk '{print $22}' "/proc/$1/stat" 2>/dev/null; }
+proc_start(){
+  _pid=$1
+  case "$_pid" in ''|*[!0-9]*) return 1 ;; esac
+  [ -r "/proc/$_pid/stat" ] || return 1
+  _tail=$(sed 's/^.*) //' "/proc/$_pid/stat" 2>/dev/null) || return 1
+  _state=$(printf '%s\n' "$_tail" | awk '{print $1}')
+  _start=$(printf '%s\n' "$_tail" | awk '{print $20}')
+  case "$_state" in Z|X|'') return 1 ;; esac
+  case "$_start" in ''|*[!0-9]*) return 1 ;; esac
+  printf '%s\n' "$_start"
+}
 process_running(){
-  kill -0 "$1" 2>/dev/null || return 1
-  _state=$(awk '{print $3}' "/proc/$1/stat" 2>/dev/null || :)
-  [ "$_state" != Z ]
+  _live_start=$(proc_start "$1" 2>/dev/null) || return 1
+  [ -n "$_live_start" ]
 }
 is_our_watcher(){
-  [ -r "/proc/$1/cmdline" ] || return 1
-  _cmd=$(tr '\000' ' ' < "/proc/$1/cmdline" 2>/dev/null) || return 1
-  case "$_cmd" in *"$SCRIPT"*' watch '*) return 0 ;; esac
-  return 1
+  _watch_pid=$1
+  _expected_start=${2:-}
+  process_running "$_watch_pid" || return 1
+  _live_start=$(proc_start "$_watch_pid" 2>/dev/null) || return 1
+  [ -z "$_expected_start" ] || [ "$_live_start" = "$_expected_start" ] || return 1
+  [ -r "/proc/$_watch_pid/cmdline" ] || return 1
+  tr '\000' '\n' < "/proc/$_watch_pid/cmdline" 2>/dev/null |
+    awk -v script="$SCRIPT" '
+      $0 == script { found=1; next }
+      found && $0 == "watch" { exit 0 }
+      END { if (!found) exit 1 }
+    '
+}
+read_pid_record(){
+  [ -f "$PIDFILE" ] && [ ! -L "$PIDFILE" ] || return 1
+  _record=$(cat "$PIDFILE" 2>/dev/null) || return 1
+  _record_pid=$(printf '%s\n' "$_record" | sed -n '1p')
+  _record_start=$(printf '%s\n' "$_record" | sed -n '2p')
+  case "$_record_pid" in ''|*[!0-9]*) return 2 ;; esac
+  case "$_record_start" in ''|*[!0-9]*) _record_start= ;; esac
+  [ -z "$(printf '%s\n' "$_record" | sed -n '3p')" ] || return 2
+  printf '%s|%s\n' "$_record_pid" "$_record_start"
 }
 release_lock(){
   [ "$HELD" = 1 ] || return 0
@@ -108,8 +135,10 @@ with_lock(){
   return "$_rc"
 }
 write_pid(){
+  _pid_to_write=$1
+  _start_to_write=$(proc_start "$_pid_to_write" 2>/dev/null) || return 1
   _tmp=$(mktemp "$PG/yulong-profile-schedule.pid.XXXXXX") || return 1
-  if (umask 077; printf '%s\n' "$1" > "$_tmp" && chmod 600 "$_tmp" && mv -f "$_tmp" "$PIDFILE"); then return 0; fi
+  if (umask 077; printf '%s\n%s\n' "$_pid_to_write" "$_start_to_write" > "$_tmp" && chmod 600 "$_tmp" && mv -f "$_tmp" "$PIDFILE"); then return 0; fi
   rm -f "$_tmp" 2>/dev/null || :
   return 1
 }
@@ -128,10 +157,19 @@ start_locked(){
     echo "no-profile-schedules"
     return 0
   fi
-  if [ -f "$PIDFILE" ] && [ ! -L "$PIDFILE" ]; then
-    _oldpid=$(cat "$PIDFILE" 2>/dev/null)
+  if _old_record=$(read_pid_record); then
+    _oldpid=${_old_record%%|*}
+    _oldstart=${_old_record#*|}
+    if [ -n "$_oldstart" ] && is_our_watcher "$_oldpid" "$_oldstart"; then
+      echo "already-running pid=$_oldpid"; return 0
+    fi
+  elif [ -f "$PIDFILE" ] && [ ! -L "$PIDFILE" ]; then
+    # Legacy PID-only records are accepted only when argv proves this exact watcher.
+    _oldpid=$(sed -n '1p' "$PIDFILE" 2>/dev/null)
     case "$_oldpid" in ''|*[!0-9]*) _oldpid= ;; esac
-    if [ -n "$_oldpid" ] && process_running "$_oldpid" && is_our_watcher "$_oldpid"; then
+    if [ -n "$_oldpid" ] && is_our_watcher "$_oldpid"; then
+      _legacy_start=$(proc_start "$_oldpid" 2>/dev/null || :)
+      [ -n "$_legacy_start" ] && write_pid "$_oldpid" || return 1
       echo "already-running pid=$_oldpid"; return 0
     fi
   fi
@@ -144,20 +182,32 @@ start_locked(){
 }
 start(){ with_lock start_locked; }
 stop_locked(){
-  if [ -f "$PIDFILE" ] && [ ! -L "$PIDFILE" ]; then
-    _pid=$(cat "$PIDFILE" 2>/dev/null)
-    case "$_pid" in ''|*[!0-9]*) _pid= ;; esac
-    if [ -n "$_pid" ] && process_running "$_pid" && is_our_watcher "$_pid"; then
-      kill -TERM "$_pid" 2>/dev/null || :
+  if _record=$(read_pid_record); then
+    _pid=${_record%%|*}
+    _expected_start=${_record#*|}
+    is_our_watcher "$_pid" "$_expected_start" || {
+      log "watcher PID identity no longer matches its published record; refusing signal"
+      return 1
+    }
+    kill -TERM "$_pid" 2>/dev/null || :
+    _wait=0
+    while [ "$_wait" -lt 15 ] && is_our_watcher "$_pid" "$_expected_start"; do sleep 0.2; _wait=$((_wait+1)); done
+    if is_our_watcher "$_pid" "$_expected_start"; then
+      is_our_watcher "$_pid" "$_expected_start" || { log "watcher PID changed identity; refusing SIGKILL"; return 1; }
+      kill -KILL "$_pid" 2>/dev/null || :
+    fi
+    _wait=0
+    while [ "$_wait" -lt 15 ] && is_our_watcher "$_pid" "$_expected_start"; do sleep 0.2; _wait=$((_wait+1)); done
+    is_our_watcher "$_pid" "$_expected_start" && { log "watcher did not stop"; return 1; }
+  elif [ -f "$PIDFILE" ] && [ ! -L "$PIDFILE" ]; then
+    _legacy_pid=$(sed -n '1p' "$PIDFILE" 2>/dev/null)
+    case "$_legacy_pid" in ''|*[!0-9]*) _legacy_pid= ;; esac
+    if [ -n "$_legacy_pid" ] && is_our_watcher "$_legacy_pid"; then
+      _legacy_start=$(proc_start "$_legacy_pid" 2>/dev/null) || return 1
+      kill -TERM "$_legacy_pid" 2>/dev/null || :
       _wait=0
-      while [ "$_wait" -lt 15 ] && process_running "$_pid"; do sleep 0.2; _wait=$((_wait+1)); done
-      if process_running "$_pid"; then
-        is_our_watcher "$_pid" || { log "watcher PID changed identity; refusing SIGKILL"; return 1; }
-        kill -KILL "$_pid" 2>/dev/null || :
-      fi
-      _wait=0
-      while [ "$_wait" -lt 15 ] && process_running "$_pid"; do sleep 0.2; _wait=$((_wait+1)); done
-      process_running "$_pid" && { log "watcher did not stop"; return 1; }
+      while [ "$_wait" -lt 15 ] && is_our_watcher "$_legacy_pid" "$_legacy_start"; do sleep 0.2; _wait=$((_wait+1)); done
+      is_our_watcher "$_legacy_pid" "$_legacy_start" && { log "legacy watcher did not stop"; return 1; }
     fi
   fi
   rm -f "$PIDFILE"
@@ -166,10 +216,14 @@ stop_locked(){
 stop(){ with_lock stop_locked; }
 status(){
   _running=0
-  if [ -f "$PIDFILE" ] && [ ! -L "$PIDFILE" ]; then
-    _pid=$(cat "$PIDFILE" 2>/dev/null)
+  if _record=$(read_pid_record); then
+    _pid=${_record%%|*}
+    _start=${_record#*|}
+    if [ -n "$_start" ] && is_our_watcher "$_pid" "$_start"; then _running=1; fi
+  elif [ -f "$PIDFILE" ] && [ ! -L "$PIDFILE" ]; then
+    _pid=$(sed -n '1p' "$PIDFILE" 2>/dev/null)
     case "$_pid" in ''|*[!0-9]*) _pid= ;; esac
-    if [ -n "$_pid" ] && process_running "$_pid" && is_our_watcher "$_pid"; then _running=1; fi
+    if [ -n "$_pid" ] && is_our_watcher "$_pid"; then _running=1; fi
   fi
   echo "watcher=$_running"
   echo "schedules=$(awk -F'|' 'NR>1 && $5=="1" && NF>=6 {n++} END{print n+0}' "$PG/yulong-profile-schedules.tsv" 2>/dev/null)"

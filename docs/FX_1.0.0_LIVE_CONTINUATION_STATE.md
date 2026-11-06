@@ -712,3 +712,14 @@
 - 锁释放必须匹配当前 PID 和启动时钟；锁目录/owner 文件遇到符号链接时拒绝跟随，owner 发布后再次读取确认归属。
 - 保留原有并发互斥、失效锁限时回收、脚本文件保留与回滚流程。
 - 按用户要求未运行测试、静态检查、构建、CI 或设备验证。
+
+
+### FX ProtectionProfile 定时任务 PID 身份绑定与安全停止（2026-11-07）
+
+- 代码提交：待提交。
+- 文件：`fx-module/scripts/yulong-profile-schedule.sh`。
+- Profile watcher PID 文件改为同时记录 PID 与 Linux 进程启动时钟；状态判断、重复启动识别和停止信号都绑定这组身份，避免 PID 复用时误把其他进程当作 watcher。
+- watcher 命令行验证改为逐个读取 NUL 分隔 argv，并要求脚本路径参数后紧跟 `watch`，不再使用扁平命令行子串匹配。
+- 对旧版 PID-only 文件保留受限兼容：只有精确 argv 证明目标是本 watcher 时才升级记录或发停止信号；身份不匹配时拒绝向该 PID 发送信号。
+- 保留现有 Profile 计划调度、运行锁、TERM/KILL 等待和日志行为。
+- 按用户要求未运行测试、静态检查、构建、CI 或设备验证。
