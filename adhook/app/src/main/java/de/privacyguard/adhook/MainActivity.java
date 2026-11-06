@@ -1231,7 +1231,8 @@ public final class MainActivity extends ComponentActivity {
                         + " · 覆盖范围：" + nativeDnsStatusLabel("dns_filter_coverage", state.getOrDefault("dns_filter_coverage", "unknown"))
                         + "\nVPN 共存裁决：" + nativeDnsStatusLabel("vpn_coexistence_verdict", state.getOrDefault("vpn_coexistence_verdict", "unknown"))
                         + " · 路由探测：" + nativeDnsStatusLabel("vpn_route_probe", state.getOrDefault("vpn_route_probe", "unavailable"))
-                        + "\nDNS 链路就绪：" + ("1".equals(state.get("dns_stack_ready")) ? "是" : "否"));
+                        + "\nDNS 引擎配置：" + ("1".equals(state.get("dns_stack_enabled")) ? "已启用" : "已关闭")
+                        + " · DNS 链路就绪：" + ("1".equals(state.get("dns_stack_ready")) ? "是" : "否"));
             } catch (Exception error) {
                 target.setText("DNS 状态暂不可用：" + (error.getMessage() == null ? "unknown" : error.getMessage()));
             }
@@ -1262,6 +1263,7 @@ public final class MainActivity extends ComponentActivity {
                         + "\nDNS 过滤覆盖：" + nativeDnsStatusLabel("dns_filter_coverage", state.getOrDefault("dns_filter_coverage", "unknown"))
                         + "\nVPN 共存裁决：" + nativeDnsStatusLabel("vpn_coexistence_verdict", state.getOrDefault("vpn_coexistence_verdict", "unknown"))
                         + "\n路由探测：" + nativeDnsStatusLabel("vpn_route_probe", state.getOrDefault("vpn_route_probe", "unavailable"))
+                        + "\nDNS 引擎配置：" + ("1".equals(state.get("dns_stack_enabled")) ? "已启用" : "已关闭")
                         + "\nDNS 链路就绪：" + ("1".equals(state.get("dns_stack_ready")) ? "是" : "否")
                         + "\n\nRoot Proxy 只在第三方 VPN 所有者、出口路由和 DNS 引擎条件满足时接管 DNS，不会创建第二个 Android VPN。";
                 FxNativeSkin.builder(this).setTitle("DNS 引擎管理").setMessage(detail)
