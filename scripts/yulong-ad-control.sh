@@ -23,6 +23,7 @@ _yad_control_lock=
 _yad_cache_lock=
 _yad_import_raw=
 _yad_import_clean=
+_yad_remove_raw=
 _yad_cleanup() {
   [ -z "$_yad_conf_tmp" ] || rm -f "$_yad_conf_tmp" 2>/dev/null || :
   [ -z "$_yad_transaction_backup" ] || rm -f "$_yad_transaction_backup" 2>/dev/null || :
@@ -34,6 +35,7 @@ _yad_cleanup() {
   [ -z "$_yad_cache_lock" ] || rmdir "$_yad_cache_lock" 2>/dev/null || :
   [ -z "$_yad_import_raw" ] || rm -f "$_yad_import_raw" 2>/dev/null || :
   [ -z "$_yad_import_clean" ] || rm -f "$_yad_import_clean" 2>/dev/null || :
+  [ -z "$_yad_remove_raw" ] || rm -f "$_yad_remove_raw" 2>/dev/null || :
 }
 trap '_yad_cleanup' 0
 trap '_yad_cleanup; exit 129' HUP
@@ -416,12 +418,53 @@ import_domains() {
   rm -f "$_import_raw" "$_import_clean" 2>/dev/null || :
   echo "imported=$_import_count"
 }
+remove_domains() {
+  _remove_kind="$1"
+  _remove_encoded="$2"
+  case "$_remove_kind" in allow|block) ;; *) return 2 ;; esac
+  case "$_remove_encoded" in ''|*[!A-Za-z0-9+/=]*) echo "invalid base64 domain removal" >&2; return 2 ;; esac
+  [ "${#_remove_encoded}" -le 87384 ] || { echo "domain removal exceeds 64 KiB" >&2; return 2; }
+  _remove_raw=$(mktemp "$PG/yulong-domain-remove.XXXXXX") || return 1
+  _yad_remove_raw=$_remove_raw
+  chmod 600 "$_remove_raw" || return 1
+  (umask 077; printf '%s' "$_remove_encoded" | base64 -d > "$_remove_raw") || {
+    rm -f "$_remove_raw"; _yad_remove_raw=; echo "unable to decode domain removal" >&2; return 2;
+  }
+  _remove_bytes=$(wc -c < "$_remove_raw" | tr -d ' ')
+  [ "$_remove_bytes" -le 65536 ] || { echo "domain removal exceeds 64 KiB" >&2; return 2; }
+  _remove_clean=$(mktemp "$PG/yulong-domain-remove-clean.XXXXXX") || return 1
+  chmod 600 "$_remove_clean" || { rm -f "$_remove_clean"; return 1; }
+  _remove_count=0
+  while IFS= read -r _remove_line || [ -n "$_remove_line" ]; do
+    _remove_line=$(printf '%s' "$_remove_line" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    [ -n "$_remove_line" ] || continue
+    _remove_domain=$(valid_domain "$_remove_line") || {
+      rm -f "$_remove_clean"; echo "invalid domain in removal list" >&2; return 2;
+    }
+    printf '%s\n' "$_remove_domain" >> "$_remove_clean" || { rm -f "$_remove_clean"; return 1; }
+    _remove_count=$((_remove_count + 1))
+    [ "$_remove_count" -le 2000 ] || { rm -f "$_remove_clean"; echo "domain removal is limited to 2000 rows" >&2; return 2; }
+  done < "$_remove_raw"
+  [ "$_remove_count" -gt 0 ] || { rm -f "$_remove_clean"; echo "no domains to remove" >&2; return 2; }
+  while IFS= read -r _remove_domain; do
+    if [ "$_remove_kind" = allow ]; then
+      sh "$MP/scripts/whitelist.sh" remove "$_remove_domain" || { rm -f "$_remove_clean"; echo "failed to remove allow domain" >&2; return 1; }
+    else
+      write_block "$_remove_domain" "" 0 remove || { rm -f "$_remove_clean"; echo "failed to remove block domain" >&2; return 1; }
+    fi
+  done < "$_remove_clean"
+  rm -f "$_remove_clean" "$_remove_raw"
+  _yad_remove_raw=
+  echo "removed=$_remove_count"
+}
 m_allow_add(){ sh "$MP/scripts/whitelist.sh" add "$1" "$2"; }
 m_allow_remove(){ sh "$MP/scripts/whitelist.sh" remove "$1"; }
 m_allow_import(){ import_domains allow "$1"; }
 m_block_add(){ write_block "$1" "$2" 1 add; }
 m_block_remove(){ write_block "$1" "" 0 remove; }
 m_block_import(){ import_domains block "$1"; }
+m_allow_remove_many(){ remove_domains allow "$1"; }
+m_block_remove_many(){ remove_domains block "$1"; }
 valid_time() {
   printf '%s\n' "$1" | awk -F: 'NF==2 && $1~/^[0-9][0-9]$/ && $2~/^[0-9][0-9]$/ && $1+0<=23 && $2+0<=59 {ok=1} END{exit !ok}'
 }
@@ -657,9 +700,15 @@ case "$cmd" in
  allow-import)
   [ "$#" -eq 2 ] || { echo "usage: $0 allow-import base64-domain-list" >&2; exit 2; }
   with_lock transaction m_allow_import "$2" ;;
+ allow-remove-many)
+  [ "$#" -eq 2 ] || { echo "usage: $0 allow-remove-many base64-domain-list" >&2; exit 2; }
+  with_lock transaction m_allow_remove_many "$2" ;;
  block-import)
   [ "$#" -eq 2 ] || { echo "usage: $0 block-import base64-domain-list" >&2; exit 2; }
   with_lock transaction m_block_import "$2" ;;
+ block-remove-many)
+  [ "$#" -eq 2 ] || { echo "usage: $0 block-remove-many base64-domain-list" >&2; exit 2; }
+  with_lock transaction m_block_remove_many "$2" ;;
  block-add)
   [ "$#" -ge 2 ] && [ "$#" -le 3 ] || exit 2
   d=$(valid_domain "$2") || exit 2; note=$3; [ -n "$note" ] || note="FX 黑名单"; valid_text "$note" || exit 2
