@@ -740,9 +740,17 @@ private void shareDnsProfile(){
   });
 }
 private void restoreDnsProfile(EditText input){
-  String raw=input.getText()==null?"":input.getText().toString().trim();
-  if(raw.isEmpty()){status.setText("请先粘贴 DNS 配置快照。");return;}
-  if(!raw.startsWith("FXYULONGDNSPROFILE1\\n")&&!raw.equals("FXYULONGDNSPROFILE1")&&!raw.startsWith("FXYULONGDNSPROFILE1\r\\n")){
+  String supplied=input.getText()==null?"":input.getText().toString();
+  if(supplied.trim().isEmpty()){status.setText("请先粘贴 DNS 配置快照。");return;}
+  StringBuilder normalized=new StringBuilder();
+  for(String line:supplied.split("\\r?\\n")){
+    String trimmed=line.trim();
+    if(trimmed.isEmpty()||trimmed.startsWith("#"))continue;
+    if(normalized.length()>0)normalized.append('\\n');
+    normalized.append(trimmed);
+  }
+  String raw=normalized.toString();
+  if(!raw.startsWith("FXYULONGDNSPROFILE1\\n")&&!raw.equals("FXYULONGDNSPROFILE1")){
     status.setText("快照版本头不匹配，未修改配置。");return;
   }
   byte[] bytes=raw.getBytes(java.nio.charset.StandardCharsets.UTF_8);
