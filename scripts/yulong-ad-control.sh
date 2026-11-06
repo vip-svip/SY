@@ -770,8 +770,9 @@ case "$cmd" in
   ;;
 
  dns-config-clear)
-  [ "$#" -eq 2 ] && [ "$2" = fallback ] || { echo "usage: $0 dns-config-clear fallback" >&2; exit 2; }
-  with_lock transaction m_dns_section_clear yulong_dns_fallback
+  [ "$#" -eq 2 ] || { echo "usage: $0 dns-config-clear custom|global|fallback" >&2; exit 2; }
+  case "$2" in custom) section=custom_dns ;; global) section=global_dns ;; fallback) section=yulong_dns_fallback ;; *) exit 2 ;; esac
+  with_lock transaction m_dns_section_clear "$section"
   ;;
 
  dns-vpn-set)
