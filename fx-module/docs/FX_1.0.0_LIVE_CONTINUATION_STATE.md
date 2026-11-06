@@ -6810,3 +6810,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - DNS 配置快照增加 `QUERYLOG_IGNORED_ENABLED`、`QUERYLOG_IGNORED` 两项，纳入导出、导入验证、差异预览和恢复确认。旧版快照缺少新字段时默认关闭、列表为空，保证向后兼容。
 - 代码提交：Root 后端 `69ebb09ba807bdee05008b1347244d1bbb5127d6`，模块后端 `149194a161e800b9b39b52a5b75e1fb824c198ce`；AdGuard renderer `494d658e2665dea3837efb50332ae91a53c7e364`，模块 renderer `3df2caa22dc2ed8f4bbe5101fe44d8be4089813c`；原生 UI `1ec84dda4ea284d9c5bcd14dad47dc1d31028d9b`，模块 UI `78013a73d26cec461db2f61970121ff8235dd674`；快照 canonical `40830bfdad13d03328995e416bc2b7f75ee2a6b8`，模块快照 `d0d27b3d2d69c1c7d5ada8015941fb0f0ff045b7`。
 - 按当前推进要求未运行测试、静态检查、构建、CI 或 Android 真机验证；本记录描述源码移植，不代表设备端验收通过。
+
+## 2026-11-07 — CPU-aware Unbound 工作线程配置闭环与 DNS 快照字段解耦
+
+- Unbound 工作线程数已贯通 Root 后端、运行时 YAML、原生设置 UI 和 DNS 快照：Root 根据当前在线 CPU 数限制正整数线程数；`unbound.sh` 将持久化 `UNBOUND_NUM_THREADS` 实际写入 `num-threads`，并在启动配置生成时重新比较当前在线 CPU 核心数。
+- `unbound-runtime-get` 同时回传 `UNBOUND_THREADS_MAX`；原生 Ad 页面显示设备当前在线核心数上限，读取和保存时对工作线程数做上限比较，Root 后端仍执行最终校验。
+- DNS 快照包括 `UNBOUND_NUM_THREADS`，旧版快照缺少该字段时默认回填 `1`；导入预览展示线程数，恢复时由 Root 后端按恢复设备当前 CPU 核心数再次校验。
+- 移除正式 App 与模块 App 的 DNS 快照固定字段总数白名单。仍保留字段名称白名单、未知/重复字段拒绝、必要字段完整性判断、旧版新增字段默认值和后端最终语义校验，避免后续增字段再次被人为总数门槛挡住。
+- 本批快照字段门槛清理提交：正式 App `3791125c729e27c798355d547bc693a656fe538c`；模块 App `0fca4ae11ba6b8dadcf65ad1d6cc89b1a43a104f`。协作线程配置与快照提交包括 `c9ff73e864c4`、`26b21880683b`、`19933b8729f6`、`2ba7e94a9252`；续接记录提交另见本文件更新。
+- 同期 DNS 配置快照补入查询日志排除域名字段，支持备份/恢复时保留统计和查询日志的本地隐私排除设置。
+- 按用户当前要求未运行测试、静态检查、Gradle/APK 构建、CI 或 Android 真机验证；仅记录已提交源码状态，不代表设备验收。
