@@ -8285,3 +8285,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 后端文件：`fx-module/scripts/yulong-ad-control.sh`；以仓库规范脚本 `scripts/yulong-ad-control.sh` 的完整实现同步，补入模块此前缺失的 rule-remove-many、rule-rename、rule-set-many、rule-add-many 等事务命令，同时同步 DNS 配置快照、运行状态、批量 DNS 配置、VPN DNS 双项保存及名单管理等既有后端能力。模块脚本与规范脚本内容现已一致。
 - 批量订阅操作沿用现有输入上限、来源验证、事务锁和回滚逻辑；未另建订阅数据格式或后端协议。
 - 按用户要求暂不核验；未运行测试、静态检查、Gradle 构建、CI、安装或设备验证。
+
+
+### FX 模块 Activity Browser 原生管理功能补齐（2026-11-07）
+
+- 代码提交：`7a2e1da70a6e357e14ed73a8e609b406cf6ec89b`。
+- 文件：`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaActivityBrowserActivity.java`。
+- 补入主应用已有的筛选结果清单复制、当前搜索条件与当前页范围内的 Activity 批量启用/禁用确认流程，以及启动已导出 Activity 的入口。
+- 批量操作继续限定当前选中应用、当前页和当前筛选结果；保留组件类名校验、目标包安全检查、逐次确认、Root 命令执行后重新读取系统状态等原有保护，不扩展为全应用或跨页批量修改。
+- 未替换整个 Activity Browser 文件，仅增量移植模块缺失的方法和 UI 入口。
+- 按用户要求暂不核验；未运行测试、静态检查、Gradle 构建、CI、安装或设备验证。
