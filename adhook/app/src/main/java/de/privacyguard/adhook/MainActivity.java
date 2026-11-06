@@ -1970,6 +1970,13 @@ public final class MainActivity extends ComponentActivity {
         }
     }
 
+    private static String nativePrivacyPolicyState(JSONObject json, String key) {
+        if (json == null || !json.has(key) || json.isNull(key)) return "状态接口未提供";
+        Object value = json.opt(key);
+        if (!(value instanceof Boolean)) return "状态格式未知";
+        return ((Boolean) value) ? "已启用" : "未启用";
+    }
+
     private void refreshNativePrivacyStatus(TextView target) {
         runNativeModuleCommand("sh \"$MP/scripts/status.sh\" json", 30000L, result -> {
             try {
@@ -1997,11 +2004,11 @@ public final class MainActivity extends ComponentActivity {
                         + " · Wi-Fi 扫描目标：" + json.optInt("hook_native_wifi_scan_targets", 0)
                         + " · 剪贴板隔离目标：" + json.optInt("hook_native_clipboard_isolate_targets", 0)
                         + " · 通知监听目标：" + json.optInt("hook_native_notification_listen_targets", 0)
-                        + "\n隐私 Hook 总开关：" + (json.optBoolean("hook_native_privacy_enabled", false) ? "已启用" : "未启用")
-                        + " · Wi-Fi 扫描策略：" + (json.optBoolean("hook_native_wifi_scan_enabled", false) ? "已启用" : "未启用")
-                        + " · 剪贴板隔离策略：" + (json.optBoolean("hook_native_clipboard_isolate_enabled", false) ? "已启用" : "未启用")
-                        + "\n通知权限提示隐藏：" + (json.optBoolean("hook_native_notification_permission_hide_enabled", false) ? "已启用" : "未启用")
-                        + " · 通知监听策略：" + (json.optBoolean("hook_native_notification_listen_enabled", false) ? "已启用" : "未启用")
+                        + "\n隐私 Hook 总开关：" + nativePrivacyPolicyState(json, "hook_native_privacy_enabled")
+                        + " · Wi-Fi 扫描策略：" + nativePrivacyPolicyState(json, "hook_native_wifi_scan_enabled")
+                        + " · 剪贴板隔离策略：" + nativePrivacyPolicyState(json, "hook_native_clipboard_isolate_enabled")
+                        + "\n通知权限提示隐藏：" + nativePrivacyPolicyState(json, "hook_native_notification_permission_hide_enabled")
+                        + " · 通知监听策略：" + nativePrivacyPolicyState(json, "hook_native_notification_listen_enabled")
                         + "\n会员状态只读诊断目标：" + json.optInt("hook_native_member_diag_targets", 0)
                         + " · 目标配置用户数：" + json.optInt("hook_native_config_users", 0)
                         + " · 远程配置：" + (json.optBoolean("hook_native_config_found", false) ? "已发布" : "未发布"));
