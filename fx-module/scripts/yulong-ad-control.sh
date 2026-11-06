@@ -1150,7 +1150,8 @@ dns_profile_get() {
   _profile_querylog_ignored_enabled=$(printf '%s\n' "$_querylog_ignored_record" | sed -n 's/^QUERYLOG_IGNORED_ENABLED=//p')
   _profile_querylog_ignored=$(printf '%s\n' "$_querylog_ignored_record" | sed -n 's/^QUERYLOG_IGNORED=//p')
   [ -n "$_profile_querylog_ignored_enabled" ] || { echo "DNS query-log ignored-domain flag is unavailable" >&2; return 22; }
-  _profile_dns_rewrites=$(dns_rewrites_values | awk '{if(NR>1)printf ",";printf "%s",$0}') || return $?
+  _profile_dns_rewrites_rows=$(dns_rewrites_values) || return $?
+  _profile_dns_rewrites=$(printf '%s\n' "$_profile_dns_rewrites_rows" | awk 'NF{if(NR>1)printf ",";printf "%s",$0}')
   _statistics_record=$(dns_statistics_values) || { echo "DNS statistics settings are unavailable" >&2; return 22; }
   _profile_statistics_enabled=$(printf '%s\n' "$_statistics_record" | sed -n 's/^STATISTICS_ENABLED=//p')
   _profile_statistics_interval=$(printf '%s\n' "$_statistics_record" | sed -n 's/^STATISTICS_INTERVAL=//p')
