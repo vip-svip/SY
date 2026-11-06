@@ -28,6 +28,29 @@ decode_b64() {
   # The argument is never evaluated by the shell, only passed to printf as data.
   printf '%s' "$1" | base64 -d 2>/dev/null
 }
+
+is_duplicate_pair() {
+  printf '%s' "$1" > "$VALUE_FILE" || return 1
+  printf '%s' "$2" > "$NOTE_FILE" || return 1
+  awk -F'|' -v vf="$VALUE_FILE" -v nf="$NOTE_FILE" '
+    BEGIN { getline v < vf; getline n < nf; close(vf); close(nf) }
+    $1 == v && $2 == n { found=1 }
+    END { exit !found }
+  ' "$ROWS"
+}
+is_duplicate_local_source() {
+  base64 < "$VALUE_FILE" | tr -d '\n' > "$VALUE_B64_FILE" || return 1
+  printf '%s' "$1" > "$NOTE_FILE" || return 1
+  awk -F'|' -v bf="$VALUE_B64_FILE" -v nf="$NOTE_FILE" '
+    BEGIN {
+      getline encoded < bf; close(bf)
+      getline n < nf; close(nf)
+      expected = "FXSRC_B64:" encoded
+    }
+    $1 == expected && $2 == n { found=1 }
+    END { exit !found }
+  ' "$ROWS"
+}
 ACTION=${1:-}
 shift || :
 case "$ACTION" in
@@ -61,12 +84,13 @@ case "$ACTION" in
     done
     printf '%s\n' "$$" > "$LOCK/pid"
     ROWS="$PG/jsruntime/native-script-rows.$$"
-    VALUE_FILE="$PG/jsruntime/native-script-value.$$"
-    NOTE_FILE="$PG/jsruntime/native-script-note.$$"
-    TMP="$CONF.native.tmp.$$"
+    VALUE_FILE="$PG/jsruntime/native-script-value.$"
+    VALUE_B64_FILE="$PG/jsruntime/native-script-value64.$"
+    NOTE_FILE="$PG/jsruntime/native-script-note.$"
+    TMP="$CONF.native.tmp.$"
     BACKUP="$CONF.native.bak.$$"
     cleanup() {
-      rm -f "$ROWS" "$VALUE_FILE" "$NOTE_FILE" "$TMP" "$BACKUP"
+      rm -f "$ROWS" "$VALUE_FILE" "$VALUE_B64_FILE" "$NOTE_FILE" "$TMP" "$BACKUP"
       owner=$(cat "$LOCK/pid" 2>/dev/null || true)
       if [ "$owner" = "$$" ]; then rm -f "$LOCK/pid"; rmdir "$LOCK" 2>/dev/null || :; fi
     }
@@ -89,6 +113,10 @@ case "$ACTION" in
         [ "${#note}" -le 4096 ] || { echo "ERROR script metadata exceeds 4096 characters"; exit 65; }
         value=$(encode_script_value "$value") || { echo "ERROR only HTTPS URLs or local JS source are supported"; exit 65; }; note=$(sanitize_field "$note")
         [ -n "$note" ] || note=$(printf '%s' "$value" | cut -c1-80)
+        if is_duplicate_pair "$value" "$note"; then
+          echo "OK DUPLICATE"
+          exit 0
+        fi
         printf '%s|%s|%s\n' "$value" "$note" "$enabled" >> "$ROWS"
         ;;
       add-file)
@@ -114,7 +142,12 @@ case "$ACTION" in
             value=$(cat "$VALUE_FILE") || { echo "ERROR unable to read HTTPS subscription"; exit 1; }
             case "$value" in *[[:space:]]*) echo "ERROR invalid HTTPS subscription URL"; exit 65 ;; esac
             value=$(encode_script_value "$value") || { echo "ERROR invalid HTTPS subscription URL"; exit 65; }
-            printf '%s|%s|%s\n' "$value" "$(sanitize_field "$note")" "$enabled" >> "$ROWS"
+            note=$(sanitize_field "$note")
+            if is_duplicate_pair "$value" "$note"; then
+              echo "OK DUPLICATE"
+              exit 0
+            fi
+            printf '%s|%s|%s\n' "$value" "$note" "$enabled" >> "$ROWS"
             ;;
           *)
             if printf '%s' "$first_line" | grep -Eq '^[A-Za-z][A-Za-z0-9+.-]*://'; then
@@ -122,6 +155,10 @@ case "$ACTION" in
             fi
             note=$(sanitize_field "$note")
             [ -n "$note" ] || note="Local JavaScript"
+            if is_duplicate_local_source "$note"; then
+              echo "OK DUPLICATE"
+              exit 0
+            fi
             printf 'FXSRC_B64:' >> "$ROWS"
             base64 < "$VALUE_FILE" | tr -d '\n' >> "$ROWS"
             printf '|%s|%s\n' "$note" "$enabled" >> "$ROWS"
@@ -137,6 +174,14 @@ case "$ACTION" in
         value=$(encode_script_value "$value") || { echo "ERROR only HTTPS URLs or local JS source are supported"; exit 65; }; note=$(sanitize_field "$note")
         [ -n "$note" ] || note=$(printf '%s' "$value" | cut -c1-80)
         printf '%s' "$value" > "$VALUE_FILE"; printf '%s' "$note" > "$NOTE_FILE"
+        if awk -F'|' -v n="$index" -v vf="$VALUE_FILE" -v nf="$NOTE_FILE" '
+          BEGIN { getline v < vf; getline d < nf; close(vf); close(nf) }
+          { i++; if(i != n && $1 == v && $2 == d) found=1 }
+          END { exit !found }
+        ' "$ROWS"; then
+          echo "ERROR duplicate script item already exists"
+          exit 65
+        fi
         awk -F'|' -v n="$index" -v vf="$VALUE_FILE" -v nf="$NOTE_FILE" 'BEGIN{getline v < vf; getline d < nf; OFS="|"} {i++; if(i==n){print v,d,$3; found=1}else print} END{if(!found)exit 4}' "$ROWS" > "$TMP.rows" || { rm -f "$TMP.rows"; echo "ERROR script index not found"; exit 66; }
         mv "$TMP.rows" "$ROWS"
         ;;
