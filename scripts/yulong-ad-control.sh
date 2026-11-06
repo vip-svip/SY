@@ -29,6 +29,8 @@ _yad_rule_clean=
 _yad_rule_add_raw=
 _yad_rule_add_clean=
 _yad_profile_raw=
+_yad_bundle_raw=
+_yad_bundle_clean=
 _yad_cleanup() {
   [ -z "$_yad_conf_tmp" ] || rm -f "$_yad_conf_tmp" 2>/dev/null || :
   [ -z "$_yad_transaction_backup" ] || rm -f "$_yad_transaction_backup" 2>/dev/null || :
@@ -46,6 +48,8 @@ _yad_cleanup() {
   [ -z "$_yad_rule_add_raw" ] || rm -f "$_yad_rule_add_raw" 2>/dev/null || :
   [ -z "$_yad_rule_add_clean" ] || rm -f "$_yad_rule_add_clean" 2>/dev/null || :
   [ -z "$_yad_profile_raw" ] || rm -f "$_yad_profile_raw" 2>/dev/null || :
+  [ -z "$_yad_bundle_raw" ] || rm -f "$_yad_bundle_raw" 2>/dev/null || :
+  [ -z "$_yad_bundle_clean" ] || rm -f "$_yad_bundle_clean" 2>/dev/null || :
 }
 trap '_yad_cleanup' 0
 trap '_yad_cleanup; exit 129' HUP
@@ -679,6 +683,42 @@ import_domains() {
   rm -f "$_import_raw" "$_import_clean" 2>/dev/null || :
   echo "imported=$_import_count"
 }
+import_domain_bundle() {
+  _bundle_encoded="$1"
+  case "$_bundle_encoded" in ''|*[!A-Za-z0-9+/=]*) echo "invalid domain bundle encoding" >&2; return 2 ;; esac
+  [ "${#_bundle_encoded}" -le 87384 ] || { echo "domain bundle exceeds 64 KiB" >&2; return 2; }
+  _yad_bundle_raw=$(mktemp "$PG/yulong-domain-bundle.XXXXXX") || return 1
+  _yad_bundle_clean=$(mktemp "$PG/yulong-domain-bundle-clean.XXXXXX") || return 1
+  chmod 600 "$_yad_bundle_raw" "$_yad_bundle_clean" || return 1
+  (umask 077; printf '%s' "$_bundle_encoded" | base64 -d > "$_yad_bundle_raw") || { echo "unable to decode domain bundle" >&2; return 2; }
+  _bundle_bytes=$(wc -c < "$_yad_bundle_raw" | tr -d ' ')
+  [ "$_bundle_bytes" -le 65536 ] || { echo "domain bundle exceeds 64 KiB" >&2; return 2; }
+  _bundle_count=0
+  while IFS='|' read -r _bundle_kind _bundle_domain _bundle_note _bundle_extra || [ -n "$_bundle_kind$_bundle_domain$_bundle_note$_bundle_extra" ]; do
+    case "$_bundle_kind" in ''|'#'*) continue ;; allow|block) : ;; *) echo "invalid domain bundle kind" >&2; return 2 ;; esac
+    [ -z "$_bundle_extra" ] || { echo "invalid domain bundle row: use allow|domain|note or block|domain|note" >&2; return 2; }
+    _bundle_domain=$(printf '%s' "$_bundle_domain" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    _bundle_note=$(printf '%s' "$_bundle_note" | tr -d '\r')
+    _bundle_domain=$(valid_domain "$_bundle_domain") || { echo "invalid domain in bundle" >&2; return 2; }
+    if [ -z "$_bundle_note" ]; then
+      if [ "$_bundle_kind" = allow ]; then _bundle_note="FX 导入白名单"; else _bundle_note="FX 导入黑名单"; fi
+    fi
+    valid_text "$_bundle_note" || { echo "invalid note for domain: $_bundle_domain" >&2; return 2; }
+    if awk -F'|' -v k="$_bundle_kind" -v d="$_bundle_domain" '$1==k && $2==d{found=1} END{exit !found}' "$_yad_bundle_clean"; then continue; fi
+    printf '%s|%s|%s\n' "$_bundle_kind" "$_bundle_domain" "$_bundle_note" >> "$_yad_bundle_clean" || return 1
+    _bundle_count=$((_bundle_count + 1))
+    [ "$_bundle_count" -le 2000 ] || { echo "domain bundle is limited to 2000 unique rows" >&2; return 2; }
+  done < "$_yad_bundle_raw"
+  [ "$_bundle_count" -gt 0 ] || { echo "no domains to import" >&2; return 2; }
+  while IFS='|' read -r _bundle_kind _bundle_domain _bundle_note; do
+    if [ "$_bundle_kind" = allow ]; then
+      sh "$MP/scripts/whitelist.sh" add "$_bundle_domain" "$_bundle_note" || { echo "failed to import allow domain: $_bundle_domain" >&2; return 1; }
+    else
+      write_block "$_bundle_domain" "$_bundle_note" 1 add || { echo "failed to import block domain: $_bundle_domain" >&2; return 1; }
+    fi
+  done < "$_yad_bundle_clean"
+  echo "imported=$_bundle_count"
+}
 remove_domains() {
   _remove_kind="$1"
   _remove_encoded="$2"
@@ -965,6 +1005,9 @@ case "$cmd" in
  rule-add-many)
   [ "$#" -eq 2 ] || { echo "usage: $0 rule-add-many base64-source-name-list" >&2; exit 2; }
   with_lock transaction rule_add_many "$2" ;;
+ domain-import-bundle)
+  [ "$#" -eq 2 ] || { echo "usage: $0 domain-import-bundle base64-export" >&2; exit 2; }
+  with_lock transaction import_domain_bundle "$2" ;;
  allow-add)
   [ "$#" -ge 2 ] && [ "$#" -le 3 ] || exit 2
   d=$(valid_domain "$2") || exit 2; note=$3; [ -n "$note" ] || note="FX 白名单"; valid_text "$note" || exit 2
