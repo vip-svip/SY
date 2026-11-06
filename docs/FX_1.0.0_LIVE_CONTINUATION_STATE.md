@@ -1120,3 +1120,11 @@
 - `scripts/localdns-watchdog.sh`、`fx-module/scripts/localdns-watchdog.sh`、两份 `yulong-ad-control.sh` 均提供 `dns-repair` 命令；canonical 与 module 两套 `FxYulongAdActivity.java` 在 DNS 状态卡片增加“立即尝试修复 DNS 服务”按钮，确认后执行修复并刷新状态。
 - 本批主要提交：IPv4/IPv6 探测器 `800295628c02201f31e6bc1a0b31c743bd8c5ca2`、`ccdfe41e1f4b278a8d2e52246cbfc11eeed9ed16`、显式 IPv6 头文件 `70a304c3d0f1397d8be25cf13f7bbf0184e4d7bb`、`1bd6200c4a3c6de46d6704d2ba26248328167d3e`；AdGuard 未缓存探测 `c87ab368a2fee1620a888a7f836a280eca1acb3c`、`ee3eb8ffd9a15335315ff977879b1b45ffb33b47`；watchdog/CLI 修复入口 `4ea03dcc4028546af3e4615baf65c2d7e5161403`、`96f719d5f37e5b2a77db2b5b077bade266d0f9bd`、`b53a39721a3f69529fcf417c10751e44a5879590`、`50e608b8d994705b4a6752587a08b372a06267b1`；两份 UI `ef18dec1b72e4185d26c78271f0792e158d714a1`、`4fd792f7089119a300488065b680eaf67f13d009`。
 - 按当前要求未运行 C/Shell/Java 测试、静态检查、构建、CI 或 Android 真机验证；以上是源码提交与接线记录，不代表设备运行验收。
+
+## 2026-11-07 — 自定义 DNS IPv4 非标准端口支持
+
+- 扩展自定义 DNS 上游端点语法，允许纯 IPv4 地址附带显式端口（1–65535），默认不填写时仍使用 DNS 默认端口。此项仅放宽 custom DNS；global DNS、VPN DNS 及 IPv4-only fallback 继续保留原有类型约束。
+- Root 控制脚本的 DNS CSV 校验接受 IPv4:port；AdGuard Home 配置渲染器及渲染后配置策略校验同步识别该格式，防止保存成功后被运行配置安全校验拒绝。
+- 修正 AdGuard Home 两套 DNS 主机校验器中 IPv4 检查函数名不一致的问题，统一调用 valid_ipv4，避免以 IPv4 字面量作为加密上游主机名时发生错误。
+- DNS 配置快照导入验证仅对 CUSTOM_SERVERS 接受 IPv4:port；global/fallback 与 VPN DNS 仍执行原有 IPv4 校验。原生 Ad UI 提示同步为 IPv4[:端口]。
+- 变更同步覆盖 scripts/ 与 fx-module/ 两套 Root、AdGuard Home 和 APK Activity 源码；按当前推进要求未执行测试、静态检查、Gradle 构建、CI 或 Android 真机验证。
