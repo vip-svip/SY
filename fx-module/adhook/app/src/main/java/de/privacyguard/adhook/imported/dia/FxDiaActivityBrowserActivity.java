@@ -246,7 +246,13 @@ public final class FxDiaActivityBrowserActivity extends de.privacyguard.adhook.F
                 launcherOnly
                         ? "只列出当前目标应用声明的 MAIN/LAUNCHER 组件。启用/禁用操作会显示确认框并通过 Root 修改当前 Android 用户的组件状态。"
                         : "显示目标应用声明的 Activity、导出属性、Manifest 状态和系统当前组件状态。列表最多每页显示 80 项。",
-                activitySearch, activityCount, activityRows, activityPager);
+                activitySearch, activityCount, activityRows, activityPager,
+                button("复制全部筛选结果", this::copyFilteredActivityInventory));
+        if (!launcherOnly) {
+            card(body, "批量管理 Activity 组件",
+                    "只处理当前搜索条件与当前页中的组件；每次操作均需明确确认。",
+                    button("启用当前页筛选中的已禁用 Activity", this::confirmEnableVisibleActivities),
+                    button("禁用当前页筛选中的已启用 Activity", this::confirmDisableVisibleActivities));
 
         setContentViewWithNativeTabs(root, 4);
         if (restoredScrollY > 0) {
@@ -652,6 +658,7 @@ public final class FxDiaActivityBrowserActivity extends de.privacyguard.adhook.F
             });
             showFxDialog(dialog);
         });
+        if (info.exported) row.addView(button("启动 Activity", () -> launchExportedActivity(packageName, className)));
         row.addView(name);
         row.addView(meta);
         row.addView(toggle);
@@ -701,6 +708,385 @@ public final class FxDiaActivityBrowserActivity extends de.privacyguard.adhook.F
         outState.putInt(STATE_SCROLL_Y, pageScroll == null
                 ? restoredScrollY : Math.max(0, pageScroll.getScrollY()));
         super.onSaveInstanceState(outState);
+    }
+
+    private void copyFilteredActivityInventory() {
+        if (launcherOnly || selected == null || activitiesLoading || activities.isEmpty()) {
+            Toast.makeText(this, "请先选择应用并完成 Activity 读取。", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String query = activitySearch == null || activitySearch.getText() == null ? ""
+                : activitySearch.getText().toString().trim().toLowerCase(Locale.ROOT);
+        StringBuilder report = new StringBuilder();
+        report.append("FX Activity inventory\npackage=").append(selected.packageName)
+                .append("\nfilter=").append(query)
+                .append("\nclass\texported\tenabled\tmanifestEnabled\tpermission\n");
+        int included = 0;
+        int omitted = 0;
+        final int maxBytes = 256 * 1024;
+        for (ActivityEntry entry : activities) {
+            if (entry == null || entry.info == null) continue;
+            ActivityInfo info = entry.info;
+            String name = info.name == null ? "" : info.name;
+            String permission = info.permission == null ? "" : info.permission;
+            String state = Integer.toString(entry.componentState);
+            if (!query.isEmpty() && !name.toLowerCase(Locale.ROOT).contains(query)
+                    && !permission.toLowerCase(Locale.ROOT).contains(query)
+                    && !state.contains(query)
+                    && !Boolean.toString(info.exported).contains(query)
+                    && !Boolean.toString(entry.enabled).contains(query)) continue;
+            if (!name.matches("[A-Za-z0-9_.$]+")) continue;
+            String row = name + "\t" + info.exported + "\t" + entry.enabled + "\t"
+                    + info.enabled + "\t" + permission.replace('\t', ' ').replace('\n', ' ')
+                    .replace('\r', ' ') + "\n";
+            int used = report.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+            int bytes = row.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+            if (used + bytes > maxBytes) { omitted++; continue; }
+            report.append(row);
+            included++;
+        }
+        if (included == 0) {
+            Toast.makeText(this, "当前筛选没有可复制的 Activity 元数据。", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (omitted > 0) report.append("# truncated: omitted ").append(omitted).append(" rows at 256 KiB limit\n");
+        try {
+            android.content.ClipboardManager clipboard =
+                    (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+            if (clipboard == null) throw new IllegalStateException("系统剪贴板不可用");
+            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("FX Activity inventory", report.toString()));
+            status.setText("已复制 " + included + " 个筛选匹配的 Activity 元数据"
+                    + (omitted > 0 ? "；另有 " + omitted + " 项因 256 KiB 上限省略。" : "。"));
+        } catch (RuntimeException error) {
+            status.setText("复制 Activity 清单失败：" + safeError(error.getMessage()));
+        }
+    }
+
+    private void confirmEnableVisibleActivities() {
+        if (launcherOnly || selected == null || !isSafePackage(selected.packageName)
+                || activitiesLoading || destroyed) {
+            status.setText("请先选择目标应用并完成 Activity 读取。");
+            return;
+        }
+        String query = activitySearch == null || activitySearch.getText() == null ? ""
+                : activitySearch.getText().toString().trim().toLowerCase(Locale.ROOT);
+        List<ActivityEntry> matches = new ArrayList<>();
+        for (ActivityEntry entry : activities) {
+            String name = entry.info == null || entry.info.name == null ? "" : entry.info.name;
+            String permission = entry.info == null || entry.info.permission == null
+                    ? "" : entry.info.permission;
+            String state = Integer.toString(entry.componentState);
+            if (query.isEmpty() || name.toLowerCase(Locale.ROOT).contains(query)
+                    || permission.toLowerCase(Locale.ROOT).contains(query)
+                    || state.contains(query)
+                    || Boolean.toString(entry.info.exported).contains(query)
+                    || Boolean.toString(entry.enabled).contains(query)) {
+                matches.add(entry);
+            }
+        }
+        int start = activityPage * ACTIVITY_PAGE_SIZE;
+        int end = Math.min(matches.size(), start + ACTIVITY_PAGE_SIZE);
+        List<String> components = new ArrayList<>();
+        for (int i = start; i < end; i++) {
+            ActivityEntry entry = matches.get(i);
+            String name = entry.info == null ? null : entry.info.name;
+            if (entry.enabled || name == null || !name.matches("[A-Za-z0-9_.$]+")) continue;
+            components.add(selected.packageName + "/" + name);
+        }
+        if (components.isEmpty()) {
+            Toast.makeText(this, "当前页筛选结果中没有已禁用的 Activity。", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        final List<String> currentPage = new ArrayList<>(components);
+        final String packageName = selected.packageName;
+        fxDialogBuilder()
+                .setTitle("批量启用当前页 Activity？")
+                .setMessage("将仅启用当前筛选结果当前页中的 " + currentPage.size()
+                        + " 个 Activity 组件，目标包：" + packageName
+                        + "。不会修改应用整体启用状态，也不会处理其他分页。请确认这些组件确实需要恢复。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("启用所列组件", (dialog, which) -> {
+                    status.setText("正在批量启用当前页 " + currentPage.size() + " 个组件…");
+                    submitWorker(() -> {
+                        RootAccess.Result result = null;
+                        String failure = null;
+                        try {
+                            StringBuilder command = new StringBuilder();
+                            command.append("user_id=$(am get-current-user 2>/dev/null); ")
+                                    .append("case \"$user_id\" in ''|*[!0-9]*) echo 'Unable to resolve current Android user' >&2; exit 65 ;; esac; ")
+                                    .append("fx_ok=0; fx_fail=0; ");
+                            for (String component : currentPage) {
+                                command.append("if pm enable --user \"$user_id\" ")
+                                        .append(quote(component))
+                                        .append(" >/dev/null 2>&1; then fx_ok=$((fx_ok+1)); ")
+                                        .append("else fx_fail=$((fx_fail+1)); fi; ");
+                            }
+                            command.append("printf 'FX_ENABLED=%s\\nFX_FAILED=%s\\n' \"$fx_ok\" \"$fx_fail\"; ")
+                                    .append("[ \"$fx_fail\" -eq 0 ]");
+                            result = RootAccess.execute(command.toString(), 60000L, 16384);
+                        } catch (RuntimeException error) {
+                            failure = error.getClass().getSimpleName() + ": " + safeError(error.getMessage());
+                        }
+                        final RootAccess.Result applied = result;
+                        final String operationFailure = failure;
+                        runOnUiThread(() -> {
+                            if (destroyed || isFinishing() || isDestroyed()
+                                    || selected == null || !packageName.equals(selected.packageName)) return;
+                            if (operationFailure != null || applied == null) {
+                                status.setText("批量启用未完成：" + (operationFailure == null
+                                        ? "Root 没有返回结果。" : operationFailure));
+                                return;
+                            }
+                            String output = applied.output == null ? "" : applied.output;
+                            java.util.regex.Matcher ok = java.util.regex.Pattern
+                                    .compile("FX_ENABLED=([0-9]+)").matcher(output);
+                            java.util.regex.Matcher failed = java.util.regex.Pattern
+                                    .compile("FX_FAILED=([0-9]+)").matcher(output);
+                            String okCount = ok.find() ? ok.group(1) : "0";
+                            String failCount = failed.find() ? failed.group(1) : "?";
+                            status.setText("批量启用结果：成功 " + okCount + "，失败 " + failCount
+                                    + "。正在重新读取系统组件状态…");
+                            activityGeneration++;
+                            activitiesLoading = false;
+                            loadActivities();
+               private void confirmDisableVisibleActivities() {
+        if (launcherOnly || selected == null || !isSafePackage(selected.packageName)
+                || activitiesLoading || destroyed) {
+            status.setText("请先选择目标应用并完成 Activity 读取。");
+            return;
+        }
+        String query = activitySearch == null || activitySearch.getText() == null ? ""
+                : activitySearch.getText().toString().trim().toLowerCase(Locale.ROOT);
+        List<ActivityEntry> matches = new ArrayList<>();
+        for (ActivityEntry entry : activities) {
+            String name = entry.info == null || entry.info.name == null ? "" : entry.info.name;
+            String permission = entry.info == null || entry.info.permission == null
+                    ? "" : entry.info.permission;
+            String state = Integer.toString(entry.componentState);
+            if (query.isEmpty() || name.toLowerCase(Locale.ROOT).contains(query)
+                    || permission.toLowerCase(Locale.ROOT).contains(query)
+                    || state.contains(query)
+                    || Boolean.toString(entry.info.exported).contains(query)
+                    || Boolean.toString(entry.enabled).contains(query)) {
+                matches.add(entry);
+            }
+        }
+        int start = activityPage * ACTIVITY_PAGE_SIZE;
+        int end = Math.min(matches.size(), start + ACTIVITY_PAGE_SIZE);
+        List<String> components = new ArrayList<>();
+        for (int i = start; i < end; i++) {
+            ActivityEntry entry = matches.get(i);
+            String name = entry.info == null ? null : entry.info.name;
+            if (!entry.enabled || name == null || !name.matches("[A-Za-z0-9_.$]+")) continue;
+            components.add(selected.packageName + "/" + name);
+        }
+        if (components.isEmpty()) {
+            Toast.makeText(this, "当前页筛选结果中没有已启用的 Activity。", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        final List<String> currentPage = new ArrayList<>(components);
+        final String packageName = selected.packageName;
+        fxDialogBuilder()
+                .setTitle("批量禁用当前页 Activity？")
+                .setMessage("将仅禁用当前筛选结果当前页中的 " + currentPage.size()
+                        + " 个 Activity 组件，目标包：" + packageName
+                        + "。不会修改应用整体启用状态，也不会处理其他分页。请确认这些组件确实需要恢复。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("禁用所列组件", (dialog, which) -> {
+                    status.setText("正在批量禁用当前页 " + currentPage.size() + " 个组件…");
+                    submitWorker(() -> {
+                        RootAccess.Result result = null;
+                        String failure = null;
+                        try {
+                            StringBuilder command = new StringBuilder();
+                            command.append("user_id=$(am get-current-user 2>/dev/null); ")
+                                    .append("case \"$user_id\" in ''|*[!0-9]*) echo 'Unable to resolve current Android user' >&2; exit 65 ;; esac; ")
+                                    .append("fx_ok=0; fx_fail=0; ");
+                            for (String component : currentPage) {
+                                command.append("if pm disable-user --user \"$user_id\" ")
+                                        .append(quote(component))
+                                        .append(" >/dev/null 2>&1; then fx_ok=$((fx_ok+1)); ")
+                                        .append("else fx_fail=$((fx_fail+1)); fi; ");
+                            }
+                            command.append("printf 'FX_DISABLED=%s\\nFX_FAILED=%s\\n' \"$fx_ok\" \"$fx_fail\"; ")
+                                    .append("[ \"$fx_fail\" -eq 0 ]");
+                            result = RootAccess.execute(command.toString(), 60000L, 16384);
+                        } catch (RuntimeException error) {
+                            failure = error.getClass().getSimpleName() + ": " + safeError(error.getMessage());
+                        }
+                        final RootAccess.Result applied = result;
+                        final String operationFailure = failure;
+                        runOnUiThread(() -> {
+                            if (destroyed || isFinishing() || isDestroyed()
+                                    || selected == null || !packageName.equals(selected.packageName)) return;
+                            if (operationFailure != null || applied == null) {
+                                status.setText("批量禁用未完成：" + (operationFailure == null
+                                        ? "Root 没有返回结果。" : operationFailure));
+                                return;
+                            }
+                            String output = applied.output == null ? "" : applied.output;
+                            java.util.regex.Matcher ok = java.util.regex.Pattern
+                                    .compile("FX_DISABLED=([0-9]+)").matcher(output);
+                            java.util.regex.Matcher failed = java.util.regex.Pattern
+                                    .compile("FX_FAILED=([0-9]+)").matcher(output);
+                            String okCount = ok.find() ? ok.group(1) : "0";
+                            String failCount = failed.find() ? failed.group(1) : "?";
+                            status.setText("批量禁用结果：成功 " + okCount + "，失败 " + failCount
+                                    + "。正在重新读取系统组件状态…");
+                            activityGeneration++;
+                            activitiesLoading = false;
+                            loadActivities();
+                        });
+                    });
+                })
+                .show();
+    }
+
+             });
+                    });
+                })
+                .show();
+    }
+
+               private void confirmDisableVisibleActivities() {
+        if (launcherOnly || selected == null || !isSafePackage(selected.packageName)
+                || activitiesLoading || destroyed) {
+            status.setText("请先选择目标应用并完成 Activity 读取。");
+            return;
+        }
+        String query = activitySearch == null || activitySearch.getText() == null ? ""
+                : activitySearch.getText().toString().trim().toLowerCase(Locale.ROOT);
+        List<ActivityEntry> matches = new ArrayList<>();
+        for (ActivityEntry entry : activities) {
+            String name = entry.info == null || entry.info.name == null ? "" : entry.info.name;
+            String permission = entry.info == null || entry.info.permission == null
+                    ? "" : entry.info.permission;
+            String state = Integer.toString(entry.componentState);
+            if (query.isEmpty() || name.toLowerCase(Locale.ROOT).contains(query)
+                    || permission.toLowerCase(Locale.ROOT).contains(query)
+                    || state.contains(query)
+                    || Boolean.toString(entry.info.exported).contains(query)
+                    || Boolean.toString(entry.enabled).contains(query)) {
+                matches.add(entry);
+            }
+        }
+        int start = activityPage * ACTIVITY_PAGE_SIZE;
+        int end = Math.min(matches.size(), start + ACTIVITY_PAGE_SIZE);
+        List<String> components = new ArrayList<>();
+        for (int i = start; i < end; i++) {
+            ActivityEntry entry = matches.get(i);
+            String name = entry.info == null ? null : entry.info.name;
+            if (!entry.enabled || name == null || !name.matches("[A-Za-z0-9_.$]+")) continue;
+            components.add(selected.packageName + "/" + name);
+        }
+        if (components.isEmpty()) {
+            Toast.makeText(this, "当前页筛选结果中没有已启用的 Activity。", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        final List<String> currentPage = new ArrayList<>(components);
+        final String packageName = selected.packageName;
+        fxDialogBuilder()
+                .setTitle("批量禁用当前页 Activity？")
+                .setMessage("将仅禁用当前筛选结果当前页中的 " + currentPage.size()
+                        + " 个 Activity 组件，目标包：" + packageName
+                        + "。不会修改应用整体启用状态，也不会处理其他分页。请确认这些组件确实需要恢复。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("禁用所列组件", (dialog, which) -> {
+                    status.setText("正在批量禁用当前页 " + currentPage.size() + " 个组件…");
+                    submitWorker(() -> {
+                        RootAccess.Result result = null;
+                        String failure = null;
+                        try {
+                            StringBuilder command = new StringBuilder();
+                            command.append("user_id=$(am get-current-user 2>/dev/null); ")
+                                    .append("case \"$user_id\" in ''|*[!0-9]*) echo 'Unable to resolve current Android user' >&2; exit 65 ;; esac; ")
+                                    .append("fx_ok=0; fx_fail=0; ");
+                            for (String component : currentPage) {
+                                command.append("if pm disable-user --user \"$user_id\" ")
+                                        .append(quote(component))
+                                        .append(" >/dev/null 2>&1; then fx_ok=$((fx_ok+1)); ")
+                                        .append("else fx_fail=$((fx_fail+1)); fi; ");
+                            }
+                            command.append("printf 'FX_DISABLED=%s\\nFX_FAILED=%s\\n' \"$fx_ok\" \"$fx_fail\"; ")
+                                    .append("[ \"$fx_fail\" -eq 0 ]");
+                            result = RootAccess.execute(command.toString(), 60000L, 16384);
+                        } catch (RuntimeException error) {
+                            failure = error.getClass().getSimpleName() + ": " + safeError(error.getMessage());
+                        }
+                        final RootAccess.Result applied = result;
+                        final String operationFailure = failure;
+                        runOnUiThread(() -> {
+                            if (destroyed || isFinishing() || isDestroyed()
+                                    || selected == null || !packageName.equals(selected.packageName)) return;
+                            if (operationFailure != null || applied == null) {
+                                status.setText("批量禁用未完成：" + (operationFailure == null
+                                        ? "Root 没有返回结果。" : operationFailure));
+                                return;
+                            }
+                            String output = applied.output == null ? "" : applied.output;
+                            java.util.regex.Matcher ok = java.util.regex.Pattern
+                                    .compile("FX_DISABLED=([0-9]+)").matcher(output);
+                            java.util.regex.Matcher failed = java.util.regex.Pattern
+                                    .compile("FX_FAILED=([0-9]+)").matcher(output);
+                            String okCount = ok.find() ? ok.group(1) : "0";
+                            String failCount = failed.find() ? failed.group(1) : "?";
+                            status.setText("批量禁用结果：成功 " + okCount + "，失败 " + failCount
+                                    + "。正在重新读取系统组件状态…");
+                            activityGeneration++;
+                            activitiesLoading = false;
+                            loadActivities();
+                        });
+                    });
+                })
+                .show();
+    }
+
+    private void launchExportedActivity(String packageName, String className) {
+        if (!isSafePackage(packageName) || className == null
+                || !className.matches("[A-Za-z0-9_.$]+")
+                || selected == null || !packageName.equals(selected.packageName)) {
+            Toast.makeText(this, "目标组件已变化，请重新读取列表。", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        ActivityEntry current = null;
+        for (ActivityEntry entry : activities) {
+            if (entry.info != null && className.equals(entry.info.name)) {
+                current = entry;
+                break;
+            }
+        }
+        if (current == null || !current.info.exported || !current.enabled) {
+            Toast.makeText(this, "该 Activity 未导出或当前处于禁用状态，不能从此处启动。",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+        String permission = current.info.permission;
+        String warning = "将显式启动目标应用声明的已导出 Activity：\\n"
+                + packageName + "/" + className
+                + (permission == null || permission.isEmpty()
+                    ? "\\n该组件未声明启动权限。"
+                    : "\\n该组件声明启动权限：" + permission
+                        + "。当前调用方可能不具备该权限。")
+                + "\\n目标应用可能执行页面跳转或其他自身逻辑。";
+        fxDialogBuilder()
+                .setTitle("启动目标 Activity？")
+                .setMessage(warning)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("启动", (dialog, which) -> {
+                    try {
+                        Intent intent = new Intent();
+                        intent.setComponent(new ComponentName(packageName, className));
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(intent);
+                        status.setText("已向 Android 提交显式 Activity 启动请求。");
+                    } catch (SecurityException denied) {
+                        status.setText("启动被 Android 权限策略拒绝：" + safeError(denied.getMessage()));
+                    } catch (RuntimeException error) {
+                        status.setText("Activity 启动失败：" + error.getClass().getSimpleName()
+                                + "：" + safeError(error.getMessage()));
+                    }
+                })
+                .show();
     }
 
     @Override protected void onDestroy() {
