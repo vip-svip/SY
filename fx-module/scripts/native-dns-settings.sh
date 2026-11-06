@@ -77,12 +77,15 @@ status() {
   _agh=$(service_status adguardhome)
   _unbound=$(service_status unbound)
   _root=unavailable
+  _whitelist_count=unknown
   if [ -f "$MP/scripts/yulong-root-proxy.sh" ] && [ ! -L "$MP/scripts/yulong-root-proxy.sh" ]; then
     _root_output=$(MP="$MP" PG="$PG" sh "$MP/scripts/yulong-root-proxy.sh" status 2>/dev/null) || _root_output=
     if [ -n "$_root_output" ]; then
       if printf '%s\n' "$_root_output" | grep -Fqx 'active=1'; then _root=active
       elif printf '%s\n' "$_root_output" | grep -Fqx 'active=0'; then _root=inactive
       fi
+      _count=$(printf '%s\n' "$_root_output" | sed -n 's/^whitelist_count=//p' | head -1)
+      case "$_count" in ''|*[!0-9]*) : ;; *) _whitelist_count=$_count ;; esac
     fi
   fi
   _ready=0
@@ -95,6 +98,7 @@ status() {
   printf 'adguardhome|%s\n' "$_agh"
   printf 'unbound|%s\n' "$_unbound"
   printf 'root_proxy|%s\n' "$_root"
+  printf 'rootproxy_whitelist_count|%s\n' "$_whitelist_count"
   printf 'dns_stack_ready|%s\n' "$_ready"
 }
 mutate() {
