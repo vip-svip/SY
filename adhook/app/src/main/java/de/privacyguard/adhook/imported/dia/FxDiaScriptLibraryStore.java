@@ -79,6 +79,25 @@ public final class FxDiaScriptLibraryStore {
         }
     }
 
+    /** Copy a stored script to a new, unused name in one locked write. */
+    public static void copy(Context context, String sourceName, String newName) throws Exception {
+        if (context == null) throw new IllegalArgumentException("复制参数无效。");
+        String normalized = FxDiaScriptLibraryPolicy.normalizeName(newName);
+        String nameError = FxDiaScriptLibraryPolicy.validateName(normalized);
+        if (nameError != null) throw new IllegalArgumentException(nameError);
+        synchronized (LOCK) {
+            JSONObject scripts = readLocked(context);
+            if (!scripts.has(sourceName)) throw new IllegalArgumentException("源脚本已不存在，请刷新列表。");
+            if (scripts.has(normalized)) throw new IllegalArgumentException("目标名称已存在，请使用新名称。");
+            if (scripts.length() >= 500) throw new IllegalStateException("脚本库最多保存 500 个脚本。");
+            String source = scripts.getString(sourceName);
+            String sourceError = FxDiaScriptLibraryPolicy.validateSource(source);
+            if (sourceError != null) throw new IllegalArgumentException("源脚本内容无效：" + sourceError);
+            scripts.put(normalized, source);
+            writeLocked(context, scripts);
+        }
+    }
+
     public static void delete(Context context, String name) throws Exception {
         if (context == null || name == null) throw new IllegalArgumentException("删除参数无效。");
         synchronized (LOCK) {
