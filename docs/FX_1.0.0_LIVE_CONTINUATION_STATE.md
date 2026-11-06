@@ -6933,3 +6933,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 将根目录 Egern 构建补丁中的清理归一逻辑同步到实际模块构建补丁 `fx-module/build-tools/patches/patch_quickjs_egern_compat.py`，确保重复运行补丁时也会消除重复临时文件参数，并要求最终清理项恰好出现一次。
 - 模块构建补丁提交：4963e04be74b14868073b23fc15b7167a8ea0f80。
 - 本轮按要求未执行测试、脚本检查、构建、CI 或设备验证。
+
+## 2026-11-06 — Hook 配置往返保真与脚本回写修复
+
+- UnifiedHookConfigSerializer.java 改为完整规范化往返比较：配置先经 UnifiedHookConfigParser 解析，再由无递归校验的内部序列化路径重建；要求重建结果与原文一致，覆盖逐应用开关、隐私传感器类别、模拟值、Dialog/Toast 规则和开发者规则数据。
+- 应用源码提交：4ad0afa12c1f796a19303cb0073c20b02363e468；模块源码提交：e69e1628ecfa8112cb25e998453f96c6e7eb59cf。
+- QuickJS 宿主 `$done()` 对 http-response 阶段默认回写响应对象：host.js 提交 485009a4faeae627ec6ebd7b76a9b3481f6061fc；对应 Egern 构建 patcher 同步提交 b775fde2fec731926b4f7e3a9cb3f60cb4eb8ecb。
+- Egern runner 清理重复临时文件项：runner.sh 提交 150889a9cd8337d7a33f32a0e9a39dda3e843e49；构建 patcher 现在会将临时路径清理项归一为一份，提交 3786d5af359142d73b53890467ac6f7ef87a23cb。
+- 本批未运行测试、静态检查、Gradle/NDK 构建、CI 或 Android 真机验证；配置往返比较属于保存路径的运行时保护，不代表已经执行过相关检查。
