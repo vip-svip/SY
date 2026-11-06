@@ -248,6 +248,12 @@ public final class FxDiaActivityBrowserActivity extends de.privacyguard.adhook.F
                         : "显示目标应用声明的 Activity、导出属性、Manifest 状态和系统当前组件状态。列表最多每页显示 80 项。",
                 activitySearch, activityCount, activityRows, activityPager);
 
+        if (!launcherOnly) {
+            card(body, "批量恢复 Activity 入口",
+                    "只处理当前搜索条件与当前页中已禁用的 Activity；不会启用整个应用，也不会修改其他分页。每次操作仍需明确确认。",
+                    button("启用当前页筛选中的已禁用 Activity", this::confirmEnableVisibleActivities));
+        }
+
         setContentViewWithNativeTabs(root, 4);
         if (restoredScrollY > 0) {
             final int restoreY = restoredScrollY;
@@ -658,6 +664,95 @@ public final class FxDiaActivityBrowserActivity extends de.privacyguard.adhook.F
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
         params.setMargins(dp(10), dp(3), dp(10), dp(3));
         activityRows.addView(row, params);
+    }
+
+    private void confirmEnableVisibleActivities() {
+        if (launcherOnly || selected == null || !isSafePackage(selected.packageName)
+                || activitiesLoading || destroyed) {
+            status.setText("请先选择目标应用并完成 Activity 读取。");
+            return;
+        }
+        String query = activitySearch == null || activitySearch.getText() == null ? ""
+                : activitySearch.getText().toString().trim().toLowerCase(Locale.ROOT);
+        List<String> components = new ArrayList<>();
+        for (ActivityEntry entry : activities) {
+            String name = entry.info == null ? null : entry.info.name;
+            String permission = entry.info == null || entry.info.permission == null
+                    ? "" : entry.info.permission;
+            String state = Integer.toString(entry.componentState);
+            boolean matches = query.isEmpty()
+                    || name != null && name.toLowerCase(Locale.ROOT).contains(query)
+                    || permission.toLowerCase(Locale.ROOT).contains(query)
+                    || state.contains(query)
+                    || Boolean.toString(entry.info.exported).contains(query)
+                    || Boolean.toString(entry.enabled).contains(query);
+            if (!matches || entry.enabled || name == null
+                    || !name.matches("[A-Za-z0-9_.$]+")) continue;
+            components.add(selected.packageName + "/" + name);
+        }
+        int start = activityPage * ACTIVITY_PAGE_SIZE;
+        int end = Math.min(components.size(), start + ACTIVITY_PAGE_SIZE);
+        if (start >= end) {
+            Toast.makeText(this, "当前页筛选结果中没有已禁用的 Activity。", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        List<String> currentPage = new ArrayList<>(components.subList(start, end));
+        final String packageName = selected.packageName;
+        fxDialogBuilder()
+                .setTitle("批量启用当前页 Activity？")
+                .setMessage("将仅启用当前筛选结果当前页中的 " + currentPage.size()
+                        + " 个 Activity 组件，目标包：" + packageName
+                        + "。不会修改应用整体启用状态，也不会处理其他分页。请确认这些组件确实需要恢复。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("启用所列组件", (dialog, which) -> {
+                    status.setText("正在批量启用当前页 " + currentPage.size() + " 个组件…");
+                    submitWorker(() -> {
+                        String user = "";
+                        RootAccess.Result result = null;
+                        String failure = null;
+                        try {
+                            StringBuilder command = new StringBuilder();
+                            command.append("user_id=$(am get-current-user 2>/dev/null); ")
+                                    .append("case \"$user_id\" in ''|*[!0-9]*) echo 'Unable to resolve current Android user' >&2; exit 65 ;; esac; ")
+                                    .append("fx_ok=0; fx_fail=0; ");
+                            for (String component : currentPage) {
+                                command.append("if pm enable --user \"$user_id\" ")
+                                        .append(quote(component))
+                                        .append(" >/dev/null 2>&1; then fx_ok=$((fx_ok+1)); ")
+                                        .append("else fx_fail=$((fx_fail+1)); fi; ");
+                            }
+                            command.append("printf 'FX_ENABLED=%s\\nFX_FAILED=%s\\n' \"$fx_ok\" \"$fx_fail\"; ")
+                                    .append("[ \"$fx_fail\" -eq 0 ]");
+                            result = RootAccess.execute(command.toString(), 60000L, 16384);
+                        } catch (RuntimeException error) {
+                            failure = error.getClass().getSimpleName() + ": " + safeError(error.getMessage());
+                        }
+                        final RootAccess.Result applied = result;
+                        final String operationFailure = failure;
+                        runOnUiThread(() -> {
+                            if (destroyed || isFinishing() || isDestroyed()
+                                    || selected == null || !packageName.equals(selected.packageName)) return;
+                            if (operationFailure != null || applied == null) {
+                                status.setText("批量启用未完成：" + (operationFailure == null
+                                        ? "Root 没有返回结果。" : operationFailure));
+                                return;
+                            }
+                            String output = applied.output == null ? "" : applied.output;
+                            java.util.regex.Matcher ok = java.util.regex.Pattern
+                                    .compile("FX_ENABLED=([0-9]+)").matcher(output);
+                            java.util.regex.Matcher failed = java.util.regex.Pattern
+                                    .compile("FX_FAILED=([0-9]+)").matcher(output);
+                            String okCount = ok.find() ? ok.group(1) : "0";
+                            String failCount = failed.find() ? failed.group(1) : "?";
+                            status.setText("批量启用结果：成功 " + okCount + "，失败 " + failCount
+                                    + "。正在重新读取系统组件状态…");
+                            activityGeneration++;
+                            activitiesLoading = false;
+                            loadActivities();
+                        });
+                    });
+                })
+                .show();
     }
 
     private void selectApp(ApplicationInfo app) {
