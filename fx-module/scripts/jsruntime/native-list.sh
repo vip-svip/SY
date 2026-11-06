@@ -218,12 +218,13 @@ case "$ACTION" in
         note=$(decode_b64 "$2") || { echo "ERROR invalid note encoding"; exit 64; }
         enabled=$3
         case "$enabled" in 0|1) ;; *) echo "ERROR enabled must be 0 or 1"; exit 64 ;; esac
-        [ "${#note}" -le 4096 ] || { echo "ERROR script metadata exceeds 4096 characters"; exit 65; }
+        note_length=$(printf '%s' "$note" | wc -c | tr -d ' ')
+        case "$note_length" in ''|*[!0-9]*) note_length=4097 ;; esac
+        [ "$note_length" -le 4096 ] || { echo "ERROR script metadata exceeds 4096 bytes"; exit 65; }
         cp "$source_path" "$VALUE_FILE" || { echo "ERROR unable to snapshot staged script"; exit 1; }
         [ -s "$VALUE_FILE" ] || { echo "ERROR script value is empty"; exit 64; }
-        # Read one line for transport classification only. Local source bytes stay
-        # file-backed all the way through base64 encoding; never copy the full
-        # JavaScript payload into a shell variable.
+        # Read only the first line for transport classification. Keep local JS
+        # bytes file-backed until base64 encoding, rather than shell-expanding 1 MiB.
         first_line=$(sed -n '1{p;q;}' "$VALUE_FILE")
         case "$first_line" in
           https://*)
@@ -235,34 +236,46 @@ case "$ACTION" in
               echo "OK DUPLICATE"
               exit 0
             fi
-            printf '%s|%s|%s\n' "$value" "$note" "$enabled" >> "$ROWS"
+            printf '%s|%s|%s\n' "$value" "$note" "$enabled" >> "$ROWS" || {
+              echo "ERROR unable to append HTTPS subscription"; exit 1;
+            }
             ;;
           *)
             if printf '%s' "$first_line" | grep -Eq '^[A-Za-z][A-Za-z0-9+.-]*://'; then
-              echo "ERROR only HTTPS subscriptions or local JS source are supported"; exit 65
+              echo "ERROR only HTTPS subscriptions or local JS source are supported"
+              exit 65
             fi
+            source_size=$(wc -c < "$VALUE_FILE" | tr -d ' ')
+            case "$source_size" in ''|*[!0-9]*) source_size=0 ;; esac
+            [ "$source_size" -gt 0 ] && [ "$source_size" -le 1048576 ] || {
+              echo "ERROR local JS source must be between 1 byte and 1 MiB"
+              exit 65
+            }
             note=$(sanitize_field "$note")
             [ -n "$note" ] || note="Local JavaScript"
             if is_duplicate_local_source "$note"; then
               echo "OK DUPLICATE"
               exit 0
             fi
-            printf 'FXSRC_B64:' >> "$ROWS"
-            base64 < "$VALUE_FILE" | tr -d '\n' >> "$ROWS"
-            printf '|%s|%s\n' "$note" "$enabled" >> "$ROWS"
-              if ! base64 < "$VALUE_FILE" | tr -d '
-' >> "$ROWS"; then
-              printf '|%s|%s
-' "$note" "$enabled" >> "$ROWS" || {
+            if ! {
+              printf 'FXSRC_B64:'
+              base64 < "$VALUE_FILE" | tr -d '\n'
+              printf '|%s|%s\n' "$note" "$enabled"
+            } >> "$ROWS"; then
+              echo "ERROR unable to append local JavaScript source"
+              exit 1
+            fi
+            ;;
+        esac
         ;;
       update)
         [ "$#" -eq 3 ] || { echo "ERROR update expects index value64 note64"; exit 64; }
         index=$1; case "$index" in ''|*[!0-9]*|0) echo "ERROR invalid index"; exit 64 ;; esac
         value=$(decode_b64 "$2") || { echo "ERROR invalid value encoding"; exit 64; }
         note=$(decode_b64 "$3") || { echo "ERROR invalid note encoding"; exit 64; }
-              note_length=$(printf '%s' "$note" | wc -c | tr -d ' ')
-              case "$note_length" in ''|*[!0-9]*) note_length=4097 ;; esac
-              [ "$note_length" -le 4096 ] || { batch_failed=$((batch_failed+1)); continue; }
+        note_length=$(printf '%s' "$note" | wc -c | tr -d ' ')
+        case "$note_length" in ''|*[!0-9]*) note_length=4097 ;; esac
+        [ "$note_length" -le 4096 ] || { echo "ERROR script metadata exceeds 4096 bytes"; exit 65; }
         value=$(encode_script_value "$value") || { echo "ERROR only HTTPS URLs or local JS source are supported"; exit 65; }; note=$(sanitize_field "$note")
         [ -n "$note" ] || note=$(printf '%s' "$value" | cut -c1-80)
         printf '%s' "$value" > "$VALUE_FILE"; printf '%s' "$note" > "$NOTE_FILE"
