@@ -1416,20 +1416,23 @@ private void saveVpnDns(String key,EditText input){
   StringBuilder payload=new StringBuilder();
   payload.append("# FX Ad domain list export\\n")
       .append("# format: allow|domain|note or block|domain|note\\n");
-  int included=0,omitted=0;
+  int included=0;
   final int maxBytes=64*1024;
+  int used=payload.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
   for(Row row:selected){
    String line=row.kind.toLowerCase(Locale.ROOT)+"|"
        +cleanDomainExportField(row.value)+"|"
        +cleanDomainExportField(row.title)+"\\n";
-   int used=payload.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
    int bytes=line.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
-   if(used+bytes>maxBytes){omitted++;continue;}
-   payload.append(line);included++;
+   if(used+bytes>maxBytes){
+    status.setText("完整名单超过 64 KiB 导出上限（已处理 "+included+"/"+selected.size()+" 条）；已取消导出，避免生成不完整备份。请分名单导出或减少条目后重试。");
+    return;
+   }
+   payload.append(line);used+=bytes;included++;
   }
-  if(included==0){status.setText("名单内容超过导出限制，没有生成导出数据。");return;}
-  if(omitted>0)payload.append("# omitted ").append(omitted)
-      .append(" rows at 64 KiB export limit\\n");
+  if(included!=selected.size()){
+   status.setText("名单导出数量不完整，已取消导出。");return;
+  }
   try{
    Intent send=new Intent(Intent.ACTION_SEND);
    send.setType("text/plain");
