@@ -6800,3 +6800,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - DNS 设置依赖闭环：`scripts/native-dns-settings.sh`（`5614d30a`）、`fx-module/scripts/native-dns-settings.sh`（`6989a8f3`）。启用 AdGuard 自动启用 Unbound；关闭 Unbound 会同时关闭依赖它的 AdGuard 和 Root Proxy；启用 Root Proxy 自动开启外部 VPN 兼容和 Unbound。
 - `MainActivity.java`（`2cd4787e`）在 Ad 页 DNS 区新增“刷新本地 DNS 缓存”入口，调用现有游龙 DNS 缓存刷新事务，并在完成后刷新引擎状态。
 - 本轮所有修改均直接提交在 FX 1.0.0 当前分支；未运行测试、静态检查、Python/Java 构建、Gradle、CI 或真机验证。
+
+## 2026-11-06 — Ad 页面应用 DNS 白名单、缓存刷新与订阅源配置生成
+
+- 更新 `adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`：
+  - `2b9d8fdb`：Ad 页面新增 Root Proxy 应用 DNS 白名单管理。通过 PackageManager 加载应用名称/包名，读取当前白名单，以多选列表逐项调用 `yulong-root-proxy.sh whitelist-set`；已卸载但仍在配置中的包名继续显示，允许清除。
+  - `35b567a8`：增加本地 DNS 缓存刷新入口，调用现有 `yulong-ad-control.sh cache-flush`；只有后端返回完整 `cache=flushed` 才提示刷新成功。
+  - `05f6b6ac` / `25ddc7d1`：修正 DNS 状态详情的换行展示，并显示 Root Proxy DNS 白名单应用数量。
+- 更新 `scripts/native-dns-settings.sh`（`a5feaf82`）和模块副本 `fx-module/scripts/native-dns-settings.sh`（`9381fa88`）：状态协议新增 `rootproxy_whitelist_count`，从 Root Proxy 实时状态读取，不再只显示开关状态。
+- 更新 `scripts/adguardhome.sh`（`a9b15f89`）和模块副本 `fx-module/scripts/adguardhome.sh`（`8c9aca97`）：在原有动态 `user_rules` 生成之外，读取 `[list:rule]` 中启用/停用的 HTTP/HTTPS 订阅项，生成 AdGuard Home 原生 `filters` 对象（保留启用状态、URL、名称和稳定列表序号 ID）；无效 URL 不进入 YAML，重复 URL 合并。原有 Yulong 内置域名源仍走独立的本地文件规则处理，不混入 FX 的 `[list:fx]` 96110 专用区。
+- 订阅列表和域名 allow/block 规则更新后，AdGuard 生命周期脚本会重建配置指纹并在差异变化时重启受管进程以加载新配置；缓存刷新入口则使用既有停止、启动与 apply 协调链路。
+- 这些是源码和 UI/打包链路移植记录。本批按要求未运行 Gradle、Shell 静态检查、回归测试、构建、CI、Actions 或 Android 真机验证；没有声称设备端行为已经通过验证。
