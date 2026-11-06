@@ -6871,3 +6871,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `fx-module/scripts/yulong-root-proxy.sh`（`0ee6ce19`、`462c919b`）新增 `whitelist-prune`：先读取并验证 PackageManager UID 快照，再移除已卸载应用的 DNS 白名单条目；快照不可用或格式异常时不改配置。活动中的 Root Proxy 会在清理后重新应用白名单。
 - `adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`（`7096362b`）在“应用 DNS 白名单”弹窗加入“清理未安装应用”入口，完成后刷新列表。
 - 按当前推进要求，本批未运行测试、静态检查、构建、CI 或 Android 真机验证。
+
+## 2026-11-06 — AdGuard 远程订阅过滤器编译与统计一致性恢复
+
+- 更新 `scripts/adguardhome.sh`（`0122fe96`、`66b8485d`）和 `fx-module/scripts/adguardhome.sh`（`308a13e9`、`503d545b`）：补齐 `_build_filter_sources()`，从 `[list:rule]` 生成 AdGuard Home `filters` 配置，保留每个订阅源的 enabled 状态和清洗后的名称；URL 做长度、HTTP/HTTPS scheme 与允许字符集限制，按 URL 生成稳定数值 ID 并处理碰撞。根脚本和模块脚本保持相同实现，供 KernelSU 构建中的脚本同步步骤使用。
+- 修复 AdGuard 配置指纹长度展开中的转义，恢复 `_current_config_hash()` 的长度判断。
+- 更新 `scripts/native-dns-settings.sh`（`3dbe084a`）及 `fx-module/scripts/native-dns-settings.sh`（`87e00622`），订阅总数/启用数统计现在与 AdGuard 过滤源编译器使用相同的 URL 字符白名单，避免界面数量与实际载入规则不一致。
+- 本批仅编辑源码和交接记录；未运行 shell 检查、回归测试、Python/Gradle 构建、CI 或真机验证。
