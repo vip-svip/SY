@@ -123,6 +123,34 @@ service_status() {
   fi
   case "$_status" in ready|running-unhealthy|stopped) printf '%s' "$_status" ;; *) printf 'unavailable' ;; esac
 }
+
+dns_section_count() {
+  _section=$1
+  awk -v target="$_section" '
+    BEGIN {inside=0; sections=0; count=0; bad=0}
+    $0=="[conf:" target "]" {sections++; inside=1; next}
+    /^\[/ {inside=0}
+    inside && /^[[:space:]]*#/ {next}
+    inside && /^[[:space:]]*$/ {next}
+    inside {
+      if(NF!=2 || $1!="nameserver" || $2 ~ /[[:space:]]/) bad=1
+      else count++
+    }
+    END {
+      if(sections>1 || bad) exit 1
+      print count+0
+    }
+  ' "$CONF"
+}
+dns_encrypted_upstream_count() {
+  awk '
+    $0=="[conf:custom_dns]" {inside=1; next}
+    /^\[/ {inside=0}
+    inside && /^[[:space:]]*nameserver[[:space:]]+/ &&
+      $2 ~ /^(https:\/\/|tls:\/\/|quic:\/\/)/ {count++}
+    END {print count+0}
+  ' "$CONF"
+}
 status() {
   _agh=$(service_status adguardhome)
   _unbound=$(service_status unbound)
@@ -211,6 +239,27 @@ status() {
   fi
   _agh_enabled=$(read_flag dns_engine_adguardhome)
   _unbound_enabled=$(read_flag dns_forward)
+  _custom_dns_enabled=$(read_flag custom_dns)
+  _global_dns_enabled=$(read_flag global_dns)
+  _dns_custom_count=$(dns_section_count custom_dns 2>/dev/null) || _dns_custom_count=unknown
+  _dns_global_count=$(dns_section_count global_dns 2>/dev/null) || _dns_global_count=unknown
+  _dns_fallback_count=$(dns_section_count yulong_dns_fallback 2>/dev/null) || _dns_fallback_count=unknown
+  _dns_encrypted_count=$(dns_encrypted_upstream_count 2>/dev/null) || _dns_encrypted_count=unknown
+  _dns_upstream_mode=local_recursive
+  if [ "$_global_dns_enabled" = 1 ]; then _dns_upstream_mode=global
+  elif [ "$_custom_dns_enabled" = 1 ]; then _dns_upstream_mode=custom
+  elif [ "$_global_dns_enabled" = unknown ] || [ "$_custom_dns_enabled" = unknown ]; then _dns_upstream_mode=unknown
+  fi
+  _dns_upstream_state=ready
+  case "$_dns_upstream_mode:$_dns_custom_count:$_dns_global_count" in
+    unknown:*|*:unknown:*) _dns_upstream_state=unknown ;;
+    custom:0:*|global:*:0) _dns_upstream_state=missing_primary ;;
+  esac
+  case "$_dns_encrypted_count" in
+    ''|*[!0-9]*) _dns_bootstrap_mode=unknown ;;
+    0) _dns_bootstrap_mode=not_required ;;
+    *) _dns_bootstrap_mode=local_unbound ;;
+  esac
   _configured=0
   _ready=0
   _readiness_reason=disabled
@@ -259,6 +308,13 @@ status() {
   printf 'dns_stack_enabled|%s\n' "$_configured"
   printf 'dns_stack_ready|%s\n' "$_ready"
   printf 'dns_stack_readiness_reason|%s\n' "$_readiness_reason"
+  printf 'dns_upstream_mode|%s\n' "$_dns_upstream_mode"
+  printf 'dns_upstream_state|%s\n' "$_dns_upstream_state"
+  printf 'dns_custom_upstreams|%s\n' "$_dns_custom_count"
+  printf 'dns_global_upstreams|%s\n' "$_dns_global_count"
+  printf 'dns_fallback_upstreams|%s\n' "$_dns_fallback_count"
+  printf 'dns_encrypted_upstreams|%s\n' "$_dns_encrypted_count"
+  printf 'dns_bootstrap_mode|%s\n' "$_dns_bootstrap_mode"
 }
 mutate() {
   _key=$1
