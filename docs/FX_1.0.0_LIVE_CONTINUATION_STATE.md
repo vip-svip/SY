@@ -7026,3 +7026,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 同步应用源码和模块内 APK 源码：`EgernScriptYamlImporter.java`。
 - 提交：应用 `f9bf52ee29389d5fc036d0c406b25f1ff1d039c5`；模块 `99dfdf5a101d66323c8bf591553f4f98917a8a57`。
 - 本轮所有 QuickJS 改动仍未运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-06 — HTTPS 脚本配置批量原子导入
+
+- `fx-patches/native-script-list.sh` 与 `fx-module/scripts/jsruntime/native-list.sh` 新增 `add-batch`：接受应用私有缓存中的清单文件，最多 512 条/批，逐条验证 HTTPS URL、元数据与启用状态，在同一脚本列表锁内去重并一次性原子更新 `[list:script]`。清单上限 8 MiB；重复项统计为 duplicate，格式/字段异常统计为 failed。
+- 批量命令提交：构建源 `0be9dd53f20f52189644195edf095fa704542b26`、模块副本 `8f446e5ad4e4c258629f98a510206430cbf34c8c`。批量清单换行格式修正：构建源 `addae9a55d113c2e9b95b1cd18288444bc36dc91`、模块副本 `2a34a87dc7ef3c5bc802e12fcfc0fdc41ed2d4a8`。
+- `MainActivity.java` 对纯 HTTPS 的 FX JSON、Surge/Loon、Quantumult X 与 Egern 转换结果改走批量导入；每批 512 条，直接接收模块的新增/重复/失败计数，避免每条订阅都单独读取、锁定和重写配置。含本地 JS 的混合清单继续走原有文件暂存与逐项导入。应用提交 `c30220e7ae3d5a18d1c519dd945cfb619622843d`；模块提交 `2399036532ae71dc2b164828d3e7bb7458796e01`。
+- 修复存储层临时文件 PID 后缀恢复：构建源 `af6d69556e8c41810090b9b17c9613434de9b238`、模块副本 `8d8a92b6ee3dfb358ba7ba374038ecce17727d8f`。此前的替换操作曾吞掉部分 `$$`，已恢复为进程隔离名称。
+- 固定 FX 1.0.0；按当前要求未运行 Shell/Java 检查、回归测试、Gradle/NDK 构建、CI 或真机验证。
