@@ -1185,7 +1185,7 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
   });
   EditText customServers=draftField("dns_custom_servers");
   customServers.setSingleLine(false);customServers.setMinLines(2);
-  customServers.setHint("IPv4[:端口] / https://DoH / tls://DoT / quic://DoQ");
+  customServers.setHint("IPv4 / IPv6 / [IPv6]:端口 / https://DoH / tls://DoT / quic://DoQ");
   EditText fallbackServers=draftField("dns_fallback_servers");
   fallbackServers.setSingleLine(false);fallbackServers.setMinLines(2);
   fallbackServers.setHint("备用 DNS IPv4[:端口]，例如：1.1.1.1:5353,8.8.8.8");
@@ -1193,7 +1193,7 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
   globalServers.setSingleLine(false);globalServers.setMinLines(2);
   globalServers.setHint("IPv4[:端口]，例如：8.8.8.8:5353,1.1.1.1");
   card("自定义/全局/备用 DNS 服务器",
-       "自定义 DNS 支持任意多条上游地址（保留逐条格式与协议校验，不设置应用层条数上限），可混合 IPv4、DoH、DoT、DoQ；全局 DNS 和备用 DNS 均支持任意多条 IPv4[:端口]；留空时，启用自定义/全局外部上游会自动以 FX 本地 Unbound 作为故障回退。加密上游的域名引导解析经 FX 本地 Unbound 递归服务完成，不固定依赖公共 DNS；仅在 FX 本地 AdGuard Home 过滤引擎运行时生效；启用“阻止 DoT/QUIC”会阻断对应传输协议。",
+       "自定义 DNS 支持任意多条上游地址（保留逐条格式与协议校验，不设置应用层条数上限），可混合 IPv4、IPv6、[IPv6]:端口、DoH、DoT、DoQ；全局 DNS 和备用 DNS 均支持任意多条 IPv4[:端口]；留空时，启用自定义/全局外部上游会自动以 FX 本地 Unbound 作为故障回退。加密上游的域名引导解析经 FX 本地 Unbound 递归服务完成，不固定依赖公共 DNS；仅在 FX 本地 AdGuard Home 过滤引擎运行时生效；启用“阻止 DoT/QUIC”会阻断对应传输协议。",
        btn("一次性保存三组 DNS 上游",()->saveDnsServerLists(customServers,globalServers,fallbackServers)),
        txt("自定义 DNS 上游",12,0xff617080,true),customServers,
        btn("保存自定义 DNS",()->saveDnsServerList("custom",customServers)),
@@ -1551,6 +1551,38 @@ private boolean isValidProfileIpv4(String value){
     return first!=0&&first!=127&&first<224&&!(first==169&&second==254);
   }catch(NumberFormatException invalid){return false;}
 }
+private boolean isValidProfileDnsIpv6(String address){
+  if(address==null||address.isEmpty()||!address.matches("[0-9A-Fa-f:]+")||address.contains(":::"))return false;
+  int compressed=address.indexOf("::");
+  if(compressed>=0&&address.indexOf("::",compressed+2)>=0)return false;
+  if(compressed<0){
+    String[] groups=address.split(":",-1);
+    if(groups.length!=8)return false;
+    for(String group:groups)if(group.isEmpty()||group.length()>4)return false;
+    return true;
+  }
+  String left=address.substring(0,compressed),right=address.substring(compressed+2);
+  int count=0;
+  if(!left.isEmpty()){
+    String[] groups=left.split(":",-1);
+    for(String group:groups)if(group.isEmpty()||group.length()>4)return false;
+    count+=groups.length;
+  }
+  if(!right.isEmpty()){
+    String[] groups=right.split(":",-1);
+    for(String group:groups)if(group.isEmpty()||group.length()>4)return false;
+    count+=groups.length;
+  }
+  return count<8;
+}
+private boolean isValidProfileDnsIpv6Port(String value){
+  if(value==null||!value.startsWith("["))return false;
+  int close=value.indexOf(']');
+  if(close<3||!isValidProfileDnsIpv6(value.substring(1,close)))return false;
+  String tail=value.substring(close+1);
+  if(tail.isEmpty())return true;
+  return tail.matches(":[0-9]{1,5}")&&validProfilePort(value);
+}
 private boolean isValidProfileDnsHost(String host){
   if(host==null||host.isEmpty()||host.length()>253)return false;
   if(host.matches("[0-9.]+"))return isValidProfileIpv4(host);
@@ -1562,6 +1594,8 @@ private boolean isValidProfileDnsHost(String host){
   return true;
 }
 private boolean isValidProfileDnsHostPort(String authority){
+  if(authority==null)return false;
+  if(authority.startsWith("["))return isValidProfileDnsIpv6Port(authority);
   String hostPort="[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?";
   int colon=authority.lastIndexOf(':');
   String host=colon<0?authority:authority.substring(0,colon);
@@ -1579,6 +1613,7 @@ private boolean isValidProfileDnsCsv(String value,boolean encryptedAllowed){
     if(entry.isEmpty()||!seen.add(entry.toLowerCase(java.util.Locale.ROOT)))return false;
     if(isValidProfileIpv4(entry)||isValidProfileDnsIpv4Port(entry))continue;
     if(!encryptedAllowed)return false;
+    if(isValidProfileDnsIpv6(entry)||isValidProfileDnsIpv6Port(entry))continue;
     if(entry.startsWith("tls://")||entry.startsWith("quic://")){
       String authority=entry.substring(entry.indexOf("://")+3);
       if(!isValidProfileDnsHostPort(authority))return false;
