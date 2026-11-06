@@ -5791,6 +5791,10 @@ public final class MainActivity extends ComponentActivity {
         toggle("限制磁场传感器", "sensor_magnet", false);
         toggle("限制气压传感器", "sensor_pressure", false);
         toggle("限制距离传感器", "sensor_prox", false);
+        toggle("限制温度与湿度传感器", "sensor_environment", false);
+        toggle("限制方向与姿态融合传感器", "sensor_fusion", false);
+        toggle("限制运动检测与手势传感器", "sensor_gesture", false);
+        toggle("限制心率与心跳传感器", "sensor_biometric", false);
         toggle("限制传感器采样频率", "sensor_rate_limit", false);
         section("会员诊断");
         toggle("只读会员状态诊断", "member_diag", false);
@@ -8155,6 +8159,8 @@ public final class MainActivity extends ComponentActivity {
                 {"sensor_accel","sensor_accel"}, {"sensor_gyro","sensor_gyro"},
                 {"sensor_light","sensor_light"}, {"sensor_magnet","sensor_magnet"},
                 {"sensor_pressure","sensor_pressure"}, {"sensor_prox","sensor_prox"},
+                {"sensor_environment","sensor_environment"}, {"sensor_fusion","sensor_fusion"},
+                {"sensor_gesture","sensor_gesture"}, {"sensor_biometric","sensor_biometric"},
                 {"sensor_rate_limit","sensor_rate_limit"}, {"wifi_scan_block","block_wifi_scan"},
                 {"notification_listen_block","block_notif_listen"},
                 {"notification_permission_hide","hide_notif_perm"},
@@ -8172,7 +8178,8 @@ public final class MainActivity extends ComponentActivity {
                     "notification_permission_hide","ad_id_unify","mic_silence","camera_access_block","location_access_block",
                     "location_simulate","location_provider_enabled_simulate","android_id_simulate","time_zone_simulate",
                     "mic_access_block","media_store_query_block","sensor_accel","sensor_gyro","sensor_light",
-                    "sensor_magnet","sensor_pressure","sensor_prox","sensor_rate_limit"};
+                    "sensor_magnet","sensor_pressure","sensor_prox","sensor_environment",
+                    "sensor_fusion","sensor_gesture","sensor_biometric","sensor_rate_limit"};
                 StringBuilder row=new StringBuilder(p);
                 boolean has=false;
                 for(String k:keys) {
