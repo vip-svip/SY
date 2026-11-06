@@ -74,7 +74,10 @@ _prepare_state_dirs() {
   else
     (umask 077; mkdir "$WORK") || return 1
   fi
-  chmod 700 "$STATE" "$WORK" 2>/dev/null || :
+  chmod 700 "$STATE" "$WORK" 2>/dev/null || {
+    echo "cannot enforce private AdGuard Home state/work directory permissions" >&2
+    return 1
+  }
   for _candidate in "$BIN" "$BIN.sha256" "$TEMPLATE" "$CFG" "$PIDFILE" "$CONFIG_HASH" "$LOG"; do
     _safe_file_or_absent "$_candidate" || {
       echo "AdGuard Home refuses a symlink or non-regular state/runtime file: $_candidate" >&2
