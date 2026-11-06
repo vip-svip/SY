@@ -457,7 +457,11 @@ _config_contract() {
     }
     dns && /^  fallback_dns:/ {
       fallback=1
-      if ($2=="[]") fallback_empty=1
+      # Only the empty-list form or a block sequence is accepted. A scalar,
+      # extra token, or malformed inline value must not silently pass as an
+      # empty fallback list.
+      if (NF==2 && $2=="[]") fallback_empty=1
+      else if (NF!=1) unsafe_fallback=1
       next
     }
     dns && fallback && /^  [A-Za-z_][A-Za-z0-9_-]*:/ {fallback=0}
