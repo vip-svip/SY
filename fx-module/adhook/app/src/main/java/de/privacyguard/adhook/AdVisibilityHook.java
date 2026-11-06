@@ -1105,21 +1105,47 @@ private boolean targetDeveloperOptIn(String packageName) {
                     }
                     continue;
                 }
-                if (!("getSensorList".equals(name) || "getDefaultSensor".equals(name))
+                if (!("getSensorList".equals(name) || "getDefaultSensor".equals(name)
+                        || "getDynamicSensorList".equals(name))
                         || parameters.length < 1 || parameters[0] != int.class) continue;
                 try {
                     hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                             .intercept(chain -> {
                                 Object arg = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
                                 if (!(arg instanceof Integer)) return chain.proceed();
+                                int requestedType = ((Integer) arg).intValue();
                                 String activePackage = currentPackage;
                                 UnifiedHookConfigParser.Target active = targets.get(activePackage);
-                                if (!SensorPrivacyPolicy.shouldHide(privacyEnabled, processPackages.size(),
-                                        activePackage, active, ((Integer) arg).intValue())) {
+                                if (!SensorPrivacyPolicy.hasAnyEnumerationRule(active)
+                                        || !privacyEnabled || processPackages.size() != 1
+                                        || activePackage == null || activePackage.isEmpty()) {
                                     return chain.proceed();
                                 }
-                                if ("getSensorList".equals(name)) return Collections.emptyList();
-                                return null;
+                                if (("getSensorList".equals(name) || "getDynamicSensorList".equals(name))
+                                        && requestedType == -1) {
+                                    Object original = chain.proceed();
+                                    if (!(original instanceof List)) return original;
+                                    List<Object> visible = new ArrayList<>();
+                                    for (Object sensor : (List<?>) original) {
+                                        if (sensor == null) continue;
+                                        try {
+                                            Object sensorType = sensor.getClass().getMethod("getType").invoke(sensor);
+                                            if (!(sensorType instanceof Integer)
+                                                    || !SensorPrivacyPolicy.shouldHide(true, processPackages.size(),
+                                                            activePackage, active, ((Integer) sensorType).intValue())) {
+                                                visible.add(sensor);
+                                            }
+                                        } catch (Throwable ignored) {
+                                            // Keep inaccessible OEM sensors visible.
+                                            visible.add(sensor);
+                                        }
+                                    }
+                                    return visible;
+                                }
+                                if (!SensorPrivacyPolicy.shouldHide(true, processPackages.size(),
+                                        activePackage, active, requestedType)) return chain.proceed();
+                                if ("getDefaultSensor".equals(name)) return null;
+                                return Collections.emptyList();
                             });
                     installed++;
                 } catch (Throwable t) {
