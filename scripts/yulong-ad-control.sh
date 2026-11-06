@@ -857,7 +857,7 @@ unbound_runtime_values() {
       cache_max_ttl="86400"; cache_min_ttl="0"
       serve_expired="1"; serve_expired_ttl="86400"
       serve_expired_reply_ttl="30"; serve_expired_client_timeout="1800"
-      prefetch="1"; qname_minimisation="1"
+      prefetch="1"; prefetch_key="1"; qname_minimisation="1"
       inside=0; sections=0; bad=0
     }
     $0=="[conf:yulong_unbound_runtime]" {sections++; if(sections>1)bad=1; inside=1; next}
@@ -876,6 +876,7 @@ unbound_runtime_values() {
       else if(key=="serve_expired_reply_ttl")serve_expired_reply_ttl=value
       else if(key=="serve_expired_client_timeout")serve_expired_client_timeout=value
       else if(key=="prefetch")prefetch=value
+      else if(key=="prefetch_key")prefetch_key=value
       else if(key=="qname_minimisation")qname_minimisation=value
       else bad=1
     }
@@ -888,6 +889,7 @@ unbound_runtime_values() {
          !valid_uint32(serve_expired_reply_ttl,0) ||
          !valid_uint32(serve_expired_client_timeout,1))exit 1
       if(prefetch!="0" && prefetch!="1")exit 1
+      if(prefetch_key!="0" && prefetch_key!="1")exit 1
       if(qname_minimisation!="0" && qname_minimisation!="1")exit 1
       print "UNBOUND_CACHE_MAX_TTL=" cache_max_ttl
       print "UNBOUND_CACHE_MIN_TTL=" cache_min_ttl
@@ -896,6 +898,7 @@ unbound_runtime_values() {
       print "UNBOUND_SERVE_EXPIRED_REPLY_TTL=" serve_expired_reply_ttl
       print "UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT=" serve_expired_client_timeout
       print "UNBOUND_PREFETCH=" prefetch
+      print "UNBOUND_PREFETCH_KEY=" prefetch_key
       print "UNBOUND_QNAME_MINIMISATION=" qname_minimisation
     }
   ' "$CONF"
@@ -912,7 +915,8 @@ write_unbound_runtime_settings() {
   _ub_serve_expired_reply_ttl=$5
   _ub_serve_expired_client_timeout=$6
   _ub_prefetch=$7
-  _ub_qname_minimisation=$8
+  _ub_prefetch_key=$8
+  _ub_qname_minimisation=$9
 
   valid_dns_runtime_uint32 "$_ub_cache_max_ttl" 0 &&
     valid_dns_runtime_uint32 "$_ub_cache_min_ttl" 1 &&
@@ -933,7 +937,7 @@ write_unbound_runtime_settings() {
     echo "Unbound serve-expired client timeout must be uint32 milliseconds" >&2
     return 2
   }
-  for _ub_flag in "$_ub_prefetch" "$_ub_qname_minimisation"; do
+  for _ub_flag in "$_ub_prefetch" "$_ub_prefetch_key" "$_ub_qname_minimisation"; do
     case "$_ub_flag" in 0|1) : ;; *) echo "Unbound runtime flags must be 0 or 1" >&2; return 2 ;; esac
   done
   unbound_runtime_values >/dev/null || {
@@ -946,7 +950,7 @@ write_unbound_runtime_settings() {
       -v serve_expired="$_ub_serve_expired" -v serve_expired_ttl="$_ub_serve_expired_ttl" \
       -v serve_expired_reply_ttl="$_ub_serve_expired_reply_ttl" \
       -v serve_expired_client_timeout="$_ub_serve_expired_client_timeout" \
-      -v prefetch="$_ub_prefetch" -v qname_minimisation="$_ub_qname_minimisation" '
+      -v prefetch="$_ub_prefetch" -v prefetch_key="$_ub_prefetch_key" -v qname_minimisation="$_ub_qname_minimisation" '
     function emit() {
       print "cache_max_ttl=" cache_max_ttl
       print "cache_min_ttl=" cache_min_ttl
@@ -955,6 +959,7 @@ write_unbound_runtime_settings() {
       print "serve_expired_reply_ttl=" serve_expired_reply_ttl
       print "serve_expired_client_timeout=" serve_expired_client_timeout
       print "prefetch=" prefetch
+      print "prefetch_key=" prefetch_key
       print "qname_minimisation=" qname_minimisation
     }
     $0=="[conf:yulong_unbound_runtime]" {
@@ -1036,11 +1041,11 @@ dns_profile_restore() {
       if(index($0,"=")<2 || $0 ~ /\r/){bad=1;next}
       key=substr($0,1,index($0,"=")-1)
       value=substr($0,index($0,"=")+1)
-      if(key !~ /^(dns_engine_adguardhome|dns_forward|custom_dns|global_dns|block_quic|block_dot|block_plain_dns|block_ipv6|block_track_domains|vpn_external_dns_proxy|vpn_external_compat|dns_querylog_enabled|CUSTOM_SERVERS|GLOBAL_SERVERS|FALLBACK_SERVERS|VPN_REMOTE|VPN_CN|RESPONSE_MODE|QUERYLOG_RETENTION|UPSTREAM_MODE|FASTEST_TIMEOUT|UPSTREAM_TIMEOUT|CACHE_SIZE|CACHE_TTL_MIN|CACHE_TTL_MAX|CACHE_OPTIMISTIC_ANSWER_TTL|CACHE_OPTIMISTIC_MAX_AGE|CACHE_ENABLED|CACHE_OPTIMISTIC|ENABLE_DNSSEC|UNBOUND_CACHE_MAX_TTL|UNBOUND_CACHE_MIN_TTL|UNBOUND_SERVE_EXPIRED|UNBOUND_SERVE_EXPIRED_TTL|UNBOUND_SERVE_EXPIRED_REPLY_TTL|UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT|UNBOUND_PREFETCH|UNBOUND_QNAME_MINIMISATION)$/)bad=1
+      if(key !~ /^(dns_engine_adguardhome|dns_forward|custom_dns|global_dns|block_quic|block_dot|block_plain_dns|block_ipv6|block_track_domains|vpn_external_dns_proxy|vpn_external_compat|dns_querylog_enabled|CUSTOM_SERVERS|GLOBAL_SERVERS|FALLBACK_SERVERS|VPN_REMOTE|VPN_CN|RESPONSE_MODE|QUERYLOG_RETENTION|UPSTREAM_MODE|FASTEST_TIMEOUT|UPSTREAM_TIMEOUT|CACHE_SIZE|CACHE_TTL_MIN|CACHE_TTL_MAX|CACHE_OPTIMISTIC_ANSWER_TTL|CACHE_OPTIMISTIC_MAX_AGE|CACHE_ENABLED|CACHE_OPTIMISTIC|ENABLE_DNSSEC|UNBOUND_CACHE_MAX_TTL|UNBOUND_CACHE_MIN_TTL|UNBOUND_SERVE_EXPIRED|UNBOUND_SERVE_EXPIRED_TTL|UNBOUND_SERVE_EXPIRED_REPLY_TTL|UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT|UNBOUND_PREFETCH|UNBOUND_PREFETCH_KEY|UNBOUND_QNAME_MINIMISATION)$/)bad=1
       if(seen[key]++)bad=1
       count++
     }
-    END{if(bad||(count!=18&&count!=19&&count!=26&&count!=30&&count!=38))exit 1}
+    END{if(bad||(count!=18&&count!=19&&count!=26&&count!=30&&count!=38&&count!=39))exit 1}
   ' "$_yad_profile_raw" || { echo "DNS profile has unknown, duplicate, missing, or malformed fields" >&2; return 2; }
   _profile_querylog_retention=7d
   _profile_runtime_mode=load_balance
@@ -1061,6 +1066,7 @@ dns_profile_restore() {
   _profile_unbound_serve_expired_reply_ttl=30
   _profile_unbound_serve_expired_client_timeout=1800
   _profile_unbound_prefetch=1
+  _profile_unbound_prefetch_key=1
   _profile_unbound_qname_minimisation=1
   while IFS= read -r _profile_line || [ -n "$_profile_line" ]; do
     [ "$_profile_line" = FXYULONGDNSPROFILE1 ] && continue
@@ -1157,6 +1163,9 @@ dns_profile_restore() {
       UNBOUND_PREFETCH)
         case "$_profile_value" in 0|1) _profile_unbound_prefetch=$_profile_value ;; *) return 2 ;; esac
         ;;
+      UNBOUND_PREFETCH_KEY)
+        case "$_profile_value" in 0|1) _profile_unbound_prefetch_key=$_profile_value ;; *) return 2 ;; esac
+        ;;
       UNBOUND_QNAME_MINIMISATION)
         case "$_profile_value" in 0|1) _profile_unbound_qname_minimisation=$_profile_value ;; *) return 2 ;; esac
         ;;
@@ -1216,7 +1225,7 @@ dns_profile_restore() {
   write_dns_querylog_retention "$_profile_querylog_retention" || return 1
   awk -v min="$_profile_runtime_cache_ttl_min" -v max="$_profile_runtime_cache_ttl_max" 'BEGIN{exit !(min+0<=max+0)}' || { echo "DNS profile cache TTL minimum exceeds maximum" >&2; return 2; }
   write_dns_runtime_settings "$_profile_runtime_mode" "$_profile_runtime_fastest" "$_profile_runtime_timeout" "$_profile_runtime_cache_size" "$_profile_runtime_cache_enabled" "$_profile_runtime_cache_optimistic" "$_profile_runtime_dnssec" "$_profile_runtime_cache_ttl_min" "$_profile_runtime_cache_ttl_max" "$_profile_runtime_optimistic_answer_ttl" "$_profile_runtime_optimistic_max_age" || return 1
-  write_unbound_runtime_settings "$_profile_unbound_cache_max_ttl" "$_profile_unbound_cache_min_ttl" "$_profile_unbound_serve_expired" "$_profile_unbound_serve_expired_ttl" "$_profile_unbound_serve_expired_reply_ttl" "$_profile_unbound_serve_expired_client_timeout" "$_profile_unbound_prefetch" "$_profile_unbound_qname_minimisation" || return 1
+  write_unbound_runtime_settings "$_profile_unbound_cache_max_ttl" "$_profile_unbound_cache_min_ttl" "$_profile_unbound_serve_expired" "$_profile_unbound_serve_expired_ttl" "$_profile_unbound_serve_expired_reply_ttl" "$_profile_unbound_serve_expired_client_timeout" "$_profile_unbound_prefetch" "$_profile_unbound_prefetch_key" "$_profile_unbound_qname_minimisation" || return 1
   if [ -n "$_profile_custom" ]; then m_dns_servers custom_dns "$_profile_custom" || return 1
   else m_dns_section_clear custom_dns || return 1; fi
   if [ -n "$_profile_global" ]; then m_dns_servers global_dns "$_profile_global" || return 1
@@ -2092,7 +2101,7 @@ case "$cmd" in
   unbound_runtime_get
   ;;
  unbound-runtime-set)
-  [ "$#" -eq 9 ] || { echo "usage: $0 unbound-runtime-set CACHE_MAX_TTL CACHE_MIN_TTL SERVE_EXPIRED SERVE_EXPIRED_TTL REPLY_TTL CLIENT_TIMEOUT_MS PREFETCH QNAME_MINIMISATION" >&2; exit 2; }
+  [ "$#" -eq 10 ] || { echo "usage: $0 unbound-runtime-set CACHE_MAX_TTL CACHE_MIN_TTL SERVE_EXPIRED SERVE_EXPIRED_TTL REPLY_TTL CLIENT_TIMEOUT_MS PREFETCH PREFETCH_KEY QNAME_MINIMISATION" >&2; exit 2; }
   shift
   with_lock transaction unbound_runtime_set "$@"
   ;;
