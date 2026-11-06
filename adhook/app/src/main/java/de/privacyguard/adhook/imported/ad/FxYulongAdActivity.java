@@ -1131,6 +1131,12 @@ private void restoreDnsProfile(EditText input){
       status.setText("快照 DNS 上游格式非法或存在重复项："+key+"；未提交。");return;
     }
   }
+  if("1".equals(preview.get("global_dns"))&&countDnsEndpoints(preview.get("GLOBAL_SERVERS"))==0){
+    status.setText("快照启用了全局 DNS，但全局上游列表为空；未提交。");return;
+  }
+  if("1".equals(preview.get("custom_dns"))&&countDnsEndpoints(preview.get("CUSTOM_SERVERS"))==0){
+    status.setText("快照启用了自定义 DNS，但自定义上游列表为空；未提交。");return;
+  }
   int enabled=0;
   for(String key:new String[]{"dns_engine_adguardhome","dns_forward","custom_dns","global_dns",
       "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
