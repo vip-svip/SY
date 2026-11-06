@@ -84,6 +84,11 @@ status() {
   _coexistence_route_probe=unavailable
   _filter_total=unknown
   _filter_enabled=unknown
+  _root_interface=unknown
+  _root_vpn_uid=unknown
+  _root_egress_ipv4=unknown
+  _root_redirects=unknown
+  _root_dns_probe=unavailable
   if [ -f "$CONF" ] && [ ! -L "$CONF" ] && [ -r "$CONF" ]; then
     _filter_counts=$(awk -F'|' '
       function valid_url(u, i, ch, allowed) {
@@ -150,6 +155,11 @@ status() {
   printf 'adguardhome|%s\n' "$_agh"
   printf 'unbound|%s\n' "$_unbound"
   printf 'root_proxy|%s\n' "$_root"
+  printf 'rootproxy_interface|%s\n' "$_root_interface"
+  printf 'rootproxy_vpn_uid|%s\n' "$_root_vpn_uid"
+  printf 'rootproxy_egress_ipv4|%s\n' "$_root_egress_ipv4"
+  printf 'rootproxy_redirects|%s\n' "$_root_redirects"
+  printf 'rootproxy_dns_probe|%s\n' "$_root_dns_probe"
   printf 'rootproxy_whitelist_count|%s\n' "$_whitelist_count"
   printf 'dns_filter_sources_total|%s\n' "$_filter_total"
   printf 'dns_filter_sources_enabled|%s\n' "$_filter_enabled"
