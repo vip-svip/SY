@@ -6941,3 +6941,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - QuickJS 宿主 `$done()` 对 http-response 阶段默认回写响应对象：host.js 提交 485009a4faeae627ec6ebd7b76a9b3481f6061fc；对应 Egern 构建 patcher 同步提交 b775fde2fec731926b4f7e3a9cb3f60cb4eb8ecb。
 - Egern runner 清理重复临时文件项：runner.sh 提交 150889a9cd8337d7a33f32a0e9a39dda3e843e49；构建 patcher 现在会将临时路径清理项归一为一份，提交 3786d5af359142d73b53890467ac6f7ef87a23cb。
 - 本批未运行测试、静态检查、Gradle/NDK 构建、CI 或 Android 真机验证；配置往返比较属于保存路径的运行时保护，不代表已经执行过相关检查。
+
+## 2026-11-06 — Surge/Loon HTTP 脚本元数据与正文需求迁移
+
+- 应用与模块两套 MainActivity 导入器现在把 FXMETA_B64 编码为四行真实换行字段：HTTP 触发类型、URL 正则、响应正文需求标记、脚本显示名称；修复此前写入字面量反斜线-n、导致同步器把整个元数据误读为触发类型的问题。
+- 解析并保留 requires-body=1（只对含 response 触发的条目生效），脚本去重键按 URL、触发类型、匹配规则和正文标记生成，不因显示名称变化生成重复条目。
+- 列表显示解码后的脚本名称与触发摘要；编辑导入脚本时只更新显示名称，继续保留触发类型、URL 匹配规则和正文需求。兼容旧版两行元数据与早期字面量反斜线-n 记录。
+- fx-module/scripts/jsruntime/sync-subs.sh 继续接受旧两行元数据，并将正文需求和显示名称写入 FX-SCRIPT-REQUIRES-BODY / FX-SCRIPT-NAME 头。
+- build-fx-kernelsu.yml 现在在 Release ZIP 恢复前快照整个 QuickJS 运行时目录，恢复后整体覆盖回当前分支源码，避免旧归档同时覆盖订阅同步器、脚本存储和调度器，而不再只保护 host/runner/README。
+- 应用导入器提交：83a1a37d78a01311a11c71794df0053f614098f7；模块导入器提交：f8c9d0616f94beaadf547c65332b30af0b9bf055；订阅同步器提交：6ce26c89196889fa617df9ebc7f83a3a4252547b；构建恢复提交：b78d223854eda696197fc88ae399fe077708e3bd；运行时文档提交：102b025da665edaafc722a27c1d8985fdfc9e294。
+- 固定 FX 1.0.0；本批按要求未运行测试、静态检查、构建、CI 或真机验证。
