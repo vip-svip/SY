@@ -2,6 +2,8 @@ package de.privacyguard.adhook.imported.dia;
 
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.ClipboardManager;
+import android.content.ClipData;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -404,7 +406,8 @@ public final class FxDiaMonitorEventsActivity extends de.privacyguard.adhook.FxN
                 AlertDialog dialog = fxDialogBuilder()
                         .setTitle("监控事件 · " + event.category)
                         .setMessage(event.toDisplayString())
-                        .setPositiveButton("关闭", null)
+                        .setPositiveButton("复制事件", (d, which) -> copyEvent(event))
+                        .setNegativeButton("关闭", null)
                         .create();
                 showFxDialog(dialog);
             });
@@ -422,6 +425,18 @@ public final class FxDiaMonitorEventsActivity extends de.privacyguard.adhook.FxN
             rows.addView(empty);
         }
         restorePendingScrollPosition();
+    }
+
+    private void copyEvent(FxDiaMonitorEventParser.Event event) {
+        if (event == null) return;
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+        if (clipboard == null) {
+            Toast.makeText(this, "系统剪贴板不可用，未复制事件。", Toast.LENGTH_LONG).show();
+            return;
+        }
+        clipboard.setPrimaryClip(ClipData.newPlainText(
+                "FX Dia 结构化监控事件", event.toDisplayString()));
+        Toast.makeText(this, "已复制当前结构化事件。", Toast.LENGTH_SHORT).show();
     }
 
     private void restoreUiState(Bundle state) {
