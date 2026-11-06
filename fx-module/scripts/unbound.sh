@@ -230,6 +230,34 @@ _render_config() {
   _ub_rrset_cache_size=$(_unbound_runtime_value UNBOUND_RRSET_CACHE_SIZE) || return 1
   _ub_key_cache_size=$(_unbound_runtime_value UNBOUND_KEY_CACHE_SIZE) || return 1
   _ub_neg_cache_size=$(_unbound_runtime_value UNBOUND_NEG_CACHE_SIZE) || return 1
+  _ub_num_threads=$(_unbound_runtime_value UNBOUND_NUM_THREADS) || return 1
+  case "$_ub_num_threads" in ''|*[!0-9]*|0)
+    _log 'Unbound worker count is missing or invalid'
+    return 1
+    ;;
+  esac
+  _ub_online_cores=$(awk -F, '
+    {
+      for (i=1; i<=NF; i++) {
+        split($i, range, "-")
+        first=range[1]+0
+        last=(range[2]=="" ? first : range[2]+0)
+        if (range[1] ~ /^[0-9]+$/ && last>=first) total+=last-first+1
+      }
+    }
+    END { if (total>0) print total }
+  ' /sys/devices/system/cpu/online 2>/dev/null)
+  case "$_ub_online_cores" in ''|*[!0-9]*|0)
+    _ub_online_cores=$(getconf _NPROCESSORS_ONLN 2>/dev/null | tr -d '[:space:]') ;;
+  esac
+  case "$_ub_online_cores" in ''|*[!0-9]*|0)
+    _ub_online_cores=$(awk '/^processor[[:space:]]*:/ {n++} END {print n+0}' /proc/cpuinfo 2>/dev/null) ;;
+  esac
+  case "$_ub_online_cores" in ''|*[!0-9]*|0) _ub_online_cores=1 ;; esac
+  [ "$_ub_num_threads" -le "$_ub_online_cores" ] 2>/dev/null || {
+    _log 'configured Unbound worker count exceeds currently online CPU cores'
+    return 1
+  }
   for _ub_cache_size in "$_ub_msg_cache_size" "$_ub_rrset_cache_size" "$_ub_key_cache_size" "$_ub_neg_cache_size"; do
     case "$_ub_cache_size" in ''|*[!0-9kKmMgG]*) _log 'Unbound cache pool size has invalid syntax'; return 1 ;; esac
     _ub_cache_size_number=$_ub_cache_size
@@ -253,7 +281,7 @@ server:
   logfile: "$LOG"
   use-syslog: no
   verbosity: 1
-  num-threads: 1
+  num-threads: $_ub_num_threads
   interface: 127.0.0.1
 $_egress_config  port: 5353
   access-control: 127.0.0.0/8 allow
