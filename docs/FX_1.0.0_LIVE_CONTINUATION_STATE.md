@@ -1217,3 +1217,10 @@
 - canonical 与模块原生 Ad 页面同步加入四项状态字段白名单与展示；两套 `native-dns-settings.sh` 与两套 `FxYulongAdActivity.java` 回读内容一致。
 - 提交：状态后端 `64ee78ee099c5d0f37cd904602212c3ac005b6be` / `128fa5a813d788940cdbfef02a818ab603399a0d`；响应行结束符修正 `c9b5e64d88a31185f59c034488133d8f54aa5580` / `f1e394f2850042973afea78248abb971ab69d389`；原生状态页 `ce5ffad75e85eea9b86f02d0d7a4a8de4e5b0e45` / `020b8fe88f1ad66edc4010af367ef2c380bdcd3a`。
 - 本批只进行了 GitHub 源码回读，未运行测试、静态检查、Gradle/APK 构建、CI 或 Android 真机验证。
+## 2026-11-07 — DNS 查询日志大文件流式导出
+
+- 原有“分享全部筛选结果”将完整查询日志文本放进 Android `Intent.EXTRA_TEXT`；在大日志场景可能受 Binder/跨进程事务体积限制，不能作为完整日志的可靠导出通道。
+- 原生 DNS 查询日志页新增“保存筛选结果为文件”：调用系统 `ACTION_CREATE_DOCUMENT` 文件保存器，随后在后台工作线程中以 UTF-8/TSV 逐条写入当前全部筛选匹配记录，不将完整导出内容放入 Intent，也不受页面 50 条显示分页影响。
+- 导出包含当前搜索词、拦截状态、时间范围、RR 类型及响应码筛选元数据；记录字段清理制表符/换行，避免破坏 TSV 列结构。导出使用 SAF 输出流，不依赖私有共享目录或外部存储权限。
+- 同步正式 APK 源码与 `fx-module/` 打包源码；源码提交：`709446e6ea0eea86dc2e67aaa15d6a1e8f5dffb7`、`79ded82ee998b1ac0d2f6adc2f549cb284ede0d5`。
+- 按当前要求未运行测试、静态检查、Gradle/APK 构建、CI 或 Android 真机验证；完成的是源码写入，不代表大日志设备实测。
