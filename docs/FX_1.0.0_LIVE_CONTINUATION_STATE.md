@@ -8171,3 +8171,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 参数名仅用于编辑器输入，解析时转换为精确 JVM 参数类型；原有 Java 源码签名、Frida `.overload()` 签名及 DEX/JVM descriptor 路径保持可用。
 - 为避免猜测编译 ABI，拒绝 Kotlin 默认参数表达式、解构参数及非法参数名；仍执行原有目标包归属与完整返回类型校验。
 - 按用户要求未运行测试、静态检查、Gradle 构建、CI 或设备验证。
+
+
+### FX Hook Kotlin 可空类型与泛型数组签名支持（2026-11-07）
+
+- 实现提交：`47562f740180cabb527ef50fe005a4bc6e14690b`，文件 `fx-module/adhook/app/src/main/java/de/privacyguard/adhook/DeveloperExecutableDescriptor.java`。
+- Kotlin 自定义 Hook 签名解析新增可空类型处理：引用类型保持引用描述符；可空基础类型转换为对应 Java 包装类型；非空基础类型保留 JVM primitive 描述符。
+- 新增精确组件类型的 `Array<T>` 描述符生成，并支持基础类型数组包装组件；保留 Kotlin 专用基础类型数组映射。
+- 同时修正上一批解析器在剥离 `fun ` 前缀后，仍使用原始输入定位右括号的问题。
+- 不接受无法精确确定运行时类型的泛型参数、`Nothing`、可空 `Unit` 或默认参数表达式。
+- 按用户要求未运行测试、静态检查、Gradle 构建、CI 或设备验证。
