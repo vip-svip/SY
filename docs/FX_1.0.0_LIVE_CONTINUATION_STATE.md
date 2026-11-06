@@ -541,3 +541,11 @@
 - TCP socket 全程非阻塞；poll 等待可读/可写时按截止时间计算剩余毫秒，EINTR 重试不会重置预算，EAGAIN/EWOULDBLOCK 则等待对应 I/O 就绪。
 - 防止对端持续分片发送数据、让每次 recv 都在单次 socket 超时内返回，从而无限延长整个 DNS 探测事务。
 - 按用户要求未运行测试、静态检查、构建、CI 或设备验证。
+
+### FX 本地递归 DNS UDP 探测发送超时边界（2026-11-07）
+
+- 代码提交：`9ebe0f5090675a97015a673255c4d450ab311fd5`。
+- 文件：`fx-module/scripts/localdns-probe.c`。
+- UDP 健康探测 socket 同时设置 `SO_RCVTIMEO` 与 `SO_SNDTIMEO`，发送与接收阶段均使用传入的 1–10 秒超时配置。
+- 避免只约束响应接收、却未给 UDP 查询发送设置内核超时的单边超时配置。
+- 按用户要求未运行测试、静态检查、构建、CI 或设备验证。
