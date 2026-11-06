@@ -7629,3 +7629,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动文件：`adhook/app/src/main/java/de/privacyguard/adhook/FxGkdRuleStore.kt`、`adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAutomationActivity.java`。
 - 每条本地规则新增“复制为草稿”：完整复制目标包名、主/排除选择器、动作、冷却和分组，生成全新规则 ID，并强制关闭；不会复制启用状态，避免复制后意外触发自动点击。达到 500 条上限或存储失败时保留原规则并提示。
 - 本批按当前要求未运行测试、静态检查、构建、CI 或设备验证。
+
+
+## 2026-11-06 — GKD 单条规则 JSON 复制
+
+- 代码提交：`1112e8617a1757bde5d93bf7843dd7174db48195`（规则存储）；`dfc5ed1d189801ec64bc1a5169fc92552be6bb38`（Hook 规则卡片）。
+- 改动文件：`adhook/app/src/main/java/de/privacyguard/adhook/FxGkdRuleStore.kt`、`adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAutomationActivity.java`。
+- 每条规则卡片新增“复制规则 JSON”，按 FX-GKD-LOCAL-RULES schema v1 输出单条规则的完整 JSON 信封，可粘贴保存后通过现有导入流程迁移；不复制运行日志或屏幕内容。剪贴板不可用、规则已不存在时提示。
+- 未运行测试、静态检查、构建、CI 或设备验证。
