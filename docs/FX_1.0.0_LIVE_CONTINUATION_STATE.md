@@ -6767,3 +6767,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 更新 `.github/workflows/build-fx-kernelsu.yml`（`debcceb9`，sidecar 格式修正 `ef5de49e`）：KernelSU 打包阶段从 Android ARM64 构建工作流下载 AdGuard Home v0.107.79 产物，按 SHA-256 sidecar 接入 `fx-module/engines/adguardhome/AdGuardHome`，同步配置模板与 lifecycle script。
 - 更新 `.github/workflows/build-adguardhome-android-arm64.yml`（`3c6328e7`），配置模板变更也会触发 Android ARM64 runtime 重建，供打包流程使用。
 - Root Proxy 原有 `ensure/stop` 调用现已对应实际生命周期脚本；Unbound 仍按既有顺序提供本地递归上游。本批仅完成源码和打包链路接线；没有触发 Actions，也没有执行测试、静态检查、构建、CI 或真机验证，因此不代表 Android 设备上的 AGH 启动与 DNS 回答已验证通过。
+
+## 2026-11-06 — DNS 引擎运行状态并入 VPN 控制器接口
+
+- 更新 `fx-module/scripts/yulong-vpn-control.sh`（`80acf500`），并同步 canonical source `scripts/yulong-vpn-control.sh`（`c48c03f6`）。VPN 状态 JSON 新增 `dns_adguardhome_status`、`dns_unbound_status` 与 `dns_stack_ready`；状态值限定为 `ready/running-unhealthy/stopped/unavailable`，由各自引擎 lifecycle 脚本返回，不再只依赖 Root Proxy 是否 active 推测 DNS 引擎健康。
+- 更新 `.github/workflows/build-fx-kernelsu.yml`（`a43e0d4e`），确保打包恢复 Release 模块源码后，仍使用仓库当前 canonical VPN 控制器覆盖模块内版本，保留上述 DNS 状态字段。
+- 本批未执行测试、静态检查、构建、CI 或真机验证。
