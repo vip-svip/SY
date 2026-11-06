@@ -7778,3 +7778,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - DNS 上游卡片新增清除自定义 DNS、清除全局 DNS入口，并将备用 DNS 清除统一到同一确认流程。
   - 清除前说明仅移除对应服务器配置段，不自动关闭相关开关、不改动 VPN 节点 DNS；成功后清空对应输入框并刷新页面。
 - 按用户要求，本批未运行测试、静态检查、Gradle 构建、CI、安装或真机验证；清除行为尚未验收。
+
+
+## 2026-11-06 — Ad VPN 节点 DNS 双项事务式恢复默认值
+
+- 后端提交：`e069e55c13c25d475bfd0fba0b10fa86625ac9c6`，文件 `scripts/yulong-ad-control.sh`。
+  - 新增 `dns-vpn-reset` 命令，在既有配置锁与事务回滚中，将 `remote_dns` 恢复为 `1.1.1.1`、`cn_dns` 恢复为 `223.5.5.5`。
+  - 两项写入任一失败时由事务层回滚，避免 UI 逐条写入造成只恢复一半。
+- UI 提交：`0d42e4936aba12cbceefdc7fd1846093c00044ef`，文件 `adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
+  - VPN 节点 DNS 卡片新增“恢复 VPN DNS 默认值”，二次确认后调用单一后端事务；成功后刷新页面并显示默认地址。
+  - 该操作只改 FX VPN 配置的两个 DNS 字段，不清除自定义/全局/备用 DNS，也不改变 DNS 引擎开关。
+- 按用户要求，本批未运行测试、静态检查、Gradle 构建、CI、安装或真机验证；默认值恢复及事务回滚尚未验收。
