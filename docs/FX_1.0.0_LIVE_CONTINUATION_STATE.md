@@ -7284,3 +7284,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 同步修改：`fx-module/scripts/yulong-root-proxy.sh`、`scripts/native-dns-settings.sh`、`fx-module/scripts/native-dns-settings.sh`、两份 `MainActivity.java`。
 - 代码提交：`b2d79e13f763f8fe2e788374d2cc80bf2613707e`、`39d8c380ba38ed7f7d50322d191bc84a80af8d0f`、`2ca65613d704ed833fad72f970641fea0b25b58c`、`3ce8dac16050ebb50bb3a4df60cf87ce4e24099b`、`105afc8c99d9e6a5a8a4a0b35e9ad68f577a52cc`。
 - 按当前推进要求未运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-06 — 保留 Root Proxy 非零退出诊断输出
+
+- 修正 DNS 状态读取对 Root Proxy 状态命令的调用方式：命令即使因 fail-open 清理失败返回非零退出码，也保留标准输出并继续解析 `reason` 与 `cleanup=failed`，不再将诊断内容清空。
+- 主脚本与模块脚本同步修改：`scripts/native-dns-settings.sh`、`fx-module/scripts/native-dns-settings.sh`。
+- 代码提交：`6b813b743040c2dd517cd944c9979224caa5de4e`、`70257be07a648630d61aa92077c9de20f997ef5d`。
+- 按当前推进要求未运行测试、静态检查、构建、CI 或真机验证。
