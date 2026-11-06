@@ -8393,3 +8393,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 将规范集成脚本同步到模块副本；增加对 AdGuard Home 原生 managed `user_rules` 渲染链的识别。检测到原生 `_build_user_rules` / `_build_filter_sources` / `_render_managed_config` 路径时，不再重复插入旧版配置片段；旧版模块归档仍保留兼容补丁路径。
 - 保留 Yulong 通用 DNS/Hosts 规则与 FX 专用反诈 `[list:fx]` 数据隔离检查，以及规则文件完整性门槛和回归脚本复制步骤。
 - 模块脚本与规范脚本内容同步；按用户要求未运行集成脚本、测试、静态检查、构建、CI 或设备验证。
+
+### FX Hook 模块安装/卸载脚本路径与 APK 暂存安全加固（2026-11-07）
+
+- 卸载脚本提交：`d9b53ab94ad9868f83b364e8a89a29c055f728b0`；文件：`fx-module/scripts/remove_adhook_app.sh`。
+- 安装脚本提交：`d2f425d310c66efb6a4052c298cf01406ab43755`；文件：`fx-module/scripts/install_adhook_app.sh`。
+- 卸载侧增加状态目录、日志目录及路径组件 symlink/`..` 检查；拒绝通过被重定向的状态或日志路径读取 Hook 所有权标记，拒绝 symlink/非普通文件标记，并保留已安装 APK SHA-256 与 FX 所有权双重确认后才卸载的策略。
+- 安装侧保留模块 APK 路径、校验和侧车文件及系统应用识别检查；将共享临时目录中的可预测 APK 暂存文件改为 `mktemp -d` 原子创建的私有目录，验证目录路径与权限，清理时不递归删除可能被替换的路径。
+- 按用户要求未运行安装/卸载脚本、测试、静态检查、构建、CI 或设备验证。
