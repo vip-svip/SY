@@ -296,6 +296,21 @@ object FxGkdRuleStore {
 
     @JvmStatic
     @Synchronized
+    fun setGroupEnabled(context: Context, group: String, enabled: Boolean): Boolean {
+        val name = group.trim().ifEmpty { "默认" }
+        val rules = getRules(context)
+        if (rules.none { it.group == name }) return false
+        val next = rules.map { if (it.group == name) it.copy(enabled = enabled) else it }
+        if (!writeRules(context, next)) return false
+        if (enabled) {
+            return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .edit().putBoolean(KEY_MASTER_ENABLED, true).commit()
+        }
+        return true
+    }
+
+    @JvmStatic
+    @Synchronized
     fun setRuleEnabled(context: Context, id: String, enabled: Boolean): Boolean {
         val rules = getRules(context)
         if (rules.none { it.id == id }) return false
