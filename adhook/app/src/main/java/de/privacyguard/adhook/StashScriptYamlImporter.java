@@ -294,7 +294,7 @@ public final class StashScriptYamlImporter {
                 else if (c == '\'') single = false;
             } else if (c == '"') dual = true;
             else if (c == '\'') single = true;
-            else if (c == '#' && (i == 0 || Character.isWhitespace(line.charAt(i - 1))) return line.substring(0, i);
+            else if (c == '#' && (i == 0 || Character.isWhitespace(line.charAt(i - 1)))) return line.substring(0, i);
         }
         return line;
     }
