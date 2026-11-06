@@ -1618,7 +1618,7 @@ private void restoreDnsProfile(EditText input){
     String[] labels={"dns_engine_adguardhome","dns_forward","custom_dns","global_dns",
       "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
       "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled",
-      "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE","QUERYLOG_RETENTION","QUERYLOG_MEMORY_SIZE",
+      "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE","QUERYLOG_RETENTION","QUERYLOG_MEMORY_SIZE","STATISTICS_ENABLED","STATISTICS_INTERVAL",
       "UPSTREAM_MODE","FASTEST_TIMEOUT","UPSTREAM_TIMEOUT","CACHE_SIZE","CACHE_ENABLED","CACHE_OPTIMISTIC","ENABLE_DNSSEC",
       "CACHE_TTL_MIN","CACHE_TTL_MAX","CACHE_OPTIMISTIC_ANSWER_TTL","CACHE_OPTIMISTIC_MAX_AGE",
       "UNBOUND_CACHE_MAX_TTL","UNBOUND_CACHE_MIN_TTL","UNBOUND_SERVE_EXPIRED","UNBOUND_SERVE_EXPIRED_TTL",
