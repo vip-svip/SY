@@ -5,6 +5,7 @@ import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -21,6 +22,9 @@ import de.privacyguard.adhook.RootAccess;
 
 import org.json.JSONObject;
 
+import java.io.BufferedWriter;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -33,6 +37,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /** Local-only DNS query log viewer for the migrated Yulong AdBlock page. */
 public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     private static final int ROW_PAGE_SIZE = 50;
+    private static final int SAVE_FILTERED_RESULTS_REQUEST = 53071;
     private static final String STATE_SEARCH = "fx_dns_search";
     private static final String STATE_PAGE = "fx_dns_page";
     private static final String STATE_SCROLL_Y = "fx_dns_scroll_y";
@@ -66,6 +71,8 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
     private String rcodeFilter = "";
     private int pendingScrollY;
     private boolean pendingScrollRestore;
+    private List<Entry> pendingExportEntries;
+    private String pendingExportMetadata;
 
     private static final class Entry {
         final String time, domain, type, reason, rcode;
@@ -154,12 +161,13 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         refreshButton = button("刷新", this::load);
         clearButton = button("清理本地查询日志", this::confirmClear);
         Button shareButton = button("分享全部筛选结果", this::shareFilteredResults);
+        Button saveResultsButton = button("保存筛选结果为文件", this::saveFilteredResultsToFile);
         Button copyDomainsButton = button("复制筛选域名（去重）", this::copyFilteredDomains);
         Button allowFilteredButton = button("筛选域名批量加入白名单", () -> addFilteredDomains(true));
         Button blockFilteredButton = button("筛选域名批量加入黑名单", () -> addFilteredDomains(false));
         card(body, "本机日志说明",
                 "查询日志默认关闭；启用后 AdGuard Home 按本机保留策略保存记录。这里显示本机保留的完整查询日志，不显示客户端 IP，也不会上传。",
-                status, refreshButton, clearButton, shareButton, copyDomainsButton, allowFilteredButton, blockFilteredButton);
+                status, refreshButton, clearButton, shareButton, saveResultsButton, copyDomainsButton, allowFilteredButton, blockFilteredButton);
         summaryStatus = text(summaryBaseText, 12, 0xff526170, false);
         card(body, "查询日志统计摘要",
                 "显示本机全部保留日志的汇总、去重域名数、RR 类型/响应码分布及高频拦截域名；不显示客户端 IP，也不会上传。",
@@ -792,6 +800,125 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
                     + "。");
         } catch (RuntimeException unavailable) {
             status.setText("无法打开系统分享面板：" + safe(unavailable.getMessage()));
+        }
+    }
+
+    /** Capture all locally loaded rows matching the complete active filter set. */
+    private List<Entry> collectFilteredEntries() {
+        String query = search == null || search.getText() == null ? ""
+                : search.getText().toString().trim().toLowerCase(Locale.ROOT);
+        List<Entry> selected = new ArrayList<>();
+        for (Entry item : data) {
+            if (matchesResultFilter(item) && matchesTimeFilter(item)
+                    && matchesTypeFilter(item) && matchesRcodeFilter(item)
+                    && (query.isEmpty() || item.searchable().contains(query))) {
+                selected.add(item);
+            }
+        }
+        return selected;
+    }
+
+    private String currentExportMetadata() {
+        String query = search == null || search.getText() == null ? ""
+                : search.getText().toString().trim();
+        return "FX Ad DNS query log\n"
+                + "filter=" + cleanExportField(query) + "\n"
+                + "result=" + (resultFilter == 1 ? "blocked" : resultFilter == 2 ? "allowed" : "all") + "\n"
+                + "time=" + (timeFilter == 1 ? "1h" : timeFilter == 2 ? "24h" : timeFilter == 3 ? "7d" : "all") + "\n"
+                + "dns_type=" + (typeFilter.isEmpty() ? "all" : typeFilter) + "\n"
+                + "rcode=" + (rcodeFilter.isEmpty() ? "all" : rcodeFilter) + "\n"
+                + "scope=all locally retained parsed records";
+    }
+
+    private void saveFilteredResultsToFile() {
+        if (data.isEmpty()) {
+            status.setText("当前没有可保存的 DNS 查询记录；请先刷新并确认本地日志已启用。");
+            return;
+        }
+        List<Entry> selected = collectFilteredEntries();
+        if (selected.isEmpty()) {
+            status.setText("当前筛选条件没有可保存的 DNS 查询记录。");
+            return;
+        }
+        Intent create = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        create.addCategory(Intent.CATEGORY_OPENABLE);
+        create.setType("text/tab-separated-values");
+        create.putExtra(Intent.EXTRA_TITLE, "FX-DNS-filtered-querylog.tsv");
+        pendingExportEntries = selected;
+        pendingExportMetadata = currentExportMetadata();
+        try {
+            startActivityForResult(create, SAVE_FILTERED_RESULTS_REQUEST);
+        } catch (RuntimeException unavailable) {
+            pendingExportEntries = null;
+            pendingExportMetadata = null;
+            status.setText("无法打开系统文件保存器：" + safe(unavailable.getMessage()));
+        }
+    }
+
+    private void writeFilteredResultsToUri(Uri uri, List<Entry> selected, String metadata) {
+        int written = 0;
+        String failure = null;
+        try {
+            OutputStream output = getContentResolver().openOutputStream(uri);
+            if (output == null) throw new java.io.IOException("系统未提供可写入的文件流。");
+            try (BufferedWriter writer = new BufferedWriter(
+                    new OutputStreamWriter(output, java.nio.charset.StandardCharsets.UTF_8))) {
+                writer.write(metadata == null ? "FX Ad DNS query log" : metadata);
+                writer.write("\ntime\tdomain\ttype\trcode\tresult\treason\n");
+                for (Entry item : selected) {
+                    writer.write(cleanExportField(item.time));
+                    writer.write('\t');
+                    writer.write(cleanExportField(item.domain));
+                    writer.write('\t');
+                    writer.write(cleanExportField(item.type));
+                    writer.write('\t');
+                    writer.write(cleanExportField(item.rcode));
+                    writer.write('\t');
+                    writer.write(item.blocked ? "blocked" : "allowed");
+                    writer.write('\t');
+                    writer.write(cleanExportField(item.reason));
+                    writer.write('\n');
+                    written++;
+                }
+                writer.flush();
+            }
+        } catch (Exception error) {
+            failure = safe(error.getMessage());
+        }
+        final int savedRows = written;
+        final String saveFailure = failure;
+        runOnUiThread(() -> {
+            if (isFinishing() || isDestroyed() || status == null) return;
+            if (saveFailure == null) {
+                status.setText("已将 " + savedRows + " 条筛选匹配记录完整写入所选文件（TSV/UTF-8）。");
+            } else {
+                status.setText("保存 DNS 查询记录失败：" + saveFailure
+                        + "；已写入 " + savedRows + " 条。");
+            }
+        });
+    }
+
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent resultData) {
+        super.onActivityResult(requestCode, resultCode, resultData);
+        if (requestCode != SAVE_FILTERED_RESULTS_REQUEST) return;
+        List<Entry> selected = pendingExportEntries;
+        String metadata = pendingExportMetadata;
+        pendingExportEntries = null;
+        pendingExportMetadata = null;
+        Uri destination = resultData == null ? null : resultData.getData();
+        if (resultCode != Activity.RESULT_OK || destination == null) {
+            status.setText("已取消保存 DNS 查询结果。");
+            return;
+        }
+        if (selected == null || selected.isEmpty()) {
+            status.setText("没有待保存的 DNS 查询记录；请重新选择筛选范围。");
+            return;
+        }
+        status.setText("正在流式写入 " + selected.size() + " 条 DNS 查询记录…");
+        try {
+            worker.execute(() -> writeFilteredResultsToUri(destination, selected, metadata));
+        } catch (RejectedExecutionException full) {
+            status.setText("DNS 日志后台队列繁忙，文件尚未写入；请稍后重试。");
         }
     }
 
