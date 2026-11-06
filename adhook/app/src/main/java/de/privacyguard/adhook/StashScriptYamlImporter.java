@@ -146,6 +146,10 @@ public final class StashScriptYamlImporter {
                 current.url = value;
             } else if ("interval".equals(key)) {
                 if (!defaultInteger(value, 86400)) current.supported = false;
+            } else {
+                // Provider headers, custom paths, payloads and unknown provider
+                // settings are not represented in FX's URL-only subscription model.
+                current.supported = false;
             }
         }
         if (current != null && !name.isEmpty()) providers.put(name, current);
