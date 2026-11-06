@@ -722,6 +722,36 @@ _whitelist_set_locked() {
     echo "active=0"
   fi
 }
+_whitelist_prune_locked() {
+  [ -f "$CONF" ] && [ ! -L "$CONF" ] || { _log "settings.conf is missing or unsafe"; return 21; }
+  _snapshot=$(cmd package list packages -U 2>/dev/null) || { _log "cannot read PackageManager snapshot; whitelist unchanged"; return 1; }
+  [ -n "$_snapshot" ] || { _log "PackageManager returned an empty snapshot; whitelist unchanged"; return 1; }
+  printf '%s\n' "$_snapshot" | awk '
+    $1 ~ /^package:[A-Za-z0-9_.-]+$/ {
+      for(i=2;i<=NF;i++) if($i ~ /^uid:[0-9]+$/) {valid=1; break}
+    }
+    END {exit !valid}
+  ' || { _log "PackageManager snapshot is malformed; whitelist unchanged"; return 1; }
+  _removed=0
+  _packages=$(_list_whitelist_packages) || return 1
+  while IFS= read -r _package; do
+    [ -n "$_package" ] || continue
+    if ! printf '%s\n' "$_snapshot" | grep -Fqx "package:$_package" >/dev/null 2>&1; then
+      _whitelist_set_value "$_package" 0 || return 1
+      _removed=$((_removed + 1))
+    fi
+  done <<EOF
+$_packages
+EOF
+  echo "removed=$_removed"
+  if [ "$_removed" -gt 0 ] && [ -s "$ACTIVE_META" ]; then
+    [ ! -L "$ACTIVE_META" ] || { _stop_locked; _log "unsafe active metadata after whitelist prune"; return 1; }
+    _iface=$(sed -n '1p' "$ACTIVE_META" 2>/dev/null)
+    _uid=$(sed -n '2p' "$ACTIVE_META" 2>/dev/null)
+    _valid_if "$_iface" && _valid_uid "$_uid" || { _stop_locked; _log "invalid active metadata after whitelist prune"; return 1; }
+    _ensure_locked "$_iface" "$_uid" || return $?
+  fi
+}
 _status_fail_open() {
   _reason=$1
   # Status runs under the Root Proxy lock. Reconcile every failed proof to a
@@ -864,11 +894,15 @@ case "$cmd" in
       || { echo "usage: yulong-root-proxy.sh whitelist-set PACKAGE 0|1" >&2; exit 2; }
     with_lock _whitelist_set_locked "$2" "$3"
     ;;
+  whitelist-prune)
+    [ "$#" -eq 1 ] || { echo "usage: yulong-root-proxy.sh whitelist-prune" >&2; exit 2; }
+    with_lock _whitelist_prune_locked
+    ;;
   reconcile)
     with_lock _reconcile_locked
     ;;
   uninstall)
     with_lock _stop_locked
     ;;
-  *) echo 'usage: yulong-root-proxy.sh {ensure|stop|enable|disable|status|whitelist-list|whitelist-set|reconcile|uninstall}' >&2; exit 64 ;;
+  *) echo 'usage: yulong-root-proxy.sh {ensure|stop|enable|disable|status|whitelist-list|whitelist-set|whitelist-prune|reconcile|uninstall}' >&2; exit 64 ;;
 esac
