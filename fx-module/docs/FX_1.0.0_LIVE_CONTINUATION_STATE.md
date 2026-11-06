@@ -6744,3 +6744,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `scripts/localdns-watchdog.sh`、`fx-module/scripts/localdns-watchdog.sh`、两份 `yulong-ad-control.sh` 均提供 `dns-repair` 命令；canonical 与 module 两套 `FxYulongAdActivity.java` 在 DNS 状态卡片增加“立即尝试修复 DNS 服务”按钮，确认后执行修复并刷新状态。
 - 本批主要提交：IPv4/IPv6 探测器 `800295628c02201f31e6bc1a0b31c743bd8c5ca2`、`ccdfe41e1f4b278a8d2e52246cbfc11eeed9ed16`、显式 IPv6 头文件 `70a304c3d0f1397d8be25cf13f7bbf0184e4d7bb`、`1bd6200c4a3c6de46d6704d2ba26248328167d3e`；AdGuard 未缓存探测 `c87ab368a2fee1620a888a7f836a280eca1acb3c`、`ee3eb8ffd9a15335315ff977879b1b45ffb33b47`；watchdog/CLI 修复入口 `4ea03dcc4028546af3e4615baf65c2d7e5161403`、`96f719d5f37e5b2a77db2b5b077bade266d0f9bd`、`b53a39721a3f69529fcf417c10751e44a5879590`、`50e608b8d994705b4a6752587a08b372a06267b1`；两份 UI `ef18dec1b72e4185d26c78271f0792e158d714a1`、`4fd792f7089119a300488065b680eaf67f13d009`。
 - 按当前要求未运行 C/Shell/Java 测试、静态检查、构建、CI 或 Android 真机验证；以上是源码提交与接线记录，不代表设备运行验收。
+
+## 2026-11-07 — Unbound 递归缓存调优 UI、快照与 uint32 TTL 比较
+
+- 将持久化 Unbound runtime 参数补入 canonical `scripts/yulong-ad-control.sh`：新增 `unbound-runtime-get/set`、profile 读取/恢复 8 个字段，并兼容此前 18/19/26/30 字段快照；当前新快照 38 字段。
+- 两份原生 FX Ad 页面新增 Unbound 递归缓存与隐私控制卡片，支持缓存最小/最大 TTL、serve-expired、过期缓存最大年龄、过期答案 TTL、客户端等待毫秒、prefetch、QNAME minimisation；保存由 Root 后端统一校验并调用现有 apply 流程。
+- 两份 Java profile 预览新增 8 个 Unbound 字段的默认值与范围校验，旧版快照可导入，新快照摘要显示 Unbound 设置并把恢复确认说明一并更新。
+- Unbound 配置渲染器已从 `unbound-runtime-get` 读取上述参数，生成 `serve-expired`、`serve-expired-ttl`、`serve-expired-reply-ttl`、`serve-expired-client-timeout`、`prefetch`、`qname-minimisation`、`cache-max-ttl` 和 `cache-min-ttl` 到运行配置。
+- 修正 shell `[` 对 uint32 TTL 最大值可能产生的有符号整数边界问题：AdGuard Home 与 Unbound 两组最小/最大 TTL 比较均改用 AWK 数值关系判断，保留 uint32 输入范围校验。
+- 本轮新增提交：canonical Root `31a63f7cdf7fe7e413343cc92c8e9fbf1cab5e97`；原生页面 `97f28f610dbf8cf77dbacfb21c44309d25bc3cf0` 与模块镜像 `1666f252cfd98762b56e3c254712529f91b69490`；canonical/module TTL 比较修正 `c7d8b2ce37ca4172b171fabff4d9dbf71232be38` / `f0fdc1ce0e4b576dc35daadec7fc2f238e16b0b4`。
+- 按当前要求未运行脚本测试、静态检查、Gradle/APK 构建、CI 或 Android 真机验证；本记录只描述源码落地，不视为测试通过。
