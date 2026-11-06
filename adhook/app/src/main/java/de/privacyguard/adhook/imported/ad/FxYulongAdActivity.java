@@ -727,6 +727,24 @@ private void saveVpnDns(String key,EditText input){
   card("批量导入黑名单","最多 2000 条、48 Ki 字符（导入字节仍限制为 64 KiB）。整批验证并通过一次 FX apply 事务；失败会回滚。",
       blockBulk,btn("验证并批量导入黑名单",()->importDomains("block",blockBulk)));
 
+  EditText allowRemoveBulk=draftField("allow_remove_bulk");
+  allowRemoveBulk.setGravity(Gravity.TOP|Gravity.START);
+  allowRemoveBulk.setMinLines(3);
+  allowRemoveBulk.setHint("每行一个域名；仅删除白名单中匹配的条目");
+  card("批量移除白名单",
+      "最多 2000 条。先完整校验域名，再在单次 FX 配置事务中移除；任何一步失败都会回滚。",
+      allowRemoveBulk,
+      btn("确认批量移除白名单",()->removeDomains("allow",allowRemoveBulk)));
+
+  EditText blockRemoveBulk=draftField("block_remove_bulk");
+  blockRemoveBulk.setGravity(Gravity.TOP|Gravity.START);
+  blockRemoveBulk.setMinLines(3);
+  blockRemoveBulk.setHint("每行一个域名；仅删除黑名单中匹配的条目");
+  card("批量移除黑名单",
+      "最多 2000 条。先完整校验域名，再在单次 FX 配置事务中移除；任何一步失败都会回滚。",
+      blockRemoveBulk,
+      btn("确认批量移除黑名单",()->removeDomains("block",blockRemoveBulk)));
+
   card("域名名单导出",
       "导出设备端当前保存的用户白名单与黑名单，不包含内置规则源；导出文件可作为备份或供其他工具编辑。",
       btn("分享全部白名单",()->shareDomainList("ALLOW")),
@@ -781,6 +799,32 @@ private void saveVpnDns(String key,EditText input){
  private static String cleanDomainExportField(String value){
   return value==null?"":value.replace('|',' ').replace('\\t',' ')
       .replace('\\r',' ').replace('\\n',' ');
+ }
+ private void removeDomains(String kind,EditText input){
+  String raw=input.getText()==null?"":input.getText().toString();
+  java.util.LinkedHashSet<String> domains=new java.util.LinkedHashSet<>();
+  for(String line:raw.split("\\r?\\n")){
+   String domain=line.trim();
+   if(domain.isEmpty()||domain.startsWith("#"))continue;
+   if(domain.length()>253||domain.contains("|")){
+    status.setText("移除列表格式错误：请使用每行一个域名。");
+    return;
+   }
+   domains.add(domain);
+   if(domains.size()>2000){status.setText("单次最多移除 2000 条域名。");return;}
+  }
+  if(domains.isEmpty()){status.setText("没有可移除的域名。");return;}
+  String payload=String.join("\\n",domains);
+  byte[] bytes=payload.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+  if(bytes.length>65536){status.setText("批量移除数据超过 64 KiB，请分批处理。");return;}
+  String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);
+  String label="allow".equals(kind)?"白名单":"黑名单";
+  fxDialogBuilder().setTitle("批量移除"+label)
+      .setMessage("将从"+label+"中移除 "+domains.size()+" 个指定域名。后端会再次验证全部域名，并在单次 FX 配置事务中执行；失败会回滚。")
+      .setNegativeButton("取消",null)
+      .setPositiveButton("移除",(dialog,which)->
+          apply(kind+"-remove-many "+q(encoded),"批量移除"+label))
+      .show();
  }
  private void importDomains(String kind,EditText input){
   String raw=input.getText()==null?"":input.getText().toString();
