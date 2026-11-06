@@ -1,5 +1,21 @@
 
 
+### FX DNS 完整实现同步到正式构建源（2026-11-07）
+
+- 本轮先后提交：
+  - `28523a087a2146e75603875882191e2ee480c537`：同步 AdGuard Home DNS 上游运行时构建器到顶层正式构建源。
+  - `bc3999439b8553e2685c3add4adb1beee678fdd6`：同步 DNS 控制后端与原生 DNS 依赖/状态事务管理器。
+  - `cb1bda3c2f9a17b052be928214312b30f6e1bc28`：同步托管名单解析器和 VPN DNS 配置校验器。
+  - `2062714937fbf26b0b519199a4258df9c1ace897`：同步 VPN 共存仲裁器与 DNS 日志聚合器。
+  - `af715b245a48cae4eccf09847f25e5c62e746959`：同步完整 DNS/Ad 原生界面到实际 Hook APK 源码。
+  - `a0dc7fb48fe936d2a00c2fb38bd2a238bb138f13`：再次对齐最新 AdGuard Home 上游生成器。
+- 同步的正式源文件：`scripts/adguardhome.sh`、`scripts/yulong-ad-control.sh`、`scripts/native-dns-settings.sh`、`scripts/native-managed-lists.sh`、`scripts/native-vpn-config.sh`、`scripts/fx-vpn-coexistence-arbiter.sh`、`scripts/yulong-ad-dns-summary.sh`、`adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
+- 关键补齐：AdGuard Home 现在由启用状态选择完整的全局 IPv4 或自定义 IPv4/DoH/DoT/DoQ 上游列表，未启用时回到本地 Unbound；加密上游生成 bootstrap DNS；所有端点逐条校验且不设应用层数量上限。
+- DNS 后端现在把配置快照、查询日志保留期限、上游写入、原生引擎依赖事务和运行状态管理纳入同一正式源码链；Hook APK 源码包含完整快照文件读写、旧快照兼容和前端校验。
+- 重要构建修复：构建工作流会从顶层 `scripts/` 覆盖 `fx-module/scripts/`，并从顶层 `adhook/` 构建 APK。此前只改模块副本会在构建时被覆盖；本轮将较完整的模块实现同步到真正的构建源，避免功能只存在于工作区副本。
+- 按用户要求未运行测试、静态检查、构建、CI 或设备验证。
+
+
 ### FX DNS 开关事务、托管名单读取器与隐私统计同步至打包源码（2026-11-07）
 
 - 文件：`scripts/native-dns-settings.sh`、`scripts/native-managed-lists.sh`、`scripts/yulong-ad-dns-summary.sh`。
