@@ -260,6 +260,13 @@ status() {
     0) _dns_bootstrap_mode=not_required ;;
     *) _dns_bootstrap_mode=local_unbound ;;
   esac
+  case "$_dns_fallback_count" in
+    ''|*[!0-9]*) _dns_fallback_mode=unknown ;;
+    0)
+      case "$_dns_upstream_mode" in custom|global) _dns_fallback_mode=local_unbound ;; *) _dns_fallback_mode=none ;; esac
+      ;;
+    *) _dns_fallback_mode=explicit ;;
+  esac
   _configured=0
   _ready=0
   _readiness_reason=disabled
@@ -313,6 +320,7 @@ status() {
   printf 'dns_custom_upstreams|%s\n' "$_dns_custom_count"
   printf 'dns_global_upstreams|%s\n' "$_dns_global_count"
   printf 'dns_fallback_upstreams|%s\n' "$_dns_fallback_count"
+  printf 'dns_fallback_mode|%s\n' "$_dns_fallback_mode"
   printf 'dns_encrypted_upstreams|%s\n' "$_dns_encrypted_count"
   printf 'dns_bootstrap_mode|%s\n' "$_dns_bootstrap_mode"
 }
