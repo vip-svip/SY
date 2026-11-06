@@ -271,8 +271,35 @@ _render_managed_config() {
     rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_config_file" 2>/dev/null || :
     return 1
   fi
-  _querylog_interval=$(awk '$0=="[conf:yulong_dns_querylog_retention]"{inside=1;next} /^\\[/{inside=0} inside&&/^interval=/{sub(/^interval=/,"");print;exit}' "$PG/settings.conf" 2>/dev/null)
-  case "$_querylog_interval" in 1d|3d|7d|30d) : ;; *) _querylog_interval=7d ;; esac
+  _querylog_interval=$(awk '
+    BEGIN { inside=0; sections=0; intervals=0; value=""; bad=0 }
+    $0=="[conf:yulong_dns_querylog_retention]" {
+      sections++
+      if (inside) bad=1
+      inside=1
+      next
+    }
+    /^\\[/ { inside=0 }
+    inside && /^[[:space:]]*#/ { next }
+    inside && /^[[:space:]]*$/ { next }
+    inside && /^interval=/ {
+      intervals++
+      value=substr($0,10)
+      if (value!="1d" && value!="3d" && value!="7d" && value!="30d") bad=1
+      next
+    }
+    inside { bad=1 }
+    END {
+      if (sections>1 || intervals>1 || bad) exit 1
+      if (sections==0) print "7d"
+      else if (intervals==1) print value
+      else exit 1
+    }
+  ' "$PG/settings.conf" 2>/dev/null) || {
+    _log 'saved DNS query-log retention setting is ambiguous or invalid; refusing to render AdGuard config'
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_config_file" 2>/dev/null || :
+    return 1
+  }
   _dns_response_mode=$(awk '$0=="[conf:yulong_dns_response]"{inside=1;next} /^\\[/{inside=0} inside&&/^mode=/{sub(/^mode=/,"");print;exit}' "$PG/settings.conf" 2>/dev/null)
   case "$_dns_response_mode" in nxdomain|refused|custom_ip) : ;; *) _dns_response_mode=nxdomain ;; esac
   if ! awk '
