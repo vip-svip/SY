@@ -7385,3 +7385,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 提交：`e6c103b1a90a1bd328363aa946a82a6ae3a421da`。
 - 授权状态仅代表 Android 系统授权，不代表 FX 的通知 Hook、Usage 数据采集或其他目标策略已运行。
 - 按提速要求未运行测试、静态检查、构建、CI 或真机验证。
+
+
+## 2026-11-06 — 悬浮窗与电池优化系统控制
+
+- `adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`：隐私页新增悬浮窗权限设置入口（带当前包名参数）与电池优化设置入口；状态刷新新增 `Settings.canDrawOverlays` 和 `PowerManager.isIgnoringBatteryOptimizations` 回读。
+- 提交：`2c7653a89c13bb53b76df8e4cef4c944c9f13d55`。
+- 电池优化豁免仅展示当前状态并打开系统统一管理页，不自动申请豁免；页面提示该豁免可能增加后台耗电。
+- 按提速要求未运行测试、静态检查、构建、CI 或真机验证。
