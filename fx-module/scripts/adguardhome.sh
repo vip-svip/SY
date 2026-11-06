@@ -488,6 +488,13 @@ _stop() {
     _log 'AdGuard Home is already stopped'
     return 0
   fi
+  # Revalidate ownership immediately before signalling, matching the
+  # guarded Unbound stop path and avoiding a stale/reused PID target.
+  _same=$(_owned_pid 2>/dev/null) || _same=
+  if [ "$_same" != "$_p" ]; then
+    _log "refusing to signal PID $_p because process ownership changed before TERM"
+    return 1
+  fi
   kill -TERM "$_p" 2>/dev/null || :
   _now=
   _tries=0
