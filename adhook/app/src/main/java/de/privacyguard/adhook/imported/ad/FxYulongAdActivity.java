@@ -613,7 +613,9 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
        "默认由本地 AdGuard Home 过滤并交给 Unbound 递归解析；不固定使用公共 DNS。只有明确启用自定义 DNS 或全局 DNS 时才会使用下面填写的 IPv4 地址。",
        dnsSwitch("DNS 兜底转发","dns_forward"),
        dnsSwitch("启用自定义 DNS","custom_dns"),
-       dnsSwitch("启用全局 DNS 替换","global_dns"));
+       dnsSwitch("启用全局 DNS 替换","global_dns"),
+       btn("一键启用本地 DNS 引擎组",()->setDnsEngineProfile(true)),
+       btn("一键关闭本地 DNS 引擎组",()->setDnsEngineProfile(false)));
   card("过滤策略","DNS 和网络策略开关；与 DNS 上游地址分开保存。批量操作会一次性更新以下五项策略。",
        dnsSwitch("阻止 QUIC","block_quic"),
        dnsSwitch("阻止 DNS-over-TLS","block_dot"),
@@ -787,6 +789,19 @@ private void clearDnsSection(String kind,EditText input){
        else fxDialogBuilder().setTitle("清除失败").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
       })).show();
  }
+private void setDnsEngineProfile(boolean enabled){
+  String action=enabled?"启用":"关闭";
+  String command=enabled
+      ?"dns-native-set-many dns_engine_adguardhome 1 dns_forward 1"
+      :"dns-native-set-many dns_engine_adguardhome 0 dns_forward 0 vpn_external_dns_proxy 0";
+  new AlertDialog.Builder(this).setTitle(action+"本地 DNS 引擎组？")
+      .setMessage("将通过原生 DNS 依赖管理器，在单次配置事务中调整 AdGuard Home、Unbound 与 Root Proxy 依赖；不会修改上游服务器、过滤规则或 VPN 节点。")
+      .setNegativeButton("取消",null)
+      .setPositiveButton("确认",(dialog,which)->root(command,r->{
+        if(r.exitCode==0){status.setText("本地 DNS 引擎组已"+action+"并应用。");load();}
+        else fxDialogBuilder().setTitle("DNS 引擎设置未更新").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
+      })).show();
+}
 private void setDnsFilterPolicy(boolean enabled){
   String action=enabled?"启用":"关闭";
   new AlertDialog.Builder(this).setTitle(action+"全部 DNS 过滤策略？")
