@@ -319,7 +319,8 @@ _ensure() {
   fi
   _maybe_refresh_anchor
   mv -f "$_tmp" "$CFG" || { rm -f "$_tmp"; return 1; }
-  chmod 600 "$CFG" 2>/dev/null || :
+  # The config was created with _new_private_temp (umask 077 + chmod 600)
+  # and retains that mode across the atomic rename.
   nohup "$BIN" -d -c "$CFG" >/dev/null 2>&1 &
   _new=$!
   _pid_tmp=$(_new_private_temp "$STATE/managed.pid.tmp.XXXXXX") || { kill "$_new" 2>/dev/null || :; return 1; }
