@@ -2683,6 +2683,19 @@ public final class MainActivity extends ComponentActivity {
                 }
                 if (name.length() > 4096) throw new IllegalArgumentException("第 " + (i + 1) + " 项备注元数据超过 4096 字符");
             }
+            boolean httpsOnly = true;
+            for (int i = 0; i < entries.length(); i++) {
+                JSONObject entry = entries.optJSONObject(i);
+                String value = entry == null ? "" : entry.optString("value", "");
+                if (!value.regionMatches(true, 0, "https://", 0, 8)) {
+                    httpsOnly = false;
+                    break;
+                }
+            }
+            if (httpsOnly) {
+                importNativeScriptBatch(entries, 0, 0, 0, 0);
+                return;
+            }
             runNativeModuleCommand(nativeScriptStoreCommand("list"), 30000L, current -> {
                 if (current.exitCode != 0) {
                     Toast.makeText(this, "读取现有脚本列表失败，未执行导入：" + current.output.trim(),
@@ -2712,6 +2725,87 @@ public final class MainActivity extends ComponentActivity {
         } catch (Exception error) {
             Toast.makeText(this, "脚本配置导入失败：" + error.getMessage(), Toast.LENGTH_LONG).show();
         }
+    }
+
+    private void importNativeScriptBatch(JSONArray entries, int offset,
+                                         int totalAdded, int totalDuplicate, int totalFailed) {
+        if (offset >= entries.length()) {
+            Toast.makeText(this, "批量导入结束：新增 " + totalAdded + " 项，重复跳过 "
+                    + totalDuplicate + " 项，失败 " + totalFailed + " 项",
+                    Toast.LENGTH_LONG).show();
+            if (nativeScriptRows != null && nativeScriptStatus != null) {
+                refreshNativeScriptList(nativeScriptRows, nativeScriptStatus);
+            }
+            if (totalAdded > 0) syncNativeScriptRuntime();
+            return;
+        }
+
+        final int end = Math.min(entries.length(), offset + 512);
+        java.io.File manifest = null;
+        try {
+            manifest = java.io.File.createTempFile("fx-native-script-batch-", ".list", getCacheDir());
+            try (java.io.FileOutputStream output = new java.io.FileOutputStream(manifest)) {
+                for (int i = offset; i < end; i++) {
+                    JSONObject entry = entries.optJSONObject(i);
+                    if (entry == null) continue;
+                    String value = entry.optString("value", "");
+                    String name = entry.optString("name", "").trim();
+                    String enabled = entry.optBoolean("enabled", true) ? "1" : "0";
+                    if (!value.regionMatches(true, 0, "https://", 0, 8)) continue;
+                    String line = "URL|"
+                            + encodeNativeScriptArgument(value) + "|"
+                            + encodeNativeScriptArgument(name) + "|"
+                            + enabled + "\n";
+                    output.write(line.getBytes(StandardCharsets.UTF_8));
+                }
+                output.flush();
+                output.getFD().sync();
+            }
+            if (manifest.length() <= 0) throw new IllegalStateException("批量导入清单为空");
+            final java.io.File staged = manifest;
+            String command = nativeScriptStoreCommand("add-batch", shellQuote(staged.getAbsolutePath()));
+            runNativeModuleCommand(command, 120000L, result -> {
+                if (staged.exists() && !staged.delete()) staged.deleteOnExit();
+                String output = result.output == null ? "" : result.output.trim();
+                int added = nativeScriptBatchCount(output, "added");
+                int duplicate = nativeScriptBatchCount(output, "duplicate");
+                int failed = nativeScriptBatchCount(output, "failed");
+                if (result.exitCode != 0 || added < 0 || duplicate < 0 || failed < 0) {
+                    String summary = "批量导入中断：已新增 " + totalAdded + " 项，重复跳过 "
+                            + totalDuplicate + " 项；当前批次返回：" + output;
+                    Toast.makeText(this, summary, Toast.LENGTH_LONG).show();
+                    if (nativeScriptRows != null && nativeScriptStatus != null) {
+                        refreshNativeScriptList(nativeScriptRows, nativeScriptStatus);
+                    }
+                    if (totalAdded > 0) syncNativeScriptRuntime();
+                    return;
+                }
+                importNativeScriptBatch(entries, end,
+                        totalAdded + added, totalDuplicate + duplicate, totalFailed + failed);
+            });
+        } catch (Exception error) {
+            if (manifest != null && manifest.exists()) manifest.delete();
+            Toast.makeText(this, "批量脚本导入失败：" + error.getMessage(), Toast.LENGTH_LONG).show();
+            if (totalAdded > 0) {
+                if (nativeScriptRows != null && nativeScriptStatus != null) {
+                    refreshNativeScriptList(nativeScriptRows, nativeScriptStatus);
+                }
+                syncNativeScriptRuntime();
+            }
+        }
+    }
+
+    private static int nativeScriptBatchCount(String output, String key) {
+        if (output == null || key == null) return -1;
+        for (String field : output.trim().split("\\s+")) {
+            if (!field.startsWith(key + "=")) continue;
+            try {
+                return Integer.parseInt(field.substring(key.length() + 1));
+            } catch (NumberFormatException ignored) {
+                return -1;
+            }
+        }
+        return -1;
     }
 
     private static String nativeScriptImportKey(String value, String name) {
