@@ -34,6 +34,8 @@ object FxGkdRuleStore {
     const val MIN_COOLDOWN_MS = 1_000L
     const val MAX_COOLDOWN_MS = 60_000L
     const val DEFAULT_COOLDOWN_MS = 3_000L
+    const val MAX_RULES = 500
+    const val MAX_IMPORT_CHARS = 1_048_576
 
     // Accessibility events can arrive frequently. Cache the decoded rules by
     // their persisted JSON value so the event hot path does not rebuild a
@@ -132,6 +134,9 @@ object FxGkdRuleStore {
     @JvmStatic
     @Synchronized
     fun importJson(context: Context, raw: String): FxGkdImportResult {
+        if (raw.length > MAX_IMPORT_CHARS) {
+            return FxGkdImportResult(0, 0, "规则文件超过 1 MiB 限制。")
+        }
         val document = try {
             JSONObject(raw)
         } catch (_: Exception) {
@@ -145,6 +150,9 @@ object FxGkdRuleStore {
         val sourceRules = document.optJSONArray("rules")
             ?: return FxGkdImportResult(0, 0, "文件缺少 rules 数组。")
         val merged = getRules(context).toMutableList()
+        if (merged.size >= MAX_RULES) {
+            return FxGkdImportResult(0, sourceRules.length(), "本地规则已达到 500 条上限。")
+        }
         val known = merged.map { it.packageName + "\u0000" + it.selector }.toMutableSet()
         var skipped = 0
 
@@ -157,7 +165,8 @@ object FxGkdRuleStore {
             val packageName = item.optString("package").trim()
             val selector = item.optString("selector").trim()
             val cooldown = item.optLong("cooldown_ms", DEFAULT_COOLDOWN_MS)
-            if (!isValidPackageName(packageName) || packageName == context.packageName ||
+            if (merged.size >= MAX_RULES ||
+                !isValidPackageName(packageName) || packageName == context.packageName ||
                 selector.isEmpty() || selector.length > 512 ||
                 cooldown !in MIN_COOLDOWN_MS..MAX_COOLDOWN_MS ||
                 !isInstalledUserApplication(context, packageName) ||
@@ -216,6 +225,7 @@ object FxGkdRuleStore {
         val compiled = FxGkdSelectorEngine.compile(expression)
         if (!compiled.isValid) return null
         val existing = getRules(context)
+        if (existing.size >= MAX_RULES) return null
         val rule = FxGkdRule(
             id = UUID.randomUUID().toString(),
             packageName = pkg,
@@ -250,6 +260,7 @@ object FxGkdRuleStore {
             value.matches(Regex("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+"))
 
     private fun writeRules(context: Context, rules: List<FxGkdRule>): Boolean {
+        if (rules.size > MAX_RULES) return false
         val array = JSONArray()
         rules.forEach { rule ->
             array.put(JSONObject()
