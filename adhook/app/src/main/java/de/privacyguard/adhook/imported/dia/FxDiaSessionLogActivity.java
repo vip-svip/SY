@@ -3,6 +3,8 @@ package de.privacyguard.adhook.imported.dia;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.ClipboardManager;
+import android.content.ClipData;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -173,6 +175,8 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
         actions.setTag("fx-card-group");
         actions.addView(button("刷新日志", this::refreshLog),
                 new LinearLayout.LayoutParams(0, -2, 1));
+        actions.addView(button("复制筛选结果", this::copyFilteredLog),
+                new LinearLayout.LayoutParams(0, -2, 1));
         actions.addView(button("清空当前日志", this::confirmClearLog),
                 new LinearLayout.LayoutParams(0, -2, 1));
         controls.addView(actions);
@@ -240,24 +244,46 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
         });
     }
 
+    private String getFilteredLogContent() {
+        String needle = search == null || search.getText() == null ? ""
+                : search.getText().toString().trim().toLowerCase(Locale.ROOT);
+        if (logContent.isEmpty()) return "";
+        StringBuilder filtered = new StringBuilder();
+        for (String line : logContent.split("\\r?\\n", -1)) {
+            if (!needle.isEmpty() && !line.toLowerCase(Locale.ROOT).contains(needle)) continue;
+            if (filtered.length() > 0) filtered.append('\n');
+            filtered.append(line);
+        }
+        return filtered.toString();
+    }
+
     private void renderLog() {
         if (outputView == null || search == null) return;
-        String needle = search.getText() == null ? ""
-                : search.getText().toString().trim().toLowerCase(Locale.ROOT);
         if (logContent.isEmpty()) {
             outputView.setText("暂无可显示的运行日志。");
             restorePendingScrollPosition();
             return;
         }
-        StringBuilder filtered = new StringBuilder();
-        int total = 0;
-        for (String line : logContent.split("\\r?\\n", -1)) {
-            if (!needle.isEmpty() && !line.toLowerCase(Locale.ROOT).contains(needle)) continue;
-            if (total++ > 0) filtered.append('\n');
-            filtered.append(line);
-        }
-        outputView.setText(total == 0 ? "没有符合条件的日志行。" : filtered.toString());
+        String filtered = getFilteredLogContent();
+        outputView.setText(filtered.isEmpty() ? "没有符合条件的日志行。" : filtered);
         restorePendingScrollPosition();
+    }
+
+    private void copyFilteredLog() {
+        String filtered = getFilteredLogContent();
+        if (filtered.isEmpty()) {
+            Toast.makeText(this, "当前没有可复制的日志内容。", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+        if (clipboard == null) {
+            Toast.makeText(this, "系统剪贴板不可用，未复制日志。", Toast.LENGTH_LONG).show();
+            return;
+        }
+        clipboard.setPrimaryClip(ClipData.newPlainText(
+                gadgetLog ? "FX Gadget 日志" : "FX Frida 会话日志", filtered));
+        Toast.makeText(this, "已复制当前筛选结果（" + filtered.length() + " 字符）。",
+                Toast.LENGTH_SHORT).show();
     }
 
     private void restoreUiState(Bundle state) {
