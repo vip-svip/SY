@@ -136,7 +136,7 @@
   globalThis.$request=Object.assign({url:'',method:'GET',headers:{},body:''},_fxEvent.request||{});
   globalThis.$response=Object.assign({status:200,statusCode:200,headers:{},body:''},_fxEvent.response||{});
   if(_fxEvent.response&&_fxEvent.response.statusCode==null&&_fxEvent.response.status!=null) globalThis.$response.statusCode=Number(_fxEvent.response.status);
-  globalThis.$environment=Object.assign({system:'android',version:'1.0.0',app:'FX QuickJS-NG',device:'Android',language:'zh-CN',"stash-version":"FX-1.0.0"},_fxEvent.environment||{});
+  globalThis.$environment=Object.assign({system:'android',version:'1.0.0',app:'FX QuickJS-NG',device:'Android',language:'zh-CN'},_fxEvent.environment||{});
   globalThis.$script=Object.assign({name:'FX Script',startTime:Date.now(),type:_fxEvent.stage||'manual'},_fxEvent.script||{});
   globalThis.$argument=String(_fxEvent.argument||'');
   globalThis.$input=String(_fxEvent.input||'');
