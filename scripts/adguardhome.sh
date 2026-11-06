@@ -138,7 +138,11 @@ _config_contract() {
   awk '
     /^http:$/ {http=1; next}
     http && /^[^[:space:]]/ {http=0}
-    http && /^  address:/ {http_addr=$2}
+    http && /^  address:/ {
+      split($2,http_parts,":")
+      if (http_parts[1]=="127.0.0.1" && http_parts[2] ~ /^[0-9]+$/ &&
+          http_parts[2]>=0 && http_parts[2]<=65535) http_loopback=1
+    }
     /^dns:$/ {dns=1; next}
     dns && /^[^[:space:]]/ {dns=0}
     dns && /^  port:/ {dns_port=$2}
@@ -153,7 +157,7 @@ _config_contract() {
       else unsafe_upstream=1
     }
     END {
-      exit (http_addr=="127.0.0.1:0" && dns_port=="53" &&
+      exit (http_loopback && dns_port=="53" &&
         hosts["127.0.0.1"] && hosts["::1"] && bind_count==2 &&
         upstream_count==1 && local_upstream && !unsafe_upstream) ? 0 : 1
     }
