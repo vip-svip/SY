@@ -7879,3 +7879,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - UI 提交：`d446e1002eb2650b84c3eef16cc0f0b1f1327f6f`，文件 `adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
   - Ad → DNS → VPN 节点 DNS 新增“一次性保存两组 VPN DNS”，要求两项均填写后确认，调用单一事务入口；保留原有单项保存及恢复默认值功能。
 - 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证；本批尚未验收。
+
+
+## 2026-11-06 — Ad DNS 安全预设一键事务
+
+- 后端提交：`2658119f9c7da47fe01d789f4fad3d41a9983b41`，文件 `scripts/yulong-ad-control.sh`。
+  - 新增 `dns-security-profile-set nxdomain|refused|custom_ip 0|1`。
+  - 在同一配置事务中更新 DNS 拦截响应模式及 QUIC、DoT、明文 DNS、IPv6、跟踪域名保护五项策略；所有输入先校验，单次 apply。
+  - 不修改 DNS 上游、白/黑名单、VPN 节点或本地 DNS 引擎依赖开关。
+- UI 提交：`8293ffb1751a21757dc63cde877d73dfe7ade24d`，文件 `adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
+  - DNS 拦截返回模式卡新增“严格 DNS 保护”与“基础 DNS 拦截”两个预设入口；前者设置 NXDOMAIN 并启用五项策略，后者保留 NXDOMAIN 并关闭五项附加策略。
+  - 二次确认后单次调用后端事务，成功时同步返回模式显示并刷新页面。
+- 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证；本批尚未验收。
