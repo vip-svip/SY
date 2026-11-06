@@ -722,8 +722,6 @@ public final class FxDiaActivityBrowserActivity extends de.privacyguard.adhook.F
                 .append("\nfilter=").append(query)
                 .append("\nclass\texported\tenabled\tmanifestEnabled\tpermission\n");
         int included = 0;
-        int omitted = 0;
-        final int maxBytes = 256 * 1024;
         for (ActivityEntry entry : activities) {
             if (entry == null || entry.info == null) continue;
             ActivityInfo info = entry.info;
@@ -739,9 +737,6 @@ public final class FxDiaActivityBrowserActivity extends de.privacyguard.adhook.F
             String row = name + "\t" + info.exported + "\t" + entry.enabled + "\t"
                     + info.enabled + "\t" + permission.replace('\t', ' ').replace('\n', ' ')
                     .replace('\r', ' ') + "\n";
-            int used = report.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
-            int bytes = row.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
-            if (used + bytes > maxBytes) { omitted++; continue; }
             report.append(row);
             included++;
         }
@@ -756,7 +751,7 @@ public final class FxDiaActivityBrowserActivity extends de.privacyguard.adhook.F
             if (clipboard == null) throw new IllegalStateException("系统剪贴板不可用");
             clipboard.setPrimaryClip(android.content.ClipData.newPlainText("FX Activity inventory", report.toString()));
             status.setText("已复制 " + included + " 个筛选匹配的 Activity 元数据"
-                    + (omitted > 0 ? "；另有 " + omitted + " 项因 256 KiB 上限省略。" : "。"));
+                    + "。");
         } catch (RuntimeException error) {
             status.setText("复制 Activity 清单失败：" + safeError(error.getMessage()));
         }

@@ -34,13 +34,10 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
     private static final String EXTRA_TARGET_PACKAGE = "fx_dia_session_log_target_package";
     private static final String EXTRA_TARGET_NAME = "fx_dia_session_log_target_name";
     private static final String EXTRA_GADGET_PORT = "fx_dia_session_log_gadget_port";
-    private static final int MAX_ROOT_OUTPUT = 512 * 1024;
     private static final int REQUEST_EXPORT_LOG = 7105;
-    private static final int MAX_EXPORT_CHARS = 512 * 1024;
     private static final String BASE_DIR = "/data/adb/privacyguard";
     private static final String DIA_DIR = BASE_DIR + "/dia-frida";
     private static final String LOG_DIR = DIA_DIR + "/logs";
-    private static final int MAX_RESTORED_SEARCH_CHARS = 256;
     private static final String STATE_SEARCH = "fx_dia_session_log_search";
     private static final String STATE_SCROLL_Y = "fx_dia_session_log_scroll_y";
 
@@ -220,10 +217,10 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
         final String command = checkedDirectoryPrefix()
                 + "if [ -f " + quote(logPath) + " ] && [ ! -L " + quote(logPath)
                 + " ] && [ -r " + quote(logPath) + " ] && [ -s " + quote(logPath)
-                + " ]; then tail -n 500 " + quote(logPath)
+                + " ]; then cat " + quote(logPath)
                 + "; else echo FX_DIA_NO_LOG; fi";
         submit(() -> {
-            RootAccess.Result result = RootAccess.execute(command, 15000L, MAX_ROOT_OUTPUT);
+            RootAccess.Result result = RootAccess.execute(command, 15000L, Integer.MAX_VALUE);
             runOnUiThread(() -> {
                 if (destroyed || isFinishing() || isDestroyed()
                         || request != requestGeneration) return;
@@ -304,7 +301,7 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
             Toast.makeText(this, "当前没有可分享的日志内容。", Toast.LENGTH_SHORT).show();
             return;
         }
-        final int shareLimit = 48 * 1024;
+        final int shareLimit = Integer.MAX_VALUE;
         String header = "FX Dia 会话日志 · " + targetName + " · "
                 + (gadgetLog ? "Gadget" : "Frida") + "\\n"
                 + "包名：" + targetPackage + "\\n"
@@ -312,10 +309,6 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
                         .format(new Date()) + "\\n"
                 + "注意：分享前请检查日志中的敏感信息。\\n\\n";
         String payload = header + filtered;
-        if (utf8Length(payload) > shareLimit) {
-            String marker = "\\n[分享内容达到 48 KiB 上限，后续日志已省略]";
-            payload = truncateUtf8(payload, shareLimit - utf8Length(marker)) + marker;
-        }
         Intent send = new Intent(Intent.ACTION_SEND);
         send.setType("text/plain");
         send.putExtra(Intent.EXTRA_SUBJECT, "FX Dia 会话日志 · " + targetName);
@@ -361,11 +354,6 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
                         .format(new Date()) + "\\n"
                 + "说明：日志可能包含脚本或目标应用输出的敏感信息，请妥善保管。\\n\\n";
         String content = header + filtered;
-        boolean truncated = utf8Length(content) > MAX_EXPORT_CHARS;
-        if (truncated) {
-            String marker = "\\n[导出达到 512 KiB 上限，后续内容已省略]\\n";
-            content = truncateUtf8(content, MAX_EXPORT_CHARS - utf8Length(marker)) + marker;
-        }
         try (OutputStream stream = getContentResolver().openOutputStream(data.getData(), "w")) {
             if (stream == null) throw new IOException("无法打开目标文件");
             byte[] bytes = content.getBytes(java.nio.charset.StandardCharsets.UTF_8);
@@ -411,9 +399,6 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
         if (state == null) return;
         String query = state.getString(STATE_SEARCH, "");
         if (query == null) query = "";
-        if (query.length() > MAX_RESTORED_SEARCH_CHARS) {
-            query = query.substring(0, MAX_RESTORED_SEARCH_CHARS);
-        }
         search.setText(query);
         search.setSelection(search.getText().length());
         restoredScrollY = Math.max(0, state.getInt(STATE_SCROLL_Y, 0));
@@ -433,9 +418,6 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
         super.onSaveInstanceState(outState);
         if (search != null) {
             String query = search.getText() == null ? "" : search.getText().toString();
-            if (query.length() > MAX_RESTORED_SEARCH_CHARS) {
-                query = query.substring(0, MAX_RESTORED_SEARCH_CHARS);
-            }
             outState.putString(STATE_SEARCH, query);
         }
         if (logScroll != null) outState.putInt(STATE_SCROLL_Y, Math.max(0, logScroll.getScrollY()));

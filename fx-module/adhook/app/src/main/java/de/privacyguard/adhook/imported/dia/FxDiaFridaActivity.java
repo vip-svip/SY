@@ -383,11 +383,9 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         restoreTargetPickerPending = state != null
                 && state.getBoolean(STATE_TARGET_PICKER_OPEN, false);
         targetPickerQuery = state == null ? "" : state.getString(STATE_TARGET_PICKER_QUERY, "");
-        if (targetPickerQuery.length() > 256) targetPickerQuery = targetPickerQuery.substring(0, 256);
         restoreProcessPickerPending = state != null
                 && state.getBoolean(STATE_PROCESS_PICKER_OPEN, false);
         processPickerQuery = state == null ? "" : state.getString(STATE_PROCESS_PICKER_QUERY, "");
-        if (processPickerQuery.length() > 256) processPickerQuery = processPickerQuery.substring(0, 256);
         hasPendingProcessPickerSelection = state != null
                 && state.getBoolean(STATE_PROCESS_PICKER_HAS_STAGED_SELECTION, false);
         pendingProcessPickerPids.clear();
@@ -397,7 +395,6 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 for (String pid : stagedPids) {
                     if (pid != null && pid.matches("[0-9]{1,10}"))
                         pendingProcessPickerPids.add(pid);
-                    if (pendingProcessPickerPids.size() >= 256) break;
                 }
             }
         }

@@ -44,11 +44,8 @@ import java.util.concurrent.TimeUnit;
 public final class FxDiaMonitorEventsActivity extends de.privacyguard.adhook.FxNativeTabActivity {
     public static final String EXTRA_TARGET_PACKAGE = "fx_dia_monitor_target_package";
     public static final String EXTRA_TARGET_NAME = "fx_dia_monitor_target_name";
-    private static final int MAX_ROOT_OUTPUT = 512 * 1024;
     private static final int REQUEST_EXPORT_EVENTS = 7104;
-    private static final int MAX_EXPORT_BYTES = 256 * 1024;
     private static final long REFRESH_INTERVAL_MS = 15000L;
-    private static final int MAX_RESTORED_SEARCH_CHARS = 256;
     private static final String STATE_SEARCH = "fx_dia_monitor_state_search";
     private static final String STATE_CATEGORY = "fx_dia_monitor_state_category";
     private static final String STATE_AUTO_REFRESH = "fx_dia_monitor_state_auto_refresh";
@@ -279,11 +276,11 @@ public final class FxDiaMonitorEventsActivity extends de.privacyguard.adhook.FxN
                 + "if [ -L " + shellQuote(logPath) + " ]; then "
                 + "echo FX_DIA_LOG_PATH_UNTRUSTED; exit 72; "
                 + "elif [ -f " + shellQuote(logPath) + " ] && [ -r " + shellQuote(logPath)
-                + " ] && [ -s " + shellQuote(logPath) + " ]; then tail -n 800 "
+                + " ] && [ -s " + shellQuote(logPath) + " ]; then cat "
                 + shellQuote(logPath) + "; else echo FX_DIA_NO_EVENTS; fi";
         try {
             enqueueLatest(() -> {
-                RootAccess.Result result = RootAccess.execute(command, 15000L, MAX_ROOT_OUTPUT);
+                RootAccess.Result result = RootAccess.execute(command, 15000L, Integer.MAX_VALUE);
                 runOnUiThread(() -> {
                     if (destroyed || isFinishing() || isDestroyed()
                             || request != loadGeneration) return;
@@ -338,15 +335,11 @@ public final class FxDiaMonitorEventsActivity extends de.privacyguard.adhook.FxN
             Toast.makeText(this, "当前筛选没有可分享的安全事件。", Toast.LENGTH_SHORT).show();
             return;
         }
-        final int shareLimit = 48 * 1024;
+        final int shareLimit = Integer.MAX_VALUE;
         String content = buildFilteredExport();
         if (content.isEmpty()) {
             Toast.makeText(this, "当前没有可分享的事件内容。", Toast.LENGTH_SHORT).show();
             return;
-        }
-        if (utf8Length(content) > shareLimit) {
-            String marker = "\\n[分享内容达到 48 KiB 上限，后续事件已省略]\\n";
-            content = truncateUtf8(content, shareLimit - utf8Length(marker)) + marker;
         }
         Intent send = new Intent(Intent.ACTION_SEND);
         send.setType("text/plain");
@@ -387,20 +380,9 @@ public final class FxDiaMonitorEventsActivity extends de.privacyguard.adhook.FxN
                         .format(new Date())).append("\\n")
                 .append("说明：仅包含内置监控模板解析出的白名单元数据，不含请求正文、SQL 文本、调用栈或自定义脚本原文。\\n\\n");
         int outputBytes = utf8Length(output);
-        final String marker = "\\n[导出达到 256 KiB 上限，后续事件已省略]\\n";
-        final int markerBytes = utf8Length(marker);
         for (FxDiaMonitorEventParser.Event event : filtered) {
             String item = event.toDisplayString() + "\\n\\n";
             int itemBytes = utf8Length(item);
-            if (outputBytes + itemBytes > MAX_EXPORT_BYTES) {
-                if (outputBytes + markerBytes > MAX_EXPORT_BYTES) {
-                    String bounded = truncateUtf8(output.toString(), MAX_EXPORT_BYTES - markerBytes);
-                    output.setLength(0);
-                    output.append(bounded);
-                }
-                output.append(marker);
-                break;
-            }
             output.append(item);
             outputBytes += itemBytes;
         }
@@ -463,7 +445,6 @@ public final class FxDiaMonitorEventsActivity extends de.privacyguard.adhook.FxN
         List<FxDiaMonitorEventParser.Event> filtered = getFilteredEvents();
         int shown = 0;
         for (FxDiaMonitorEventParser.Event event : filtered) {
-            if (shown >= 120) break;
             LinearLayout row = new LinearLayout(this);
             row.setTag("fx-list-row");
             row.setOrientation(LinearLayout.VERTICAL);
@@ -484,7 +465,7 @@ public final class FxDiaMonitorEventsActivity extends de.privacyguard.adhook.FxN
             shown++;
         }
         count.setText("匹配事件：" + filtered.size() + " · 当前显示：" + shown
-                + (filtered.size() > shown ? "（列表最多显示 120 条，请缩小筛选范围）" : ""));
+                + "");
         if (filtered.isEmpty()) {
             TextView empty = text(events.isEmpty()
                             ? "当前目标没有可显示的内置监控事件。先在 Dia Frida 页面选择目标并注入相应监控模板，再返回刷新。"
@@ -513,9 +494,6 @@ public final class FxDiaMonitorEventsActivity extends de.privacyguard.adhook.FxN
         restoringUiState = true;
         String query = state.getString(STATE_SEARCH, "");
         if (query == null) query = "";
-        if (query.length() > MAX_RESTORED_SEARCH_CHARS) {
-            query = query.substring(0, MAX_RESTORED_SEARCH_CHARS);
-        }
         search.setText(query);
         search.setSelection(search.getText().length());
         int savedCategory = state.getInt(STATE_CATEGORY, 0);
@@ -541,9 +519,6 @@ public final class FxDiaMonitorEventsActivity extends de.privacyguard.adhook.FxN
         super.onSaveInstanceState(outState);
         if (search != null) {
             String query = search.getText() == null ? "" : search.getText().toString();
-            if (query.length() > MAX_RESTORED_SEARCH_CHARS) {
-                query = query.substring(0, MAX_RESTORED_SEARCH_CHARS);
-            }
             outState.putString(STATE_SEARCH, query);
         }
         if (category != null) outState.putInt(STATE_CATEGORY, category.getSelectedItemPosition());
