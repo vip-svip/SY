@@ -15,43 +15,74 @@ chmod 700 "$PG/jsruntime" "$DEST" 2>/dev/null || :
 # delete each other's newly installed files or race on the same target + sidecar.
 LOCK="$PG/jsruntime/sync-subs.lock"
 umask 077
+LOCK_START=
+proc_start_time() {
+  _pid=$1
+  case "$_pid" in ''|*[!0-9]*) return 1 ;; esac
+  [ -r "/proc/$_pid/stat" ] || return 1
+  _tail=$(sed 's/^.*) //' "/proc/$_pid/stat" 2>/dev/null) || return 1
+  _state=$(printf '%s\n' "$_tail" | awk '{print $1}')
+  _start=$(printf '%s\n' "$_tail" | awk '{print $20}')
+  case "$_state" in Z|X|'') return 1 ;; esac
+  case "$_start" in ''|*[!0-9]*) return 1 ;; esac
+  printf '%s\n' "$_start"
+}
+read_lock_owner() {
+  [ -d "$LOCK" ] && [ ! -L "$LOCK" ] && [ -f "$LOCK/pid" ] && [ ! -L "$LOCK/pid" ] || return 2
+  _record=$(cat "$LOCK/pid" 2>/dev/null) || return 2
+  _owner=$(printf '%s\n' "$_record" | sed -n '1p')
+  _owner_start=$(printf '%s\n' "$_record" | sed -n '2p')
+  case "$_owner:$_owner_start" in *[!0-9:]*|:|*:) return 2 ;; esac
+  [ -z "$(printf '%s\n' "$_record" | sed -n '3p')" ] || return 2
+  _live_start=$(proc_start_time "$_owner" 2>/dev/null) || return 1
+  [ "$_live_start" = "$_owner_start" ] || return 1
+  return 0
+}
 acquire_lock() {
   _tries=0
   while ! mkdir "$LOCK" 2>/dev/null; do
-    _owner=$(cat "$LOCK/pid" 2>/dev/null || true)
-    case "$_owner" in
-      ''|*[!0-9]*)
-        # Give an owner time to publish its PID after mkdir before treating a
-        # lock with a missing PID as stale.
-        if [ "$_tries" -ge 30 ]; then
-          _stale="$LOCK.stale.$$"
-          if mv "$LOCK" "$_stale" 2>/dev/null; then rm -rf "$_stale"; fi
-        else
-          _tries=$((_tries + 1)); sleep 0.1
-        fi
+    [ ! -L "$LOCK" ] || { pg_log "js-sub: refusing symlinked sync lock"; return 1; }
+    _owner_state=0
+    read_lock_owner || _owner_state=$?
+    case "$_owner_state" in
+      0)
+        [ "$_tries" -lt 600 ] || return 1
+        _tries=$((_tries + 1)); sleep 0.1
         ;;
-      *)
-        if kill -0 "$_owner" 2>/dev/null; then
-          [ "$_tries" -lt 600 ] || return 1
-          _tries=$((_tries + 1)); sleep 0.1
-        else
-          _stale="$LOCK.stale.$$"
+      1|2)
+        # A missing/malformed owner may be in the short mkdir->publish window.
+        # Only retire it after a bounded grace period; rename first so we never
+        # recursively delete a lock another synchronizer has just acquired.
+        if [ "$_tries" -ge 30 ]; then
+          _stale="$LOCK.stale.$"
           if mv "$LOCK" "$_stale" 2>/dev/null; then rm -rf "$_stale"; fi
+        else
+          _tries=$((_tries + 1)); sleep 0.1
         fi
         ;;
     esac
   done
-  if ! printf '%s\n' "$$" > "$LOCK/pid"; then
+  LOCK_START=$(proc_start_time "$") || { rmdir "$LOCK" 2>/dev/null || :; return 1; }
+  if ! {
+    printf '%s\n%s\n' "$" "$LOCK_START" > "$LOCK/pid" &&
+    chmod 600 "$LOCK/pid"
+  }; then
+    rm -f "$LOCK/pid" 2>/dev/null || :
     rmdir "$LOCK" 2>/dev/null || :
     return 1
   fi
+  read_lock_owner || { release_lock; return 1; }
   return 0
 }
 release_lock() {
-  _owner=$(cat "$LOCK/pid" 2>/dev/null || true)
-  [ "$_owner" = "$$" ] || return 0
-  rm -f "$LOCK/pid" 2>/dev/null || :
-  rmdir "$LOCK" 2>/dev/null || :
+  [ -d "$LOCK" ] && [ ! -L "$LOCK" ] && [ -f "$LOCK/pid" ] && [ ! -L "$LOCK/pid" ] || return 0
+  _record=$(cat "$LOCK/pid" 2>/dev/null || true)
+  _owner=$(printf '%s\n' "$_record" | sed -n '1p')
+  _owner_start=$(printf '%s\n' "$_record" | sed -n '2p')
+  if [ "$_owner" = "$" ] && [ "$_owner_start" = "$LOCK_START" ]; then
+    rm -f "$LOCK/pid" 2>/dev/null || :
+    rmdir "$LOCK" 2>/dev/null || :
+  fi
 }
 if ! acquire_lock; then
   printf '{"ok":false,"busy":true,"error":"another script subscription sync is still running"}\n'
