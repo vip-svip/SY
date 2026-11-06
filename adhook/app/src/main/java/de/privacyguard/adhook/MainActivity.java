@@ -2027,6 +2027,7 @@ public final class MainActivity extends ComponentActivity {
         actions.addView(nativeAction("从文件导入脚本", this::pickNativeScriptFile));
         actions.addView(nativeAction("导入 Egern YAML HTTP 脚本", this::pickNativeEgernScriptConfig));
         actions.addView(nativeAction("导入 Stash YAML HTTP 脚本", this::pickNativeStashScriptConfig));
+        actions.addView(nativeAction("导入 Surge / Loon / Quantumult X 配置", this::pickNativeScriptFile));
         actions.addView(nativeAction("导出脚本配置", this::exportNativeScripts));
         actions.addView(nativeAction("刷新脚本订阅", this::refreshNativeScripts));
         actions.addView(nativeAction("查看脚本运行日志", this::showNativeScriptLogs));
@@ -5597,7 +5598,8 @@ public final class MainActivity extends ComponentActivity {
                 boolean isStashYaml = false;
                 boolean isModuleConfig = lowerName.endsWith(".conf") || lowerName.endsWith(".ini")
                         || lowerName.endsWith(".sgmodule") || lowerName.endsWith(".loon")
-                        || lowerName.endsWith(".qxconf");
+                        || lowerName.endsWith(".qxconf") || lowerName.endsWith(".surge")
+                        || lowerName.endsWith(".quanx") || lowerName.endsWith(".qx");
                 // Detect YAML by content even when the provider gave the file a
                 // generic name. Do not assume every .yaml file uses Egern syntax.
                 if (!isJson && !isModuleConfig) {
