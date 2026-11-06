@@ -7241,3 +7241,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 原生 Ad 页面曾同时出现两个“刷新本地 DNS 缓存”按钮，其中一个直接重复调用缓存刷新命令；移除重复动作，将第二个入口改为“刷新 DNS 状态”，直接重新读取并显示 DNS 后端状态，不触发服务重启或缓存清理。
 - 应用源码提交：60da2a8f3675d4637718050786c9c4c1d1de465f。
 - 按当前推进要求未运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-06 — 模块版 Ad 页面补齐 DNS 引擎控制
+
+- 将主 APK 已有的本地 DNS 状态卡片与管理入口同步到模块内置 APK：读取 AdGuard Home、Unbound、Root Proxy、DNS 订阅源、Android Private DNS 覆盖、VPN 共存裁决与路由探测状态。
+- 增加 DNS 引擎设置对话框，连接 `native-dns-settings.sh status/set`，可切换 AdGuard Home、Unbound、第三方 VPN DNS 兼容及 Root Proxy DNS；增加缓存刷新与状态刷新按钮。
+- 保留模块版原有 Root Proxy 应用 DNS 白名单管理入口，不覆盖现有包变更清理逻辑。
+- 模块 APK UI 提交：750306ff73afa8637ae42c38b1cae6feb25dd885。
+- 按当前推进要求未运行测试、静态检查、构建、CI 或真机验证。
