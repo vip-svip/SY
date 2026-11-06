@@ -7263,3 +7263,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 主 APK 与模块版 DNS 状态卡片/详情弹窗同步显示接管接口、VPN UID、出口 IPv4、重定向挂载与 DNS 探测；重定向枚举统一翻译为中文。
 - Shell 后端提交：89c547fe5bd31467cdaeaa5bdc91fc6b8b922d90；主 APK 提交：37adc5d7b44d31be978123e66192ed0360376891；模块 APK 提交：11c4ddf603ff48c1e79825ece5aa5464d3a7be5d。
 - 按当前推进要求未运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-06 — Root Proxy DNS 状态原因透传
+
+- 主 APK 与模块 APK 的 DNS 管理详情新增 Root Proxy 状态原因字段；当接管未生效时，可直接显示状态脚本给出的 fail-open 原因，而不是只显示“未接管”。
+- `scripts/native-dns-settings.sh` 补齐 Root Proxy 接口、VPN UID、出口 IPv4、重定向、DNS 探测和原因字段透传；`fx-module/scripts/native-dns-settings.sh` 同步增加原因字段。
+- 提交：`7be68209c06a1502f5a0c18dd037eb642e4db145`、`30dc1a90e919f93ec669a832fe2e4d24a6866ab0`、`5916e7cf37d26795b8f615a33fa05b3bd880bcf4`、`1a8204185658130e753087eb74575cfaba5b3e39`。
+- 按当前推进要求未运行测试、静态检查、构建、CI 或真机验证。
