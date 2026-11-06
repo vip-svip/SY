@@ -8213,3 +8213,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 文件：`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`。
 - 在本地 DNS 引擎操作区增加“重新应用 DNS 服务配置”入口，并移植主应用已有的二次确认、调用 `scripts/native-dns-settings.sh reconcile`、成功刷新设置页以及失败重试/关闭提示逻辑。
 - 已确认模块脚本 `fx-module/scripts/native-dns-settings.sh` 存在 `reconcile` 命令入口；本次未执行该命令或设备操作。按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证。
+
+
+### FX Hook 模块原生页补齐自定义规则筛选批量启停（2026-11-07）
+
+- 提交：`eea156e6fa708dc56b60de99d951df69f50a7a5a`。
+- 文件：`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`。
+- 在自定义 Hook 规则页增加“批量启用当前筛选 / 批量暂停当前筛选”，沿用已有分组与搜索条件；批量操作逐条校验规则描述符，非 debuggable 目标仅允许启用 OBSERVE，保留基础动作并通过一次 SharedPreferences commit 保存，提示用户之后仍需发布配置。
+- 此功能此前已存在于统一主应用，本次将缺失的批量管理能力补到 FX 模块源码；不覆盖模块中已有的原生脚本导入实现。按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证。
