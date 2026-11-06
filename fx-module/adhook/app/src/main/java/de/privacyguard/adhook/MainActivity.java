@@ -2348,7 +2348,9 @@ public final class MainActivity extends ComponentActivity {
                 if (!isSupportedNativeScriptValue(value)) {
                     throw new IllegalArgumentException("第 " + (i + 1) + " 项脚本内容无效。");
                 }
-                if (name.length() > 4096) throw new IllegalArgumentException("第 " + (i + 1) + " 项备注元数据超过 4096 字符");
+                if (name.length() > 4096) {
+                    throw new IllegalArgumentException("第 " + (i + 1) + " 项备注元数据超过 4096 字符");
+                }
                 String transportValue = value.trim();
                 if (!transportValue.regionMatches(true, 0, "https://", 0, 8)
                         && nativeScriptUtf8Bytes(value) > 1048576) {
@@ -2356,12 +2358,6 @@ public final class MainActivity extends ComponentActivity {
                 }
             }
             importNativeScriptBatch(entries, 0, 0, 0, 0);
-            return;
-        } catch (Exception error) {
-                    Toast.makeText(this, "无法读取现有脚本列表，未执行导入：" + error.getMessage(),
-                            Toast.LENGTH_LONG).show();
-                }
-            });
         } catch (Exception error) {
             Toast.makeText(this, "脚本配置导入失败：" + error.getMessage(), Toast.LENGTH_LONG).show();
         }
