@@ -297,6 +297,27 @@ write_dns_response() {
   return 1
 }
 m_dns_response() { write_dns_response "$1"; }
+dns_config_set_many() {
+  _many_custom=$(normalize_dns_csv "$1")
+  _many_global=$(normalize_dns_csv "$2")
+  _many_fallback=$(normalize_dns_csv "$3")
+  if [ "$_many_custom" != "-" ]; then
+    valid_dns_csv "$_many_custom" || { echo "custom DNS accepts 1..3 IPv4, https:// DoH, tls:// DoT, or quic:// DoQ endpoints" >&2; return 2; }
+  fi
+  if [ "$_many_global" != "-" ]; then
+    valid_ipv4_dns_csv "$_many_global" || { echo "global DNS requires 1..3 IPv4 literals" >&2; return 2; }
+  fi
+  if [ "$_many_fallback" != "-" ]; then
+    valid_ipv4_dns_csv "$_many_fallback" || { echo "fallback DNS requires 1..3 IPv4 literals" >&2; return 2; }
+  fi
+  if [ "$_many_custom" = "-" ]; then m_dns_section_clear custom_dns || return 1
+  else m_dns_servers custom_dns "$_many_custom" || return 1; fi
+  if [ "$_many_global" = "-" ]; then m_dns_section_clear global_dns || return 1
+  else m_dns_servers global_dns "$_many_global" || return 1; fi
+  if [ "$_many_fallback" = "-" ]; then m_dns_section_clear yulong_dns_fallback || return 1
+  else m_dns_servers yulong_dns_fallback "$_many_fallback" || return 1; fi
+  echo "dns_servers=updated custom=$_many_custom global=$_many_global fallback=$_many_fallback"
+}
 dns_filter_policy_set() {
   _policy_quic=$1; _policy_dot=$2; _policy_plain=$3; _policy_ipv6=$4; _policy_track=$5
   for _policy_value in "$_policy_quic" "$_policy_dot" "$_policy_plain" "$_policy_ipv6" "$_policy_track"; do
@@ -837,6 +858,10 @@ case "$cmd" in
  dns-filter-policy-set)
   [ "$#" -eq 6 ] || { echo "usage: $0 dns-filter-policy-set QUIC DOT PLAIN_DNS IPV6 TRACKING" >&2; exit 2; }
   with_lock transaction dns_filter_policy_set "$2" "$3" "$4" "$5" "$6"
+  ;;
+ dns-config-set-many)
+  [ "$#" -eq 4 ] || { echo "usage: $0 dns-config-set-many CUSTOM GLOBAL FALLBACK (use - to clear)" >&2; exit 2; }
+  with_lock transaction dns_config_set_many "$2" "$3" "$4"
   ;;
  dns-config-get)
   dns_config_get
