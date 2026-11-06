@@ -32,6 +32,7 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
     private String selectedGroupFilter = "全部分组";
     private String selectedStatusFilter = "全部状态";
     private String selectedTextFilter = "";
+    private final java.util.Set<String> selectedRuleIds = new java.util.LinkedHashSet<>();
 
     private int dp(float value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
@@ -549,6 +550,34 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
         section.setTypeface(null, android.graphics.Typeface.BOLD);
         body.addView(section);
 
+        LinearLayout batchActions = new LinearLayout(this);
+        batchActions.setOrientation(LinearLayout.HORIZONTAL);
+        batchActions.setPadding(dp(12), dp(2), dp(12), dp(4));
+        batchActions.addView(action("全选当前筛选", () -> {
+            selectedRuleIds.clear();
+            for (FxGkdRule item : rules) {
+                if (isRuleVisible(item)) selectedRuleIds.add(item.getId());
+            }
+            renderRules();
+        }), new LinearLayout.LayoutParams(0, -2, 1));
+        batchActions.addView(action("清空选择", () -> {
+            selectedRuleIds.clear();
+            renderRules();
+        }), new LinearLayout.LayoutParams(0, -2, 1));
+        batchActions.addView(action("启用所选", () -> applyBatchEnabled(true)),
+                new LinearLayout.LayoutParams(0, -2, 1));
+        batchActions.addView(action("关闭所选", () -> applyBatchEnabled(false)),
+                new LinearLayout.LayoutParams(0, -2, 1));
+        body.addView(batchActions);
+        LinearLayout destructiveActions = new LinearLayout(this);
+        destructiveActions.setOrientation(LinearLayout.HORIZONTAL);
+        destructiveActions.setPadding(dp(12), 0, dp(12), dp(4));
+        destructiveActions.addView(action("删除所选（" + selectedRuleIds.size() + "）", this::confirmBatchDelete),
+                new LinearLayout.LayoutParams(0, -2, 1));
+        destructiveActions.addView(action("整理重复规则", this::confirmDuplicateCleanup),
+                new LinearLayout.LayoutParams(0, -2, 1));
+        body.addView(destructiveActions);
+
         if (rules.isEmpty()) {
             body.addView(text("还没有规则。添加目标应用包名和上游 GKD 选择器后，规则才会参与匹配。", 0xff66727e, 13));
             return;
@@ -637,6 +666,14 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
             row.setOrientation(LinearLayout.VERTICAL);
             row.setPadding(dp(14), dp(8), dp(14), dp(8));
             row.setBackgroundColor(0xfff0f3f7);
+            Switch selected = new Switch(this);
+            selected.setText("选择此规则");
+            selected.setChecked(selectedRuleIds.contains(rule.getId()));
+            selected.setOnCheckedChangeListener((button, checked) -> {
+                if (checked) selectedRuleIds.add(rule.getId());
+                else selectedRuleIds.remove(rule.getId());
+            });
+            row.addView(selected);
             TextView label = text("规则组：" + rule.getGroup() + "\n" + rule.getPackageName() + "\n" + rule.getSelector()
                     + (rule.getExcludeSelector().isEmpty() ? "" : "\n排除：" + rule.getExcludeSelector())
                     + "\n动作：" + ("long_click".equals(rule.getAction()) ? "长按" : "单击")
@@ -676,6 +713,80 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
             params.setMargins(dp(12), dp(4), dp(12), dp(5));
             body.addView(row, params);
         }
+    }
+
+    private boolean isRuleVisible(FxGkdRule rule) {
+        if (!"全部分组".equals(selectedGroupFilter) && !selectedGroupFilter.equals(rule.getGroup())) return false;
+        if ("仅启用".equals(selectedStatusFilter) && !rule.getEnabled()) return false;
+        if ("仅关闭".equals(selectedStatusFilter) && rule.getEnabled()) return false;
+        return matchesTextFilter(rule, selectedTextFilter);
+    }
+
+    private void applyBatchEnabled(boolean enabled) {
+        int changed = FxGkdRuleStore.setRulesEnabled(this,
+                new java.util.HashSet<>(selectedRuleIds), enabled);
+        if (changed < 0) {
+            Toast.makeText(this, "批量状态保存失败，原规则保持不变。", Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (changed == 0) {
+            Toast.makeText(this, "请先选择规则。", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        selectedRuleIds.clear();
+        FxGkdAutomationRuntime.invalidateRules();
+        syncMasterSwitch();
+        FxAccessibilityService.requestReconfigure(this);
+        renderRules();
+        updateServiceState();
+        Toast.makeText(this, "已更新 " + changed + " 条规则。", Toast.LENGTH_SHORT).show();
+    }
+
+    private void confirmBatchDelete() {
+        if (selectedRuleIds.isEmpty()) {
+            Toast.makeText(this, "请先选择要删除的规则。", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("批量删除规则")
+                .setMessage("确定删除已选择的 " + selectedRuleIds.size() + " 条规则？此操作不可撤销。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("删除", (dialog, which) -> {
+                    int removed = FxGkdRuleStore.removeRules(this,
+                            new java.util.HashSet<>(selectedRuleIds));
+                    if (removed < 0) {
+                        Toast.makeText(this, "批量删除失败，原规则保持不变。", Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    selectedRuleIds.clear();
+                    FxGkdAutomationRuntime.invalidateRules();
+                    syncMasterSwitch();
+                    FxAccessibilityService.requestReconfigure(this);
+                    renderRules();
+                    updateServiceState();
+                    Toast.makeText(this, "已删除 " + removed + " 条规则。", Toast.LENGTH_SHORT).show();
+                }).show();
+    }
+
+    private void confirmDuplicateCleanup() {
+        new AlertDialog.Builder(this)
+                .setTitle("整理重复规则")
+                .setMessage("按目标包名 + 主选择器识别重复项，保留列表中最靠前的一条；其余重复项将被删除。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("整理", (dialog, which) -> {
+                    int removed = FxGkdRuleStore.removeDuplicateRules(this);
+                    if (removed < 0) {
+                        Toast.makeText(this, "重复规则整理失败，原规则保持不变。", Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    selectedRuleIds.clear();
+                    FxGkdAutomationRuntime.invalidateRules();
+                    syncMasterSwitch();
+                    FxAccessibilityService.requestReconfigure(this);
+                    renderRules();
+                    updateServiceState();
+                    Toast.makeText(this, "已整理，删除重复规则 " + removed + " 条。", Toast.LENGTH_SHORT).show();
+                }).show();
     }
 
     private boolean matchesTextFilter(FxGkdRule rule, String query) {
