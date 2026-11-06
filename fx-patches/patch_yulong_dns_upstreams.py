@@ -84,7 +84,14 @@ EOF_FALLBACK
         )
     source = source.replace(old, new, 1)
 
-if "FX_YULONG_DNS_RESPONSE_BEGIN" not in source:
+has_root_response_adapter = (
+    "dns-response-get" in source
+    and "_dns_response_output=" in source
+    and "_dns_blocking_ipv4=" in source
+    and "_dns_blocking_ipv6=" in source
+    and "_dns_blocked_response_ttl=" in source
+)
+if "FX_YULONG_DNS_RESPONSE_BEGIN" not in source and not has_root_response_adapter:
     old_response = """  blocked_response_ttl: 10
 """
     new_response = r'''  blocked_response_ttl: 10

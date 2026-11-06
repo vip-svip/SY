@@ -1316,3 +1316,11 @@
 - 删除重复片段，保留一套完整的 root.key 状态、Root Hints SHA-256 sidecar 校验、VPN egress 状态和 Unbound 进程状态输出；不改变 `anchor-refresh` 手动维护保护、生命周期锁或运行时配置。
 - 修改：`fx-module/scripts/unbound.sh`；同步更新两份续接文档。
 - 按用户要求未运行 Shell 语法检查、测试、构建、CI 或真机验证；这是基于源码回读发现的结构性修复，尚不能宣称 Shell 执行通过。
+
+
+## 2026-11-07 — DNS response 构建补丁器契约防回退
+
+- 两份 `patch_yulong_dns_upstreams.py` 显式识别新版 Root DNS response adapter：只有同时存在 `dns-response-get`、IPv4、IPv6 和 TTL 字段读取时，才将目标识别为动态 response contract 并跳过旧版固定值注入。
+- 继续兼容带 `FX_YULONG_DNS_RESPONSE_BEGIN` 标记的既有补丁结果；构建补丁器不会因新版 renderer 缺少旧式配置锚点而尝试重新写入固定空地址或 10 秒 TTL。
+- 同步 canonical 与 fx-module 构建 patcher 源码。
+- 本批未运行 patcher、测试、构建、CI 或设备验证；只做源码接线与提交。
