@@ -35,17 +35,22 @@ FX_ARB_DNS_PORT=${FX_ARB_DNS_PORT:-5353}
 # remains the independent upstream resolver on 5353. Probe both separately.
 FX_ARB_FILTER_DNS_PORT=${FX_ARB_FILTER_DNS_PORT:-53}
 FX_ARB_PROXY_PORT=${FX_ARB_PROXY_PORT:-7890}
-FX_ARB_LINK_FILE=${FX_ARB_LINK_FILE:-}
-FX_ARB_VPNINFO_FILE=${FX_ARB_VPNINFO_FILE:-}
-# Package UID injection is fixture-only; production must resolve the installed app UID via Android package manager.
+# All fixture inputs are accepted only by the explicit regression harness.
+# In production, probe sources are pinned to live Android system paths so a
+# caller cannot feed a clean fixture and obtain a false compatibility verdict.
 if [ "${FX_ARB_TESTING:-0}" = "1" ]; then
+  FX_ARB_LINK_FILE=${FX_ARB_LINK_FILE:-}
+  FX_ARB_VPNINFO_FILE=${FX_ARB_VPNINFO_FILE:-}
   FX_ARB_SELF_UID=${FX_ARB_SELF_UID:-}
+  FX_ARB_PROC_NET_DIR=${FX_ARB_PROC_NET_DIR:-/proc/net}
 else
+  FX_ARB_LINK_FILE=
+  FX_ARB_VPNINFO_FILE=
   FX_ARB_SELF_UID=
+  FX_ARB_PROC_NET_DIR=/proc/net
 fi
 FX_ARB_SELF_VPN=false
 FX_ARB_SELF_IF=""
-FX_ARB_PROC_NET_DIR=${FX_ARB_PROC_NET_DIR:-/proc/net}
 # A caller-controlled module root could point the static slot scan at an
 # unrelated clean directory and falsely certify that FX does not use VpnService.
 # Permit fixture injection only in the regression harness; production always
