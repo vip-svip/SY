@@ -28,7 +28,9 @@
 
 ## Surge/Loon [Script] 模块导入
 
-- 在脚本中心使用“从文件导入脚本”，选择 `.conf`、`.ini`、`.sgmodule` 或 `.loon` 文件。导入器只迁移 `[Script]` 中具有 HTTPS `script-path`、`type=http-request|http-response` 与 `pattern` 的 HTTP 触发脚本，并将触发类型与 URL 匹配表达式封装为 FX 元数据。
+- 在脚本中心使用“从文件导入脚本”，选择 `.conf`、`.ini`、`.sgmodule` 或 `.loon` 文件。
+- 导入器只迁移 HTTPS `script-path` 且声明 `http-request` / `http-response`、`pattern` 的条目，转为 FX `FXMETA_B64` 触发元数据并写入统一脚本列表。
+- 元数据按真实换行编码为四个字段：触发类型、URL 正则、是否需要响应正文、脚本显示名称；旧的两字段元数据仍可读取。同步器会输出 FX-SCRIPT-REQUIRES-BODY 与 FX-SCRIPT-NAME 头，导入名称可在列表中显示和编辑而不丢失原触发条件。导入器只迁移 `[Script]` 中具有 HTTPS `script-path`、`type=http-request|http-response` 与 `pattern` 的 HTTP 触发脚本，并将触发类型与 URL 匹配表达式封装为 FX 元数据。
 - 定时/任务类脚本、相对路径、本地脚本引用、非 HTTPS 地址及缺少触发条件的条目会被跳过；这不是 Surge/Loon 完整模块转换器。
 
 ## 本地实时钩子脚本示例
