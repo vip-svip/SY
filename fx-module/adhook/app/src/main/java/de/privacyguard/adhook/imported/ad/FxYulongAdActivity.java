@@ -653,13 +653,11 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
    if(split<=0||split==row.length()-1||row.indexOf('|',split+1)>=0){status.setText("格式错误：每行使用 HTTPS或builtin来源|列表名称。");return;}
    String source=row.substring(0,split).trim(),name=row.substring(split+1).trim();
    if(parsed.put(source,name)!=null){status.setText("存在重复来源："+source);return;}
-   if(parsed.size()>2000){status.setText("单次最多导入 2000 个过滤列表。");return;}
   }
   if(parsed.isEmpty()){status.setText("没有可导入的过滤列表。");return;}
   StringBuilder normalized=new StringBuilder();
   for(java.util.Map.Entry<String,String> entry:parsed.entrySet())normalized.append(entry.getKey()).append('|').append(entry.getValue()).append('\\n');
   byte[] bytes=normalized.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
-  if(bytes.length>65536){status.setText("导入内容超过 64 KiB，请拆分后导入。");return;}
   String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);
   fxDialogBuilder().setTitle("批量导入过滤列表")
    .setMessage("将新增 "+parsed.size()+" 个过滤订阅，导入条目默认启用。已存在的来源会被拒绝，不会覆盖现有名称或状态。是否继续？")
@@ -819,7 +817,6 @@ private void shareDnsProfile(){
     if(!raw.startsWith("FXYULONGDNSPROFILE1")){status.setText("DNS 配置快照格式不受支持，未生成备份。");return;}
     String payload="FXYULONGDNSPROFILE1\n"+raw.substring("FXYULONGDNSPROFILE1".length()).trim()+"\n";
     int bytes=payload.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
-    if(bytes>48*1024){status.setText("DNS 配置快照超过 48 KiB，未打开分享面板。");return;}
     try{
       Intent send=new Intent(Intent.ACTION_SEND);
       send.setType("text/plain");
@@ -839,9 +836,6 @@ private void saveDnsProfileToFile(){
     if(!raw.startsWith("FXYULONGDNSPROFILE1")){status.setText("DNS 配置快照格式不受支持，未导出。");return;}
     String payload="FXYULONGDNSPROFILE1\n"
         +raw.substring("FXYULONGDNSPROFILE1".length()).trim()+"\n";
-    if(payload.getBytes(java.nio.charset.StandardCharsets.UTF_8).length>48*1024){
-      status.setText("DNS 配置快照超过 48 KiB，未打开文件选择器。");return;
-    }
     pendingDnsProfileExport=payload;
     try{
       Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);
@@ -893,7 +887,6 @@ private void openDnsProfileFile(){
       java.io.ByteArrayOutputStream bytes=new java.io.ByteArrayOutputStream();
       byte[] buffer=new byte[4096];int count;
       while((count=stream.read(buffer))!=-1){
-        if(bytes.size()+count>48*1024)throw new java.io.IOException("DNS 快照超过 48 KiB 限制");
         bytes.write(buffer,0,count);
       }
       String content=java.nio.charset.StandardCharsets.UTF_8.newDecoder()
@@ -924,7 +917,6 @@ private void restoreDnsProfile(EditText input){
     status.setText("快照版本头不匹配，未修改配置。");return;
   }
   byte[] bytes=raw.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-  if(bytes.length>48*1024){status.setText("快照超过 48 KiB，未提交。");return;}
   String[] allowed={"dns_engine_adguardhome","dns_forward","custom_dns","global_dns",
       "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
       "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled",
@@ -1398,8 +1390,7 @@ private void saveVpnDns(String key,EditText input){
    if(filter.isEmpty()||(row.value+" "+row.title).toLowerCase(Locale.ROOT).contains(filter))selected.add(row.value);
   }
   if(selected.isEmpty()){status.setText("当前筛选条件下没有匹配的白名单条目。");return;}
-  if(selected.size()>2000){status.setText("单次最多批量切换 2000 条白名单，请缩小筛选范围。");return;}
-  String payload=String.join("\\n",selected);
+  String payload=String.join("\n",selected);
   byte[] bytes=payload.getBytes(java.nio.charset.StandardCharsets.UTF_8);
   if(bytes.length>65536){status.setText("批量状态数据超过 64 KiB，请缩小筛选范围。");return;}
   String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);
@@ -1417,7 +1408,6 @@ private void saveVpnDns(String key,EditText input){
    if(filter.isEmpty()||(row.value+" "+row.title).toLowerCase(Locale.ROOT).contains(filter))selected.add(row.value);
   }
   if(selected.isEmpty()){status.setText("当前筛选条件下没有匹配的黑名单条目。");return;}
-  if(selected.size()>2000){status.setText("单次最多批量切换 2000 条黑名单，请缩小筛选范围。");return;}
   String payload=String.join("\\n",selected);
   byte[] bytes=payload.getBytes(java.nio.charset.StandardCharsets.UTF_8);
   if(bytes.length>65536){status.setText("批量状态数据超过 64 KiB，请缩小筛选范围。");return;}
@@ -1493,12 +1483,10 @@ private void saveVpnDns(String key,EditText input){
    }
    String kind=fields[0].trim(),domain=fields[1].trim(),note=fields[2].trim();
    unique.putIfAbsent(kind+"|"+domain,kind+"|"+domain+"|"+note);
-   if(unique.size()>2000){status.setText("单次最多恢复 2000 条唯一域名。");return;}
   }
   if(unique.isEmpty()){status.setText("没有可恢复的域名条目。");return;}
   String payload=String.join("\n",unique.values());
   byte[] bytes=payload.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-  if(bytes.length>65536){status.setText("合并备份超过 64 KiB，请拆分后导入。");return;}
   String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);
   fxDialogBuilder().setTitle("恢复白名单与黑名单")
       .setMessage("将恢复 "+unique.size()+" 条唯一域名记录；白名单和黑名单通过单次 FX 配置事务写入并统一应用。重复行已合并，任一写入失败会回滚整批。是否继续？")
@@ -1519,12 +1507,10 @@ private void saveVpnDns(String key,EditText input){
     return;
    }
    domains.add(domain);
-   if(domains.size()>2000){status.setText("单次最多移除 2000 条域名。");return;}
   }
   if(domains.isEmpty()){status.setText("没有可移除的域名。");return;}
-  String payload=String.join("\\n",domains);
+  String payload=String.join("\n",domains);
   byte[] bytes=payload.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-  if(bytes.length>65536){status.setText("批量移除数据超过 64 KiB，请分批处理。");return;}
   String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);
   String label="allow".equals(kind)?"白名单":"黑名单";
   fxDialogBuilder().setTitle("批量移除"+label)
@@ -1547,12 +1533,10 @@ private void saveVpnDns(String key,EditText input){
     return;
    }
    lines.add(fields.length==1?fields[0].trim():fields[0].trim()+"|"+fields[1].trim());
-   if(lines.size()>2000){status.setText("单次最多导入 2000 条域名。");return;}
   }
   if(lines.isEmpty()){status.setText("没有可导入的域名。");return;}
   String payload=String.join("\n",lines);
   byte[] bytes=payload.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-  if(bytes.length>65536){status.setText("批量域名数据超过 64 KiB，请分批导入。");return;}
   String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);
   fxDialogBuilder().setTitle(kind.equals("allow")?"批量导入白名单":"批量导入黑名单")
       .setMessage("共 "+lines.size()+" 条。后端会先验证所有域名，再原子写入配置并应用；任何失败都会回滚整批。")
