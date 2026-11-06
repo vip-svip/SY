@@ -38,6 +38,7 @@ internal class FxGkdAccessibilitySnapshot private constructor(
         fun capture(rootHandle: AccessibilityNodeInfo): FxGkdAccessibilitySnapshot? {
             val handles = ArrayList<AccessibilityNodeInfo>()
             var nextKey = 1L
+            var truncated = false
 
             fun copyNode(
                 info: AccessibilityNodeInfo,
@@ -46,6 +47,7 @@ internal class FxGkdAccessibilitySnapshot private constructor(
                 depth: Int
             ): FxGkdNode? {
                 if (depth > MAX_DEPTH || handles.size >= MAX_NODES) {
+                    truncated = true
                     try { info.recycle() } catch (_: RuntimeException) {}
                     return null
                 }
@@ -83,13 +85,18 @@ internal class FxGkdAccessibilitySnapshot private constructor(
                 )
                 node.parent = parent
 
-                val childCount = try {
-                    info.childCount.coerceIn(0, MAX_CHILDREN_PER_NODE)
+                val reportedChildCount = try {
+                    info.childCount.coerceAtLeast(0)
                 } catch (_: RuntimeException) {
                     0
                 }
+                if (reportedChildCount > MAX_CHILDREN_PER_NODE) truncated = true
+                val childCount = reportedChildCount.coerceAtMost(MAX_CHILDREN_PER_NODE)
                 for (childIndex in 0 until childCount) {
-                    if (handles.size >= MAX_NODES) break
+                    if (handles.size >= MAX_NODES) {
+                        truncated = true
+                        break
+                    }
                     val child = try { info.getChild(childIndex) } catch (_: RuntimeException) { null }
                     if (child != null) {
                         copyNode(child, node, childIndex, depth + 1)?.let(node.children::add)
@@ -99,7 +106,13 @@ internal class FxGkdAccessibilitySnapshot private constructor(
             }
 
             return try {
-                val snapshotRoot = copyNode(rootHandle, null, 0, 0) ?: return null
+                val snapshotRoot = copyNode(rootHandle, null, 0, 0)
+                if (snapshotRoot == null || truncated) {
+                    for (node in handles.asReversed()) {
+                        try { node.recycle() } catch (_: RuntimeException) {}
+                    }
+                    return null
+                }
                 FxGkdAccessibilitySnapshot(snapshotRoot, handles)
             } catch (_: RuntimeException) {
                 for (node in handles.asReversed()) {
