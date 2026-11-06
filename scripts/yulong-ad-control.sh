@@ -3176,7 +3176,27 @@ case "$cmd" in
       _diag_agh_ipv6=unavailable
     fi
   fi
-  echo FXYULONGDNSDIAG1
+  _diag_upstream_mode=$(_diag_value "$_diag_status" dns_upstream_mode 2>/dev/null) || _diag_upstream_mode=unknown
+  _diag_upstream_state=$(_diag_value "$_diag_status" dns_upstream_state 2>/dev/null) || _diag_upstream_state=unknown
+  _diag_bootstrap_mode=$(_diag_value "$_diag_status" dns_bootstrap_mode 2>/dev/null) || _diag_bootstrap_mode=unknown
+  _diag_fallback_mode=$(_diag_value "$_diag_status" dns_fallback_mode 2>/dev/null) || _diag_fallback_mode=unknown
+  case "$_diag_upstream_mode" in local_recursive|custom|global|unknown) : ;; *) _diag_upstream_mode=unknown ;; esac
+  case "$_diag_upstream_state" in ready|missing_primary|unknown) : ;; *) _diag_upstream_state=unknown ;; esac
+  case "$_diag_bootstrap_mode" in not_required|local_unbound|unknown) : ;; *) _diag_bootstrap_mode=unknown ;; esac
+  case "$_diag_fallback_mode" in none|explicit|local_unbound|unknown) : ;; *) _diag_fallback_mode=unknown ;; esac
+  _diag_anchor_state=unknown
+  _diag_root_hints_state=unknown
+  _diag_root_hints_bytes=unknown
+  _diag_anchor_raw=$(MP="$MP" PG="$PG" sh "$MP/scripts/unbound.sh" anchor-status "$MP" "$PG" 2>/dev/null || :)
+  if [ "$(printf '%s\n' "$_diag_anchor_raw" | sed -n '1p')" = FXYUNBOUNDANCHOR2 ]; then
+    _diag_anchor_state=$(printf '%s\n' "$_diag_anchor_raw" | sed -n 's/^anchor_state=//p')
+    _diag_root_hints_state=$(printf '%s\n' "$_diag_anchor_raw" | sed -n 's/^root_hints_state=//p')
+    _diag_root_hints_bytes=$(printf '%s\n' "$_diag_anchor_raw" | sed -n 's/^root_hints_bytes=//p')
+  fi
+  case "$_diag_anchor_state" in valid|missing|invalid|unsafe) : ;; *) _diag_anchor_state=unknown ;; esac
+  case "$_diag_root_hints_state" in valid|missing|invalid|unsafe) : ;; *) _diag_root_hints_state=unknown ;; esac
+  case "$_diag_root_hints_bytes" in ''|*[!0-9]*) _diag_root_hints_bytes=unknown ;; esac
+  echo FXYULONGDNSDIAG2
   printf 'dns_stack_ready=%s\n' "$_diag_ready"
   printf 'dns_stack_readiness_reason=%s\n' "$_diag_reason"
   printf 'unbound_process=%s\n' "$_diag_unbound_process"
@@ -3188,6 +3208,13 @@ case "$cmd" in
   printf 'vpn_coexistence_verdict=%s\n' "$_diag_coexist"
   printf 'vpn_route_probe=%s\n' "$_diag_route"
   printf 'private_dns_mode=%s\n' "$_diag_private_dns"
+  printf 'dns_upstream_mode=%s\n' "$_diag_upstream_mode"
+  printf 'dns_upstream_state=%s\n' "$_diag_upstream_state"
+  printf 'dns_bootstrap_mode=%s\n' "$_diag_bootstrap_mode"
+  printf 'dns_fallback_mode=%s\n' "$_diag_fallback_mode"
+  printf 'dnssec_anchor_state=%s\n' "$_diag_anchor_state"
+  printf 'root_hints_state=%s\n' "$_diag_root_hints_state"
+  printf 'root_hints_bytes=%s\n' "$_diag_root_hints_bytes"
   ;;
  dns-repair)
   [ "$#" -eq 1 ] || exit 2

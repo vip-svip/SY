@@ -1328,7 +1328,7 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
     target.setText("DNSSEC 信任锚："+state+"；文件大小："+bytes+" 字节；更新状态："+age
         +"；Unbound："+resolver+"；刷新出口："+route
         +("stale".equals(age)?"。信任锚超过 14 天未更新；在线 Unbound 会继续执行 RFC5011 维护。":"。")
-        +"\\nRoot Hints："+hintsState+"；文件大小："+hintsBytes+" 字节（SHA-256 完整性校验）。");
+        +"\nRoot Hints："+hintsState+"；文件大小："+hintsBytes+" 字节（SHA-256 完整性校验）。");
   });
 }
  private void renderDns(){
@@ -2248,14 +2248,16 @@ private void runDnsDiagnostics(){
     }
     String raw=result.output==null?"":result.output.trim();
     String[] lines=raw.split("\\r?\\n");
-    if(lines.length<12||!"FXYULONGDNSDIAG1".equals(lines[0].trim())){
+    if(lines.length<19||!"FXYULONGDNSDIAG2".equals(lines[0].trim())){
       status.setText("DNS 诊断响应版本或字段数量错误，拒绝显示不完整报告。");
       return;
     }
     String[] allowed={"dns_stack_ready","dns_stack_readiness_reason",
       "unbound_process","unbound_probe","adguardhome_process",
       "adguardhome_ipv4_probe","adguardhome_ipv6_probe","localdns_watchdog",
-      "vpn_coexistence_verdict","vpn_route_probe","private_dns_mode"};
+      "vpn_coexistence_verdict","vpn_route_probe","private_dns_mode",
+      "dns_upstream_mode","dns_upstream_state","dns_bootstrap_mode","dns_fallback_mode",
+      "dnssec_anchor_state","root_hints_state","root_hints_bytes"};
     java.util.Set<String> keys=new java.util.HashSet<>(java.util.Arrays.asList(allowed));
     java.util.Map<String,String> values=new java.util.LinkedHashMap<>();
     for(int i=1;i<lines.length;i++){
@@ -2294,6 +2296,18 @@ private void runDnsDiagnostics(){
             ||"unavailable".equals(value)||"not_applicable".equals(value)||"unknown".equals(value);break;
         case "private_dns_mode": valid="off".equals(value)||"opportunistic".equals(value)
             ||"hostname".equals(value)||"unknown".equals(value);break;
+        case "dns_upstream_mode": valid="local_recursive".equals(value)||"custom".equals(value)
+            ||"global".equals(value)||"unknown".equals(value);break;
+        case "dns_upstream_state": valid="ready".equals(value)||"missing_primary".equals(value)
+            ||"unknown".equals(value);break;
+        case "dns_bootstrap_mode": valid="not_required".equals(value)||"local_unbound".equals(value)
+            ||"unknown".equals(value);break;
+        case "dns_fallback_mode": valid="none".equals(value)||"explicit".equals(value)
+            ||"local_unbound".equals(value)||"unknown".equals(value);break;
+        case "dnssec_anchor_state":
+        case "root_hints_state": valid="valid".equals(value)||"missing".equals(value)
+            ||"invalid".equals(value)||"unsafe".equals(value)||"unknown".equals(value);break;
+        case "root_hints_bytes": valid=android.text.TextUtils.isDigitsOnly(value)||"unknown".equals(value);break;
         default: valid=false;
       }
       if(!valid){status.setText("DNS 诊断字段值非法："+key);return;}
@@ -2309,8 +2323,15 @@ private void runDnsDiagnostics(){
     report.append("本地 DNS 自动恢复守护：").append(dnsDiagnosticLabel(values.get("localdns_watchdog"))).append('\n');
     report.append("VPN 共存判定：").append(dnsDiagnosticLabel(values.get("vpn_coexistence_verdict"))).append('\n');
     report.append("VPN 路由探测：").append(dnsDiagnosticLabel(values.get("vpn_route_probe"))).append('\n');
-    report.append("Android 私有 DNS：").append(dnsDiagnosticLabel(values.get("private_dns_mode"))).append("\n\n");
-    report.append("本报告只读本地状态并探测回环监听，不会修改 DNS 配置、重启解析器或更改 VPN 路由。");
+    report.append("Android 私有 DNS：").append(dnsDiagnosticLabel(values.get("private_dns_mode"))).append('\n');
+    report.append("当前上游模式：").append(values.get("dns_upstream_mode"))
+        .append("；上游配置：").append(values.get("dns_upstream_state")).append('\n');
+    report.append("加密上游引导解析：").append(values.get("dns_bootstrap_mode"))
+        .append("；故障回退：").append(values.get("dns_fallback_mode")).append('\n');
+    report.append("DNSSEC 根信任锚：").append(values.get("dnssec_anchor_state")).append('\n');
+    report.append("Root Hints：").append(values.get("root_hints_state"))
+        .append("；文件大小：").append(values.get("root_hints_bytes")).append(" 字节（SHA-256）。\n\n");
+    report.append("本报告只读本地配置与完整性状态，并探测回环监听；不会修改 DNS 配置、重启解析器或更改 VPN 路由。");
     fxDialogBuilder().setTitle("FX DNS 链路诊断报告")
       .setMessage(report.toString())
       .setPositiveButton("关闭",null).show();

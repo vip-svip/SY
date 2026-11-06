@@ -6961,3 +6961,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 自定义 ProtectionProfile 可保留更长名称及完整有效 HTTPS 订阅地址，不再在写入前被人为字节阈值拒绝。
 - 同步 `scripts/yulong-profiles.sh` 与 `fx-module/scripts/yulong-profiles.sh`。
 - 按用户要求未运行测试、静态检查、构建、CI 或设备验证；本轮仅修改和提交源码。
+
+
+## 2026-11-07 — DNS 全链路诊断升级到 DIAG2
+
+- DNS 诊断报告在原有进程/回环探测、watchdog、VPN 共存和 Android 私有 DNS 信息之外，增加当前上游模式、上游配置状态、加密上游 bootstrap、故障回退、DNSSEC trust anchor 状态、Root Hints SHA-256 完整性状态与文件大小。
+- Root 后端从 `native-dns-settings.sh status` 只读采集上游/回退状态，并复用 Unbound `anchor-status` 读取信任锚及 Root Hints 完整性；异常或缺失数据统一降级为 `unknown`，不把未知状态报告为正常。
+- 原生 Ad 页面协议升级到 `FXYULONGDNSDIAG2`，同步严格字段白名单、值校验和报告显示；修正 Root Hints 状态卡片换行显示。
+- 同步正式 APK 源码与模块打包源码、Root 控制脚本及两份续接文档。
+- 按当前要求未运行测试、静态检查、构建、CI 或 Android 真机验证；本批仅完成源码修改和 GitHub 提交。
