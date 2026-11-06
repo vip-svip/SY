@@ -825,7 +825,21 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
   EditText dnsProfileImport=draftField("dns_profile_import");dnsProfileImport.setSingleLine(false);dnsProfileImport.setMinLines(5);dnsProfileImport.setHint("粘贴完整 FXYULONGDNSPROFILE1 快照文本");dnsProfileImportField=dnsProfileImport;
   card("DNS 配置备份与恢复","快照导入会完整替换 DNS 引擎开关、过滤策略、三组上游、VPN DNS、拦截响应模式、查询日志保留期限、多上游策略与超时、缓存容量/模式及 DNSSEC；兼容旧版快照并为新增字段补齐默认值，提交前由 Root 后端再次校验，应用失败时回滚原配置。",btn("分享 DNS 配置快照",()->shareDnsProfile()),btn("保存 DNS 快照到文件",()->saveDnsProfileToFile()),btn("从文件读取 DNS 快照",()->openDnsProfileFile()),dnsProfileImport,btn("校验并恢复 DNS 配置快照",()->restoreDnsProfile(dnsProfileImport)));
   TextView dnsRuntimeState=txt("DNS 运行状态尚未读取。",12,0xff617080,false);
-  card("DNS 引擎运行状态","读取 AdGuard Home、Unbound、第三方 VPN Root Proxy、DNS 过滤覆盖范围与 VPN 共存判定。此操作只读取状态，不会更改服务或网络路由。",dnsRuntimeState,btn("刷新 DNS 运行状态",()->loadDnsRuntimeStatus(dnsRuntimeState)));
+  card("DNS 引擎运行状态","读取 AdGuard Home、Unbound、第三方 VPN Root Proxy、DNS 过滤覆盖范围与 VPN 共存判定。此操作只读取状态，不会更改服务或网络路由。",dnsRuntimeState,
+       btn("刷新 DNS 运行状态",()->loadDnsRuntimeStatus(dnsRuntimeState)),
+       btn("立即尝试修复 DNS 服务",()->fxDialogBuilder().setTitle("恢复 FX 本地 DNS 服务")
+         .setMessage("将按当前开关和上游配置，尝试恢复 FX 自有 Unbound 与 AdGuard Home。不会改写 DNS 配置、接管第三方 VPN、修改 Android 私有 DNS 或清理查询日志。恢复过程中的 DNS 查询可能短暂重试。是否继续？")
+         .setNegativeButton("取消",null)
+         .setPositiveButton("立即修复",(d,w)->root("dns-repair",result->{
+           if(result.exitCode==0){
+             status.setText("FX 本地 DNS 恢复完成。");
+             loadDnsRuntimeStatus(dnsRuntimeState);
+           }else{
+             fxDialogBuilder().setTitle("DNS 恢复未完成").setMessage(safe(result.output))
+               .setPositiveButton("关闭",null).show();
+             loadDnsRuntimeStatus(dnsRuntimeState);
+           }
+         })).show()));
   card("本地 DNS 引擎",
        "启用时使用 FX 自有 AdGuard Home 过滤服务；关闭后按 FX 当前安全 DNS 回退配置处理。",
        dnsSwitch("启用本地 AdGuard Home","dns_engine_adguardhome"));
