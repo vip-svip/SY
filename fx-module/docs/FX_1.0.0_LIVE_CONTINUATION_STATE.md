@@ -6875,3 +6875,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - canonical/module Root 控制脚本均新增 rootproxy-reconcile-route；原生“VPN 与 Root Proxy”页新增手动重验证/重绑入口与状态回显。
 - 修改：fx-module/scripts/yulong-root-proxy.sh、fx-module/scripts/yulong-root-proxy-package-watch.sh、两份 scripts/yulong-ad-control.sh、两份 FxYulongAdActivity.java。
 - 按用户提速要求未运行测试、Shell/Java 静态检查、构建、CI 或 Android 真机验证；源码提交不代表实际 VPN 路由或设备验收。
+
+
+## 2026-11-07 — Unbound DNSSEC 信任锚状态与安全手动维护
+
+- fx-module/scripts/unbound.sh 新增 anchor-status、anchor-refresh 操作；状态接口以 FXYUNBOUNDANCHOR1 返回 trust anchor 有效性、文件字节数、14 天陈旧状态、VPN 绑定出口状态和 Unbound 运行状态。
+- 手动刷新走 Unbound 生命周期锁，要求已有有效 root.key、解析器当前停止、没有 VPN egress 绑定，并要求系统具备 timeout。刷新最多等待 5 秒；helper 失败或 DNSKEY seed 校验失败时原子恢复原 trust anchor；回滚不能确认时保留恢复副本并拒绝报告成功。
+- Root 控制接口新增 unbound-anchor-status 与 unbound-anchor-refresh；两个原生 Ad 页面新增 DNSSEC 根信任锚状态卡片与手动维护入口。正常运行中的 Unbound 继续通过 RFC5011 在线维护，不要求人为停止解析服务。
+- 修改文件：fx-module/scripts/unbound.sh、两份 scripts/yulong-ad-control.sh、两份 FxYulongAdActivity.java。
+- 按用户当前提速要求未运行 Shell/Java 测试、静态检查、构建、CI 或 Android 真机验证；本批仅完成源码移植及双源码同步。

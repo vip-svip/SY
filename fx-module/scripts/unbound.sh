@@ -457,6 +457,84 @@ _ensure() {
 }
 
 
+
+_anchor_status() {
+  _path_components_are_safe "$STATE" || { echo "unsafe Unbound state directory" >&2; return 21; }
+  _anchor_state=missing
+  _anchor_bytes=0
+  _anchor_age=unknown
+  _refresh_route=system_default
+  _resolver_state=unknown
+  if [ -L "$STATE" ] || { [ -e "$STATE" ] && [ ! -d "$STATE" ]; }; then
+    _anchor_state=unsafe
+  elif [ -d "$STATE" ]; then
+    if ! _safe_file_or_absent "$STATE/root.key"; then
+      _anchor_state=unsafe
+    elif [ -s "$STATE/root.key" ]; then
+      _anchor_bytes=$(wc -c < "$STATE/root.key" 2>/dev/null | tr -d ' ')
+      case "$_anchor_bytes" in ''|*[!0-9]*) _anchor_bytes=unknown ;; esac
+      if grep -Eq '^\.[[:space:]]+IN[[:space:]]+DNSKEY[[:space:]]+257[[:space:]]+3[[:space:]]+8[[:space:]]' "$STATE/root.key" 2>/dev/null; then
+        _anchor_state=valid
+        if [ -n "$(find "$STATE/root.key" -mtime +14 -print -quit 2>/dev/null)" ]; then _anchor_age=stale; else _anchor_age=current; fi
+      else
+        _anchor_state=invalid
+      fi
+    fi
+  fi
+  if [ -L "$EGRESS" ]; then
+    _refresh_route=unsafe
+  elif [ -e "$EGRESS" ]; then
+    if [ -f "$EGRESS" ]; then _refresh_route=vpn_bound; else _refresh_route=unsafe; fi
+  fi
+  if _p=$(_owned_pid 2>/dev/null); then _resolver_state=running; else _resolver_state=stopped; fi
+  echo FXYUNBOUNDANCHOR1
+  printf 'anchor_state=%s\n' "$_anchor_state"
+  printf 'anchor_bytes=%s\n' "$_anchor_bytes"
+  printf 'anchor_age=%s\n' "$_anchor_age"
+  printf 'refresh_route=%s\n' "$_refresh_route"
+  printf 'resolver_state=%s\n' "$_resolver_state"
+}
+_refresh_anchor() {
+  _prepare_state_dirs || return 20
+  [ -x "$ANCHOR" ] || { echo "Unbound trust-anchor helper is missing or not executable" >&2; return 20; }
+  [ -s "$STATE/root.key" ] || { echo "initialize the recursive resolver before refreshing its trust anchor" >&2; return 2; }
+  grep -Eq '^\.[[:space:]]+IN[[:space:]]+DNSKEY[[:space:]]+257[[:space:]]+3[[:space:]]+8[[:space:]]' "$STATE/root.key" 2>/dev/null || {
+    echo "current trust anchor is invalid; refusing an in-place refresh" >&2
+    return 2
+  }
+  [ ! -e "$EGRESS" ] && [ ! -L "$EGRESS" ] || {
+    echo "manual trust-anchor refresh refused while Unbound is VPN-egress-bound; online RFC5011 maintenance remains enabled" >&2
+    return 11
+  }
+  _p=$(_owned_pid 2>/dev/null) || _p=''
+  [ -z "$_p" ] || {
+    echo "manual trust-anchor refresh refused while the recursive resolver is running; Unbound maintains RFC5011 state online" >&2
+    return 11
+  }
+  command -v timeout >/dev/null 2>&1 || {
+    echo "timeout helper is unavailable; refusing an unbounded trust-anchor refresh" >&2
+    return 20
+  }
+  _anchor_backup=$(_new_private_temp "$STATE/root.key.manual-refresh.XXXXXX") || return 1
+  cp "$STATE/root.key" "$_anchor_backup" 2>/dev/null || { rm -f "$_anchor_backup"; return 1; }
+  _anchor_rc=0
+  timeout 5 "$ANCHOR" -a "$STATE/root.key" >> "$LOG" 2>&1 || _anchor_rc=$?
+  if [ "$_anchor_rc" -ne 0 ] || ! grep -Eq '^\.[[:space:]]+IN[[:space:]]+DNSKEY[[:space:]]+257[[:space:]]+3[[:space:]]+8[[:space:]]' "$STATE/root.key" 2>/dev/null; then
+    if ! mv -f "$_anchor_backup" "$STATE/root.key" 2>/dev/null; then
+      _log 'manual trust-anchor refresh failed and previous anchor rollback failed; preserving recovery copy'
+      echo "trust-anchor refresh failed and rollback could not be confirmed; recovery copy retained" >&2
+      return 1
+    fi
+    _log 'manual trust-anchor refresh failed; previous trust anchor restored'
+    echo "trust-anchor refresh failed; previous anchor restored" >&2
+    return 1
+  fi
+  rm -f "$_anchor_backup" 2>/dev/null || return 1
+  _log 'manual bounded trust-anchor refresh completed'
+  _anchor_status
+  printf 'refresh=completed\n'
+}
+
 _release_lifecycle_lock() {
   [ -d "$LIFECYCLE_LOCK" ] && [ ! -L "$LIFECYCLE_LOCK" ] || return 0
   _lock_owner_file="$LIFECYCLE_LOCK/owner"
@@ -500,6 +578,8 @@ _with_lifecycle_lock() {
 
 case "$ACTION" in
   render-config) _render_config ;;
+  anchor-status) _with_lifecycle_lock _anchor_status ;;
+  anchor-refresh) _with_lifecycle_lock _refresh_anchor ;;
   ensure) _with_lifecycle_lock _ensure ;;
   stop) _with_lifecycle_lock _stop ;;
   status)
@@ -509,5 +589,5 @@ case "$ACTION" in
     fi
     echo stopped; exit 1
     ;;
-  *) echo 'usage: unbound.sh {render-config|ensure|stop|status} [module_dir] [data_dir]' >&2; exit 64 ;;
+  *) echo 'usage: unbound.sh {render-config|anchor-status|anchor-refresh|ensure|stop|status} [module_dir] [data_dir]' >&2; exit 64 ;;
 esac

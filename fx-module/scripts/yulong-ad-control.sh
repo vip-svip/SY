@@ -2972,6 +2972,16 @@ case "$cmd" in
   shift
   with_lock transaction unbound_runtime_set "$@"
   ;;
+ unbound-anchor-status)
+  [ "$#" -eq 1 ] || exit 2
+  [ -x "$MP/scripts/unbound.sh" ] || { echo "Unbound lifecycle script is missing" >&2; exit 20; }
+  MP="$MP" PG="$PG" sh "$MP/scripts/unbound.sh" anchor-status "$MP" "$PG"
+  ;;
+ unbound-anchor-refresh)
+  [ "$#" -eq 1 ] || exit 2
+  [ -x "$MP/scripts/unbound.sh" ] || { echo "Unbound lifecycle script is missing" >&2; exit 20; }
+  MP="$MP" PG="$PG" sh "$MP/scripts/unbound.sh" anchor-refresh "$MP" "$PG"
+  ;;
  dns-profile-get)
   [ "$#" -eq 1 ] || exit 2
   dns_profile_get

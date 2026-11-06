@@ -1288,7 +1288,44 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
   });
 }
 
-  private void renderDns(){
+  private void loadUnboundAnchorStatus(TextView target){
+  target.setText("正在读取 DNSSEC 根信任锚状态…");
+  root("unbound-anchor-status",result->{
+    if(result.exitCode!=0){target.setText("DNSSEC 信任锚状态读取失败："+safe(result.output));return;}
+    String raw=result.output==null?"":result.output.trim();
+    String[] lines=raw.split("\\r?\\n");
+    if(lines.length<6||!"FXYUNBOUNDANCHOR1".equals(lines[0].trim())){
+      target.setText("DNSSEC 信任锚状态协议错误，拒绝显示不完整信息。");return;
+    }
+    java.util.Map<String,String> values=new java.util.HashMap<>();
+    for(int i=1;i<lines.length;i++){
+      String line=lines[i].trim();if(line.isEmpty())continue;
+      int split=line.indexOf('=');
+      if(split<=0||split==line.length()-1){target.setText("DNSSEC 信任锚状态字段格式错误。");return;}
+      String key=line.substring(0,split),value=line.substring(split+1);
+      if(!"anchor_state".equals(key)&&!"anchor_bytes".equals(key)&&!"anchor_age".equals(key)
+          &&!"refresh_route".equals(key)&&!"resolver_state".equals(key)){
+        target.setText("DNSSEC 信任锚状态包含未知字段："+key);return;
+      }
+      if(values.put(key,value)!=null){target.setText("DNSSEC 信任锚状态包含重复字段："+key);return;}
+    }
+    if(values.size()!=5){target.setText("DNSSEC 信任锚状态字段不完整。");return;}
+    String state=values.get("anchor_state"),age=values.get("anchor_age");
+    String bytes=values.get("anchor_bytes"),route=values.get("refresh_route");
+    String resolver=values.get("resolver_state");
+    if(!("valid".equals(state)||"missing".equals(state)||"invalid".equals(state)||"unsafe".equals(state))
+        ||(!android.text.TextUtils.isDigitsOnly(bytes)&&!"unknown".equals(bytes))
+        ||!("stale".equals(age)||"current".equals(age)||"unknown".equals(age))
+        ||!("system_default".equals(route)||"vpn_bound".equals(route)||"unsafe".equals(route))
+        ||!("running".equals(resolver)||"stopped".equals(resolver)||"unknown".equals(resolver))){
+      target.setText("DNSSEC 信任锚状态值异常，拒绝显示。");return;
+    }
+    target.setText("信任锚："+state+"；文件大小："+bytes+" 字节；更新状态："+age
+        +"；Unbound："+resolver+"；刷新出口："+route
+        +("stale".equals(age)?"。信任锚超过 14 天未更新；在线 Unbound 会继续执行 RFC5011 维护。":"。"));
+  });
+}
+ private void renderDns(){
   EditText dnsProfileImport=draftField("dns_profile_import");dnsProfileImport.setSingleLine(false);dnsProfileImport.setMinLines(5);dnsProfileImport.setHint("粘贴完整 FXYULONGDNSPROFILE1 快照文本");dnsProfileImportField=dnsProfileImport;
   card("DNS 配置备份与恢复","快照导入会完整替换 DNS 引擎开关、过滤策略、三组上游、VPN DNS、拦截响应模式、查询日志保留期限/内存批量/逐条日志排除域名/DNS 域名重写、多上游策略与超时、缓存容量/模式及 DNSSEC；兼容旧版快照并为新增字段补齐默认值，提交前由 Root 后端再次校验，应用失败时回滚原配置。",btn("分享 DNS 配置快照",()->shareDnsProfile()),btn("保存 DNS 快照到文件",()->saveDnsProfileToFile()),btn("从文件读取 DNS 快照",()->openDnsProfileFile()),dnsProfileImport,btn("校验并恢复 DNS 配置快照",()->restoreDnsProfile(dnsProfileImport)));
   TextView dnsRuntimeState=txt("DNS 运行状态尚未读取。",12,0xff617080,false);
@@ -1493,6 +1530,22 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
       unboundMsgCacheSize,unboundRrsetCacheSize,unboundKeyCacheSize,unboundNegCacheSize,
       unboundServeExpired,unboundServeExpiredTtl,unboundServeExpiredReplyTtl,unboundServeExpiredClientTimeout,
       unboundPrefetch,unboundPrefetchKey,unboundQnameMinimisation,unboundNumThreads,unboundRuntimeState);
+
+    TextView anchorState=txt("DNSSEC 根信任锚状态尚未读取。",12,0xff617080,false);
+    card("DNSSEC 根信任锚维护",
+        "显示本地 Unbound root.key 的有效性与维护状态。在线 Unbound 继续使用 RFC5011 自动维护；手动刷新仅允许在解析器已停止、且未配置 VPN 绑定出口时执行，并使用 5 秒超时及失败回滚，避免刷新请求绕过 VPN 出口策略。",
+        anchorState,
+        btn("刷新信任锚状态",()->loadUnboundAnchorStatus(anchorState)),
+        btn("安全条件下手动刷新信任锚",()->fxDialogBuilder().setTitle("手动刷新 DNSSEC 根信任锚")
+          .setMessage("此操作需要 Unbound 当前已停止，且没有 VPN 绑定出口；不满足条件会拒绝执行。刷新最长等待 5 秒，失败会恢复原 root.key。解析器运行时由其 RFC5011 机制在线维护，不需要手动停止服务。是否继续？")
+          .setNegativeButton("取消",null)
+          .setPositiveButton("刷新",(dialog,which)->root("unbound-anchor-refresh",refresh->{
+            if(refresh.exitCode==0)status.setText("DNSSEC 根信任锚已刷新并通过格式校验。");
+            else fxDialogBuilder().setTitle("DNSSEC 信任锚未刷新")
+              .setMessage(safe(refresh.output)).setPositiveButton("关闭",null).show();
+            loadUnboundAnchorStatus(anchorState);
+          })).show()));
+    loadUnboundAnchorStatus(anchorState);
 
     card("过滤策略","DNS 和网络策略开关；与 DNS 上游地址分开保存。批量操作会一次性更新以下五项策略。",
        dnsSwitch("阻止 QUIC","block_quic"),
