@@ -185,39 +185,10 @@ case "$ACTION" in
                 continue
               fi
               printf 'FXSRC_B64:' >> "$ROWS" || { batch_failed=$((batch_failed+1)); continue; }
-              if ! base64 < "$VALUE_FILE" | tr -d '\\n' >> "$ROWS"; then
-                batch_failed=$((batch_failed+1)); continue
-              fi
-              printf '|%s|%s\\n' "$note" "$enabled" >> "$ROWS" || {
-                batch_failed=$((batch_failed+1)); continue;
-              }
-              batch_added=$((batch_added+1))
-              ;;
-            SOURCE)
-              note=$(decode_b64 "$note64") || { batch_failed=$((batch_failed+1)); continue; }
-              [ "${#note}" -le 4096 ] || { batch_failed=$((batch_failed+1)); continue; }
-              : > "$VALUE_FILE"
-              decode_b64 "$value64" > "$VALUE_FILE" || { batch_failed=$((batch_failed+1)); continue; }
-              source_size=$(wc -c < "$VALUE_FILE" 2>/dev/null | tr -d ' ')
-              case "$source_size" in ''|*[!0-9]*) source_size=0 ;; esac
-              [ "$source_size" -gt 0 ] && [ "$source_size" -le 1048576 ] || {
-                batch_failed=$((batch_failed+1)); continue;
-              }
-              first_line=$(sed -n '1{p;q;}' "$VALUE_FILE")
-              if printf '%s' "$first_line" | grep -Eq '^[[:space:]]*[A-Za-z][A-Za-z0-9+.-]*://'; then
-                batch_failed=$((batch_failed+1)); continue
-              fi
-              note=$(sanitize_field "$note")
-              [ -n "$note" ] || note="Local JavaScript"
-              if is_duplicate_local_source "$note"; then
-                batch_duplicate=$((batch_duplicate+1))
-                continue
-              fi
-              printf 'FXSRC_B64:' >> "$ROWS" || { batch_failed=$((batch_failed+1)); continue; }
-              if ! base64 < "$VALUE_FILE" | tr -d '\\n' >> "$ROWS"; then
+              if ! base64 < "$VALUE_FILE" | tr -d '\n' >> "$ROWS"; then
                 batch_failed=$((batch_failed+1)); continue;
               fi
-              printf '|%s|%s\\n' "$note" "$enabled" >> "$ROWS" || {
+              printf '|%s|%s\n' "$note" "$enabled" >> "$ROWS" || {
                 batch_failed=$((batch_failed+1)); continue;
               }
               batch_added=$((batch_added+1))
@@ -279,15 +250,19 @@ case "$ACTION" in
             printf 'FXSRC_B64:' >> "$ROWS"
             base64 < "$VALUE_FILE" | tr -d '\n' >> "$ROWS"
             printf '|%s|%s\n' "$note" "$enabled" >> "$ROWS"
-            ;;
-        esac
+              if ! base64 < "$VALUE_FILE" | tr -d '
+' >> "$ROWS"; then
+              printf '|%s|%s
+' "$note" "$enabled" >> "$ROWS" || {
         ;;
       update)
         [ "$#" -eq 3 ] || { echo "ERROR update expects index value64 note64"; exit 64; }
         index=$1; case "$index" in ''|*[!0-9]*|0) echo "ERROR invalid index"; exit 64 ;; esac
         value=$(decode_b64 "$2") || { echo "ERROR invalid value encoding"; exit 64; }
         note=$(decode_b64 "$3") || { echo "ERROR invalid note encoding"; exit 64; }
-        [ -n "$value" ] && [ "${#note}" -le 4096 ] || { echo "ERROR invalid script value or name"; exit 65; }
+              note_length=$(printf '%s' "$note" | wc -c | tr -d ' ')
+              case "$note_length" in ''|*[!0-9]*) note_length=4097 ;; esac
+              [ "$note_length" -le 4096 ] || { batch_failed=$((batch_failed+1)); continue; }
         value=$(encode_script_value "$value") || { echo "ERROR only HTTPS URLs or local JS source are supported"; exit 65; }; note=$(sanitize_field "$note")
         [ -n "$note" ] || note=$(printf '%s' "$value" | cut -c1-80)
         printf '%s' "$value" > "$VALUE_FILE"; printf '%s' "$note" > "$NOTE_FILE"
