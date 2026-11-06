@@ -756,6 +756,11 @@ case "$cmd" in
   [ "$#" -eq 1 ] || exit 2
   dns_profile_get
   ;;
+ dns-runtime-status)
+  [ "$#" -eq 1 ] || exit 2
+  [ -x "$MP/scripts/native-dns-settings.sh" ] || { echo "native DNS dependency manager is missing" >&2; exit 20; }
+  MP="$MP" PG="$PG" sh "$MP/scripts/native-dns-settings.sh" status
+  ;;
  dns-config-set)
   [ "$#" -eq 3 ] || { echo "usage: $0 dns-config-set custom|global|fallback server[,server...]" >&2; exit 2; }
   servers=$(normalize_dns_csv "$3")
