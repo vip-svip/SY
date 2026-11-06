@@ -7354,3 +7354,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 提交：`d5b4a7c9f1f628d2174112d99a89bcd65b4e0382`。
 - 状态来源为模块 `status.sh json` 字段；未提供的字段按关闭显示，不能据此推断目标进程 Hook 已加载。
 - 按提速要求未运行测试、静态检查、构建、CI 或真机验证。
+
+
+## 2026-11-06 — Android 系统隐私信息中心入口
+
+- `adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`：隐私页新增 Android 系统隐私信息中心入口，使用系统 `android.settings.PRIVACY_SETTINGS` Intent；先检查系统是否提供可处理组件，缺失或启动失败时显示明确提示，不伪造系统访问记录。
+- 提交：`5cf16a8bef669a96ee2c71bf0886383c7d042731`。
+- 此入口用于查看 Android 系统记录，与 FX 按应用 Hook 策略分开；系统版本/OEM 未提供该面板时会提示不可用。
+- 按提速要求未运行测试、静态检查、构建、CI 或真机验证。
