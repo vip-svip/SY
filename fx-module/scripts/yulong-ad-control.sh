@@ -1070,7 +1070,7 @@ unbound_runtime_values() {
     BEGIN {
       cache_max_ttl="86400"; cache_min_ttl="0"
       msg_cache_size="8m"; rrset_cache_size="16m"; key_cache_size="4m"; neg_cache_size="2m"
-      serve_expired="1"; serve_expired_ttl="86400"
+      serve_expired="1"; serve_expired_ttl="86400"; serve_expired_ttl_reset="0"
       serve_expired_reply_ttl="30"; serve_expired_client_timeout="1800"
       prefetch="1"; prefetch_key="1"; qname_minimisation="1"; num_threads="1"
       inside=0; sections=0; bad=0
@@ -1088,6 +1088,7 @@ unbound_runtime_values() {
       else if(key=="cache_min_ttl")cache_min_ttl=value
       else if(key=="serve_expired")serve_expired=value
       else if(key=="serve_expired_ttl")serve_expired_ttl=value
+      else if(key=="serve_expired_ttl_reset")serve_expired_ttl_reset=value
       else if(key=="serve_expired_reply_ttl")serve_expired_reply_ttl=value
       else if(key=="serve_expired_client_timeout")serve_expired_client_timeout=value
       else if(key=="prefetch")prefetch=value
@@ -1105,6 +1106,7 @@ unbound_runtime_values() {
       if(!valid_uint32(cache_max_ttl,0) || !valid_uint32(cache_min_ttl,1) ||
          cache_min_ttl+0>cache_max_ttl+0)exit 1
       if(serve_expired!="0" && serve_expired!="1")exit 1
+      if(serve_expired_ttl_reset!="0" && serve_expired_ttl_reset!="1")exit 1
       if(!valid_uint32(serve_expired_ttl,1) ||
          !valid_uint32(serve_expired_reply_ttl,0) ||
          !valid_uint32(serve_expired_client_timeout,1))exit 1
@@ -1118,6 +1120,7 @@ unbound_runtime_values() {
       print "UNBOUND_CACHE_MIN_TTL=" cache_min_ttl
       print "UNBOUND_SERVE_EXPIRED=" serve_expired
       print "UNBOUND_SERVE_EXPIRED_TTL=" serve_expired_ttl
+      print "UNBOUND_SERVE_EXPIRED_TTL_RESET=" serve_expired_ttl_reset
       print "UNBOUND_SERVE_EXPIRED_REPLY_TTL=" serve_expired_reply_ttl
       print "UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT=" serve_expired_client_timeout
       print "UNBOUND_PREFETCH=" prefetch
@@ -1143,14 +1146,15 @@ write_unbound_runtime_settings() {
   _ub_serve_expired_ttl=$4
   _ub_serve_expired_reply_ttl=$5
   _ub_serve_expired_client_timeout=$6
-  _ub_prefetch=$7
-  _ub_prefetch_key=$8
-  _ub_qname_minimisation=$9
-  _ub_msg_cache_size=${10}
-  _ub_rrset_cache_size=${11}
-  _ub_key_cache_size=${12}
-  _ub_neg_cache_size=${13}
-  _ub_num_threads=${14}
+  _ub_serve_expired_ttl_reset=$7
+  _ub_prefetch=$8
+  _ub_prefetch_key=$9
+  _ub_qname_minimisation=${10}
+  _ub_msg_cache_size=${11}
+  _ub_rrset_cache_size=${12}
+  _ub_key_cache_size=${13}
+  _ub_neg_cache_size=${14}
+  _ub_num_threads=${15}
 
   valid_dns_runtime_uint32 "$_ub_cache_max_ttl" 0 &&
     valid_dns_runtime_uint32 "$_ub_cache_min_ttl" 1 &&
@@ -1171,6 +1175,7 @@ write_unbound_runtime_settings() {
     echo "Unbound serve-expired client timeout must be uint32 milliseconds" >&2
     return 2
   }
+  case "$_ub_serve_expired_ttl_reset" in 0|1) : ;; *) echo "Unbound TTL reset flag must be 0 or 1" >&2; return 2 ;; esac
   for _ub_flag in "$_ub_prefetch" "$_ub_prefetch_key" "$_ub_qname_minimisation"; do
     case "$_ub_flag" in 0|1) : ;; *) echo "Unbound runtime flags must be 0 or 1" >&2; return 2 ;; esac
   done
@@ -1194,6 +1199,7 @@ write_unbound_runtime_settings() {
       -v serve_expired="$_ub_serve_expired" -v serve_expired_ttl="$_ub_serve_expired_ttl" \
       -v serve_expired_reply_ttl="$_ub_serve_expired_reply_ttl" \
       -v serve_expired_client_timeout="$_ub_serve_expired_client_timeout" \
+      -v serve_expired_ttl_reset="$_ub_serve_expired_ttl_reset" \
       -v prefetch="$_ub_prefetch" -v prefetch_key="$_ub_prefetch_key" -v qname_minimisation="$_ub_qname_minimisation" \
       -v msg_cache_size="$_ub_msg_cache_size" -v rrset_cache_size="$_ub_rrset_cache_size" \
       -v key_cache_size="$_ub_key_cache_size" -v neg_cache_size="$_ub_neg_cache_size" \
@@ -1205,6 +1211,7 @@ write_unbound_runtime_settings() {
       print "serve_expired_ttl=" serve_expired_ttl
       print "serve_expired_reply_ttl=" serve_expired_reply_ttl
       print "serve_expired_client_timeout=" serve_expired_client_timeout
+      print "serve_expired_ttl_reset=" serve_expired_ttl_reset
       print "prefetch=" prefetch
       print "prefetch_key=" prefetch_key
       print "qname_minimisation=" qname_minimisation
@@ -3102,7 +3109,7 @@ case "$cmd" in
   unbound_runtime_get
   ;;
  unbound-runtime-set)
-  [ "$#" -eq 15 ] || { echo "usage: $0 unbound-runtime-set CACHE_MAX_TTL CACHE_MIN_TTL SERVE_EXPIRED SERVE_EXPIRED_TTL REPLY_TTL CLIENT_TIMEOUT_MS PREFETCH PREFETCH_KEY QNAME_MINIMISATION MSG_CACHE_SIZE RRSET_CACHE_SIZE KEY_CACHE_SIZE NEG_CACHE_SIZE NUM_THREADS" >&2; exit 2; }
+  [ "$#" -eq 16 ] || { echo "usage: $0 unbound-runtime-set CACHE_MAX_TTL CACHE_MIN_TTL SERVE_EXPIRED SERVE_EXPIRED_TTL REPLY_TTL CLIENT_TIMEOUT_MS TTL_RESET PREFETCH PREFETCH_KEY QNAME_MINIMISATION MSG_CACHE_SIZE RRSET_CACHE_SIZE KEY_CACHE_SIZE NEG_CACHE_SIZE NUM_THREADS" >&2; exit 2; }
   shift
   with_lock transaction unbound_runtime_set "$@"
   ;;
