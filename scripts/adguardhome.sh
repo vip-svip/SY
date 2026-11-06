@@ -711,7 +711,16 @@ _render_managed_config() {
      { [ "$_custom_dns_enabled" = 1 ] || [ "$_global_dns_enabled" = 1 ]; }; then
     printf '  - 127.0.0.1:5353\n' > "$_fallback_file" || return 1
   fi
-  if ! awk -v querylog_interval="$_querylog_interval" -v querylog_memory_size="$_querylog_memory_size" -v querylog_enabled="$_dns_querylog_enabled" -v querylog_ignored_enabled="$_querylog_ignored_enabled" -v querylog_ignored="$_querylog_ignored" -v statistics_enabled="$_statistics_enabled" -v statistics_interval="$_statistics_interval" -v statistics_ignored_enabled="$_statistics_ignored_enabled" -v statistics_ignored="$_statistics_ignored" -v dns_response_mode="$_dns_response_mode" -v upstream_mode="$_dns_runtime_upstream_mode" -v fastest_timeout="$_dns_runtime_fastest_timeout" -v upstream_timeout="$_dns_runtime_upstream_timeout" -v cache_size="$_dns_runtime_cache_size" -v cache_ttl_min="$_dns_runtime_cache_ttl_min" -v cache_ttl_max="$_dns_runtime_cache_ttl_max" -v optimistic_answer_ttl="$_dns_runtime_optimistic_answer_ttl" -v optimistic_max_age="$_dns_runtime_optimistic_max_age" -v cache_enabled="$_dns_runtime_cache_enabled" -v cache_optimistic="$_dns_runtime_cache_optimistic" -v dnssec="$_dns_runtime_dnssec" -v rules_file="$_rules_file" -v filters_file="$_filters_file" -v fallback_file="$_fallback_file" -v upstream_file="$_upstream_file" -v bootstrap_file="$_bootstrap_file" '
+  _rewrites_file=$(_new_private_temp "$STATE/dns-rewrites.XXXXXX") || {
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
+    return 1
+  }
+  if ! MP="$MODDIR" PG="$PG" sh "$MODDIR/scripts/yulong-ad-control.sh" dns-rewrites-yaml > "$_rewrites_file"; then
+    _log 'unable to render local DNS rewrite entries'
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_rewrites_file" "$_config_file" 2>/dev/null || :
+    return 1
+  fi
+  if ! awk -v querylog_interval="$_querylog_interval" -v querylog_memory_size="$_querylog_memory_size" -v querylog_enabled="$_dns_querylog_enabled" -v querylog_ignored_enabled="$_querylog_ignored_enabled" -v querylog_ignored="$_querylog_ignored" -v statistics_enabled="$_statistics_enabled" -v statistics_interval="$_statistics_interval" -v statistics_ignored_enabled="$_statistics_ignored_enabled" -v statistics_ignored="$_statistics_ignored" -v dns_response_mode="$_dns_response_mode" -v upstream_mode="$_dns_runtime_upstream_mode" -v fastest_timeout="$_dns_runtime_fastest_timeout" -v upstream_timeout="$_dns_runtime_upstream_timeout" -v cache_size="$_dns_runtime_cache_size" -v cache_ttl_min="$_dns_runtime_cache_ttl_min" -v cache_ttl_max="$_dns_runtime_cache_ttl_max" -v optimistic_answer_ttl="$_dns_runtime_optimistic_answer_ttl" -v optimistic_max_age="$_dns_runtime_optimistic_max_age" -v cache_enabled="$_dns_runtime_cache_enabled" -v cache_optimistic="$_dns_runtime_cache_optimistic" -v dnssec="$_dns_runtime_dnssec" -v rules_file="$_rules_file" -v filters_file="$_filters_file" -v fallback_file="$_fallback_file" -v upstream_file="$_upstream_file" -v bootstrap_file="$_bootstrap_file" -v rewrites_file="$_rewrites_file" '
     /^querylog:[[:space:]]*$/ {in_querylog=1; print; next}
     in_querylog && /^[^[:space:]]/ {in_querylog=0}
     in_querylog && /^  enabled:/ {
@@ -736,6 +745,17 @@ _render_managed_config() {
         print "  ignored:"
         for (i=1;i<=count;i++) print "    - " ignored_domains[i]
       }
+      next
+    }
+    /^  rewrites: \\[\\]$/ {
+      if ((getline rewrite < rewrites_file) > 0) {
+        print "  rewrites:"
+        print rewrite
+        while ((getline rewrite < rewrites_file) > 0) print rewrite
+      } else {
+        print "  rewrites: []"
+      }
+      close(rewrites_file)
       next
     }
     /^statistics:[[:space:]]*$/ {in_statistics=1; print; next}
@@ -827,10 +847,11 @@ _render_managed_config() {
     END {if (!found_rules) exit 2}
   ' "$TEMPLATE" > "$_config_file"; then
     rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
+    rm -f "$_rewrites_file" 2>/dev/null || :
     _log 'unable to compose AdGuard Home config with managed subscriptions and DNS rules'
     return 1
   fi
-  rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" 2>/dev/null || :
+  rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_rewrites_file" 2>/dev/null || :
   chmod 600 "$_config_file" 2>/dev/null || {
     rm -f "$_config_file" 2>/dev/null || :
     return 1
