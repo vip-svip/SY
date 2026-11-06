@@ -374,6 +374,67 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
                 Toast.LENGTH_SHORT).show();
     }
 
+    private void showEditRuleDialog(FxGkdRule rule) {
+        LinearLayout form = new LinearLayout(this);
+        form.setOrientation(LinearLayout.VERTICAL);
+        form.setPadding(dp(20), dp(8), dp(20), dp(4));
+
+        EditText selectorInput = new EditText(this);
+        selectorInput.setHint("GKD 选择器");
+        selectorInput.setSingleLine(false);
+        selectorInput.setMinLines(2);
+        selectorInput.setMaxLines(4);
+        selectorInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        selectorInput.setText(rule.getSelector());
+        form.addView(selectorInput);
+
+        EditText cooldownInput = new EditText(this);
+        cooldownInput.setSingleLine(true);
+        cooldownInput.setInputType(InputType.TYPE_CLASS_NUMBER);
+        cooldownInput.setHint("规则冷却秒数（1–60）");
+        cooldownInput.setText(String.valueOf(rule.getCooldownMillis() / 1000L));
+        form.addView(cooldownInput);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("编辑 GKD 规则")
+                .setView(form)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("保存修改", null)
+                .create();
+        dialog.setOnShowListener(ignored ->
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+                    long seconds;
+                    try {
+                        seconds = Long.parseLong(cooldownInput.getText().toString().trim());
+                    } catch (NumberFormatException invalid) {
+                        Toast.makeText(this, "冷却秒数无效。", Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    if (seconds < 1L || seconds > 60L) {
+                        Toast.makeText(this, "冷却秒数必须在 1 到 60 秒之间。", Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    String selector = selectorInput.getText().toString().trim();
+                    FxGkdSelectorCompilation compiled = FxGkdSelectorEngine.compile(selector);
+                    if (!compiled.isValid()) {
+                        Toast.makeText(this, "选择器无效：" + compiled.getError(), Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    FxGkdRule updated = FxGkdRuleStore.updateRule(
+                            this, rule.getId(), selector, seconds * 1000L);
+                    if (updated == null) {
+                        Toast.makeText(this, "保存失败，原规则保持不变。", Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    FxGkdAutomationRuntime.invalidateRules();
+                    FxAccessibilityService.requestReconfigure(this);
+                    renderRules();
+                    dialog.dismiss();
+                    Toast.makeText(this, "GKD 规则已更新。", Toast.LENGTH_SHORT).show();
+                }));
+        dialog.show();
+    }
+
     private void updateRuleEnabled(FxGkdRule rule, Switch control, boolean enabled) {
         if (!FxGkdRuleStore.setRuleEnabled(this, rule.getId(), enabled)) {
             control.setOnCheckedChangeListener(null);
@@ -430,6 +491,7 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
             enabled.setOnCheckedChangeListener((button, checked) ->
                     updateRuleEnabled(rule, (Switch) button, checked));
             actions.addView(enabled, new LinearLayout.LayoutParams(0, -2, 1));
+            actions.addView(action("编辑", () -> showEditRuleDialog(rule)));
             actions.addView(action("删除", () -> new AlertDialog.Builder(this)
                     .setMessage("删除这条本地 GKD 规则？")
                     .setNegativeButton("取消", null)
