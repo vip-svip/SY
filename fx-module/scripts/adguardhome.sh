@@ -542,6 +542,30 @@ _render_managed_config() {
     return 1
     ;;
   esac
+  _statistics_output=$(MP="$MODDIR" PG="$PG" sh "$MODDIR/scripts/yulong-ad-control.sh" dns-statistics-get 2>/dev/null) || {
+    _log 'unable to read local DNS statistics settings'
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
+    return 1
+  }
+  [ "$(printf '%s\n' "$_statistics_output" | sed -n '1p')" = FXYULONGDNSSTAT1 ] || {
+    _log 'local DNS statistics response has an unsupported format'
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
+    return 1
+  }
+  _statistics_enabled=$(printf '%s\n' "$_statistics_output" | sed -n 's/^STATISTICS_ENABLED=//p')
+  _statistics_interval=$(printf '%s\n' "$_statistics_output" | sed -n 's/^STATISTICS_INTERVAL=//p')
+  case "$_statistics_enabled" in 0|1) : ;; *)
+    _log 'local DNS statistics enabled flag is malformed'
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
+    return 1
+    ;;
+  esac
+  case "$_statistics_interval" in ''|*[!0-9hd]*)
+    _log 'local DNS statistics interval is malformed'
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
+    return 1
+    ;;
+  esac
   _dns_response_mode=$(awk '
     BEGIN { inside=0; sections=0; modes=0; value=""; bad=0 }
     $0=="[conf:yulong_dns_response]" {
@@ -615,7 +639,7 @@ _render_managed_config() {
      { [ "$_custom_dns_enabled" = 1 ] || [ "$_global_dns_enabled" = 1 ]; }; then
     printf '  - 127.0.0.1:5353\n' > "$_fallback_file" || return 1
   fi
-  if ! awk -v querylog_interval="$_querylog_interval" -v querylog_memory_size="$_querylog_memory_size" -v querylog_enabled="$_dns_querylog_enabled" -v dns_response_mode="$_dns_response_mode" -v upstream_mode="$_dns_runtime_upstream_mode" -v fastest_timeout="$_dns_runtime_fastest_timeout" -v upstream_timeout="$_dns_runtime_upstream_timeout" -v cache_size="$_dns_runtime_cache_size" -v cache_ttl_min="$_dns_runtime_cache_ttl_min" -v cache_ttl_max="$_dns_runtime_cache_ttl_max" -v optimistic_answer_ttl="$_dns_runtime_optimistic_answer_ttl" -v optimistic_max_age="$_dns_runtime_optimistic_max_age" -v cache_enabled="$_dns_runtime_cache_enabled" -v cache_optimistic="$_dns_runtime_cache_optimistic" -v dnssec="$_dns_runtime_dnssec" -v rules_file="$_rules_file" -v filters_file="$_filters_file" -v fallback_file="$_fallback_file" -v upstream_file="$_upstream_file" -v bootstrap_file="$_bootstrap_file" '
+  if ! awk -v querylog_interval="$_querylog_interval" -v querylog_memory_size="$_querylog_memory_size" -v querylog_enabled="$_dns_querylog_enabled" -v statistics_enabled="$_statistics_enabled" -v statistics_interval="$_statistics_interval" -v dns_response_mode="$_dns_response_mode" -v upstream_mode="$_dns_runtime_upstream_mode" -v fastest_timeout="$_dns_runtime_fastest_timeout" -v upstream_timeout="$_dns_runtime_upstream_timeout" -v cache_size="$_dns_runtime_cache_size" -v cache_ttl_min="$_dns_runtime_cache_ttl_min" -v cache_ttl_max="$_dns_runtime_cache_ttl_max" -v optimistic_answer_ttl="$_dns_runtime_optimistic_answer_ttl" -v optimistic_max_age="$_dns_runtime_optimistic_max_age" -v cache_enabled="$_dns_runtime_cache_enabled" -v cache_optimistic="$_dns_runtime_cache_optimistic" -v dnssec="$_dns_runtime_dnssec" -v rules_file="$_rules_file" -v filters_file="$_filters_file" -v fallback_file="$_fallback_file" -v upstream_file="$_upstream_file" -v bootstrap_file="$_bootstrap_file" '
     /^querylog:[[:space:]]*$/ {in_querylog=1; print; next}
     in_querylog && /^[^[:space:]]/ {in_querylog=0}
     in_querylog && /^  enabled:/ {
@@ -628,6 +652,13 @@ _render_managed_config() {
     }
     in_querylog && /^  interval:/ {print "  interval: " querylog_interval; next}
     in_querylog && /^  size_memory:/ {print "  size_memory: " querylog_memory_size; next}
+    /^statistics:[[:space:]]*$/ {in_statistics=1; print; next}
+    in_statistics && /^[^[:space:]]/ {in_statistics=0}
+    in_statistics && /^  enabled:/ {
+      print "  enabled: " (statistics_enabled=="1" ? "true" : "false")
+      next
+    }
+    in_statistics && /^  interval:/ {print "  interval: " statistics_interval; next}
     /^  upstream_mode:/ {print "  upstream_mode: " upstream_mode; next}
     /^  fastest_timeout:/ {print "  fastest_timeout: " fastest_timeout; next}
     /^  upstream_timeout:/ {print "  upstream_timeout: " upstream_timeout; next}
@@ -742,6 +773,13 @@ _config_contract() {
       return value ~ /^[0-9]+$/ && value+0<=4294967295 &&
         int(value+0)==value+0 && (allow_zero ? value+0>=0 : value+0>=1)
     }
+    function valid_statistics_interval(value, unit, amount, maximum) {
+      if (value !~ /^[0-9]+[hd]$/) return 0
+      unit=substr(value,length(value),1)
+      amount=substr(value,1,length(value)-1)
+      maximum=(unit=="h" ? 8760 : 365)
+      return amount+0>=1 && amount+0<=maximum && int(amount+0)==amount+0
+    }
     function valid_optimistic_answer_ttl(value, n, seconds) {
       if (value ~ /^[0-9]+ms$/) {
         n=substr(value,1,length(value)-2); seconds=n/1000
@@ -843,6 +881,10 @@ _config_contract() {
       if (http_parts[1]=="127.0.0.1" && http_parts[2] ~ /^[0-9]+$/ &&
           http_parts[2]>=0 && http_parts[2]<=65535) http_loopback=1
     }
+    /^statistics:[[:space:]]*$/ {statistics=1; next}
+    statistics && /^[^[:space:]]/ {statistics=0}
+    statistics && /^  enabled:/ {runtime_statistics_enabled=$2; statistics_enabled_count++}
+    statistics && /^  interval:/ {runtime_statistics_interval=$2; statistics_interval_count++}
     /^dns:$/ {dns=1; next}
     dns && /^[^[:space:]]/ {dns=0}
     dns && /^  port:/ {dns_port=$2}
@@ -924,6 +966,9 @@ _config_contract() {
         runtime_cache_ttl_min+0<=runtime_cache_ttl_max+0 &&
         valid_optimistic_answer_ttl(runtime_optimistic_answer_ttl) &&
         valid_duration(runtime_optimistic_max_age) &&
+        statistics_enabled_count==1 && statistics_interval_count==1 &&
+        (runtime_statistics_enabled=="true" || runtime_statistics_enabled=="false") &&
+        valid_statistics_interval(runtime_statistics_interval) &&
         (runtime_cache_enabled=="true" || runtime_cache_enabled=="false") &&
         (runtime_cache_optimistic=="true" || runtime_cache_optimistic=="false") &&
         (runtime_dnssec=="true" || runtime_dnssec=="false")) ? 0 : 1
