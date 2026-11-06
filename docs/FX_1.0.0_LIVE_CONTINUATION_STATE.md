@@ -7221,3 +7221,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `http.sh` 在调用 curl 前限制上传请求体不超过 8 MiB，与响应体上限对齐。
 - 代码提交：`32725616a094bd7998cb67b859f8f81dd1ed2f7d`、`3afd9b24fb71959a43ddb3f84a8bce680d1826e2`。
 - 按当前推进要求未运行测试、检查、构建、CI 或真机验证。
+
+## 2026-11-06 — 隐私权限 API 与已绑定通知监听器回调
+
+- Stash YAML importer 将 `binary-mode: true` 明确判为 FX 不支持的二进制正文路径，不能继续以普通文本 Hook 导入；应用提交 `33c1a5096adccbf0fe561195649b62f000098baa`，模块提交 `bc0ef8c910223e01e5bcf16a5e5bd7c858951ad9`。
+- 通知 `POST_NOTIFICATIONS` 隐藏现覆盖 NotificationManager、Context、PackageManager 和 AppOps 查询；包级 NotificationManager 查询增加当前包与当前 UID 约束。应用修订 `bc5eaf66729ee0657ea46c86850ff2d96f83091c`，模块修订 `a6bfc40158a37907ae56c1d6a9a370ea29c82963`；AppOps 查询初始/条件键修订仍见前一记录。
+- 通知监听隐私新增 `NotificationListenerService$NotificationListenerWrapper` 的 `onNotificationPosted`、`onNotificationRemoved`、`onNotificationRankingUpdate` Binder 回调过滤，已绑定监听器不会继续从该推送路径接收通知内容；注销、通知发布和系统通知界面不变。应用 Hook 提交 `a1a5dfde14176cdd97842d7f0029dbed17abd0d0`，模块 Hook 提交 `ee133d77f586f9e53a61038d919d1b105c6f8969`。
+- 按当前要求未运行测试、静态检查、构建、CI 或真机验证。
