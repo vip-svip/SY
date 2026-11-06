@@ -1177,7 +1177,7 @@ dns_profile_get() {
   printf 'QUERYLOG_MEMORY_SIZE=%s\n' "$_profile_querylog_memory_size"
   printf 'QUERYLOG_IGNORED_ENABLED=%s\n' "$_profile_querylog_ignored_enabled"
   printf 'QUERYLOG_IGNORED=%s\n' "$_profile_querylog_ignored"
-  printf 'DNS_REWRITES=%s\\n' "$_profile_dns_rewrites"
+  printf 'DNS_REWRITES=%s\n' "$_profile_dns_rewrites"
   printf 'STATISTICS_ENABLED=%s\n' "$_profile_statistics_enabled"
   printf 'STATISTICS_INTERVAL=%s\n' "$_profile_statistics_interval"
   printf 'STATISTICS_IGNORED_ENABLED=%s\n' "$_profile_statistics_ignored_enabled"
