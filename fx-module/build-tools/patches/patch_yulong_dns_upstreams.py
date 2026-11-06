@@ -49,10 +49,10 @@ EOF_FALLBACK
     else
       printf '  fallback_dns: []\n'
     fi
-    # Bootstrap only resolves encrypted upstream hostnames. It is never used
-    # as the normal DNS resolver and is emitted only for explicit custom DNS.
+    # Bootstrap lookups for encrypted upstream hostnames stay inside FX.
+    # The local recursive Unbound resolver avoids fixed public DNS dependencies.
     if printf '%s\n' "$_primary" | grep -Eq '^(https://|tls://|quic://)'; then
-      printf '  bootstrap_dns:\n  - 223.5.5.5\n  - 1.1.1.1\n'
+      printf '  bootstrap_dns:\n  - 127.0.0.1:5353\n'
     fi
   else
     printf '  - 127.0.0.1:5353\n'
