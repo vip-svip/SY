@@ -241,7 +241,7 @@ _render_managed_config() {
     return 1
   }
   _config_file=$(_new_private_temp "$STATE/AdGuardHome.yaml.tmp.XXXXXX") || {
-    rm -f "$_rules_file" "$_filters_file" 2>/dev/null || :
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" 2>/dev/null || :
     return 1
   }
   if ! _build_user_rules "$_rules_file" || ! _build_filter_sources "$_filters_file"; then
