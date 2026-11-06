@@ -892,6 +892,10 @@ _config_contract() {
       return value ~ /^[0-9]+$/ && value+0<=4294967295 &&
         int(value+0)==value+0 && (allow_zero ? value+0>=0 : value+0>=1)
     }
+    function scalar(value) {
+      sub(/^"/,"",value); sub(/"$/,"",value)
+      return value
+    }
     function valid_statistics_interval(value, unit, amount, maximum) {
       if (value !~ /^[0-9]+[hd]$/) return 0
       unit=substr(value,length(value),1)
@@ -1066,6 +1070,18 @@ _config_contract() {
       if(rewrite_block && rewrite_domain!="" && !rewrite_has_answer) unsafe_rewrites=1
       filtering=0
       rewrite_block=0
+    }
+    filtering && /^  blocking_mode:/ {
+      runtime_blocking_mode=scalar($2); blocking_mode_count++
+    }
+    filtering && /^  blocking_ipv4:/ {
+      runtime_blocking_ipv4=scalar($2); blocking_ipv4_count++
+    }
+    filtering && /^  blocking_ipv6:/ {
+      runtime_blocking_ipv6=scalar($2); blocking_ipv6_count++
+    }
+    filtering && /^  blocked_response_ttl:/ {
+      runtime_blocked_response_ttl=scalar($2); blocked_response_ttl_count++
     }
     filtering && $0=="  rewrites: []" {rewrite_sections++; next}
     filtering && $0=="  rewrites:" {rewrite_sections++; rewrite_block=1; next}
@@ -1250,7 +1266,16 @@ _config_contract() {
         valid_statistics_interval(runtime_statistics_interval) &&
         (runtime_cache_enabled=="true" || runtime_cache_enabled=="false") &&
         (runtime_cache_optimistic=="true" || runtime_cache_optimistic=="false") &&
-        (runtime_dnssec=="true" || runtime_dnssec=="false")) ? 0 : 1
+        (runtime_dnssec=="true" || runtime_dnssec=="false") &&
+        blocking_mode_count==1 &&
+        (runtime_blocking_mode=="nxdomain" || runtime_blocking_mode=="refused" ||
+         runtime_blocking_mode=="custom_ip") &&
+        blocked_response_ttl_count==1 && valid_uint32(runtime_blocked_response_ttl,1) &&
+        ((runtime_blocking_mode=="custom_ip" && blocking_ipv4_count==1 &&
+          blocking_ipv6_count==1 && valid_rewrite_ipv4(runtime_blocking_ipv4) &&
+          valid_ipv6(runtime_blocking_ipv6)) ||
+         (runtime_blocking_mode!="custom_ip" && blocking_ipv4_count==0 &&
+          blocking_ipv6_count==0))) ? 0 : 1
     }
   ' "$CFG" || {
     _log 'AdGuard config violates FX loopback/listener/local-Unbound policy'

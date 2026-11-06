@@ -6919,3 +6919,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 原生 DNS 设置页新增三项编辑控件、响应协议检查、读取回显和保存入口；DNS 配置快照导出/导入/字段差异预览/恢复加入 `RESPONSE_IPV4`、`RESPONSE_IPV6`、`RESPONSE_TTL`，旧版快照缺少字段时自动回填原默认值。
 - 同步普通源码与 FX 模块 Root/AdGuard renderer、两份原生 APK 源码。
 - 按用户当前提速要求未运行测试、静态检查、构建、CI 或 Android 真机验证；本批为代码移植与接线提交，不代表设备验收。
+
+
+## 2026-11-07 — AdGuard Home DNS 拦截响应运行配置契约
+
+- 将运行配置校验器扩展到 FX DNS response profile：必须且只能有一项合法 blocking_mode 和一项 blocked_response_ttl；TTL 必须为 uint32（允许 0）。
+- custom_ip 模式必须同时存在唯一且合法的 blocking_ipv4 / blocking_ipv6；NXDOMAIN / REFUSED 模式不得意外携带自定义地址字段，避免模板残留地址改变解析响应。
+- 校验值与 Root 持久化读取、运行 YAML 注入一致；缺失、重复、格式错误或模式/地址组合不一致的配置拒绝启动/发布。
+- 同步 `scripts/adguardhome.sh` 与 `fx-module/scripts/adguardhome.sh`。
+- 按用户要求未运行脚本测试、静态检查、构建、CI 或设备验证；本轮只更新源码和续接记录。
