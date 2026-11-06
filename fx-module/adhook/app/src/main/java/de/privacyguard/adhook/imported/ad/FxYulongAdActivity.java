@@ -617,15 +617,13 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
    payload.append("# FX Ad filter subscription export\n")
        .append("# format: source|name\n")
        .append("# importing adds sources enabled by default\n");
-   int included=0,omitted=0;
+   int included=0;
    for(Row row:configured){
     String source=row.value==null?"":row.value.trim();
     String name=row.title==null?"":row.title.trim();
     if(source.isEmpty())continue;
     String line=source.replace('|',' ').replace('\r',' ').replace('\n',' ')
         +"|"+name.replace('|',' ').replace('\r',' ').replace('\n',' ')+"\n";
-     int bytes=line.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
-    if(used+bytes>maxBytes){omitted++;continue;}
     payload.append(line);included++;
    }
    if(included==0){status.setText("没有可导出的有效过滤订阅。");return;}
@@ -1404,7 +1402,6 @@ private void saveVpnDns(String key,EditText input){
   if(selected.isEmpty()){status.setText("当前筛选条件下没有匹配的黑名单条目。");return;}
   String payload=String.join("\\n",selected);
   byte[] bytes=payload.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-  if(bytes.length>65536){status.setText("批量状态数据超过 64 KiB，请缩小筛选范围。");return;}
   String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);
   String action=enabled?"启用":"停用";
   fxDialogBuilder().setTitle(action+"筛选命中的黑名单")
