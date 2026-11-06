@@ -6781,3 +6781,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `adguardhome.sh` 的备用 DNS 渲染器拒绝重复 fallback 区段、缺失值、额外字段、未知字段及重复/非法端点，避免静默忽略错误配置。
 - 同步修改仓库脚本源与 `fx-module/scripts` 实际模块脚本；代码提交包括 `b072182ecd1fd4884a8226b1b929fad15d42716d`、`8029e862b0dbf19c870fdacd75c772991c212eda`、`74e0768bef6f5ffcefb5ca30a2902a47f2b52e58`、`78cb484a491425bcf99287747f8af8db38b1a660`。
 - 按当前提速要求未运行测试、静态检查、构建、CI 或设备验证；以上为源码提交，不代表运行验收。
+## 2026-11-07 — DNS 查询日志轮转周期回显修复
+
+- 修复原生 Ad 页面 `chooseDnsQueryLogRetention()` 的响应分行正则多转义一层的问题。此前 Root 返回值无法按 CR/LF 正常拆行，设置页可能始终显示默认 7d，而实际保存的自定义 h/d 轮转周期仍在后端生效。
+- 同步正式 App 与 FX 模块内 App 源码：`adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`、`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
+- 提交：`c96d58b173b3bf7dd870fa37b34f66ca8f600a9c`、`5cd981922b70197baf45b23bfc50caf75ccc568b`。
+- 按推进要求未运行测试、静态检查、Gradle/APK 构建、CI 或设备验证。
