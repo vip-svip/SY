@@ -1138,3 +1138,11 @@
 - 修正 AdGuard Home 两套 DNS 主机校验器中 IPv4 检查函数名不一致的问题，统一调用 valid_ipv4，避免以 IPv4 字面量作为加密上游主机名时发生错误。
 - DNS 配置快照导入验证仅对 CUSTOM_SERVERS 接受 IPv4:port；global/fallback 与 VPN DNS 仍执行原有 IPv4 校验。原生 Ad UI 提示同步为 IPv4[:端口]。
 - 变更同步覆盖 scripts/ 与 fx-module/ 两套 Root、AdGuard Home 和 APK Activity 源码；按当前推进要求未执行测试、静态检查、Gradle 构建、CI 或 Android 真机验证。
+## 2026-11-07 — Unbound DNSSEC 密钥预取 UI / Root / 快照贯通
+
+- 修复 Unbound DNSSEC `prefetch-key` 配置已经由 Root 后端及 Unbound 渲染器支持，但原生 Ad 页面没有入口、保存命令缺少参数的问题。
+- 原生 Ad 页面新增“启用 DNSSEC 密钥预取”开关；参数读取、布尔值校验、保存命令和状态反馈全部接入 `UNBOUND_PREFETCH_KEY`。
+- DNS 配置快照允许并比较 `UNBOUND_PREFETCH_KEY`，恢复旧版 38 字段快照时默认补为 `1`；当前快照字段总数更新为 39，开关统计同步更新为 19。
+- 已同步 `adhook/app/.../FxYulongAdActivity.java` 与 `fx-module/adhook/app/.../FxYulongAdActivity.java` 两份正式源码。
+- 源码提交：`00bf11c0133afb4c2cd3b150324e812ff344ec64`。
+- 按用户当前要求未运行测试、静态检查、构建、CI 或 Android 真机验证；仅完成 GitHub 源码提交。
