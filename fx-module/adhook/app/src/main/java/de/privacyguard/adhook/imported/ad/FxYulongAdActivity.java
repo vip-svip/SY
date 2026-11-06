@@ -585,10 +585,168 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
   });
  }
 
+private void setDnsEngineProfile(boolean enabled){
+  String action=enabled?"启用":"关闭";
+  String command=enabled
+      ?"dns-native-set-many dns_engine_adguardhome 1 dns_forward 1"
+      :"dns-native-set-many dns_engine_adguardhome 0 dns_forward 0 vpn_external_dns_proxy 0";
+  new AlertDialog.Builder(this).setTitle(action+"本地 DNS 引擎组？")
+      .setMessage("将通过原生 DNS 依赖管理器，在单次配置事务中调整 AdGuard Home、Unbound 与 Root Proxy 依赖；不会修改上游服务器、过滤规则或 VPN 节点。")
+      .setNegativeButton("取消",null)
+      .setPositiveButton("确认",(dialog,which)->root(command,r->{
+        if(r.exitCode==0){status.setText("本地 DNS 引擎组已"+action+"并应用。");load();}
+        else fxDialogBuilder().setTitle("DNS 引擎设置未更新").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
+      })).show();
+}
+
+private void setDnsFilterPolicy(boolean enabled){
+  String action=enabled?"启用":"关闭";
+  new AlertDialog.Builder(this).setTitle(action+"全部 DNS 过滤策略？")
+      .setMessage("此操作将以单次配置事务同时"+action+" QUIC、DNS-over-TLS、明文 DNS、IPv6 与跟踪域名保护五项策略。")
+      .setNegativeButton("取消",null)
+      .setPositiveButton("确认", (dialog,which)->root("dns-filter-policy-set "+(enabled?"1":"0")+" "+(enabled?"1":"0")+" "+(enabled?"1":"0")+" "+(enabled?"1":"0")+" "+(enabled?"1":"0"),r->{
+        if(r.exitCode==0){status.setText("五项 DNS 过滤策略已统一"+action+"并应用。");load();}
+        else fxDialogBuilder().setTitle("DNS 策略未更新").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
+      })).show();
+}
+
+private void saveDnsServerLists(EditText custom,EditText global,EditText fallback){
+  String customValue=custom.getText()==null?"":custom.getText().toString().trim();
+  String globalValue=global.getText()==null?"":global.getText().toString().trim();
+  String fallbackValue=fallback.getText()==null?"":fallback.getText().toString().trim();
+  String command="dns-config-set-many "+q(customValue.isEmpty()?"-":customValue)+" "+q(globalValue.isEmpty()?"-":globalValue)+" "+q(fallbackValue.isEmpty()?"-":fallbackValue);
+  new AlertDialog.Builder(this).setTitle("一次性保存三组 DNS 上游")
+      .setMessage("三组服务器将先统一校验，再在同一配置事务中写入并应用。任一组留空表示清除该组服务器段；不会自动关闭对应开关。是否继续？")
+      .setNegativeButton("取消",null)
+      .setPositiveButton("保存",(dialog,which)->root(command,r->{
+        if(r.exitCode==0){status.setText("自定义、全局与备用 DNS 上游已在同一事务中保存并应用。");load();}
+        else fxDialogBuilder().setTitle("DNS 上游未更新").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
+      })).show();
+}
+
+private void saveVpnDnsPair(EditText remote,EditText cn){
+  String remoteValue=remote.getText()==null?"":remote.getText().toString().trim();
+  String cnValue=cn.getText()==null?"":cn.getText().toString().trim();
+  if(remoteValue.isEmpty()||cnValue.isEmpty()){
+    fxDialogBuilder().setTitle("VPN DNS 地址不完整").setMessage("远端 DNS 与国内直连 DNS 都必须填写 IPv4 地址；未提交任何更改。").setPositiveButton("关闭",null).show();
+    return;
+  }
+  fxDialogBuilder().setTitle("一次性保存两组 VPN DNS")
+      .setMessage("先同时校验远端 DNS 与国内直连 DNS，再在同一配置事务中写入并应用；任一项无效或写入失败都不会保留部分修改。是否继续？")
+      .setNegativeButton("取消",null)
+      .setPositiveButton("保存",(dialog,which)->root("dns-vpn-set-many "+q(remoteValue)+" "+q(cnValue),r->{
+        if(r.exitCode==0){status.setText("远端 DNS 与国内直连 DNS 已在同一事务中保存并应用。");load();}
+        else fxDialogBuilder().setTitle("VPN DNS 未更新").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
+      })).show();
+}
+
+private void clearDnsSection(String kind,EditText input){
+  String label="custom".equals(kind)?"自定义 DNS":("global".equals(kind)?"全局 DNS":"备用 DNS");
+  fxDialogBuilder().setTitle("清除"+label)
+      .setMessage("将移除 FX 配置中的"+label+"服务器段；不会自动关闭对应开关，也不会修改 VPN 节点 DNS。是否继续？")
+      .setNegativeButton("取消",null)
+      .setPositiveButton("清除",(dialog,which)->root("dns-config-clear "+kind,r->{
+       if(r.exitCode==0){input.setText("");status.setText(label+"服务器配置已清除。");load();}
+       else fxDialogBuilder().setTitle("清除失败").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
+      })).show();
+ }
+
+ private void refreshDnsCache(String target,String label){
+   fxDialogBuilder().setTitle("刷新"+label+"缓存")
+     .setMessage("FX 将仅重启所选的自有 DNS 解析服务并重新应用路由。刷新期间相关 DNS 查询可能短暂重试；不会操作第三方 VPN。若所选引擎未启用，FX 会拒绝操作。是否继续？")
+     .setNegativeButton("取消",null).setPositiveButton("刷新",(d,w)->root("cache-flush "+target,r->{
+       fxDialogBuilder().setTitle(r.exitCode==0?"DNS 缓存已刷新":"DNS 刷新未完全成功")
+         .setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
+     })).show();
+ }
+
+private void shareDnsProfile(){
+  root("dns-profile-get",r->{
+    if(r.exitCode!=0){status.setText("DNS 配置快照读取失败："+safe(r.output));return;}
+    String raw=r.output==null?"":r.output.trim();
+    if(!raw.startsWith("FXYULONGDNSPROFILE1")){status.setText("DNS 配置快照格式不受支持，未生成备份。");return;}
+    String payload="# FX Hook DNS profile backup\\n# format: FXYULONGDNSPROFILE1\\n# Restore only through a compatible FX version.\\n"+raw.substring("FXYULONGDNSPROFILE1".length()).trim()+"\\n";
+    int bytes=payload.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+    if(bytes>48*1024){status.setText("DNS 配置快照超过 48 KiB，未打开分享面板。");return;}
+    try{
+      Intent send=new Intent(Intent.ACTION_SEND);
+      send.setType("text/plain");
+      send.putExtra(Intent.EXTRA_SUBJECT,"FX Hook DNS 配置备份");
+      send.putExtra(Intent.EXTRA_TEXT,payload);
+      startActivity(Intent.createChooser(send,"分享 DNS 配置快照"));
+      status.setText("已准备 DNS 配置快照（"+bytes+" 字节）；请自行选择安全的保存位置。");
+    }catch(RuntimeException unavailable){
+      status.setText("无法打开系统分享面板："+safe(unavailable.getMessage()));
+    }
+  });
+}
+
+private void restoreDnsProfile(EditText input){
+  String supplied=input.getText()==null?"":input.getText().toString();
+  if(supplied.trim().isEmpty()){status.setText("请先粘贴 DNS 配置快照。");return;}
+  StringBuilder normalized=new StringBuilder();
+  for(String line:supplied.split("\\r?\\n")){
+    String trimmed=line.trim();
+    if(trimmed.isEmpty()||trimmed.startsWith("#"))continue;
+    if(normalized.length()>0)normalized.append('\\n');
+    normalized.append(trimmed);
+  }
+  String raw=normalized.toString();
+  if(!raw.startsWith("FXYULONGDNSPROFILE1\\n")&&!raw.equals("FXYULONGDNSPROFILE1")){
+    status.setText("快照版本头不匹配，未修改配置。");return;
+  }
+  byte[] bytes=raw.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+  if(bytes.length>48*1024){status.setText("快照超过 48 KiB，未提交。");return;}
+  String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);
+  fxDialogBuilder().setTitle("恢复 DNS 配置快照")
+    .setMessage("将完整替换当前 DNS 引擎开关、过滤策略、上游服务器、VPN DNS 与拦截响应模式。所有字段会先校验；恢复应用失败会回滚原配置。此操作不会修改 VPN 节点或其他 FX 模块设置。是否继续？")
+    .setNegativeButton("取消",null)
+    .setPositiveButton("恢复", (d,w)->root("dns-profile-restore "+encoded,r->{
+      if(r.exitCode==0){status.setText("DNS 配置快照已恢复并应用。");input.setText("");load();}
+      else fxDialogBuilder().setTitle("DNS 快照恢复失败").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
+    })).show();
+}
+
+private void loadDnsRuntimeStatus(TextView target){
+  target.setText("正在读取 DNS 服务状态…");
+  root("dns-runtime-status",r->{
+    if(r.exitCode!=0){target.setText("DNS 状态读取失败："+safe(r.output));return;}
+    java.util.Map<String,String> values=new java.util.LinkedHashMap<>();
+    for(String line:(r.output==null?"":r.output).split("\\r?\\n")){
+      int split=line.indexOf('|');
+      if(split>0&&split<line.length()-1)values.put(line.substring(0,split).trim(),line.substring(split+1).trim());
+    }
+    StringBuilder out=new StringBuilder();
+    appendDnsStatus(out,"AdGuard Home",values.get("adguardhome"));
+    appendDnsStatus(out,"Unbound",values.get("unbound"));
+    appendDnsStatus(out,"第三方 VPN Root Proxy",values.get("root_proxy"));
+    appendDnsStatus(out,"DNS 过滤覆盖",values.get("dns_filter_coverage"));
+    appendDnsStatus(out,"VPN 共存判定",values.get("vpn_coexistence_verdict"));
+    appendDnsStatus(out,"DNS 路由探测",values.get("vpn_route_probe"));    appendDnsStatus(out,"DNS 栈已启用",values.get("dns_stack_enabled"));
+    appendDnsStatus(out,"DNS 栈就绪",values.get("dns_stack_ready"));
+    appendDnsStatus(out,"过滤规则总数",values.get("dns_filter_sources_total"));
+    appendDnsStatus(out,"已启用过滤规则",values.get("dns_filter_sources_enabled"));
+    target.setText(out.length()==0?"未收到可识别的 DNS 状态字段。":out.toString().trim());
+  });
+}
+
+private void appendDnsStatus(StringBuilder out,String label,String value){
+  if(value==null||value.isEmpty())return;
+  out.append(label).append("：").append(value).append('\\n');
+}
+
  private void renderDns(){
+  EditText dnsProfileImport=draftField("dns_profile_import");dnsProfileImport.setSingleLine(false);dnsProfileImport.setMinLines(5);dnsProfileImport.setHint("粘贴完整 FXYULONGDNSPROFILE1 快照文本");
+  card("DNS 配置备份与恢复","快照会完整替换 DNS 引擎开关、过滤策略、三组上游、VPN DNS 与拦截响应模式；提交前校验字段，失败时恢复原配置。",
+       btn("分享 DNS 配置快照",()->shareDnsProfile()),dnsProfileImport,btn("校验并恢复 DNS 配置快照",()->restoreDnsProfile(dnsProfileImport)));
+  TextView dnsRuntimeState=txt("DNS 运行状态尚未读取。",12,0xff617080,false);
+  card("DNS 引擎运行状态","读取 AdGuard Home、Unbound、第三方 VPN Root Proxy、DNS 过滤覆盖范围与 VPN 共存判定；只读状态，不更改服务或路由。",
+       dnsRuntimeState,btn("刷新 DNS 运行状态",()->loadDnsRuntimeStatus(dnsRuntimeState)));
   card("本地 DNS 引擎",
        "启用时使用 FX 自有 AdGuard Home 过滤服务；关闭后按 FX 当前安全 DNS 回退配置处理。",
-       dnsSwitch("启用本地 AdGuard Home","dns_engine_adguardhome"));
+       dnsSwitch("启用本地 AdGuard Home","dns_engine_adguardhome"),
+       btn("一键启用本地 DNS 引擎组",()->setDnsEngineProfile(true)),
+       btn("一键关闭本地 DNS 引擎组",()->setDnsEngineProfile(false)));
   card("本地 DNS 架构",
        "默认由本地 AdGuard Home 过滤并交给 Unbound 递归解析；不固定使用公共 DNS。只有明确启用自定义 DNS 或全局 DNS 时才会使用下面填写的 IPv4 地址。",
        dnsSwitch("DNS 兜底转发","dns_forward"),
@@ -599,7 +757,9 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
        dnsSwitch("阻止 DNS-over-TLS","block_dot"),
        dnsSwitch("阻止明文 DNS","block_plain_dns"),
        dnsSwitch("阻止 IPv6","block_ipv6"),
-       dnsSwitch("跟踪域名保护","block_track_domains"));
+       dnsSwitch("跟踪域名保护","block_track_domains"),
+       btn("一键启用全部过滤策略",()->setDnsFilterPolicy(true)),
+       btn("一键关闭全部过滤策略",()->setDnsFilterPolicy(false)));
   android.widget.RadioGroup responseGroup=new android.widget.RadioGroup(this);
   responseGroup.setOrientation(android.widget.RadioGroup.VERTICAL);
   android.widget.RadioButton responseNx=new android.widget.RadioButton(this);
@@ -650,17 +810,15 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
   card("自定义/全局/备用 DNS 服务器",
        "自定义 DNS 最多 3 个上游，可混合 IPv4、DoH、DoT、DoQ；备用 DNS 只支持 IPv4。加密上游只在 FX 本地 AdGuard Home 过滤引擎运行时生效；启用“阻止 DoT/QUIC”会阻断对应传输协议。",
        txt("自定义 DNS 上游",12,0xff617080,true),customServers,
+       btn("一次性保存三组 DNS 上游",()->saveDnsServerLists(customServers,globalServers,fallbackServers)),
        btn("保存自定义 DNS",()->saveDnsServerList("custom",customServers)),
+       btn("清除自定义 DNS",()->clearDnsSection("custom",customServers)),
        txt("备用 DNS（故障回退）",12,0xff617080,true),fallbackServers,
        btn("保存备用 DNS",()->saveDnsServerList("fallback",fallbackServers)),
-       btn("清除备用 DNS",()->fxDialogBuilder().setTitle("清除备用 DNS")
-         .setMessage("清除故障回退服务器后，AdGuard Home 将不再使用备用 DNS。是否继续？")
-         .setNegativeButton("取消",null).setPositiveButton("清除",(d,w)->root("dns-config-clear fallback",r->{
-           if(r.exitCode==0){fallbackServers.setText("");status.setText("备用 DNS 已清除。");}
-           else fxDialogBuilder().setTitle("清除失败").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
-         })).show()),
+       btn("清除备用 DNS",()->clearDnsSection("fallback",fallbackServers)),
        txt("全局 DNS 替换",12,0xff617080,true),globalServers,
-       btn("保存全局 DNS",()->saveDnsServerList("global",globalServers)));
+       btn("保存全局 DNS",()->saveDnsServerList("global",globalServers)),
+       btn("清除全局 DNS",()->clearDnsSection("global",globalServers)));
   EditText remoteDns=draftField("vpn_remote_dns");
   remoteDns.setSingleLine(true);remoteDns.setHint("VPN 远端 DNS，例如 1.1.1.1");
   EditText cnDns=draftField("vpn_cn_dns");
@@ -670,18 +828,16 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
        txt("远端 DNS",12,0xff617080,true),remoteDns,
        btn("保存远端 DNS",()->saveVpnDns("remote_dns",remoteDns)),
        txt("国内直连 DNS",12,0xff617080,true),cnDns,
-       btn("保存国内直连 DNS",()->saveVpnDns("cn_dns",cnDns)));
+       btn("保存国内直连 DNS",()->saveVpnDns("cn_dns",cnDns)),
+       btn("一次性保存两组 VPN DNS",()->saveVpnDnsPair(remoteDns,cnDns)));
   card("DNS 查询日志","默认关闭。仅本机保存查询记录；可单独设置日志保留期限，不会上传查询记录。",
        dnsSwitch("启用本地 DNS 查询日志","dns_querylog_enabled"),
        btn("设置日志保留期限",()->chooseDnsQueryLogRetention()),
        btn("查看 DNS 查询日志",()->startActivity(new Intent(this,FxYulongDnsActivity.class))));
   card("DNS 缓存管理","刷新 FX 自己的 AdGuard Home / Unbound 缓存会短暂重启本地解析服务；第三方 VPN 和它的规则不会被停止。",
-       btn("刷新本地 DNS 缓存",()->fxDialogBuilder().setTitle("刷新本地 DNS 缓存")
-         .setMessage("本地 DNS 查询可能短暂重试。FX 会重启自有解析服务并重新应用当前规则；不会操作第三方 VPN。")
-         .setNegativeButton("取消",null).setPositiveButton("刷新",(d,w)->root("cache-flush",r->{
-           fxDialogBuilder().setTitle(r.exitCode==0?"DNS 缓存已刷新":"DNS 刷新未完全成功")
-             .setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
-         })).show()));
+       btn("刷新 AdGuard Home 缓存",()->refreshDnsCache("adguardhome","AdGuard Home")),
+       btn("刷新 Unbound 缓存",()->refreshDnsCache("unbound","Unbound")),
+       btn("刷新全部本地 DNS 缓存",()->refreshDnsCache("all","全部本地 DNS")));
   card("第三方 VPN DNS 过滤回退",
        "只有在系统确认唯一活动第三方 VPN、接口/所属 UID/出口路由有效，且 Unbound/AdGuard Home 健康探测通过后才接管明文 DNS。失败会撤销 FX 自有规则并保留第三方 VPN DNS。",
        dnsSwitch("第三方 VPN 下启用 Root DNS 过滤","vpn_external_dns_proxy"),
