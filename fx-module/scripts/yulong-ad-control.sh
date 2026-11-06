@@ -1132,8 +1132,8 @@ case "$cmd" in
   fi
   ;;
  cache-flush)
-  [ "$#" -eq 1 ] || exit 2
-  cache_flush
+  [ "$#" -ge 1 ] && [ "$#" -le 2 ] || exit 2
+  cache_flush "${2:-all}"
   ;;
  dns-log-clear)
   dir="$PG/adguardhome/work/data"
