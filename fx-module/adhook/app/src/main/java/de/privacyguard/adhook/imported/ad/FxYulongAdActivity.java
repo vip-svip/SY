@@ -1055,7 +1055,7 @@ private void restoreDnsProfile(EditText input){
           else fxDialogBuilder().setTitle("DNS 快照恢复失败").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
         })).show()).show();
   });
-v4(String value){
+private boolean isValidProfileIpv4(String value){
   if(value==null||!value.matches("[0-9]{1,3}(\\.[0-9]{1,3}){3}")||
       "0.0.0.0".equals(value)||"255.255.255.255".equals(value))return false;
   for(String part:value.split("\\.")){
@@ -1063,25 +1063,41 @@ v4(String value){
   }
   return true;
 }
+private boolean isValidProfileDnsIpv4(String value){
+  if(!isValidProfileIpv4(value))return false;
+  String[] parts=value.split("\\.");
+  try{
+    int first=Integer.parseInt(parts[0]),second=Integer.parseInt(parts[1]);
+    return first!=0&&first!=127&&first<224&&!(first==169&&second==254);
+  }catch(RuntimeException invalid){return false;}
+}
+private boolean isValidProfileDnsHostPort(String authority){
+  String hostPort="[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?";
+  int colon=authority.lastIndexOf(':');
+  String host=colon<0?authority:authority.substring(0,colon);
+  if(host.matches("[0-9.]+")&&!isValidProfileDnsIpv4(host))return false;
+  return authority.matches(hostPort)&&validProfilePort(authority);
+}
 private boolean isValidProfileDnsCsv(String value,boolean encryptedAllowed){
   if(value==null||value.isEmpty())return true;
   String[] entries=value.split(",",-1);
   java.util.Set<String> seen=new java.util.HashSet<>();
   for(String entry:entries){
     if(entry.isEmpty()||!seen.add(entry.toLowerCase(java.util.Locale.ROOT)))return false;
-    if(isValidProfileIpv4(entry))continue;
+    if(isValidProfileDnsIpv4(entry))continue;
     if(!encryptedAllowed)return false;
     String hostPort="[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?";
     if(entry.startsWith("tls://")||entry.startsWith("quic://")){
       String authority=entry.substring(entry.indexOf("://")+3);
-      if(!authority.matches(hostPort)||!validProfilePort(authority))return false;
+      if(!isValidProfileDnsHostPort(authority))return false;
     }else if(entry.startsWith("https://")){
       String rest=entry.substring(8);
       int slash=rest.indexOf('/');
       String authority=slash<0?rest:rest.substring(0,slash);
       String path=slash<0?"":rest.substring(slash);
-      if(!authority.matches(hostPort)||!validProfilePort(authority)||
-          !path.matches("(/[A-Za-z0-9._~!$&()*+,;=:@%/?#-]*)?"))return false;
+      if(!isValidProfileDnsHostPort(authority)||
+          !path.matches("(/[A-Za-z0-9._~!      if(!authority.matches(hostPort)||!validProfilePort(authority)||
+          !path.matches("(/[A-Za-z0-9._~!$&()*+,;=:@%/?#-]*)?"))return false;()*+,;=:@%/?#-]*)?"))return false;
     }else return false;
   }
   return true;
