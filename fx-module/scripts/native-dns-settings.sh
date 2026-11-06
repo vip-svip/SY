@@ -64,6 +64,52 @@ declared_flag() {
     END {exit !(count==1 && valid==1)}
   ' "$DEFAULTS"
 }
+write_flags_many() {
+  [ "$#" -ge 2 ] && [ "$(($# % 2))" -eq 0 ] || return 2
+  _flags_args=
+  _flags_seen='|'
+  while [ "$#" -gt 0 ]; do
+    _fk=$1; _fv=$2; shift 2
+    valid_key "$_fk" || return 2
+    case "$_fv" in 0|1) : ;; *) return 2 ;; esac
+    declared_flag "$_fk" || return 2
+    case "$_flags_seen" in *"|$_fk|"*) return 2 ;; esac
+    _flags_seen="${_flags_seen}${_fk}|"
+    _flags_args="${_flags_args}${_flags_args:+ }${_fk}=${_fv}"
+  done
+  _flags_tmp=$(umask 077; mktemp "$CONF.native-dns-batch.XXXXXX") || return 1
+  if ! awk -v updates="$_flags_args" '
+    BEGIN {
+      n=split(updates,p," "); section=0; bad=0
+      for(i=1;i<=n;i++){split(p[i],kv,"="); wanted[kv[1]]=kv[2]; count[kv[1]]=0}
+    }
+    /^\[/ {section=1}
+    !section {
+      eq=index($0,"=")
+      if(eq>1){
+        key=substr($0,1,eq-1)
+        if(key in wanted){
+          count[key]++
+          if(substr($0,eq+1)!~/^[01]$/ || count[key]>1) bad=1
+          print key "=" wanted[key]
+          next
+        }
+      }
+    }
+    {print}
+    END {
+      for(key in wanted) if(count[key]!=1) bad=1
+      if(bad) exit 1
+    }
+  ' "$CONF" > "$_flags_tmp"; then
+    rm -f "$_flags_tmp"; return 1
+  fi
+  if [ -s "$_flags_tmp" ] && chmod 600 "$_flags_tmp" && mv -f "$_flags_tmp" "$CONF"; then
+    return 0
+  fi
+  rm -f "$_flags_tmp"
+  return 1
+}
 read_flag() {
   _key=$1
   _value=$(pg_get "$_key" 0 2>/dev/null || printf 0)
@@ -227,37 +273,29 @@ mutate() {
     dns_engine_adguardhome:1)
       # AdGuard's only upstream is local Unbound; enabling the filter must
       # activate its recursive resolver in the same config transaction.
-      pg_set dns_forward 1 || _set_rc=$?
-      [ "$_set_rc" -ne 0 ] || pg_set dns_engine_adguardhome 1 || _set_rc=$?
+      write_flags_many dns_forward 1 dns_engine_adguardhome 1 || _set_rc=$?
       ;;
     dns_engine_adguardhome:0)
       # Root Proxy redirects to AdGuard on port 53. Disarm it before disabling
       # that listener; Unbound may remain enabled for independent local DNS.
-      pg_set vpn_external_dns_proxy 0 || _set_rc=$?
-      [ "$_set_rc" -ne 0 ] || pg_set dns_engine_adguardhome 0 || _set_rc=$?
+      write_flags_many vpn_external_dns_proxy 0 dns_engine_adguardhome 0 || _set_rc=$?
       ;;
     dns_forward:0)
       # Do not leave an enabled filter pointing at a resolver that is disabled.
-      pg_set dns_engine_adguardhome 0 || _set_rc=$?
-      [ "$_set_rc" -ne 0 ] || pg_set vpn_external_dns_proxy 0 || _set_rc=$?
-      [ "$_set_rc" -ne 0 ] || pg_set dns_forward 0 || _set_rc=$?
+      write_flags_many dns_engine_adguardhome 0 vpn_external_dns_proxy 0 dns_forward 0 || _set_rc=$?
       ;;
     vpn_external_compat:0)
       # Root Proxy is a third-party-VPN fallback and cannot remain armed when
       # compatibility mode has been disabled.
-      pg_set vpn_external_dns_proxy 0 || _set_rc=$?
-      [ "$_set_rc" -ne 0 ] || pg_set vpn_external_compat 0 || _set_rc=$?
+      write_flags_many vpn_external_dns_proxy 0 vpn_external_compat 0 || _set_rc=$?
       ;;
     vpn_external_dns_proxy:1)
       # Root Proxy requires the explicit compatibility path, AdGuard's local
       # listener and its Unbound upstream in the same settings transaction.
-      pg_set dns_forward 1 || _set_rc=$?
-      [ "$_set_rc" -ne 0 ] || pg_set dns_engine_adguardhome 1 || _set_rc=$?
-      [ "$_set_rc" -ne 0 ] || pg_set vpn_external_compat 1 || _set_rc=$?
-      [ "$_set_rc" -ne 0 ] || pg_set vpn_external_dns_proxy 1 || _set_rc=$?
+      write_flags_many dns_forward 1 dns_engine_adguardhome 1 vpn_external_compat 1 vpn_external_dns_proxy 1 || _set_rc=$?
       ;;
     *)
-      pg_set "$_key" "$_value" || _set_rc=$?
+      write_flags_many "$_key" "$_value" || _set_rc=$?
       ;;
   esac
   if [ "$_set_rc" -ne 0 ]; then
@@ -320,10 +358,7 @@ mutate_many() {
   _backup=$(umask 077; mktemp "$CONF.native-dns-rollback.XXXXXX") || return 1
   cp -p "$CONF" "$_backup" || { rm -f "$_backup"; return 1; }
   _rc=0
-  pg_set dns_engine_adguardhome "$_want_agh" || _rc=$?
-  [ "$_rc" -ne 0 ] || pg_set dns_forward "$_want_forward" || _rc=$?
-  [ "$_rc" -ne 0 ] || pg_set vpn_external_compat "$_want_compat" || _rc=$?
-  [ "$_rc" -ne 0 ] || pg_set vpn_external_dns_proxy "$_want_proxy" || _rc=$?
+  write_flags_many dns_engine_adguardhome "$_want_agh" dns_forward "$_want_forward" vpn_external_compat "$_want_compat" vpn_external_dns_proxy "$_want_proxy" || _rc=$?
   if [ "$_rc" -ne 0 ]; then
     _restore=$(umask 077; mktemp "$CONF.native-dns-restore.XXXXXX") || { echo "batch mutation failed; backup retained at $_backup" >&2; return 11; }
     if ! cp -p "$_backup" "$_restore" || ! chmod 600 "$_restore" || ! mv -f "$_restore" "$CONF"; then
