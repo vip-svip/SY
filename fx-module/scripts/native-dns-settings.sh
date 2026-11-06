@@ -78,6 +78,7 @@ status() {
   _unbound=$(service_status unbound)
   _root=unavailable
   _whitelist_count=unknown
+  _root_reason=unknown
   _private_dns_mode=unknown
   _dns_filter_coverage=unknown
   _coexistence_verdict=unknown
@@ -120,6 +121,8 @@ status() {
       fi
       _count=$(printf '%s\n' "$_root_output" | sed -n 's/^whitelist_count=//p' | head -1)
       case "$_count" in ''|*[!0-9]*) : ;; *) _whitelist_count=$_count ;; esac
+      _reason=$(printf '%s\n' "$_root_output" | sed -n 's/^reason=//p' | head -1)
+      case "$_reason" in ''|*[!A-Za-z0-9_.:-]*) : ;; *) _root_reason=$_reason ;; esac
 
       # Preserve the live route proof in the public status response. The
       # Root Proxy status command only emits these values after all route,
@@ -170,6 +173,7 @@ status() {
   printf 'adguardhome|%s\n' "$_agh"
   printf 'unbound|%s\n' "$_unbound"
   printf 'root_proxy|%s\n' "$_root"
+  printf 'rootproxy_reason|%s\n' "$_root_reason"
   printf 'rootproxy_interface|%s\n' "$_root_interface"
   printf 'rootproxy_vpn_uid|%s\n' "$_root_vpn_uid"
   printf 'rootproxy_egress_ipv4|%s\n' "$_root_egress_ipv4"
