@@ -1098,6 +1098,10 @@ dns_profile_get() {
   _querylog_runtime_record=$(dns_querylog_runtime_get) || return $?
   _profile_querylog_memory_size=$(printf '%s\n' "$_querylog_runtime_record" | sed -n 's/^memory_size=//p')
   [ -n "$_profile_querylog_memory_size" ] || { echo "DNS query-log buffer size is unavailable" >&2; return 22; }
+  _statistics_record=$(dns_statistics_values) || { echo "DNS statistics settings are unavailable" >&2; return 22; }
+  _profile_statistics_enabled=$(printf '%s\n' "$_statistics_record" | sed -n 's/^STATISTICS_ENABLED=//p')
+  _profile_statistics_interval=$(printf '%s\n' "$_statistics_record" | sed -n 's/^STATISTICS_INTERVAL=//p')
+  [ -n "$_profile_statistics_enabled" ] && [ -n "$_profile_statistics_interval" ] || { echo "DNS statistics settings are incomplete" >&2; return 22; }
   echo FXYULONGDNSPROFILE1
   for key in dns_engine_adguardhome dns_forward custom_dns global_dns block_quic block_dot block_plain_dns block_ipv6 block_track_domains vpn_external_dns_proxy vpn_external_compat dns_querylog_enabled; do
     printf '%s=%s\n' "$key" "$(pg_get "$key" 0)"
@@ -1114,6 +1118,8 @@ dns_profile_get() {
   printf 'RESPONSE_MODE=%s\n' "$mode"
   printf 'QUERYLOG_RETENTION=%s\n' "$_profile_retention"
   printf 'QUERYLOG_MEMORY_SIZE=%s\n' "$_profile_querylog_memory_size"
+  printf 'STATISTICS_ENABLED=%s\n' "$_profile_statistics_enabled"
+  printf 'STATISTICS_INTERVAL=%s\n' "$_profile_statistics_interval"
   dns_runtime_values || return $?
   unbound_runtime_values || return $?
 }
@@ -1132,14 +1138,16 @@ dns_profile_restore() {
       if(index($0,"=")<2 || $0 ~ /\r/){bad=1;next}
       key=substr($0,1,index($0,"=")-1)
       value=substr($0,index($0,"=")+1)
-      if(key !~ /^(dns_engine_adguardhome|dns_forward|custom_dns|global_dns|block_quic|block_dot|block_plain_dns|block_ipv6|block_track_domains|vpn_external_dns_proxy|vpn_external_compat|dns_querylog_enabled|CUSTOM_SERVERS|GLOBAL_SERVERS|FALLBACK_SERVERS|VPN_REMOTE|VPN_CN|RESPONSE_MODE|QUERYLOG_RETENTION|QUERYLOG_MEMORY_SIZE|UPSTREAM_MODE|FASTEST_TIMEOUT|UPSTREAM_TIMEOUT|CACHE_SIZE|CACHE_TTL_MIN|CACHE_TTL_MAX|CACHE_OPTIMISTIC_ANSWER_TTL|CACHE_OPTIMISTIC_MAX_AGE|CACHE_ENABLED|CACHE_OPTIMISTIC|ENABLE_DNSSEC|UNBOUND_CACHE_MAX_TTL|UNBOUND_CACHE_MIN_TTL|UNBOUND_SERVE_EXPIRED|UNBOUND_SERVE_EXPIRED_TTL|UNBOUND_SERVE_EXPIRED_REPLY_TTL|UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT|UNBOUND_PREFETCH|UNBOUND_PREFETCH_KEY|UNBOUND_QNAME_MINIMISATION|UNBOUND_MSG_CACHE_SIZE|UNBOUND_RRSET_CACHE_SIZE|UNBOUND_KEY_CACHE_SIZE|UNBOUND_NEG_CACHE_SIZE)$/)bad=1
+      if(key !~ /^(dns_engine_adguardhome|dns_forward|custom_dns|global_dns|block_quic|block_dot|block_plain_dns|block_ipv6|block_track_domains|vpn_external_dns_proxy|vpn_external_compat|dns_querylog_enabled|CUSTOM_SERVERS|GLOBAL_SERVERS|FALLBACK_SERVERS|VPN_REMOTE|VPN_CN|RESPONSE_MODE|QUERYLOG_RETENTION|QUERYLOG_MEMORY_SIZE|STATISTICS_ENABLED|STATISTICS_INTERVAL|UPSTREAM_MODE|FASTEST_TIMEOUT|UPSTREAM_TIMEOUT|CACHE_SIZE|CACHE_TTL_MIN|CACHE_TTL_MAX|CACHE_OPTIMISTIC_ANSWER_TTL|CACHE_OPTIMISTIC_MAX_AGE|CACHE_ENABLED|CACHE_OPTIMISTIC|ENABLE_DNSSEC|UNBOUND_CACHE_MAX_TTL|UNBOUND_CACHE_MIN_TTL|UNBOUND_SERVE_EXPIRED|UNBOUND_SERVE_EXPIRED_TTL|UNBOUND_SERVE_EXPIRED_REPLY_TTL|UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT|UNBOUND_PREFETCH|UNBOUND_PREFETCH_KEY|UNBOUND_QNAME_MINIMISATION|UNBOUND_MSG_CACHE_SIZE|UNBOUND_RRSET_CACHE_SIZE|UNBOUND_KEY_CACHE_SIZE|UNBOUND_NEG_CACHE_SIZE)$/)bad=1
       if(seen[key]++)bad=1
       count++
     }
-    END{if(bad||(count!=18&&count!=19&&count!=26&&count!=30&&count!=38&&count!=39&&count!=43&&count!=44))exit 1}
+    END{if(bad||(count!=18&&count!=19&&count!=26&&count!=30&&count!=38&&count!=39&&count!=43&&count!=44&&count!=46))exit 1}
   ' "$_yad_profile_raw" || { echo "DNS profile has unknown, duplicate, missing, or malformed fields" >&2; return 2; }
   _profile_querylog_retention=7d
   _profile_querylog_memory_size=1000
+  _profile_statistics_enabled=0
+  _profile_statistics_interval=10d
   _profile_runtime_mode=load_balance
   _profile_runtime_fastest=1s
   _profile_runtime_timeout=10s
@@ -1196,6 +1204,13 @@ dns_profile_restore() {
       QUERYLOG_MEMORY_SIZE)
         valid_dns_querylog_memory_size "$_profile_value" || { echo "invalid DNS query-log buffer size" >&2; return 2; }
         _profile_querylog_memory_size=$_profile_value
+        ;;
+      STATISTICS_ENABLED)
+        case "$_profile_value" in 0|1) _profile_statistics_enabled=$_profile_value ;; *) echo "invalid DNS statistics enabled flag" >&2; return 2 ;; esac
+        ;;
+      STATISTICS_INTERVAL)
+        valid_dns_querylog_retention "$_profile_value" || { echo "invalid DNS statistics interval" >&2; return 2; }
+        _profile_statistics_interval=$_profile_value
         ;;
       UPSTREAM_MODE)
         case "$_profile_value" in load_balance|parallel|fastest_addr) _profile_runtime_mode=$_profile_value ;; *) echo "invalid DNS upstream mode" >&2; return 2 ;; esac
@@ -1340,6 +1355,7 @@ dns_profile_restore() {
     pg_set dns_querylog_enabled "$_profile_querylog" || return 1
   write_dns_querylog_retention "$_profile_querylog_retention" || return 1
   write_dns_querylog_runtime "$_profile_querylog_memory_size" || return 1
+  write_dns_statistics_settings "$_profile_statistics_enabled" "$_profile_statistics_interval" || return 1
   awk -v min="$_profile_runtime_cache_ttl_min" -v max="$_profile_runtime_cache_ttl_max" 'BEGIN{exit !(min+0<=max+0)}' || { echo "DNS profile cache TTL minimum exceeds maximum" >&2; return 2; }
   write_dns_runtime_settings "$_profile_runtime_mode" "$_profile_runtime_fastest" "$_profile_runtime_timeout" "$_profile_runtime_cache_size" "$_profile_runtime_cache_enabled" "$_profile_runtime_cache_optimistic" "$_profile_runtime_dnssec" "$_profile_runtime_cache_ttl_min" "$_profile_runtime_cache_ttl_max" "$_profile_runtime_optimistic_answer_ttl" "$_profile_runtime_optimistic_max_age" || return 1
   write_unbound_runtime_settings "$_profile_unbound_cache_max_ttl" "$_profile_unbound_cache_min_ttl" "$_profile_unbound_serve_expired" "$_profile_unbound_serve_expired_ttl" "$_profile_unbound_serve_expired_reply_ttl" "$_profile_unbound_serve_expired_client_timeout" "$_profile_unbound_prefetch" "$_profile_unbound_prefetch_key" "$_profile_unbound_qname_minimisation" "$_profile_unbound_msg_cache_size" "$_profile_unbound_rrset_cache_size" "$_profile_unbound_key_cache_size" "$_profile_unbound_neg_cache_size" || return 1
@@ -1558,6 +1574,88 @@ dns_querylog_runtime_set() {
   write_dns_querylog_runtime "$1" || return $?
   printf 'memory_size=%s\n' "$1"
 }
+dns_statistics_values() {
+  awk -F= '
+    BEGIN {enabled="0"; interval="10d"; inside=0; sections=0; bad=0; enabled_count=0; interval_count=0}
+    $0=="[conf:yulong_dns_statistics]" {sections++; if(sections>1)bad=1; inside=1; next}
+    /^\[/ {inside=0}
+    inside && /^[[:space:]]*#/ {next}
+    inside && /^[[:space:]]*$/ {next}
+    inside {
+      if(index($0,"=")<2){bad=1;next}
+      key=substr($0,1,index($0,"=")-1)
+      value=substr($0,index($0,"=")+1)
+      if(key=="enabled"){enabled_count++; enabled=value}
+      else if(key=="interval"){interval_count++; interval=value}
+      else bad=1
+    }
+    END {
+      if(sections>1 || bad || enabled_count>1 || interval_count>1)exit 1
+      if(enabled!="0" && enabled!="1")exit 1
+      if(interval !~ /^[0-9]+[hd]$/)exit 1
+      unit=substr(interval,length(interval),1)
+      amount=substr(interval,1,length(interval)-1)
+      maximum=(unit=="h"?8760:365)
+      if(amount+0<1 || amount+0>maximum || int(amount+0)!=amount+0)exit 1
+      printf "STATISTICS_ENABLED=%s\\nSTATISTICS_INTERVAL=%s\\n",enabled,interval
+    }
+  ' "$CONF" 2>/dev/null
+}
+dns_statistics_get() {
+  echo FXYULONGDNSSTAT1
+  dns_statistics_values
+}
+write_dns_statistics_settings() {
+  _stats_enabled=$1
+  _stats_interval=$2
+  case "$_stats_enabled" in 0|1) : ;; *) echo "DNS statistics enabled flag must be 0 or 1" >&2; return 2 ;; esac
+  valid_dns_querylog_retention "$_stats_interval" || {
+    echo "DNS statistics interval must be between 1h and 8760h" >&2
+    return 2
+  }
+  dns_statistics_values >/dev/null || {
+    echo "existing DNS statistics settings are ambiguous or malformed" >&2
+    return 22
+  }
+  _stats_tmp=$(mktemp "$CONF.yulong-dns-statistics.XXXXXX") || return 1
+  _yad_conf_tmp=$_stats_tmp
+  if ! awk -v enabled="$_stats_enabled" -v interval="$_stats_interval" '
+    function emit() {
+      print "enabled=" enabled
+      print "interval=" interval
+    }
+    $0=="[conf:yulong_dns_statistics]" {
+      if(seen++)bad=1
+      print
+      emit()
+      inside=1
+      written=1
+      next
+    }
+    /^\[/ {inside=0;print;next}
+    inside {next}
+    {print}
+    END {
+      if(bad)exit 1
+      if(!written){print "";print "[conf:yulong_dns_statistics]";emit()}
+    }
+  ' "$CONF" > "$_stats_tmp"; then
+    rm -f "$_stats_tmp"; _yad_conf_tmp=
+    echo "unable to stage DNS statistics settings" >&2
+    return 1
+  fi
+  if [ -s "$_stats_tmp" ] && chmod 600 "$_stats_tmp" && mv -f "$_stats_tmp" "$CONF"; then
+    _yad_conf_tmp=
+    return 0
+  fi
+  rm -f "$_stats_tmp"; _yad_conf_tmp=
+  return 1
+}
+dns_statistics_set() {
+  write_dns_statistics_settings "$1" "$2" || return $?
+  printf 'statistics_enabled=%s statistics_interval=%s\\n' "$1" "$2"
+}
+
 dns_config_get() {
   echo FXYULONGDNS1
   echo "CUSTOM_ENABLED|$(pg_get custom_dns 0)"
@@ -2311,6 +2409,14 @@ case "$cmd" in
  dns-querylog-runtime-set)
   [ "$#" -eq 2 ] || exit 2
   with_lock transaction dns_querylog_runtime_set "$2"
+  ;;
+ dns-statistics-get)
+  [ "$#" -eq 1 ] || exit 2
+  dns_statistics_get
+  ;;
+ dns-statistics-set)
+  [ "$#" -eq 3 ] || { echo "usage: $0 dns-statistics-set 0|1 1h..8760h" >&2; exit 2; }
+  with_lock transaction dns_statistics_set "$2" "$3"
   ;;
  dns-runtime-get)
   [ "$#" -eq 1 ] || exit 2
