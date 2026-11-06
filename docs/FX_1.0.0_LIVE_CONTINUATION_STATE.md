@@ -889,3 +889,12 @@
 - 白名单选择器不再因条目数或序列化字符数提示超限；仅在存在无效包名时拒绝整批保存，不做部分写入。
 - Dia 结构化监控事件读取错误详情不再截断 240 字符。
 - 保留 Android 包名格式/长度校验、整批原子拒绝和 SharedPreferences 写入成功确认；本轮未运行测试、静态检查、构建、CI 或设备验证。
+
+
+### FX AdGuard Home 与 Unbound DNS 生命周期锁 PID 所有权发布修复（2026-11-07）
+
+- 文件：`fx-module/scripts/adguardhome.sh`、`fx-module/scripts/unbound.sh`。
+- 修复两个 DNS 引擎生命周期锁的 owner PID 展开错误：发布 owner 文件时使用当前 shell PID `$$`，释放锁前也使用同一 PID 核对所有权。
+- 同时将 owner 文件写入格式修正为真正的换行分隔，避免把字面量反斜杠-n 写入 PID 文件，导致释放阶段无法匹配并遗留锁目录。
+- 该修复覆盖 AdGuard Home 与 Unbound 两个引擎，确保 start/stop 互斥锁可正确建立和释放；不改变 DNS 解析、上游、规则或 VPN 路由策略。
+- 按用户要求未运行测试、静态检查、构建、CI 或设备验证。

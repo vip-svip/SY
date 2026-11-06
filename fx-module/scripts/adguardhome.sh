@@ -710,7 +710,7 @@ _release_lifecycle_lock() {
   _lock_owner_file="$LIFECYCLE_LOCK/owner"
   [ -f "$_lock_owner_file" ] && [ ! -L "$_lock_owner_file" ] || return 0
   _lock_owner=$(cat "$_lock_owner_file" 2>/dev/null) || return 0
-  [ "$_lock_owner" = "$" ] || return 0
+  [ "$_lock_owner" = "$$" ] || return 0
   rm -f "$_lock_owner_file" 2>/dev/null || return 1
   rmdir "$LIFECYCLE_LOCK" 2>/dev/null || return 1
   return 0
@@ -731,7 +731,7 @@ _with_lifecycle_lock() {
     sleep 1
     _wait=$((_wait+1))
   done
-  if ! printf '%s\\n' "$" > "$LIFECYCLE_LOCK/owner"; then
+  if ! printf '%s\n' "$$" > "$LIFECYCLE_LOCK/owner"; then
     rmdir "$LIFECYCLE_LOCK" 2>/dev/null || :
     _log 'unable to publish AdGuard Home lifecycle lock owner'
     return 1
