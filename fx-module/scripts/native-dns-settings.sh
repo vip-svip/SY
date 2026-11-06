@@ -54,10 +54,14 @@ path_is_safe "$PG" || { echo "unsafe FX DNS state path" >&2; exit 21; }
 
 declared_flag() {
   awk -v key="$1" '
-    BEGIN {FS="="}
-    /^\[/ {exit}
-    $1==key && $2 ~ /^[01]$/ {found=1}
-    END {exit !found}
+    BEGIN {FS="="; count=0; valid=0}
+    /^\[/ {in_sections=1}
+    !in_sections && $1==key {
+      count++
+      if (NF==2 && $2 ~ /^[01]$/) valid=1
+      else valid=0
+    }
+    END {exit !(count==1 && valid==1)}
   ' "$DEFAULTS"
 }
 read_flag() {
