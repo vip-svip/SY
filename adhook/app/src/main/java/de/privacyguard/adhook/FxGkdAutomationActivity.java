@@ -271,6 +271,11 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
                 new String[]{"单击", "长按"}));
         form.addView(actionInput);
 
+        EditText groupInput = new EditText(this);
+        groupInput.setSingleLine(true);
+        groupInput.setHint("规则组（最多 40 字，默认：默认）");
+        form.addView(groupInput);
+
         EditText cooldownInput = new EditText(this);
         cooldownInput.setSingleLine(true);
         cooldownInput.setHint("规则冷却秒数（1–60，默认 3）");
@@ -310,7 +315,8 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
                     }
                     FxGkdRule saved = FxGkdRuleStore.addRule(
                             this, pkg, selector, cooldownSeconds * 1000L,
-                            actionInput.getSelectedItemPosition() == 1 ? "long_click" : "click");
+                            actionInput.getSelectedItemPosition() == 1 ? "long_click" : "click",
+                            groupInput.getText().toString());
                     if (saved == null) {
                         Toast.makeText(this, "保存失败：请检查规则格式或本地存储是否可写。", Toast.LENGTH_LONG).show();
                         return;
@@ -402,6 +408,12 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
         actionInput.setSelection("long_click".equals(rule.getAction()) ? 1 : 0);
         form.addView(actionInput);
 
+        EditText groupInput = new EditText(this);
+        groupInput.setSingleLine(true);
+        groupInput.setHint("规则组（最多 40 字）");
+        groupInput.setText(rule.getGroup());
+        form.addView(groupInput);
+
         EditText cooldownInput = new EditText(this);
         cooldownInput.setSingleLine(true);
         cooldownInput.setInputType(InputType.TYPE_CLASS_NUMBER);
@@ -436,7 +448,8 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
                     }
                     FxGkdRule updated = FxGkdRuleStore.updateRule(
                             this, rule.getId(), selector, seconds * 1000L,
-                            actionInput.getSelectedItemPosition() == 1 ? "long_click" : "click");
+                            actionInput.getSelectedItemPosition() == 1 ? "long_click" : "click",
+                            groupInput.getText().toString());
                     if (updated == null) {
                         Toast.makeText(this, "保存失败，原规则保持不变。", Toast.LENGTH_LONG).show();
                         return;
@@ -502,7 +515,7 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
             row.setOrientation(LinearLayout.VERTICAL);
             row.setPadding(dp(14), dp(8), dp(14), dp(8));
             row.setBackgroundColor(0xfff0f3f7);
-            TextView label = text(rule.getPackageName() + "\n" + rule.getSelector()
+            TextView label = text("规则组：" + rule.getGroup() + "\n" + rule.getPackageName() + "\n" + rule.getSelector()
                     + "\n动作：" + ("long_click".equals(rule.getAction()) ? "长按" : "单击")
                     + " · 冷却：" + (rule.getCooldownMillis() / 1000L) + " 秒",
                     0xff17212b, 13);
