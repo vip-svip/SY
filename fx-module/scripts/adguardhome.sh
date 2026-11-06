@@ -480,7 +480,7 @@ _config_contract() {
       exit (http_loopback && dns_port=="53" &&
         hosts["127.0.0.1"] && hosts["::1"] && bind_count==2 &&
         upstream_count==1 && local_upstream && !unsafe_upstream &&
-        !unsafe_fallback && fallback_count<=3) ? 0 : 1
+        !unsafe_fallback) ? 0 : 1
     }
   ' "$CFG" || {
     _log 'AdGuard config violates FX loopback/listener/local-Unbound policy'
