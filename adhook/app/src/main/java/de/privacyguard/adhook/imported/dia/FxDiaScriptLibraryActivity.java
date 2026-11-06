@@ -191,6 +191,8 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
         actions.addView(button("导入 JSON", this::chooseImport), new LinearLayout.LayoutParams(0, -2, 1));
         actions.addView(button("导出 JSON", this::chooseExport), new LinearLayout.LayoutParams(0, -2, 1));
         body.addView(actions);
+        body.addView(button("删除当前筛选页脚本", this::confirmDeleteCurrentPage),
+                new LinearLayout.LayoutParams(-1, -2));
         rows = new LinearLayout(this);
         rows.setOrientation(LinearLayout.VERTICAL);
         body.addView(rows, new LinearLayout.LayoutParams(-1, -2));
@@ -308,6 +310,64 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
             lp.setMargins(dp(10), dp(3), dp(10), dp(3));
             rows.addView(row, lp);
         }
+    }
+
+    private void confirmDeleteCurrentPage() {
+        if (scripts == null || rows == null) {
+            setStatus("脚本库尚未读取完成。");
+            return;
+        }
+        String query = search == null || search.getText() == null ? ""
+                : search.getText().toString().trim().toLowerCase(java.util.Locale.ROOT);
+        List<String> names = new ArrayList<>();
+        Iterator<String> keys = scripts.keys();
+        while (keys.hasNext()) {
+            String name = keys.next();
+            if (query.isEmpty() || name.toLowerCase(java.util.Locale.ROOT).contains(query)) {
+                names.add(name);
+            }
+        }
+        Collections.sort(names, String.CASE_INSENSITIVE_ORDER);
+        int pageCount = (names.size() + PAGE_SIZE - 1) / PAGE_SIZE;
+        if (pageCount == 0) {
+            setStatus("当前筛选没有可删除的脚本。");
+            return;
+        }
+        currentPage = Math.max(0, Math.min(currentPage, pageCount - 1));
+        int from = currentPage * PAGE_SIZE;
+        int to = Math.min(names.size(), from + PAGE_SIZE);
+        final List<String> pageNames = new ArrayList<>(names.subList(from, to));
+        if (pageNames.isEmpty()) {
+            setStatus("当前页没有可删除的脚本。");
+            return;
+        }
+        StringBuilder preview = new StringBuilder();
+        for (int i = 0; i < Math.min(pageNames.size(), 12); i++) {
+            if (i > 0) preview.append("\\n");
+            preview.append("• ").append(pageNames.get(i));
+        }
+        if (pageNames.size() > 12) preview.append("\\n…另有 ")
+                .append(pageNames.size() - 12).append(" 个脚本");
+        fxDialogBuilder().setTitle("批量删除当前筛选页脚本？")
+                .setMessage("将从本机 Frida 脚本库删除当前搜索条件下第 "
+                        + (currentPage + 1) + " 页的 " + pageNames.size()
+                        + " 个脚本。不会删除其他分页，也不会影响已导出的 JSON 文件。\\n\\n"
+                        + preview)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("删除当前页", (dialog, which) -> submitIo(() -> {
+                    try {
+                        int removed = FxDiaScriptLibraryStore.deleteMany(this, pageNames);
+                        JSONObject loaded = FxDiaScriptLibraryStore.read(this);
+                        runOnUiThread(() -> {
+                            if (isFinishing() || isDestroyed()) return;
+                            scripts = loaded;
+                            renderRows();
+                            setStatus("当前页批量删除完成：移除 " + removed + " 个脚本。");
+                        });
+                    } catch (Throwable error) {
+                        runOnUiThread(() -> setStatus("批量删除失败，脚本库未确认更新：" + detail(error)));
+                    }
+                })).show();
     }
 
     private void clearCreateScriptDialogState() {
