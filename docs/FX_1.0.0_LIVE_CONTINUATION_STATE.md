@@ -7228,3 +7228,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 通知 `POST_NOTIFICATIONS` 隐藏现覆盖 NotificationManager、Context、PackageManager 和 AppOps 查询；包级 NotificationManager 查询增加当前包与当前 UID 约束。应用修订 `bc5eaf66729ee0657ea46c86850ff2d96f83091c`，模块修订 `a6bfc40158a37907ae56c1d6a9a370ea29c82963`；AppOps 查询初始/条件键修订仍见前一记录。
 - 通知监听隐私新增 `NotificationListenerService$NotificationListenerWrapper` 的 `onNotificationPosted`、`onNotificationRemoved`、`onNotificationRankingUpdate` Binder 回调过滤，已绑定监听器不会继续从该推送路径接收通知内容；注销、通知发布和系统通知界面不变。应用 Hook 提交 `a1a5dfde14176cdd97842d7f0029dbed17abd0d0`，模块 Hook 提交 `ee133d77f586f9e53a61038d919d1b105c6f8969`。
 - 按当前要求未运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-06 — Managed Lists 并发编辑去重
+
+- `scripts/native-managed-lists.sh` 将编辑操作的重复值检查移入持锁事务内部；命令入口原有的提前检查保留为快速失败路径。
+- 防止并发编辑在各自通过入口检查后写入相同域名或订阅 URL。
+- 代码提交：`e070f1a8b397197c822711209f2318c1cb045be3`。
+- 按当前推进要求未运行测试、检查、构建、CI 或真机验证。
