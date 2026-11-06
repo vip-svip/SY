@@ -1647,13 +1647,19 @@ private boolean targetDeveloperOptIn(String packageName) {
                 try {
                     hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                             .intercept(chain -> {
-                                String queried = packageEnabled && !chain.getArgs().isEmpty()
-                                        && chain.getArgs().get(0) instanceof String
-                                        ? (String) chain.getArgs().get(0) : null;
-                                if (NotificationPrivacyPolicy.shouldHidePermission(
+                                Object[] args = chain.getArgs().toArray();
+                                String queried = packageEnabled && args.length > 0
+                                        && args[0] instanceof String ? (String) args[0] : null;
+                                boolean ownPackageQuery = !packageEnabled
+                                        || (queried != null && queried.equals(currentPackage));
+                                if (ownPackageQuery && packageEnabled && args.length > 1
+                                        && args[1] instanceof Integer
+                                        && ((Integer) args[1]).intValue() != android.os.Process.myUid()) {
+                                    ownPackageQuery = false;
+                                }
+                                if (ownPackageQuery && NotificationPrivacyPolicy.shouldHidePermission(
                                         notificationPermissionHideEnabled, processPackages.size(),
-                                        currentPackage, targets.get(currentPackage))
-                                        && (queried == null || queried.equals(currentPackage))) {
+                                        currentPackage, targets.get(currentPackage))) {
                                     return Boolean.FALSE;
                                 }
                                 return chain.proceed();
