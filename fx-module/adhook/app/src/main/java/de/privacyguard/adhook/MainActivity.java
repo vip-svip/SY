@@ -1666,7 +1666,7 @@ public final class MainActivity extends ComponentActivity {
         addNativeActionCard("传感器访问与采样", "管理加速度计、陀螺仪、光线、磁场、气压、距离传感器及采样频率限制。", "配置传感器保护", () -> showAppList("传感器保护"));
         addNativeActionCard("通知监听与权限提示", "分别管理通知监听注册阻断和通知权限提示隐藏。", "配置通知保护", () -> showAppList("通知保护"));
         addNativeActionCard("Toast 文本过滤", "逐应用过滤明确命中的 Toast 文本；使用不区分大小写的字面关键词，不是正则。必须填写关键词，不提供空规则全屏蔽；自定义 View 按可读取文本匹配。", "配置 Toast 过滤", () -> showAppList("Toast过滤"));
-        addNativeActionCard("媒体查询与 EXIF", "管理媒体库查询元数据清理以及图片、视频 EXIF 元数据清理。", "配置媒体隐私", () -> showAppList("媒体隐私"));
+        addNativeActionCard("媒体读取与 EXIF", "按应用阻止 MediaStore 查询、文件流、文件描述符、MIME 元数据和缩略图读取；图片/视频 EXIF 清理独立控制。", "配置媒体隐私", () -> showAppList("媒体隐私"));
         addNativeActionCard("只读会员状态诊断", "仅记录目标应用可观察的会员状态诊断信息，不修改购买结果、令牌或服务端授权。", "配置只读诊断", () -> showAppList("会员诊断"));
 
         // These are privacy/security policies, not application preferences.
@@ -6533,7 +6533,7 @@ public final class MainActivity extends ComponentActivity {
         section("设备访问");
         toggle("限制摄像头访问", "camera_access_block", false);
         section("媒体隐私");
-        toggle("清理媒体查询元数据", "media_store_query_block", false);
+        toggle("阻止媒体库查询与文件读取", "media_store_query_block", false);
         toggle("清理图片/视频元数据", "exif_strip", false);
         section("麦克风保护");
         toggle("阻止录音启动（会影响录音功能）", "mic_access_block", false);
