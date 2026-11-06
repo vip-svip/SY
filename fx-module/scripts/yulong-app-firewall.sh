@@ -495,11 +495,24 @@ with_lock() {
     [ "$tries" -lt "$max_tries" ] || { echo "firewall update is busy" >&2; return 10; }
     sleep 1
   done
+  _fw_lock_owner="$LOCK/owner"
+  if ! (umask 077; set -C; printf '%s\\n' "$" > "$_fw_lock_owner") 2>/dev/null; then
+    rmdir "$LOCK" 2>/dev/null || :
+    echo "cannot record firewall transaction lock owner" >&2
+    return 10
+  fi
   cleanup_lock() {
     [ -z "$_FW_TEMP" ] || rm -f "$_FW_TEMP" 2>/dev/null || :
     [ -z "$_FW_BACKUP" ] || rm -f "$_FW_BACKUP" 2>/dev/null || :
     [ -z "$_FW_RESTORE" ] || rm -f "$_FW_RESTORE" 2>/dev/null || :
-    rmdir "$LOCK" 2>/dev/null || :
+    # Never remove a lock directory that was replaced while this transaction
+    # was running; release only the exact owner record created above.
+    if [ ! -L "$LOCK" ] && [ -d "$LOCK" ] &&
+        [ ! -L "$_fw_lock_owner" ] && [ -f "$_fw_lock_owner" ] &&
+        [ "$(cat "$_fw_lock_owner" 2>/dev/null || true)" = "$" ]; then
+      rm -f "$_fw_lock_owner" 2>/dev/null || :
+      rmdir "$LOCK" 2>/dev/null || :
+    fi
   }
   trap cleanup_lock EXIT
   trap 'exit 129' HUP
