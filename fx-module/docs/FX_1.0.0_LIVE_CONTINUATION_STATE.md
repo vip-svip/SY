@@ -6774,3 +6774,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 修改文件：`fx-module/scripts/unbound.sh`、`adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`、`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。前序协作已经更新 canonical/module Root 参数脚本及 profile 输出。
 - 本批代码提交：`532f3d2fac9d9cd65c4411dfba84e0667b40d860`。
 - 按当前推进要求未运行测试、静态检查、构建、CI 或 Android 真机验证；此提交是源码落地，不代表设备验收。
+
+## 2026-11-07 — DNS 上游完整校验与备用配置歧义拒绝
+
+- `native-dns-settings.sh` 的 DNS 区段读取由简单行数统计升级为完整端点校验：custom 支持 IPv4、IPv4:port、DoH、DoT、DoQ；global 与 fallback 只接受可路由 IPv4 / IPv4:port。校验重复区段、重复端点、空值、未知字段、非法域名/端口及格式错误；状态接口不再把结构上像 nameserver、实际上无法被运行时接受的配置报为正常数量。
+- `adguardhome.sh` 的备用 DNS 渲染器拒绝重复 fallback 区段、缺失值、额外字段、未知字段及重复/非法端点，避免静默忽略错误配置。
+- 同步修改仓库脚本源与 `fx-module/scripts` 实际模块脚本；代码提交包括 `b072182ecd1fd4884a8226b1b929fad15d42716d`、`8029e862b0dbf19c870fdacd75c772991c212eda`、`74e0768bef6f5ffcefb5ca30a2902a47f2b52e58`、`78cb484a491425bcf99287747f8af8db38b1a660`。
+- 按当前提速要求未运行测试、静态检查、构建、CI 或设备验证；以上为源码提交，不代表运行验收。
