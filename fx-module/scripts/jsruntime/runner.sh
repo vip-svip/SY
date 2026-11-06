@@ -64,5 +64,5 @@ else
   echo '{"ok":false,"done":false,"error":"JavaScript execution failed; inspect stderr log"}'
   cat "$ERR" >&2
 fi
-rm -f "$EV" "$OUT" "$ERR" "$RESULT" "$EGERN_SCRIPT" "$EGERN_SCRIPT"
+rm -f "$EV" "$OUT" "$ERR" "$RESULT" "$EGERN_SCRIPT"
 exit "$rc"
