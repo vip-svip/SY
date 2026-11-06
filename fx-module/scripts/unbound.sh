@@ -111,6 +111,62 @@ _hash() {
   [ "$_actual" = "$_expected" ] || { _log "SHA-256 mismatch: $_file"; return 1; }
   return 0
 }
+_root_hints_valid() {
+  _hints_file=$1
+  [ -f "$_hints_file" ] && [ ! -L "$_hints_file" ] && [ -s "$_hints_file" ] || return 1
+  awk '
+    function valid_ipv4(v,n,a,i) {
+      n=split(v,a,".")
+      if(n!=4)return 0
+      for(i=1;i<=4;i++)
+        if(a[i]!~/^[0-9]+$/ || length(a[i])>3 || a[i]+0>255 ||
+           (a[i]!="0" && a[i]~/^0/))return 0
+      return 1
+    }
+    BEGIN {split("A B C D E F G H I J K L M",letters," ")}
+    {
+      line=$0
+      sub(/;.*/,"",line)
+      gsub(/^[ \t]+/,"",line)
+      gsub(/[ \t]+$/,"",line)
+      if(line=="")next
+      n=split(line,f,/[ \t]+/)
+      if(f[1]=="$TTL")next
+      idx=2
+      if(f[idx]~/^[0-9]+$/)idx++
+      if(toupper(f[idx])=="IN")idx++
+      type=toupper(f[idx])
+      owner=toupper(f[1])
+      sub(/[.]$/,"",owner)
+      if(n<idx+1){bad=1;next}
+      if(owner=="." && type=="NS"){
+        target=toupper(f[idx+1])
+        sub(/[.]$/,"",target)
+        if(target!~/^[A-M][.]ROOT-SERVERS[.]NET$/){bad=1;next}
+        ns[target]=1
+        next
+      }
+      if(owner~/^[A-M][.]ROOT-SERVERS[.]NET$/ && type=="A"){
+        if(!valid_ipv4(f[idx+1]))bad=1
+        else addr[owner]=1
+        next
+      }
+      if(owner~/^[A-M][.]ROOT-SERVERS[.]NET$/ && type=="AAAA"){
+        if(f[idx+1]!~/^[0-9A-Fa-f:]+$/ || index(f[idx+1],":")==0 ||
+           f[idx+1]~/:::/)bad=1
+        next
+      }
+      bad=1
+    }
+    END {
+      for(i=1;i<=13;i++){
+        name=letters[i] ".ROOT-SERVERS.NET"
+        if(!ns[name] || !addr[name])bad=1
+      }
+      if(bad)exit 1
+    }
+  ' "$_hints_file"
+}
 _check_files() {
   [ -x "$BIN" ] && [ -x "$CHECKBIN" ] && [ -x "$ANCHOR" ] && [ -x "$PROBE" ] || { _log 'unbound runtime/checker/anchor/probe missing or not executable'; return 1; }
   _hash "$BIN" "$ROOT/unbound.sha256" || return 1
@@ -119,8 +175,7 @@ _check_files() {
   _hash "$PROBE" "$ROOT/fx-dns-probe.sha256" || return 1
   _hash "$ROOT_HINTS" "$ROOT/root.hints.sha256" || return 1
   _hash "$ROOT_KEY_SEED" "$ROOT/root.key.seed.sha256" || return 1
-  grep -q 'A.ROOT-SERVERS.NET.*198.41.0.4' "$ROOT_HINTS" || { _log 'root hints A-root entry missing'; return 1; }
-  grep -q 'M.ROOT-SERVERS.NET.*202.12.27.33' "$ROOT_HINTS" || { _log 'root hints M-root entry missing'; return 1; }
+  _root_hints_valid "$ROOT_HINTS" || { _log 'root hints file has missing or malformed root-server records'; return 1; }
   grep -Eq '^\.[[:space:]]+IN[[:space:]]+DNSKEY[[:space:]]+257[[:space:]]+3[[:space:]]+8[[:space:]]' "$ROOT_KEY_SEED" || { _log 'root trust-anchor seed malformed'; return 1; }
   return 0
 }
@@ -552,6 +607,162 @@ _refresh_anchor() {
   printf 'refresh=completed\n'
 }
 
+_refresh_root_hints() {
+  _prepare_state_dirs || return 20
+  _path_components_are_safe "$ROOT" && [ -d "$ROOT" ] && [ ! -L "$ROOT" ] || {
+    echo "Unbound engine directory is missing or unsafe" >&2
+    return 21
+  }
+  _safe_file_or_absent "$ROOT_HINTS" && _safe_file_or_absent "$ROOT/root.hints.sha256" || {
+    echo "Root Hints destination or checksum sidecar is unsafe" >&2
+    return 21
+  }
+  [ ! -e "$EGRESS" ] && [ ! -L "$EGRESS" ] || {
+    echo "Root Hints refresh refused while Unbound VPN-egress binding is present" >&2
+    return 11
+  }
+  _p=$(_owned_pid 2>/dev/null) || _p=''
+  [ -z "$_p" ] || {
+    echo "Root Hints refresh refused while Unbound is running; stop the resolver first" >&2
+    return 11
+  }
+  command -v timeout >/dev/null 2>&1 || {
+    echo "timeout helper is unavailable; refusing an unbounded Root Hints download" >&2
+    return 20
+  }
+  _download_tmp=$(_new_private_temp "$ROOT/root.hints.download.XXXXXX") || return 1
+  _checksum_tmp=$(_new_private_temp "$ROOT/root.hints.sha256.download.XXXXXX") || {
+    rm -f "$_download_tmp"; return 1;
+  }
+  _root_backup=$(_new_private_temp "$ROOT/root.hints.backup.XXXXXX") || {
+    rm -f "$_download_tmp" "$_checksum_tmp"; return 1;
+  }
+  _checksum_backup=$(_new_private_temp "$ROOT/root.hints.sha256.backup.XXXXXX") || {
+    rm -f "$_download_tmp" "$_checksum_tmp" "$_root_backup"; return 1;
+  }
+  if command -v curl >/dev/null 2>&1; then
+    if ! timeout 25 curl --fail --silent --show-error --location \
+        --proto '=https' --proto-redir '=https' --tlsv1.2 \
+        --connect-timeout 6 --max-time 20 \
+        --output "$_download_tmp" "https://www.internic.net/domain/named.root"; then
+      rm -f "$_download_tmp" "$_checksum_tmp" "$_root_backup" "$_checksum_backup"
+      echo "download from the official HTTPS Root Hints source failed" >&2
+      return 1
+    fi
+  elif command -v wget >/dev/null 2>&1; then
+    if ! timeout 25 wget --https-only --quiet --output-document="$_download_tmp" \
+        "https://www.internic.net/domain/named.root"; then
+      rm -f "$_download_tmp" "$_checksum_tmp" "$_root_backup" "$_checksum_backup"
+      echo "HTTPS-only wget download is unavailable or failed" >&2
+      return 1
+    fi
+  else
+    rm -f "$_download_tmp" "$_checksum_tmp" "$_root_backup" "$_checksum_backup"
+    echo "curl or HTTPS-only wget is required to refresh Root Hints" >&2
+    return 20
+  fi
+  _root_hints_valid "$_download_tmp" || {
+    rm -f "$_download_tmp" "$_checksum_tmp" "$_root_backup" "$_checksum_backup"
+    echo "downloaded Root Hints failed the 13-root-server NS/A structure check" >&2
+    return 2
+  }
+  if command -v sha256sum >/dev/null 2>&1; then
+    _new_hash=$(sha256sum "$_download_tmp" 2>/dev/null | awk '{print tolower($1)}')
+  elif command -v toybox >/dev/null 2>&1; then
+    _new_hash=$(toybox sha256sum "$_download_tmp" 2>/dev/null | awk '{print tolower($1)}')
+  else
+    rm -f "$_download_tmp" "$_checksum_tmp" "$_root_backup" "$_checksum_backup"
+    echo "SHA-256 utility is unavailable; Root Hints were not changed" >&2
+    return 20
+  fi
+  case "$_new_hash" in ''|*[!a-f0-9]*)
+    rm -f "$_download_tmp" "$_checksum_tmp" "$_root_backup" "$_checksum_backup"
+    echo "invalid SHA-256 result" >&2
+    return 1
+    ;;
+  esac
+  _hash_length=$(printf '%s' "$_new_hash" | wc -c | tr -d ' ')
+  [ "$_hash_length" = 64 ] || {
+    rm -f "$_download_tmp" "$_checksum_tmp" "$_root_backup" "$_checksum_backup"
+    echo "invalid SHA-256 result" >&2
+    return 1
+  }
+  printf '%s  root.hints\n' "$_new_hash" > "$_checksum_tmp" || {
+    rm -f "$_download_tmp" "$_checksum_tmp" "$_root_backup" "$_checksum_backup"
+    return 1
+  }
+  chmod 644 "$_download_tmp" "$_checksum_tmp" || {
+    rm -f "$_download_tmp" "$_checksum_tmp" "$_root_backup" "$_checksum_backup"
+    return 1
+  }
+  _had_root=0
+  _had_checksum=0
+  if [ -e "$ROOT_HINTS" ]; then
+    [ -f "$ROOT_HINTS" ] && [ ! -L "$ROOT_HINTS" ] &&
+      cp "$ROOT_HINTS" "$_root_backup" 2>/dev/null || {
+        rm -f "$_download_tmp" "$_checksum_tmp" "$_root_backup" "$_checksum_backup"
+        echo "cannot preserve existing Root Hints for rollback" >&2
+        return 1
+      }
+    _had_root=1
+  fi
+  if [ -e "$ROOT/root.hints.sha256" ]; then
+    [ -f "$ROOT/root.hints.sha256" ] && [ ! -L "$ROOT/root.hints.sha256" ] &&
+      cp "$ROOT/root.hints.sha256" "$_checksum_backup" 2>/dev/null || {
+        rm -f "$_download_tmp" "$_checksum_tmp" "$_root_backup" "$_checksum_backup"
+        echo "cannot preserve existing Root Hints checksum for rollback" >&2
+        return 1
+      }
+    _had_checksum=1
+  fi
+  mv -f "$_download_tmp" "$ROOT_HINTS" || {
+    rm -f "$_download_tmp" "$_checksum_tmp" "$_root_backup" "$_checksum_backup"
+    echo "cannot atomically publish updated Root Hints" >&2
+    return 1
+  }
+  if ! mv -f "$_checksum_tmp" "$ROOT/root.hints.sha256"; then
+    _rollback_ok=1
+    if [ "$_had_root" = 1 ]; then
+      mv -f "$_root_backup" "$ROOT_HINTS" || _rollback_ok=0
+    else
+      rm -f "$ROOT_HINTS" || _rollback_ok=0
+    fi
+    if [ "$_had_checksum" = 1 ]; then
+      mv -f "$_checksum_backup" "$ROOT/root.hints.sha256" || _rollback_ok=0
+    else
+      rm -f "$ROOT/root.hints.sha256" || _rollback_ok=0
+    fi
+    if [ "$_rollback_ok" = 1 ]; then
+      rm -f "$_root_backup" "$_checksum_backup"
+    else
+      _log 'Root Hints update failed and rollback is incomplete; recovery copies retained'
+      echo "Root Hints checksum publish failed and previous data could not be fully restored; recovery files retained" >&2
+      return 1
+    fi
+    rm -f "$_root_backup" "$_checksum_backup"
+    echo "Root Hints checksum publish failed; previous data restored" >&2
+    return 1
+  fi
+  if ! _hash "$ROOT_HINTS" "$ROOT/root.hints.sha256" || ! _root_hints_valid "$ROOT_HINTS"; then
+    _rollback_ok=1
+    if [ "$_had_root" = 1 ]; then mv -f "$_root_backup" "$ROOT_HINTS" || _rollback_ok=0
+    else rm -f "$ROOT_HINTS" || _rollback_ok=0; fi
+    if [ "$_had_checksum" = 1 ]; then mv -f "$_checksum_backup" "$ROOT/root.hints.sha256" || _rollback_ok=0
+    else rm -f "$ROOT/root.hints.sha256" || _rollback_ok=0; fi
+    if [ "$_rollback_ok" != 1 ]; then
+      _log 'Root Hints post-publish verification failed and rollback is incomplete; recovery copies retained'
+      echo "Root Hints post-publish verification failed; rollback incomplete and recovery copies retained" >&2
+      return 1
+    fi
+    rm -f "$_root_backup" "$_checksum_backup"
+    echo "Root Hints post-publish verification failed; previous data restored" >&2
+    return 1
+  fi
+  rm -f "$_root_backup" "$_checksum_backup"
+  _log "Root Hints refreshed from official InterNIC HTTPS source (sha256 $_new_hash)"
+  _anchor_status
+  printf 'root_hints_refresh=updated\n'
+}
 _release_lifecycle_lock() {
   [ -d "$LIFECYCLE_LOCK" ] && [ ! -L "$LIFECYCLE_LOCK" ] || return 0
   _lock_owner_file="$LIFECYCLE_LOCK/owner"
@@ -597,6 +808,7 @@ case "$ACTION" in
   render-config) _render_config ;;
   anchor-status) _with_lifecycle_lock _anchor_status ;;
   anchor-refresh) _with_lifecycle_lock _refresh_anchor ;;
+  root-hints-refresh) _with_lifecycle_lock _refresh_root_hints ;;
   ensure) _with_lifecycle_lock _ensure ;;
   stop) _with_lifecycle_lock _stop ;;
   status)
@@ -606,5 +818,5 @@ case "$ACTION" in
     fi
     echo stopped; exit 1
     ;;
-  *) echo 'usage: unbound.sh {render-config|anchor-status|anchor-refresh|ensure|stop|status} [module_dir] [data_dir]' >&2; exit 64 ;;
+  *) echo 'usage: unbound.sh {render-config|anchor-status|anchor-refresh|root-hints-refresh|ensure|stop|status} [module_dir] [data_dir]' >&2; exit 64 ;;
 esac
