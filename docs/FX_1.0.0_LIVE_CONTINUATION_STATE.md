@@ -7206,3 +7206,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 请求头值继续拒绝 CR/LF，保留现有受限字段保护、HTTP 方法白名单及 HTTP/HTTPS URL 限制。
 - 代码提交：`d2fb4d5d15861ca3f2d70b443b56554fca5f9e4a`。
 - 按用户要求未运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-06 — 剪贴板隔离与通知权限多层 Hook 注册续接
+
+- 剪贴板进程内影子隔离现在逐项记录 `setPrimaryClip`、`getPrimaryClip`、`hasPrimaryClip` 成功注册状态；部分 OEM/ART 方法失败时只补挂缺失方法，避免重复堆叠已成功拦截器。应用提交 `2cbf4fd8b3af2c55e58e1a4b9407d156b018e258`；模块提交 `2df16f327c6a88133e0eb3fe13e3e773ec84c728`。
+- 同步前述剪贴板读取 API 的按 Method 记账（ClipboardManager、ClipData、ClipData.Item、ClipDescription），Wi-Fi 扫描（WifiManager/WifiScanner）与活动通知读取（NotificationManager、NotificationListenerService、Settings.Secure）同样采用逐方法成功登记、仅重试未成功项。
+- 通知权限查询当前还覆盖 AppOpsManager `post_notification`、NotificationManager 应用/包查询、ContextWrapper/ContextImpl 权限查询，以及 ApplicationPackageManager/PackageManager 查询；按统一 Method 集合去重，避免某一层部分成功后提前退出。
+- Wi-Fi/活动通知读取 Hook 应用提交 `2de7e8659509d32e1b7bb4c41041364748e0f1e1`；模块提交 `2a884613751381c9ddcb6054031fa37f01f7abeb`。剪贴板读取提交 `dcd0237f2bb258ce407b1fbe42a2116e18e6ca94` / `0060e27b45ce0e69028193e395de33eb891f3623`。
+- 本批仅调整注册幂等与部分失败恢复，不改变按应用隐私授权；多包共享进程仍 fail-open，系统/FX/LSPosed 保护名单保留。固定 FX 1.0.0；未运行测试、静态检查、构建、CI 或真机验证。
