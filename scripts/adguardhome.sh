@@ -289,11 +289,15 @@ _build_dns_upstreams() {
       for(i=1;i<=4;i++)
         if(a[i]!~/^[0-9]+$/ || length(a[i])>3 || a[i]+0>255 ||
            (a[i]!="0" && a[i]~/^0/)) return 0
-      if(v=="0.0.0.0" || v=="255.255.255.255") return 0
+      first=a[1]+0; second=a[2]+0
+      if(v=="0.0.0.0" || v=="255.255.255.255" ||
+         first==0 || first==127 || first>=224 ||
+         (first==169 && second==254)) return 0
       return 1
     }
     function dns_host(v) {
-      return v~/^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/ && v!~/\\.\\./
+      if(v~/^[0-9.]+$/) return valid_ipv4(v)
+      return v~/^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/ && v!~/\.\./
     }
     function valid_hostport(v, n, a) {
       n=split(v,a,":")
@@ -612,10 +616,14 @@ _config_contract() {
       for(i=1;i<=4;i++)
         if(a[i]!~/^[0-9]+$/ || length(a[i])>3 || a[i]+0>255 ||
            (a[i]!="0" && a[i]~/^0/)) return 0
-      if(v=="0.0.0.0" || v=="255.255.255.255") return 0
+      first=a[1]+0; second=a[2]+0
+      if(v=="0.0.0.0" || v=="255.255.255.255" ||
+         first==0 || first==127 || first>=224 ||
+         (first==169 && second==254)) return 0
       return 1
     }
     function dns_host(v) {
+      if(v~/^[0-9.]+$/) return valid_ipv4(v)
       return v~/^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/ && v!~/\.\./
     }
     function valid_hostport(v, n, a) {
