@@ -277,15 +277,15 @@
     const source=_fxRead(scriptPath,'');
     const prefix='// FX-SCRIPT-ENV-JSON: ';
     const lines=source.split(/\r?\n/);
-    for(let i=0;i<lines.length&&i<16;i++){
+    for(let i=0;i<lines.length;i++){
       if(lines[i].indexOf(prefix)!==0) continue;
       try {
         const parsed=JSON.parse(lines[i].slice(prefix.length));
         if(!parsed||typeof parsed!=='object'||Array.isArray(parsed)) return {};
         const out=Object.create(null);
         Object.keys(parsed).forEach(key=>{
-          if(/^[A-Za-z_][A-Za-z0-9_.-]{0,63}$/.test(key)
-              && typeof parsed[key]==='string' && parsed[key].length<=512) out[key]=parsed[key];
+          if(/^[A-Za-z_][A-Za-z0-9_.-]*$/.test(key)
+              && typeof parsed[key]==='string') out[key]=parsed[key];
         });
         return out;
       } catch(_) {
@@ -303,7 +303,7 @@
     for(let i=0;i<lines.length&&i<16;i++){
       if(lines[i].indexOf(prefix)!==0) continue;
       const name=lines[i].slice(prefix.length).replace(/[\\x00-\\x1f\\x7f]/g,' ').trim();
-      return name.length<=512?name:name.slice(0,512);
+      return name;
     }
     return '';
   }
@@ -313,10 +313,10 @@
     const source=_fxRead(scriptPath,'');
     const prefix='// FX-SCRIPT-ARGUMENT: ';
     const lines=source.split('\n');
-    for(let i=0;i<lines.length&&i<20;i++){
+    for(let i=0;i<lines.length;i++){
       if(lines[i].indexOf(prefix)!==0) continue;
       const value=lines[i].slice(prefix.length).replace(/[\x00-\x1f\x7f]/g,' ').trim();
-      return value.length<=512?value:'';
+      return value;
     }
     return '';
   }
