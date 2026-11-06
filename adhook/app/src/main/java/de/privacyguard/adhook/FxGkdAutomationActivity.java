@@ -450,6 +450,15 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
         dialog.show();
     }
 
+    private void moveRule(FxGkdRule rule, int direction) {
+        if (!FxGkdRuleStore.moveRule(this, rule.getId(), direction)) {
+            Toast.makeText(this, direction < 0 ? "规则已在最前面或调整失败。" : "规则已在最后面或调整失败。", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        FxGkdAutomationRuntime.invalidateRules();
+        renderRules();
+    }
+
     private void updateRuleEnabled(FxGkdRule rule, Switch control, boolean enabled) {
         if (!FxGkdRuleStore.setRuleEnabled(this, rule.getId(), enabled)) {
             control.setOnCheckedChangeListener(null);
@@ -507,6 +516,8 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
             enabled.setOnCheckedChangeListener((button, checked) ->
                     updateRuleEnabled(rule, (Switch) button, checked));
             actions.addView(enabled, new LinearLayout.LayoutParams(0, -2, 1));
+            actions.addView(action("上移", () -> moveRule(rule, -1)));
+            actions.addView(action("下移", () -> moveRule(rule, 1)));
             actions.addView(action("编辑", () -> showEditRuleDialog(rule)));
             actions.addView(action("删除", () -> new AlertDialog.Builder(this)
                     .setMessage("删除这条本地 GKD 规则？")
