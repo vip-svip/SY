@@ -6812,3 +6812,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 订阅列表和域名 allow/block 规则更新后，AdGuard 生命周期脚本会重建配置指纹并在差异变化时重启受管进程以加载新配置；缓存刷新入口则使用既有停止、启动与 apply 协调链路。
 - 这些是源码和 UI/打包链路移植记录。本批按要求未运行 Gradle、Shell 静态检查、回归测试、构建、CI、Actions 或 Android 真机验证；没有声称设备端行为已经通过验证。
 - 迁移兼容脚本补充提交：`22923f00`（`scripts/integrate_yulong_ad_rules.py`），现在把 `_build_filter_sources()` 纳入原生 AdGuard 规则渲染能力识别，避免对已具备远程订阅渲染逻辑的模块重复注入旧补丁。
+
+## 2026-11-06 — Root Proxy 应用白名单 UI 与 DNS/VPN 可见性扩展
+
+- `adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`（`2b9d8fdb`、`35b567a8`、`05f6b6ac`、`25ddc7d1`）在 Ad 页增加 Root Proxy 应用 DNS 白名单管理、DNS 缓存刷新入口，并显示当前白名单应用数量。白名单按 PackageManager 已安装应用展示，保留卸载包条目供用户清理；勾选变化直接调用 Root Proxy 的 `whitelist-set`，运行中的 Root Proxy 会按既有事务重新解析 UID 并协调规则。
+- `scripts/native-dns-settings.sh`（`a5feaf82`、`e9c61c9f`）与 `fx-module/scripts/native-dns-settings.sh`（`9381fa88`、`7e330e61`）扩展 DNS 状态协议，增加 Root Proxy 白名单数量、Android Private DNS 模式、DNS 过滤覆盖范围、VPN 共存裁决 verdict 和路由探测结果。
+- `MainActivity.java`（`1458d5d8`）将 Private DNS（off/opportunistic/hostname）、过滤覆盖（port-53/可能绕过/严格模式旁路）、共存裁决及 route probe 呈现在 Ad DNS 区域，避免把本地 DNS 引擎就绪误报为第三方 VPN 路径兼容。
+- 已确认现有 KernelSU workflow 在 Yulong 资源解码后调用 `scripts/integrate_yulong_ad_rules.py fx-module`（既有阶段，不重复添加），并已包含 native DNS 设置脚本的模块安装步骤。
+- 本批未运行 Shell/Python/Gradle 检查、回归测试、构建、CI 或真机验证；UI/状态接线提交不代表设备上的 VPN 路由和 DNS 拦截效果已得到验证。
