@@ -1200,3 +1200,13 @@
 - 同步普通 APK 源码与 `fx-module/` APK 源码；同步模块 Root 控制脚本与 Unbound 生命周期脚本。并保留并行协作者已完成的 CPU 上限状态读回字段。
 - 相关源码提交：模块 Root `1894abb7a97b53c88c965890328494ee1f298b75`；Unbound 最终配置 `9a44cbef3c2a10c14194ea4396781f4bdb3c4356`；原生 APK 源码 `26b21880683be90a572bed8e9a862111431b1bf6`、`c9ff73e864c48b3085ff4785a6388edd047ca9d7`；CPU 上限读回协作提交 `5fbfa5282ea0c6bee633012c96bcf86b8544e2bd3c`、`5978db35fb85`。
 - 本阶段按用户要求未运行测试、静态检查、构建、CI 或 Android 真机验证；已完成 GitHub 源码写入与内容回读，不代表实际设备验收。
+
+## 2026-11-07 — Unbound CPU 自适应工作线程 UI 与快照闭环
+
+- 普通源码和 FX 模块打包源码均已包含 Unbound 工作线程参数 `UNBOUND_NUM_THREADS`；Root 后端从设备在线 CPU 集合读取核心数，校验线程数为正整数且不得超过当前在线核心数。
+- 原生 Ad 页面读取 `UNBOUND_NUM_THREADS` 与 `UNBOUND_THREADS_MAX`，显示当前线程数和设备在线核心数；保存前按读取到的动态上限校验，Root 写入时再次校验，防止 CPU 热插拔或读取后状态变化导致超限配置落盘。
+- DNS 配置快照纳入 `UNBOUND_NUM_THREADS`；旧快照缺少该字段时补默认值 `1`，新快照预览显示线程数，Root 恢复阶段继续执行设备在线核心数校验。
+- 对齐两个 Java 源码树，普通源码与 `fx-module` 打包源码内容一致。
+- 相关实现提交：后端同步 `26b21880683b` / `c9ff73e864c4`；普通与模块 UI/快照 `2ba7e94a9252d33f4eb74445d6ca52e768f315b0` / `19933b8729f6c6376c0a2ea11cd56bf21e84333f`。
+- 同步纳入并保留近期 DNS 统计排除域名后端/UI与 `statistics.ignored` 渲染；同时已移除快照固定字段数量门槛，使用字段白名单、去重、必需字段及旧字段默认值来判断格式。
+- 本批未运行测试、静态检查、Gradle/APK 构建、CI 或 Android 真机验证；GitHub 文件回读确认两套 Java 源码一致，后端和 AdGuard renderer 对应文件均包含上述字段。
