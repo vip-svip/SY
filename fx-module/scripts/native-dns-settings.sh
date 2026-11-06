@@ -287,6 +287,17 @@ status() {
       ;;
     *) _dns_fallback_mode=explicit ;;
   esac
+  _local_dns_watchdog=unavailable
+  if [ -f "$MP/scripts/localdns-watchdog.sh" ] && [ ! -L "$MP/scripts/localdns-watchdog.sh" ]; then
+    _watchdog_status=$(sh "$MP/scripts/localdns-watchdog.sh" status "$MP" "$PG" 2>/dev/null) || _watchdog_status=stopped
+    case "$_watchdog_status" in
+      running\ pid=*) _local_dns_watchdog=running ;;
+      stopped|stopped\ *) _local_dns_watchdog=stopped ;;
+      *) _local_dns_watchdog=unknown ;;
+    esac
+  elif [ -L "$MP/scripts/localdns-watchdog.sh" ]; then
+    _local_dns_watchdog=unsafe
+  fi
   _configured=0
   _ready=0
   _readiness_reason=disabled
@@ -377,6 +388,7 @@ status() {
   printf 'dns_fallback_mode|%s\n' "$_dns_fallback_mode"
   printf 'dns_encrypted_upstreams|%s\n' "$_dns_encrypted_count"
   printf 'dns_bootstrap_mode|%s\n' "$_dns_bootstrap_mode"
+  printf 'localdns_watchdog|%s\n' "$_local_dns_watchdog"
   printf 'custom_dns|%s\n' "$(read_flag custom_dns)"
   printf 'global_dns|%s\n' "$(read_flag global_dns)"
   printf 'block_quic|%s\n' "$(read_flag block_quic)"
