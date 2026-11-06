@@ -275,7 +275,7 @@ validate_existing_dns_section() {
     }
     inside { bad=1 }
     END {
-      if (sections>1 || bad || count>3) exit 1
+      if (sections>1 || bad) exit 1
     }
   ' "$CONF") || {
     echo "existing DNS section [$section] is ambiguous or malformed" >&2

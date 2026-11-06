@@ -352,7 +352,6 @@ _render_managed_config() {
       if(!valid_ipv4(server)) {bad=1; next}
       if(seen[server]++) {bad=1; next}
       count++
-      if(count>3) {bad=1; next}
       print "  - " server
     }
     inside && /^[[:space:]]*[^#[:space:]][^[:space:]]*[[:space:]]+/ {

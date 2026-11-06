@@ -1,5 +1,14 @@
 
 
+### FX DNS 上游数量上限最后两道校验清理（2026-11-07）
+
+- 文件：`fx-module/scripts/adguardhome.sh`、`fx-module/scripts/yulong-ad-control.sh`。
+- 移除 AdGuard Home 渲染备用 DNS 列表时的 `count>3` 拒绝条件；每条 IPv4 仍按格式、可路由地址范围和重复项校验。
+- 移除 DNS 上游写入前检查既有 `custom_dns/global_dns/yulong_dns_fallback` 配置时的 `count>3` 条数拒绝条件；保留重复 section/key、未知字段、端点格式和协议校验。
+- 与前端列表、批量配置写入及 DNS 快照的无条数限制行为对齐，避免保存成功但引擎配置渲染/再次编辑失败。
+- 本轮未运行测试、静态检查、构建、CI 或设备验证。
+
+
 ### FX DNS 上游列表移除三条业务数量上限并扩展完整快照（2026-11-07）
 
 - 代码提交：`c3c9d41de079f6b797a5427ea43dacbe033a5dee`。
