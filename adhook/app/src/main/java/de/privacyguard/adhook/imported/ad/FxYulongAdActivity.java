@@ -958,6 +958,13 @@ private void saveVpnDns(String key,EditText input){
       btn("分享全部白名单",()->shareDomainList("ALLOW")),
       btn("分享全部黑名单",()->shareDomainList("BLOCK")),
       btn("分享白名单 + 黑名单",()->shareDomainList("BOTH")));
+  EditText domainBundle=draftField("domain_bundle_import");
+  domainBundle.setGravity(Gravity.TOP|Gravity.START);
+  domainBundle.setMinLines(5);
+  domainBundle.setHint("粘贴 FX 域名名单备份：allow|domain|note 或 block|domain|note");
+  card("白/黑名单合并恢复",
+      "可直接导入上方分享导出的合并备份；忽略 # 注释行，白名单与黑名单在同一配置事务中恢复，重复行自动合并。",
+      domainBundle,btn("验证并恢复合并名单",()->importDomainBundle(domainBundle)));
   domainSearch=draftField("domain_search");
   domainSearch.setSingleLine(true);
   domainSearch.setHint("筛选白名单/黑名单域名或备注");
@@ -1044,6 +1051,36 @@ private void saveVpnDns(String key,EditText input){
  private static String cleanDomainExportField(String value){
   return value==null?"":value.replace('|',' ').replace('\\t',' ')
       .replace('\\r',' ').replace('\\n',' ');
+ }
+ private void importDomainBundle(EditText input){
+  String raw=input.getText()==null?"":input.getText().toString();
+  java.util.LinkedHashMap<String,String> unique=new java.util.LinkedHashMap<>();
+  for(String line:raw.split("\\r?\\n")){
+   String value=line.trim();
+   if(value.isEmpty()||value.startsWith("#"))continue;
+   String[] fields=value.split("\\|",-1);
+   if(fields.length!=3||!("allow".equals(fields[0].trim())||"block".equals(fields[0].trim()))
+       ||fields[1].trim().isEmpty()||fields[1].trim().length()>253
+       ||fields[2].trim().length()>180){
+    status.setText("合并备份格式错误：每行必须为 allow|domain|note 或 block|domain|note。");
+    return;
+   }
+   String kind=fields[0].trim(),domain=fields[1].trim(),note=fields[2].trim();
+   unique.putIfAbsent(kind+"|"+domain,kind+"|"+domain+"|"+note);
+   if(unique.size()>2000){status.setText("单次最多恢复 2000 条唯一域名。");return;}
+  }
+  if(unique.isEmpty()){status.setText("没有可恢复的域名条目。");return;}
+  String payload=String.join("\\n",unique.values());
+  byte[] bytes=payload.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+  if(bytes.length>65536){status.setText("合并备份超过 64 KiB，请拆分后导入。");return;}
+  String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);
+  fxDialogBuilder().setTitle("恢复白名单与黑名单")
+      .setMessage("将恢复 "+unique.size()+" 条唯一域名记录；白名单和黑名单通过单次 FX 配置事务写入并统一应用。重复行已合并，任一写入失败会回滚整批。是否继续？")
+      .setNegativeButton("取消",null)
+      .setPositiveButton("恢复",(dialog,which)->root("domain-import-bundle "+q(encoded),r->{
+       if(r.exitCode==0){status.setText("白/黑名单合并恢复完成："+safe(r.output));input.setText("");load();}
+       else fxDialogBuilder().setTitle("名单恢复失败").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
+      })).show();
  }
  private void removeDomains(String kind,EditText input){
   String raw=input.getText()==null?"":input.getText().toString();
