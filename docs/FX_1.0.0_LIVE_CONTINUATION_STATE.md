@@ -8368,3 +8368,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 增加 Root Proxy Unix 秒时间戳格式化，状态面板和 DNS 管理详情均显示本地时区的 `yyyy-MM-dd HH:mm:ss`；空值、零值、超范围或非数字值显示明确的无记录/无效提示。
 - 保留 FX 模块专有脚本导入方法和现有 DNS 状态读取路径，没有整文件覆盖主应用版本。
 - 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证。
+
+### FX 模块 Root Proxy 路由与 VPN 所有权状态原因标签补齐（2026-11-07）
+
+- 代码提交：`6c0615df3d2085c092994acb95cdbd765e3f0927`。
+- 文件：`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`。
+- 补齐 `rootproxy_route` 的 verified / not_applicable / unavailable 状态中文映射。
+- 补齐 Root Proxy 状态原因 `vpn_owner_unavailable` 与 `vpn_uid_mismatch` 的中文说明，避免设备端返回这两类故障时 UI 只显示原始代码。
+- 保留模块原有 DNS 状态面板、模块专有脚本导入流程和时间戳格式化；未覆盖主应用文件。
+- 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证。
