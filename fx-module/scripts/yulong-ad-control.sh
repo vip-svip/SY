@@ -1056,6 +1056,40 @@ schedule_get() {
   MP="$MP" PG="$PG" sh "$MP/scripts/yulong-ad-schedule.sh" evaluate >/dev/null 2>&1 || :
   return 35
 }
+dns_log_clear() {
+  dir="$PG/adguardhome/work/data"
+  _safe_rest=${dir#/}
+  _safe_walk=
+  case "$dir" in /*) : ;; *) echo "unsafe DNS query-log directory" >&2; return 21 ;; esac
+  while [ -n "$_safe_rest" ]; do
+    case "$_safe_rest" in
+      */*) _safe_part=${_safe_rest%%/*}; _safe_rest=${_safe_rest#*/} ;;
+      *) _safe_part=$_safe_rest; _safe_rest= ;;
+    esac
+    case "$_safe_part" in ''|.|..) echo "unsafe DNS query-log path" >&2; return 21 ;; esac
+    _safe_walk="$_safe_walk/$_safe_part"
+    [ ! -L "$_safe_walk" ] || { echo "DNS query-log path contains a symlink" >&2; return 21; }
+  done
+  [ -d "$dir" ] && [ ! -L "$dir" ] || { echo "DNS query-log directory is missing or unsafe" >&2; return 21; }
+  _found=0
+  for _file in "$dir"/querylog.json "$dir"/querylog.json.*; do
+    [ -e "$_file" ] || [ -L "$_file" ] || continue
+    [ ! -L "$_file" ] && [ -f "$_file" ] || {
+      echo "refusing to clear non-regular or linked DNS query log: $_file" >&2
+      return 21
+    }
+    _found=$((_found + 1))
+  done
+  for _file in "$dir"/querylog.json "$dir"/querylog.json.*; do
+    [ -e "$_file" ] || [ -L "$_file" ] || continue
+    : > "$_file" || { echo "failed to clear DNS query log: $_file" >&2; return 31; }
+    chmod 600 "$_file" 2>/dev/null || {
+      echo "cannot enforce private DNS query-log permissions: $_file" >&2
+      return 31
+    }
+  done
+  echo "cleared=$([ "$_found" -gt 0 ] && echo 1 || echo 0) files=$_found"
+}
 cache_flush() {
   target=${1:-all}
   case "$target" in all|adguardhome|unbound) ;; *) echo "cache target must be all, adguardhome, or unbound" >&2; return 2 ;; esac
@@ -1136,15 +1170,8 @@ case "$cmd" in
   cache_flush "${2:-all}"
   ;;
  dns-log-clear)
-  dir="$PG/adguardhome/work/data"
-  found=0
-  for file in "$dir"/querylog.json "$dir"/querylog.json.*; do
-    [ -f "$file" ] || continue
-    : > "$file" || exit 31
-    chmod 600 "$file" 2>/dev/null || :
-    found=1
-  done
-  echo "cleared=$found"
+  [ "$#" -eq 1 ] || exit 2
+  with_lock dns_log_clear
   ;;
 
  list)
