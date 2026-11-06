@@ -41,7 +41,7 @@
 
 - 脚本中心提供独立的“导入 Egern YAML HTTP 脚本”入口，支持 `.yaml` / `.yml` 文件（文件读取上限 2 MiB）。解析器迁移顶层 `scriptings:` 中的 `http_request` 与 `http_response`，保留名称、URL 匹配、HTTPS 脚本地址和禁用状态。
 - 支持简单扁平字符串 `env` 键值映射，写入订阅脚本头并透传到 QuickJS 的 `ctx.env`；最多 32 项、单值 512 字符、总 JSON 2048 字符。嵌套对象/列表和无法表示的 env 结构会跳过该条目。
-- `body_required: true` 仅对 `http_response` 项保留，并映射为 `FX-SCRIPT-REQUIRES-BODY`；正文仍受 FX 未压缩文本类型和 1 MiB 限制。含 `binary_body: true` 的条目跳过。
+- `body_required: true` 对 `http_request` 与 `http_response` 项均保留，并映射为 `FX-SCRIPT-REQUIRES-BODY`；仍受 FX 未压缩文本类型和 1 MiB 正文限制。含 `binary_body: true` 的条目跳过。
 - `schedule`、`generic`、`network` 不会转换为 HTTP Hook；仅接收 HTTPS 脚本 URL。Egern 的 `timeout`、`max_size`、`update_interval` 等参数不假定已经映射为 FX 控制项。
 - 该导入器仅覆盖上述 HTTP YAML 子集，不是通用 YAML 解析器，也不代表 Egern 全功能运行时。
 
