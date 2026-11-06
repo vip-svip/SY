@@ -722,40 +722,65 @@ private boolean targetDeveloperOptIn(String packageName) {
         }
     }
 
-    /**
-     * Opt-in MediaStore query privacy. It returns an empty cursor only for
-     * content://media queries made by the selected single-package process.
-     * It does not alter file access, writes, downloads, or other content providers.
-     */
+    private boolean isMediaStoreUri(Object value) {
+        if (!(value instanceof Uri)) return false;
+        Uri uri = (Uri) value;
+        if (!"content".equalsIgnoreCase(uri.getScheme())) return false;
+        String authority = uri.getAuthority();
+        return "media".equals(authority)
+                || "com.android.providers.media.documents".equals(authority)
+                || "com.android.providers.media.photopicker".equals(authority)
+                || "com.android.providers.media.module".equals(authority);
+    }
+
     private synchronized boolean installMediaStoreQueryBlockHooks(final String packageName) {
         if (!mediaStoreQueryHookedMethods.isEmpty()) return true;
         int installed = 0;
-        for (Method method : ContentResolver.class.getDeclaredMethods()) {
-            if (!"query".equals(method.getName()) || method.getReturnType() != Cursor.class) continue;
-            Class<?>[] params = method.getParameterTypes();
-            if (params.length == 0 || !Uri.class.isAssignableFrom(params[0])) continue;
+        Set<String> readMethods = new HashSet<>(Arrays.asList(
+                "openInputStream", "openFileDescriptor", "openAssetFileDescriptor",
+                "openTypedAssetFileDescriptor", "loadThumbnail", "getType", "getStreamTypes"));
+        for (final Method method : ContentResolver.class.getDeclaredMethods()) {
+            final String name = method.getName();
+            final Class<?>[] params = method.getParameterTypes();
+            final boolean query = "query".equals(name) && method.getReturnType() == Cursor.class
+                    && params.length > 0 && Uri.class.isAssignableFrom(params[0]);
+            final boolean mediaRead = readMethods.contains(name)
+                    && params.length > 0 && Uri.class.isAssignableFrom(params[0]);
+            if (!query && !mediaRead || mediaStoreQueryHookedMethods.contains(method)) continue;
             try {
                 hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
                     if (processPackages.size() != 1 || !privacyEnabled) return chain.proceed();
                     String activePackage = currentPackage;
                     UnifiedHookConfigParser.Target active = targets.get(activePackage);
                     if (active == null || !active.mediaStoreQueryBlock) return chain.proceed();
-                    Object first = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
-                    if (!(first instanceof Uri) || !"media".equals(((Uri) first).getAuthority())) {
-                        return chain.proceed();
+                    Object[] args = chain.getArgs().toArray();
+                    if (args.length == 0 || !isMediaStoreUri(args[0])) return chain.proceed();
+
+                    if (query) {
+                        Object projection = args.length > 1 ? args[1] : null;
+                        String[] columns = projection instanceof String[] ? (String[]) projection : new String[0];
+                        return new MatrixCursor(columns);
                     }
-                    Object projection = chain.getArgs().size() > 1 ? chain.getArgs().get(1) : null;
-                    String[] columns = projection instanceof String[] ? (String[]) projection : new String[0];
-                    return new MatrixCursor(columns);
+
+                    // A read/write or write-only open remains available. The
+                    // setting is a media READ privacy control, not a write blocker.
+                    if (("openFileDescriptor".equals(name) || "openAssetFileDescriptor".equals(name))
+                            && args.length > 1 && args[1] instanceof String) {
+                        String mode = (String) args[1];
+                        if (mode.contains("w") || mode.contains("a")) return chain.proceed();
+                    }
+                    if ("getType".equals(name)) return null;
+                    if ("getStreamTypes".equals(name)) return new String[0];
+                    throw new SecurityException("MediaStore read disabled by FX Hook privacy setting");
                 });
                 mediaStoreQueryHookedMethods.add(method);
                 installed++;
-            } catch (Throwable t) {
-                logFx(Log.WARN, "MediaStore query hook failed open: " + method.toGenericString());
+            } catch (Throwable error) {
+                logFx(Log.WARN, "MediaStore query/read hook failed open: " + method.toGenericString());
             }
         }
         logFx(installed > 0 ? Log.INFO : Log.WARN,
-                "MediaStore query privacy hooks installed=" + installed + " package=" + packageName);
+                "MediaStore query/read privacy hooks installed=" + installed + " package=" + packageName);
         return installed > 0;
     }
 
