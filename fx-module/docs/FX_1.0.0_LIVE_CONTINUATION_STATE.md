@@ -6681,3 +6681,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - GitHub Actions：FX Targeted Host Regression run `42113873013`（head `ab99b8bde162c125b44ef7022c060cf35c6f1586`）SUCCESS；日志明确通过“private staging directory creation failure is fail-closed”，并通过完整 installer/remover 回归。FX System App Install Stage run `42113993210`（head `9bc5eaefbd5513bdc380792b9e605535668efd91`）SUCCESS，覆盖 patcher、安装阶段行为、shell 执行和早期开机 overlay 回归。
 - 验证边界：以上均为 GitHub Linux Host 回归；未执行 Android 真机、KernelSU/Magisk 真实挂载、PackageManager 实机识别或 SELinux 实机标签测试。Hook APK migration/Gradle 构建 workflow 在本记录时仍 pending，不得记为通过。
 - 本批结束时观察到的分支 HEAD：`9bc5eaefbd5513bdc380792b9e605535668efd91`；并行 AI 仍可能继续推进。
+## 2026-11-06 — Egern scriptings YAML HTTP 迁移
+
+- `MainActivity.java`（应用源码 `d98fd4cf300ea25ba897bb0c815616e562e7e935`、模块源码 `fe82821fc01d442de149cbf90e24b9de76563ef6`）增加 `.yaml` / `.yml` 导入路径，识别 Egern `scriptings:` 列表中的 `http_request` / `http_response` 条目，并转为现有 FX-SCRIPT-LIST / FXMETA_B64 元数据格式。
+- 保留 `name`、`match`、HTTPS `script_url`、`disabled` 和 `body_required`；正文标记随四行元数据传递到 `sync-subs.sh`，由其生成 `FX-SCRIPT-REQUIRES-BODY`。文件内重复项与当前配置重复项按 URL 和触发元数据跳过。
+- `schedule`、`generic`、`network` 不会错误转换成 HTTP Hook；带 `env`、`binary_body` 或非默认 timeout / max_size / update_interval 的条目会跳过，因为现有 FX 订阅协议无法无损表达这些字段。只允许 HTTPS 远程源，未把本地路径转换成远程订阅。
+- 修正脚本导入去重键的分隔符为真实换行，保持与 Base64 解码后的订阅元数据字段结构一致。
+- 本轮仅提交源码和说明；按要求未运行测试、静态检查、构建、CI 或真机验证。
