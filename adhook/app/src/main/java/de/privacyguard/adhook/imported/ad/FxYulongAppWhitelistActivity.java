@@ -190,6 +190,7 @@ public final class FxYulongAppWhitelistActivity extends de.privacyguard.adhook.F
         body.addView(intro);
         status = text("正在读取设备端白名单…", 12, 0xff526170, false);
         body.addView(status);
+        body.addView(button("清理未安装应用", this::pruneUninstalledPackages));
         query = new EditText(this);
         query.setSingleLine(true);
         query.setHint("搜索应用名称或包名");
@@ -227,6 +228,29 @@ public final class FxYulongAppWhitelistActivity extends de.privacyguard.adhook.F
             parse(result.output);
             loading = false;
             loadAppsAsync();
+        });
+    }
+
+    private void pruneUninstalledPackages() {
+        if (destroyed || isFinishing() || isDestroyed()) return;
+        status.setText("正在批量清理已卸载应用的广告过滤白名单…");
+        root("prune", result -> {
+            if (result.exitCode != 0) {
+                status.setText("白名单清理未完成：" + safe(result.output));
+                return;
+            }
+            final String pruneSummary = safe(result.output);
+            root("list", refreshed -> {
+                if (refreshed.exitCode != 0) {
+                    status.setText("白名单已提交清理，但刷新状态失败：" + safe(refreshed.output));
+                    return;
+                }
+                parse(refreshed.output);
+                updateStatus();
+                Toast.makeText(this, "应用白名单清理完成：" + pruneSummary,
+                        Toast.LENGTH_LONG).show();
+                renderRows();
+            });
         });
     }
 
