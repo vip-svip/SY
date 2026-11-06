@@ -8,6 +8,10 @@ case "$timeout" in ''|*[!0-9]*) timeout=20 ;; esac
 [ "$timeout" -ge 1 ] 2>/dev/null || timeout=20
 [ "$timeout" -le 120 ] 2>/dev/null || timeout=120
 : > "$outbody" || exit 73
+# Keep script-controlled uploads within the same bounded payload budget as responses.
+body_size=$(wc -c < "$bodyfile" 2>/dev/null | tr -d " ")
+case "$body_size" in ''|*[!0-9]*) echo "unable to determine HTTP request body size" >&2; exit 74 ;; esac
+[ "$body_size" -le 8388608 ] || { echo "HTTP request body exceeds 8 MiB" >&2; exit 75; }
 if command -v curl >/dev/null 2>&1; then
   set -- curl -sS -L --max-redirs 5 --proto '=http,https' --proto-redir '=https' --max-filesize 8388608 --max-time "$timeout" --connect-timeout 8 -X "$method" -D "$outbody.headers" -o "$outbody" -w '%{http_code}'
   if [ -s "$bodyfile" ]; then set -- "$@" --data-binary "@$bodyfile"; fi
