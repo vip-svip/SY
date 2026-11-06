@@ -7145,3 +7145,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Stash YAML 导入器对未映射的脚本级选项标记该脚本不支持，不再静默忽略其语义；已同步到 `fx-module/adhook/app/src/main/java/de/privacyguard/adhook/StashScriptYamlImporter.java`。
 - 模块 Stash 导入器同步提交：54c35b150a127d1e32ee070b2cb6e2d7e8505ab0。
 - 本轮继续遵循跳过验证要求，未运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-06 — Stash YAML 每脚本 argument 贯通运行时
+
+- 扩展 `StashScriptYamlImporter`：非空 `argument` 不再被一律拒绝；仅超长或含控制字符的参数跳过。导入元数据保留 Egern env JSON 的第 5 字段空位，将 Stash 参数写入第 6 字段。
+- 与现有 `sync-subs.sh` 的 `FX-SCRIPT-ARGUMENT` 头及 QuickJS host 的 `$argument` 读取路径对接，保持 Stash 每条脚本参数而不是丢弃。
+- 应用源码提交：dda9b249a9b9a0c072801207c3603f285fab5527。
+- 模块源码提交：3201959ddc8aae0325cd1a79f560dd92c21b7fb1。
+- 本轮未运行测试、静态检查、构建、CI 或真机验证。
