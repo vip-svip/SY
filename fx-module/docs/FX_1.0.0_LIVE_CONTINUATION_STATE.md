@@ -6710,3 +6710,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - The native Ad page explains automatic local fallback and explicit user fallback precedence.
 - Related commits: `fac8e359a14b3bcd8f7a020c27f5051b74694d49`, `06e72554a19933fdd95aa7cac73b2e0f3e796167`, `04d095f762a1063e94d27ad7ea4c1d2f2d501446`, `bf19291670d88a64df2dd1be5e0a1b7a7808f527`, `cdba5c63a9a0bf9684ae49cece0d46f87ef99046`, `f49591575cbf300eb73aa38ea46cd4656e27899b`, `5ac6097b02c58767b4482f12e612e44db6880407`, `046d468d6068e0627341a32ac91d17e7e198dd03`, `2a3264c44a8346f4282351527efd0abd325c4214`, `ddff0fecec21c40df51090dbd93c6c9592835d91`.
 - Per current request, no tests, static checks, build, CI or Android device validation were run.
+## 2026-11-07 — DNS 状态契约、AdGuard 合同恢复与快照完整性说明
+
+- 修复 `fx-module/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java` 的 DNS 状态响应字段白名单：补齐 Root 状态脚本已输出的 `localdns_watchdog`，并显示“本地 DNS 自动恢复守护”状态；原 canonical Hook APK 源码已具备同一字段，模块 APK 源码现已对齐。
+- 修复 `scripts/adguardhome.sh` 与 `fx-module/scripts/adguardhome.sh` 的 `_config_contract()`：HTTPS endpoint 正则在一次并行源合并中被函数声明片段覆盖，现从同文件上游端点验证函数恢复完整正则与函数边界；原有 loopback、上游列表、bootstrap、fallback、runtime mode、超时、缓存及 DNSSEC 校验保留。
+- 对照 native DNS 状态输出和原生页面严格 allowlist：43 个键完全一致，无缺失、额外或重复字段。
+- 两份原生 Ad 页面更新 DNS 快照说明，明确纳入查询日志保留期限、多上游策略与超时、缓存配置和 DNSSEC，并说明兼容旧版快照时使用默认值。
+- 源码提交：状态字段 `04c8136d8a46e6b5701e96a7744bb55b8e7540ae`；AdGuard canonical 合同 `1b33dbed2acdadf051e2521f246b55291b39ca1c`；AdGuard module 合同 `ebd1017fc38893b8ab64f2807b738cf517470369`；canonical UI 快照说明 `67a038de304dbee82f89aa4d30492a63abc52ed6`；module UI 快照说明 `57f1268d12084700256fe109c29bbe28a45ac922`。
+- 按用户要求，未运行测试、Shell/Java 静态检查、构建、CI 或 Android 真机验证。以上完成项仅依据源码读取与写入结果，不代表运行时验收。
