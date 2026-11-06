@@ -1201,9 +1201,12 @@ dns_profile_restore() {
       value=substr($0,index($0,"=")+1)
       if(key !~ /^(dns_engine_adguardhome|dns_forward|custom_dns|global_dns|block_quic|block_dot|block_plain_dns|block_ipv6|block_track_domains|vpn_external_dns_proxy|vpn_external_compat|dns_querylog_enabled|CUSTOM_SERVERS|GLOBAL_SERVERS|FALLBACK_SERVERS|VPN_REMOTE|VPN_CN|RESPONSE_MODE|QUERYLOG_RETENTION|QUERYLOG_MEMORY_SIZE|QUERYLOG_IGNORED_ENABLED|QUERYLOG_IGNORED|DNS_REWRITES|STATISTICS_ENABLED|STATISTICS_INTERVAL|STATISTICS_IGNORED_ENABLED|STATISTICS_IGNORED|UPSTREAM_MODE|FASTEST_TIMEOUT|UPSTREAM_TIMEOUT|CACHE_SIZE|CACHE_TTL_MIN|CACHE_TTL_MAX|CACHE_OPTIMISTIC_ANSWER_TTL|CACHE_OPTIMISTIC_MAX_AGE|CACHE_ENABLED|CACHE_OPTIMISTIC|ENABLE_DNSSEC|UNBOUND_CACHE_MAX_TTL|UNBOUND_CACHE_MIN_TTL|UNBOUND_SERVE_EXPIRED|UNBOUND_SERVE_EXPIRED_TTL|UNBOUND_SERVE_EXPIRED_REPLY_TTL|UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT|UNBOUND_PREFETCH|UNBOUND_PREFETCH_KEY|UNBOUND_QNAME_MINIMISATION|UNBOUND_MSG_CACHE_SIZE|UNBOUND_RRSET_CACHE_SIZE|UNBOUND_KEY_CACHE_SIZE|UNBOUND_NEG_CACHE_SIZE|UNBOUND_NUM_THREADS)$/)bad=1
       if(seen[key]++)bad=1
-      count++
     }
-    END{if(bad||(count!=18&&count!=19&&count!=26&&count!=30&&count!=38&&count!=39&&count!=43&&count!=44&&count!=46&&count!=48&&count!=49&&count!=51&&count!=52))exit 1}
+    END {
+      split("dns_engine_adguardhome dns_forward custom_dns global_dns block_quic block_dot block_plain_dns block_ipv6 block_track_domains vpn_external_dns_proxy vpn_external_compat dns_querylog_enabled CUSTOM_SERVERS GLOBAL_SERVERS FALLBACK_SERVERS VPN_REMOTE VPN_CN RESPONSE_MODE", required, " ")
+      for (i=1; i<=18; i++) if (!seen[required[i]]) bad=1
+      if (bad) exit 1
+    }
   ' "$_yad_profile_raw" || { echo "DNS profile has unknown, duplicate, missing, or malformed fields" >&2; return 2; }
   _profile_querylog_retention=7d
   _profile_querylog_memory_size=1000
