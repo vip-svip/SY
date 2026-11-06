@@ -42,13 +42,14 @@ HOST_BLOCK = r"""  // FX_EGERN_COMPAT_V2_BEGIN
     });
   }
   function _fxEgernMessage(source,isResponse) {
+    // Reuse the original request/response object so mutations are included in $done().
     const message=source&&typeof source==='object'?source:{};
     message.headers=_fxEgernHeaders(message.headers||{});
+    message.text=function(){return Promise.resolve(message.body==null?'':(typeof message.body==='string'?message.body:JSON.stringify(message.body)));};
+    message.json=function(){return Promise.resolve(JSON.parse(message.body==null?'':(typeof message.body==='string'?message.body:JSON.stringify(message.body))));};
     if(isResponse){
       message.status=Number(message.statusCode||message.status||200);
       message.statusCode=message.status;
-      message.text=function(){return Promise.resolve(message.body==null?'':(typeof message.body==='string'?message.body:JSON.stringify(message.body)));};
-      message.json=function(){return Promise.resolve(JSON.parse(message.body==null?'':(typeof message.body==='string'?message.body:JSON.stringify(message.body))));};
     }
     return message;
   }
@@ -91,21 +92,27 @@ HOST_BLOCK = r"""  // FX_EGERN_COMPAT_V2_BEGIN
   }
   const _fxEgernEnv=(_fxEvent.env&&typeof _fxEvent.env==='object')?_fxEvent.env:{};
   const _fxEgernDevice=(_fxEvent.device&&typeof _fxEvent.device==='object')?_fxEvent.device:{};
-  const _fxEgernRequest=_fxEgernMessage(globalThis.$request,false);
-  const _fxEgernResponse=_fxEgernMessage(globalThis.$response,true);
+  const _fxEgernStage=String(_fxEvent.stage||'').toLowerCase();
+  const _fxEgernHasRequest=['request','response','http-request','http-response'].indexOf(_fxEgernStage)>=0;
+  const _fxEgernHasResponse=['response','http-response'].indexOf(_fxEgernStage)>=0;
+  const _fxEgernRequest=_fxEgernHasRequest?_fxEgernMessage(globalThis.$request,false):undefined;
+  const _fxEgernResponse=_fxEgernHasResponse?_fxEgernMessage(globalThis.$response,true):undefined;
   globalThis.ctx={
     script:Object.assign({},globalThis.$script),
     env:Object.assign({},_fxEgernEnv),
     app:{version:String(globalThis.$environment.version||''),language:String(globalThis.$environment.language||'')},
     device:Object.assign({},_fxEgernDevice),
+    cron:typeof _fxEvent.cron==='string'?_fxEvent.cron:undefined,
+    widgetFamily:typeof _fxEvent.widgetFamily==='string'?_fxEvent.widgetFamily:undefined,
     request:_fxEgernRequest,
     response:_fxEgernResponse,
     http:_fxEgernHttpApi,
     storage:{
-      get(key){return globalThis.$prefs.valueForKey(String(key));},
-      set(key,value){return globalThis.$prefs.setValueForKey(value,String(key));},
-      remove(key){return globalThis.$prefs.removeValueForKey(String(key));},
-      getJSON(key){const value=this.get(key);if(value==null)return null;if(typeof value==='object')return value;try{return JSON.parse(String(value));}catch(_){return null;}}
+      get(key){const value=globalThis.$prefs.valueForKey(String(key));return value==null?null:(typeof value==='string'?value:JSON.stringify(value));},
+      set(key,value){return globalThis.$prefs.setValueForKey(String(value),String(key));},
+      getJSON(key){const value=this.get(key);if(value==null)return null;try{return JSON.parse(value);}catch(_){return null;}},
+      setJSON(key,value){try{return globalThis.$prefs.setValueForKey(JSON.stringify(value),String(key));}catch(_){return false;}},
+      delete(key){return globalThis.$prefs.removeValueForKey(String(key));}
     },
     notify(options){options=options||{};return _fxNotify(options.title||'',options.subtitle||'',options.body||'',options);},
     log(){console.log.apply(console,arguments);}
@@ -144,15 +151,14 @@ FX_EGERN_ENTRY
 fi
 # FX_EGERN_SCRIPT_ENTRY_V2_END
 """
-README_SECTION = """## Egern script compatibility entry (initial subset)
+README_SECTION = """## Egern script compatibility entry (extended subset)
 
-The runner accepts top-level default exported async or synchronous functions. It provides ctx.script, ctx.env, ctx.app, ctx.device, ctx.request, ctx.response, ctx.http, ctx.storage, ctx.notify and ctx.log. HTTP methods include GET, POST, PUT, PATCH, DELETE, HEAD and OPTIONS, plus fetch/request entry points. The response provides status, headers, text() and json(). Timeout input is in milliseconds and is bounded by the FX HTTP bridge.
+The runner accepts top-level default-exported async and synchronous functions, including named functions. It provides ctx.script, ctx.env, ctx.app, ctx.device, ctx.cron, ctx.widgetFamily, ctx.request, ctx.response, ctx.http, ctx.storage, ctx.notify and ctx.log. Request and response objects are exposed only for HTTP request/response events, and mutations reuse the original hook objects so supported changes are returned through $done().
 
-Request and response headers are case-insensitive and provide get, getAll, has, set, append, delete, entries and iteration. ctx.storage supports get, set, remove and getJSON. Environment and device fields are passed through only when the event supplies them; FX does not fabricate carrier or network state.
+HTTP includes GET, POST, PUT, PATCH, DELETE, HEAD and OPTIONS methods. Responses provide status, headers, text() and json(). Timeout is accepted in milliseconds and bounded by FX. Headers are case-insensitive and support get, getAll, has, set, append, delete, entries and iteration. Storage supports get, set, getJSON, setJSON and delete.
 
-This is an Egern API subset, not a full client clone. ESM import dependencies, streams, Blob/ArrayBuffer, SSH, ctx.respond(), ctx.abort(), and client-specific policy/network services remain unsupported. The current HTTP bridge is synchronous internally even though the compatibility API returns Promises.
+Environment, device, cron and widget fields are passed through only when the event actually supplies them. Notifications are recorded in FX script logs, not posted to the Android notification shade. This remains a subset: ESM imports, streams, binary body APIs, SSH, lookupIP, compression, ctx.respond(), ctx.abort(), redirect controls, proxy policies and Egern-specific network services are not implemented. FX HTTP calls run through a synchronous native bridge under a Promise-compatible API.
 """
-
 def replace_marked(source: str, begin: str, end: str, block: str,
                    old_begin: str = "", old_end: str = "") -> str:
     if begin in source or end in source:
