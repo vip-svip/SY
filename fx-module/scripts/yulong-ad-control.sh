@@ -1484,9 +1484,9 @@ dns_querylog_retention_set() {
 }
 dns_querylog_memory_limit() {
   _mem_total_kb=$(awk '$1=="MemTotal:" {print $2; exit}' /proc/meminfo 2>/dev/null)
-  case "$_mem_total_kb" in ''|*[!0-9]*) echo 10000; return 0 ;; esac
-  # One potential query-log record per 64 KiB of physical RAM.
-  # This derives an allocation ceiling from the device rather than an arbitrary entry cap.
+  case "$_mem_total_kb" in
+    ''|*[!0-9]*) echo "device physical memory is unavailable; cannot derive a query-log buffer limit" >&2; return 1 ;;
+  esac
   _mem_limit=$((_mem_total_kb / 64))
   [ "$_mem_limit" -gt 0 ] || _mem_limit=1
   echo "$_mem_limit"
@@ -1517,9 +1517,14 @@ dns_querylog_runtime_get() {
     echo "querylog_memory_size=unknown"
     return 22
   }
+  _mem_limit=$(dns_querylog_memory_limit) || {
+    echo "querylog_memory_size=unknown"
+    echo "querylog_memory_max=unavailable"
+    return 22
+  }
   echo FXYULONGDNSQUERYLOG1
   echo "memory_size=$_mem_value"
-  echo "memory_max=$(dns_querylog_memory_limit)"
+  echo "memory_max=$_mem_limit"
 }
 write_dns_querylog_runtime() {
   _mem_value=$1
@@ -1592,7 +1597,7 @@ dns_statistics_values() {
       amount=substr(interval,1,length(interval)-1)
       maximum=(unit=="h"?8760:365)
       if(amount+0<1 || amount+0>maximum || int(amount+0)!=amount+0)exit 1
-      printf "STATISTICS_ENABLED=%s\\nSTATISTICS_INTERVAL=%s\\n",enabled,interval
+      printf "STATISTICS_ENABLED=%s\nSTATISTICS_INTERVAL=%s\n",enabled,interval
     }
   ' "$CONF" 2>/dev/null
 }
@@ -1648,7 +1653,7 @@ write_dns_statistics_settings() {
 }
 dns_statistics_set() {
   write_dns_statistics_settings "$1" "$2" || return $?
-  printf 'statistics_enabled=%s statistics_interval=%s\\n' "$1" "$2"
+  printf 'statistics_enabled=%s statistics_interval=%s\n' "$1" "$2"
 }
 
 dns_config_get() {
