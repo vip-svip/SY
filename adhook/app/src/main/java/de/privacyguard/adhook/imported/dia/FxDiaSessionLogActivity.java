@@ -5,6 +5,7 @@ import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.ClipboardManager;
 import android.content.ClipData;
+import android.net.Uri;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -21,6 +22,8 @@ import de.privacyguard.adhook.RootAccess;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+import java.io.OutputStream;
+import java.io.IOException;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -32,6 +35,8 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
     private static final String EXTRA_TARGET_NAME = "fx_dia_session_log_target_name";
     private static final String EXTRA_GADGET_PORT = "fx_dia_session_log_gadget_port";
     private static final int MAX_ROOT_OUTPUT = 512 * 1024;
+    private static final int REQUEST_EXPORT_LOG = 7105;
+    private static final int MAX_EXPORT_CHARS = 512 * 1024;
     private static final String BASE_DIR = "/data/adb/privacyguard";
     private static final String DIA_DIR = BASE_DIR + "/dia-frida";
     private static final String LOG_DIR = DIA_DIR + "/logs";
@@ -177,6 +182,8 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
                 new LinearLayout.LayoutParams(0, -2, 1));
         actions.addView(button("复制筛选结果", this::copyFilteredLog),
                 new LinearLayout.LayoutParams(0, -2, 1));
+        actions.addView(button("导出筛选结果", this::beginExportLog),
+                new LinearLayout.LayoutParams(0, -2, 1));
         actions.addView(button("清空当前日志", this::confirmClearLog),
                 new LinearLayout.LayoutParams(0, -2, 1));
         controls.addView(actions);
@@ -284,6 +291,49 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
                 gadgetLog ? "FX Gadget 日志" : "FX Frida 会话日志", filtered));
         Toast.makeText(this, "已复制当前筛选结果（" + filtered.length() + " 字符）。",
                 Toast.LENGTH_SHORT).show();
+    }
+
+    private void beginExportLog() {
+        String filtered = getFilteredLogContent();
+        if (filtered.isEmpty()) {
+            Toast.makeText(this, "当前筛选没有可导出的日志。", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Intent create = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        create.addCategory(Intent.CATEGORY_OPENABLE);
+        create.setType("text/plain");
+        create.putExtra(Intent.EXTRA_TITLE,
+                (gadgetLog ? "FX-Gadget-" : "FX-Frida-") + targetPackage + ".log.txt");
+        try {
+            startActivityForResult(create, REQUEST_EXPORT_LOG);
+        } catch (RuntimeException unavailable) {
+            Toast.makeText(this, "系统文件创建器不可用，未导出日志。", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQUEST_EXPORT_LOG || resultCode != RESULT_OK
+                || data == null || data.getData() == null) return;
+        String filtered = getFilteredLogContent();
+        if (filtered.isEmpty()) {
+            Toast.makeText(this, "筛选结果已变化，没有可导出的日志。", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (filtered.length() > MAX_EXPORT_CHARS) {
+            filtered = filtered.substring(0, MAX_EXPORT_CHARS)
+                    + "\\n[导出达到 512 KiB 上限，后续内容已省略]\\n";
+        }
+        try (OutputStream stream = getContentResolver().openOutputStream(data.getData(), "w")) {
+            if (stream == null) throw new IOException("无法打开目标文件");
+            stream.write(filtered.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            stream.flush();
+            Toast.makeText(this, "已导出筛选日志（" + filtered.length() + " 字符）。",
+                    Toast.LENGTH_LONG).show();
+        } catch (IOException | SecurityException failure) {
+            Toast.makeText(this, "导出失败，未能写入目标文件："
+                    + failure.getClass().getSimpleName(), Toast.LENGTH_LONG).show();
+        }
     }
 
     private void restoreUiState(Bundle state) {
