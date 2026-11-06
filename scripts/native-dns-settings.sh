@@ -274,6 +274,57 @@ mutate() {
   echo "DNS apply failed; previous settings restored" >&2
   return 1
 }
+mutate_many() {
+  [ "$#" -ge 2 ] && [ "$#" -le 8 ] && [ $(($# % 2)) -eq 0 ] || {
+    echo "usage: set-many KEY 0|1 [KEY 0|1 ...]" >&2; return 2;
+  }
+  _want_agh=$(read_flag dns_engine_adguardhome); _want_forward=$(read_flag dns_forward)
+  _want_compat=$(read_flag vpn_external_compat); _want_proxy=$(read_flag vpn_external_dns_proxy)
+  _seen='|'
+  while [ "$#" -gt 0 ]; do
+    _k=$1; _v=$2; shift 2
+    valid_key "$_k" && declared_flag "$_k" || { echo "DNS setting is not allowlisted or declared" >&2; return 2; }
+    case "$_v" in 0|1) : ;; *) echo "DNS setting value must be 0 or 1" >&2; return 2 ;; esac
+    case "$_seen" in *"|$_k|"*) echo "duplicate DNS setting key" >&2; return 2 ;; esac
+    _seen="${_seen}${_k}|"
+    case "$_k" in
+      dns_engine_adguardhome) _want_agh=$_v ;;
+      dns_forward) _want_forward=$_v ;;
+      vpn_external_compat) _want_compat=$_v ;;
+      vpn_external_dns_proxy) _want_proxy=$_v ;;
+    esac
+  done
+  # Normalize the requested profile against the same dependency rules as set.
+  if [ "$_want_forward" != 1 ]; then _want_agh=0; _want_proxy=0; fi
+  if [ "$_want_agh" != 1 ]; then _want_proxy=0; fi
+  if [ "$_want_compat" != 1 ]; then _want_proxy=0; fi
+  if [ "$_want_proxy" = 1 ]; then _want_forward=1; _want_agh=1; _want_compat=1; fi
+  _backup=$(umask 077; mktemp "$CONF.native-dns-rollback.XXXXXX") || return 1
+  cp -p "$CONF" "$_backup" || { rm -f "$_backup"; return 1; }
+  _rc=0
+  pg_set dns_engine_adguardhome "$_want_agh" || _rc=$?
+  [ "$_rc" -ne 0 ] || pg_set dns_forward "$_want_forward" || _rc=$?
+  [ "$_rc" -ne 0 ] || pg_set vpn_external_compat "$_want_compat" || _rc=$?
+  [ "$_rc" -ne 0 ] || pg_set vpn_external_dns_proxy "$_want_proxy" || _rc=$?
+  if [ "$_rc" -ne 0 ]; then
+    _restore=$(umask 077; mktemp "$CONF.native-dns-restore.XXXXXX") || { echo "batch mutation failed; backup retained at $_backup" >&2; return 11; }
+    if ! cp -p "$_backup" "$_restore" || ! chmod 600 "$_restore" || ! mv -f "$_restore" "$CONF"; then
+      rm -f "$_restore" 2>/dev/null || :; echo "batch mutation rollback failed; backup retained at $_backup" >&2; return 11
+    fi
+    rm -f "$_backup"; return "$_rc"
+  fi
+  if sh "$MP/scripts/apply.sh" full; then
+    rm -f "$_backup"
+    printf 'saved=1 applied=1 dns_engine_adguardhome=%s dns_forward=%s vpn_external_compat=%s vpn_external_dns_proxy=%s\n' "$_want_agh" "$_want_forward" "$_want_compat" "$_want_proxy"
+    return 0
+  fi
+  _restore=$(umask 077; mktemp "$CONF.native-dns-restore.XXXXXX") || { echo "batch apply failed; backup retained at $_backup" >&2; return 11; }
+  if ! cp -p "$_backup" "$_restore" || ! chmod 600 "$_restore" || ! mv -f "$_restore" "$CONF"; then
+    rm -f "$_restore" 2>/dev/null || :; echo "batch apply rollback failed; backup retained at $_backup" >&2; return 11
+  fi
+  sh "$MP/scripts/apply.sh" full >/dev/null 2>&1 || echo "previous DNS settings restored; runtime reconcile failed" >&2
+  rm -f "$_backup"; echo "DNS batch apply failed; previous settings restored" >&2; return 1
+}
 with_lock() {
   _tries=0
   while ! mkdir "$LOCK" 2>/dev/null; do
@@ -320,8 +371,13 @@ case "$cmd" in
     valid_key "$2" || { echo "DNS setting is not allowlisted" >&2; exit 2; }
     with_lock mutate "$2" "$3"
     ;;
+  set-many)
+    [ "$#" -ge 3 ] || { echo "usage: $0 set-many KEY 0|1 [KEY 0|1 ...]" >&2; exit 2; }
+    shift
+    with_lock mutate_many "$@"
+    ;;
   *)
-    echo "usage: $0 status|reconcile|set KEY 0|1" >&2
+    echo "usage: $0 status|reconcile|set KEY 0|1|set-many KEY 0|1 ..." >&2
     exit 2
     ;;
 esac
