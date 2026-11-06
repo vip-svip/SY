@@ -1112,3 +1112,11 @@
 - 原生 Ad 页说明同步解释自动本地回退与用户显式 fallback 的优先级。
 - 相关提交：`fac8e359a14b3bcd8f7a020c27f5051b74694d49`、`06e72554a19933fdd95aa7cac73b2e0f3e796167`、`04d095f762a1063e94d27ad7ea4c1d2f2d501446`、`bf19291670d88a64df2dd1be5e0a1b7a7808f527`、`cdba5c63a9a0bf9684ae49cece0d46f87ef99046`、`f49591575cbf300eb73aa38ea46cd4656e27899b`、`5ac6097b02c58767b4482f12e612e44db6880407`、`046d468d6068e0627341a32ac91d17e7e198dd03`、`2a3264c44a8346f4282351527efd0abd325c4214`、`ddff0fecec21c40df51090dbd93c6c9592835d91`。
 - 按要求未运行测试、静态检查、构建、CI 或 Android 真机验证；不能把上述源码变更描述为已通过验证。
+## 2026-11-07 — AdGuard 双栈未缓存健康探测与手动 DNS 修复入口
+
+- 将 `scripts/localdns-probe.c` 和 `fx-module/scripts/localdns-probe.c` 的探测端点由仅 IPv4 loopback 扩展为 IPv4/IPv6 loopback：IPv4 仅允许 127.0.0.0/8，IPv6 仅允许 ::1；UDP 与截断后的 TCP 重试均沿用同一地址族，拒绝非 loopback 地址。
+- AdGuard Home canonical/module 生命周期脚本不再用固定 `example.com` A 记录的 `nslookup` 判断健康，改为调用已校验 SHA-256 的 FX 随机唯一查询探测器，对 `127.0.0.1:53` 与 `[::1]:53` 分别发起未缓存查询并验证 DNS 报文、递归可用标志及响应码；缓存命中不再足以伪装为上游健康。
+- 增加 watchdog `repair` 一次性命令：沿用现有 `_reconcile_once()` 恢复逻辑，按当前配置检查并恢复 FX 自有 Unbound/AdGuard Home，返回 ready/failed 及原因；不改写 DNS 设置，不接管第三方 VPN，不修改 Android Private DNS 或系统路由。
+- `scripts/localdns-watchdog.sh`、`fx-module/scripts/localdns-watchdog.sh`、两份 `yulong-ad-control.sh` 均提供 `dns-repair` 命令；canonical 与 module 两套 `FxYulongAdActivity.java` 在 DNS 状态卡片增加“立即尝试修复 DNS 服务”按钮，确认后执行修复并刷新状态。
+- 本批主要提交：IPv4/IPv6 探测器 `800295628c02201f31e6bc1a0b31c743bd8c5ca2`、`ccdfe41e1f4b278a8d2e52246cbfc11eeed9ed16`、显式 IPv6 头文件 `70a304c3d0f1397d8be25cf13f7bbf0184e4d7bb`、`1bd6200c4a3c6de46d6704d2ba26248328167d3e`；AdGuard 未缓存探测 `c87ab368a2fee1620a888a7f836a280eca1acb3c`、`ee3eb8ffd9a15335315ff977879b1b45ffb33b47`；watchdog/CLI 修复入口 `4ea03dcc4028546af3e4615baf65c2d7e5161403`、`96f719d5f37e5b2a77db2b5b077bade266d0f9bd`、`b53a39721a3f69529fcf417c10751e44a5879590`、`50e608b8d994705b4a6752587a08b372a06267b1`；两份 UI `ef18dec1b72e4185d26c78271f0792e158d714a1`、`4fd792f7089119a300488065b680eaf67f13d009`。
+- 按当前要求未运行 C/Shell/Java 测试、静态检查、构建、CI 或 Android 真机验证；以上是源码提交与接线记录，不代表设备运行验收。
