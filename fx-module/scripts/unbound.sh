@@ -196,8 +196,42 @@ _vpn_egress_config() {
   ' || { _log "invalid VPN egress marker; refusing unbound startup"; return 1; }
   printf '  do-ip6: no\n  outgoing-interface: %s\n' "$_vpn_ip"
 }
+_unbound_runtime_value() {
+  printf '%s\n' "$_unbound_runtime_output" | awk -F= -v wanted="$1" '
+    $1==wanted {count++; value=$2}
+    END {if(count!=1)exit 1; print value}
+  '
+}
 _render_config() {
   _egress_config=$(_vpn_egress_config) || return 1
+  _unbound_control="$MODDIR/scripts/yulong-ad-control.sh"
+  [ -f "$_unbound_control" ] && [ ! -L "$_unbound_control" ] || {
+    _log 'DNS control adapter is missing or unsafe; refusing Unbound config render'
+    return 1
+  }
+  _unbound_runtime_output=$(MP="$MODDIR" PG="$PG" sh "$_unbound_control" unbound-runtime-get 2>/dev/null) || {
+    _log 'unable to read Unbound runtime settings'
+    return 1
+  }
+  [ "$(printf '%s\n' "$_unbound_runtime_output" | sed -n '1p')" = FXYULONGUNBOUND1 ] || {
+    _log 'Unbound runtime settings response header is invalid'
+    return 1
+  }
+  _ub_cache_max_ttl=$(_unbound_runtime_value UNBOUND_CACHE_MAX_TTL) || return 1
+  _ub_cache_min_ttl=$(_unbound_runtime_value UNBOUND_CACHE_MIN_TTL) || return 1
+  _ub_serve_expired=$(_unbound_runtime_value UNBOUND_SERVE_EXPIRED) || return 1
+  _ub_serve_expired_ttl=$(_unbound_runtime_value UNBOUND_SERVE_EXPIRED_TTL) || return 1
+  _ub_serve_expired_reply_ttl=$(_unbound_runtime_value UNBOUND_SERVE_EXPIRED_REPLY_TTL) || return 1
+  _ub_serve_expired_client_timeout=$(_unbound_runtime_value UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT) || return 1
+  _ub_prefetch=$(_unbound_runtime_value UNBOUND_PREFETCH) || return 1
+  _ub_qname_minimisation=$(_unbound_runtime_value UNBOUND_QNAME_MINIMISATION) || return 1
+  case "$_ub_serve_expired:$_ub_prefetch:$_ub_qname_minimisation" in
+    0:0:0|0:0:1|0:1:0|0:1:1|1:0:0|1:0:1|1:1:0|1:1:1) : ;;
+    *) _log 'Unbound runtime boolean setting is invalid'; return 1 ;;
+  esac
+  case "$_ub_serve_expired" in 1) _ub_serve_expired_yaml=yes ;; 0) _ub_serve_expired_yaml=no ;; esac
+  case "$_ub_prefetch" in 1) _ub_prefetch_yaml=yes ;; 0) _ub_prefetch_yaml=no ;; esac
+  case "$_ub_qname_minimisation" in 1) _ub_qname_minimisation_yaml=yes ;; 0) _ub_qname_minimisation_yaml=no ;; esac
   cat <<EOF_CFG
 server:
   username: ""
@@ -217,25 +251,26 @@ $_egress_config  port: 5353
   root-hints: "$ROOT_HINTS"
   auto-trust-anchor-file: "$STATE/root.key"
   module-config: "validator iterator"
-  qname-minimisation: yes
+  qname-minimisation: $_ub_qname_minimisation_yaml
   harden-glue: yes
   harden-dnssec-stripped: yes
   hide-identity: yes
   hide-version: yes
   aggressive-nsec: yes
-  prefetch: yes
+  prefetch: $_ub_prefetch_yaml
   prefetch-key: yes
-  serve-expired: yes
-  serve-expired-ttl: 86400
-  serve-expired-reply-ttl: 30
+  serve-expired: $_ub_serve_expired_yaml
+  serve-expired-ttl: $_ub_serve_expired_ttl
+  serve-expired-reply-ttl: $_ub_serve_expired_reply_ttl
+  serve-expired-client-timeout: $_ub_serve_expired_client_timeout
   edns-buffer-size: 1232
   max-udp-size: 1232
   msg-cache-size: 8m
   rrset-cache-size: 16m
   key-cache-size: 4m
   neg-cache-size: 2m
-  cache-max-ttl: 86400
-  cache-min-ttl: 0
+  cache-max-ttl: $_ub_cache_max_ttl
+  cache-min-ttl: $_ub_cache_min_ttl
   unwanted-reply-threshold: 10000000
 EOF_CFG
 }
