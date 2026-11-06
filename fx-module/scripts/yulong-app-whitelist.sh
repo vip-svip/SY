@@ -211,6 +211,124 @@ mutate_transaction() {
   echo "apply failed; previous whitelist restored" >&2
   return 1
 }
+mutate_batch_transaction() {
+  mode="$1"; shift
+  case "$mode" in add|remove) ;; *) return 2 ;; esac
+  [ "$#" -gt 0 ] || { echo "batch whitelist operation requires at least one package" >&2; return 2; }
+  [ -f "$CONF" ] && [ ! -L "$CONF" ] || { echo "FX settings.conf missing or unsafe" >&2; return 21; }
+  _YW_PACKAGES=$(mktemp "$PG/yulong-app-whitelist-batch.XXXXXX") || return 1
+  for pkg in "$@"; do
+    valid_package "$pkg" || {
+      rm -f "$_YW_PACKAGES"; _YW_PACKAGES=
+      echo "invalid package name in batch whitelist request" >&2
+      return 2
+    }
+    printf '%s\n' "$pkg" >> "$_YW_PACKAGES" || {
+      rm -f "$_YW_PACKAGES"; _YW_PACKAGES=
+      return 1
+    }
+  done
+  chmod 600 "$_YW_PACKAGES" || {
+    rm -f "$_YW_PACKAGES"; _YW_PACKAGES=
+    return 1
+  }
+  _YW_BACKUP=$(mktemp "$CONF.yulong-white-rollback.XXXXXX") || {
+    rm -f "$_YW_PACKAGES"; _YW_PACKAGES=; return 1;
+  }
+  if ! cat "$CONF" > "$_YW_BACKUP" || ! chmod 600 "$_YW_BACKUP"; then
+    rm -f "$_YW_BACKUP" "$_YW_PACKAGES"
+    _YW_BACKUP=; _YW_PACKAGES=
+    return 1
+  fi
+  _YW_TEMP=$(mktemp "$CONF.yulong-white-batch.XXXXXX") || {
+    rm -f "$_YW_BACKUP" "$_YW_PACKAGES"
+    _YW_BACKUP=; _YW_PACKAGES=; return 1;
+  }
+  if ! awk -F'|' -v OFS='|' -v mode="$mode" '
+    function emit_missing(pkg) {
+      if(mode!="add") return
+      for(pkg in wanted) if(!written[pkg]) {
+        print pkg,pkg,1
+        written[pkg]=1
+      }
+    }
+    FNR==NR {
+      if($1 ~ /^[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+$/) wanted[$1]=1
+      next
+    }
+    $0=="[list:yulong_app_whitelist]" {
+      if(inlist) emit_missing()
+      inlist=1; seen=1; print; next
+    }
+    /^[/ {
+      if(inlist) emit_missing()
+      inlist=0; print; next
+    }
+    inlist && ($1 in wanted) {
+      if(mode=="add" && !written[$1]) {
+        print $1,$1,1
+        written[$1]=1
+      }
+      next
+    }
+    {print}
+    END {
+      if(inlist) emit_missing()
+      if(!seen && mode=="add") {
+        print ""
+        print "[list:yulong_app_whitelist]"
+        emit_missing()
+      }
+    }
+  ' "$_YW_PACKAGES" "$CONF" > "$_YW_TEMP"; then
+    rm -f "$_YW_TEMP" "$_YW_BACKUP" "$_YW_PACKAGES"
+    _YW_TEMP=; _YW_BACKUP=; _YW_PACKAGES=
+    echo "unable to stage batch app whitelist update; configuration unchanged" >&2
+    return 1
+  fi
+  if [ ! -s "$_YW_TEMP" ] || [ -f "$_YW_TEMP" ] == false; then
+    rm -f "$_YW_TEMP" "$_YW_BACKUP" "$_YW_PACKAGES"
+    _YW_TEMP=; _YW_BACKUP=; _YW_PACKAGES=
+    echo "batch app whitelist output is invalid" >&2
+    return 1
+  fi
+  if [ ! -L "$_YW_TEMP" ] && [ -f "$CONF" ] && [ ! -L "$CONF" ] \\
+      && chmod 600 "$_YW_TEMP" && mv -f "$_YW_TEMP" "$CONF"; then
+    _YW_TEMP=
+  else
+    rm -f "$_YW_TEMP" "$_YW_BACKUP" "$_YW_PACKAGES"
+    _YW_TEMP=; _YW_BACKUP=; _YW_PACKAGES=
+    echo "atomic batch app whitelist update failed; configuration unchanged" >&2
+    return 1
+  fi
+  rm -f "$_YW_PACKAGES"; _YW_PACKAGES=
+  if sh "$MP/scripts/apply.sh" fast; then
+    rm -f "$_YW_BACKUP"; _YW_BACKUP=
+    echo "updated=$# applied=1"
+    return 0
+  fi
+  _YW_RESTORE=$(mktemp "$CONF.restore.XXXXXX") || {
+    rm -f "$_YW_BACKUP"; _YW_BACKUP=
+    echo "unable to create batch whitelist rollback file" >&2
+    return 11
+  }
+  if cat "$_YW_BACKUP" > "$_YW_RESTORE" && chmod 600 "$_YW_RESTORE" \\
+      && [ -f "$CONF" ] && [ ! -L "$CONF" ] \\
+      && [ -f "$_YW_RESTORE" ] && [ ! -L "$_YW_RESTORE" ] \\
+      && mv -f "$_YW_RESTORE" "$CONF"; then
+    _YW_RESTORE=
+  else
+    rm -f "$_YW_RESTORE" "$_YW_BACKUP"
+    _YW_RESTORE=; _YW_BACKUP=
+    echo "batch whitelist rollback failed" >&2
+    return 11
+  fi
+  sh "$MP/scripts/apply.sh" fast >/dev/null 2>&1 || echo "previous whitelist restored; runtime reconcile failed" >&2
+  rm -f "$_YW_BACKUP"; _YW_BACKUP=
+  echo "batch whitelist apply failed; previous selection restored" >&2
+  return 1
+}
+
 prune_transaction() {
   [ -f "$CONF" ] && [ ! -L "$CONF" ] || { echo "FX settings.conf missing or unsafe" >&2; return 21; }
   _snapshot=$(cmd package list packages -U 2>/dev/null) || {
@@ -337,6 +455,15 @@ case "$cmd" in
     [ "$#" -eq 2 ] && valid_package "$2" || { echo "usage: $0 remove PACKAGE" >&2; exit 2; }
     with_lock mutate_transaction 0 "$2"
     ;;
+  batch-add|batch-remove)
+    [ "$#" -ge 2 ] || { echo "usage: $0 batch-add|batch-remove PACKAGE..." >&2; exit 2; }
+    _batch_action="${cmd#batch-}"
+    shift
+    for _batch_pkg in "$@"; do
+      valid_package "$_batch_pkg" || { echo "invalid package in batch whitelist request" >&2; exit 2; }
+    done
+    with_lock mutate_batch_transaction "$_batch_action" "$@"
+    ;;
   prune)
     [ "$#" -eq 1 ] || { echo "usage: $0 prune" >&2; exit 2; }
     with_lock prune_transaction
@@ -345,7 +472,7 @@ case "$cmd" in
     sh "$MP/scripts/apply.sh" fast
     ;;
   *)
-    echo "usage: $0 list|add PACKAGE|remove PACKAGE|prune|apply" >&2
+    echo "usage: $0 list|add PACKAGE|remove PACKAGE|batch-add PACKAGE...|batch-remove PACKAGE...|prune|apply" >&2
     exit 2
     ;;
 esac
