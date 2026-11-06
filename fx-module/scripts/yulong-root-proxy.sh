@@ -141,8 +141,12 @@ _local_dns_probe() {
   _local_dns_probe_endpoint ::1 || return 1
 }
 _is_enabled() {
+  # Root Proxy redirects port 53 to the FX-owned AdGuard Home listener.
+  # Do not arm the redirect when either AdGuard or its sole local Unbound
+  # upstream is disabled; otherwise DNS could hit an unrelated local service.
   [ "$(pg_get vpn_external_dns_proxy 1 2>/dev/null)" = "1" ] \
     && [ "$(pg_get vpn_external_compat 1 2>/dev/null)" = "1" ] \
+    && [ "$(pg_get dns_engine_adguardhome 0 2>/dev/null)" = "1" ] \
     && [ "$(pg_get dns_forward 1 2>/dev/null)" = "1" ]
 }
 _valid_package() {
@@ -735,6 +739,7 @@ _status_fail_open() {
 _status_locked() {
   echo "enabled=$(pg_get vpn_external_dns_proxy 1)"
   echo "dns_forward=$(pg_get dns_forward 1)"
+  echo "dns_engine_adguardhome=$(pg_get dns_engine_adguardhome 0)"
   echo "whitelist_count=$(printf '%s\n' "$(_list_whitelist_packages)" | awk 'NF {n++} END {print n+0}')"
 
   # Never disable or overwrite Android Private DNS. Strict DoT can bypass
