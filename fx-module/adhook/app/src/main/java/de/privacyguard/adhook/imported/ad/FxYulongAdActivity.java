@@ -1380,7 +1380,7 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
            if(r.exitCode==0){remoteDns.setText("1.1.1.1");cnDns.setText("223.5.5.5");status.setText("VPN DNS 默认值已恢复。");load();}
            else fxDialogBuilder().setTitle("恢复失败").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
          })).show()));
-  card("DNS 查询日志","默认关闭。启用后仅在本机保存逐条查询记录；可独立设置日志轮转周期和内存刷盘批量。",
+  card("DNS 查询日志","默认关闭。启用后仅在本机保存逐条查询记录；客户端 IP 始终匿名化且不会写入查询日志；可独立设置日志轮转周期和内存刷盘批量。",
        dnsSwitch("启用本地 DNS 查询日志","dns_querylog_enabled"),
        btn("设置日志保留期限",()->chooseDnsQueryLogRetention()),
        btn("设置日志内存刷盘批量",()->chooseDnsQueryLogMemorySize()),
