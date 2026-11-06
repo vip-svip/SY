@@ -1142,6 +1142,10 @@ dns_profile_get() {
   _querylog_runtime_record=$(dns_querylog_runtime_get) || return $?
   _profile_querylog_memory_size=$(printf '%s\n' "$_querylog_runtime_record" | sed -n 's/^memory_size=//p')
   [ -n "$_profile_querylog_memory_size" ] || { echo "DNS query-log buffer size is unavailable" >&2; return 22; }
+  _querylog_ignored_record=$(dns_querylog_ignored_values) || { echo "DNS query-log ignored-domain settings are unavailable" >&2; return 22; }
+  _profile_querylog_ignored_enabled=$(printf '%s\n' "$_querylog_ignored_record" | sed -n 's/^QUERYLOG_IGNORED_ENABLED=//p')
+  _profile_querylog_ignored=$(printf '%s\n' "$_querylog_ignored_record" | sed -n 's/^QUERYLOG_IGNORED=//p')
+  [ -n "$_profile_querylog_ignored_enabled" ] || { echo "DNS query-log ignored-domain flag is unavailable" >&2; return 22; }
   _statistics_record=$(dns_statistics_values) || { echo "DNS statistics settings are unavailable" >&2; return 22; }
   _profile_statistics_enabled=$(printf '%s\n' "$_statistics_record" | sed -n 's/^STATISTICS_ENABLED=//p')
   _profile_statistics_interval=$(printf '%s\n' "$_statistics_record" | sed -n 's/^STATISTICS_INTERVAL=//p')
@@ -1165,6 +1169,8 @@ dns_profile_get() {
   printf 'RESPONSE_MODE=%s\n' "$mode"
   printf 'QUERYLOG_RETENTION=%s\n' "$_profile_retention"
   printf 'QUERYLOG_MEMORY_SIZE=%s\n' "$_profile_querylog_memory_size"
+  printf 'QUERYLOG_IGNORED_ENABLED=%s\n' "$_profile_querylog_ignored_enabled"
+  printf 'QUERYLOG_IGNORED=%s\n' "$_profile_querylog_ignored"
   printf 'STATISTICS_ENABLED=%s\n' "$_profile_statistics_enabled"
   printf 'STATISTICS_INTERVAL=%s\n' "$_profile_statistics_interval"
   printf 'STATISTICS_IGNORED_ENABLED=%s\n' "$_profile_statistics_ignored_enabled"
@@ -1187,14 +1193,16 @@ dns_profile_restore() {
       if(index($0,"=")<2 || $0 ~ /\r/){bad=1;next}
       key=substr($0,1,index($0,"=")-1)
       value=substr($0,index($0,"=")+1)
-      if(key !~ /^(dns_engine_adguardhome|dns_forward|custom_dns|global_dns|block_quic|block_dot|block_plain_dns|block_ipv6|block_track_domains|vpn_external_dns_proxy|vpn_external_compat|dns_querylog_enabled|CUSTOM_SERVERS|GLOBAL_SERVERS|FALLBACK_SERVERS|VPN_REMOTE|VPN_CN|RESPONSE_MODE|QUERYLOG_RETENTION|QUERYLOG_MEMORY_SIZE|STATISTICS_ENABLED|STATISTICS_INTERVAL|STATISTICS_IGNORED_ENABLED|STATISTICS_IGNORED|UPSTREAM_MODE|FASTEST_TIMEOUT|UPSTREAM_TIMEOUT|CACHE_SIZE|CACHE_TTL_MIN|CACHE_TTL_MAX|CACHE_OPTIMISTIC_ANSWER_TTL|CACHE_OPTIMISTIC_MAX_AGE|CACHE_ENABLED|CACHE_OPTIMISTIC|ENABLE_DNSSEC|UNBOUND_CACHE_MAX_TTL|UNBOUND_CACHE_MIN_TTL|UNBOUND_SERVE_EXPIRED|UNBOUND_SERVE_EXPIRED_TTL|UNBOUND_SERVE_EXPIRED_REPLY_TTL|UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT|UNBOUND_PREFETCH|UNBOUND_PREFETCH_KEY|UNBOUND_QNAME_MINIMISATION|UNBOUND_MSG_CACHE_SIZE|UNBOUND_RRSET_CACHE_SIZE|UNBOUND_KEY_CACHE_SIZE|UNBOUND_NEG_CACHE_SIZE|UNBOUND_NUM_THREADS)$/)bad=1
+      if(key !~ /^(dns_engine_adguardhome|dns_forward|custom_dns|global_dns|block_quic|block_dot|block_plain_dns|block_ipv6|block_track_domains|vpn_external_dns_proxy|vpn_external_compat|dns_querylog_enabled|CUSTOM_SERVERS|GLOBAL_SERVERS|FALLBACK_SERVERS|VPN_REMOTE|VPN_CN|RESPONSE_MODE|QUERYLOG_RETENTION|QUERYLOG_MEMORY_SIZE|QUERYLOG_IGNORED_ENABLED|QUERYLOG_IGNORED|STATISTICS_ENABLED|STATISTICS_INTERVAL|STATISTICS_IGNORED_ENABLED|STATISTICS_IGNORED|UPSTREAM_MODE|FASTEST_TIMEOUT|UPSTREAM_TIMEOUT|CACHE_SIZE|CACHE_TTL_MIN|CACHE_TTL_MAX|CACHE_OPTIMISTIC_ANSWER_TTL|CACHE_OPTIMISTIC_MAX_AGE|CACHE_ENABLED|CACHE_OPTIMISTIC|ENABLE_DNSSEC|UNBOUND_CACHE_MAX_TTL|UNBOUND_CACHE_MIN_TTL|UNBOUND_SERVE_EXPIRED|UNBOUND_SERVE_EXPIRED_TTL|UNBOUND_SERVE_EXPIRED_REPLY_TTL|UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT|UNBOUND_PREFETCH|UNBOUND_PREFETCH_KEY|UNBOUND_QNAME_MINIMISATION|UNBOUND_MSG_CACHE_SIZE|UNBOUND_RRSET_CACHE_SIZE|UNBOUND_KEY_CACHE_SIZE|UNBOUND_NEG_CACHE_SIZE|UNBOUND_NUM_THREADS)$/)bad=1
       if(seen[key]++)bad=1
       count++
     }
-    END{if(bad||(count!=18&&count!=19&&count!=26&&count!=30&&count!=38&&count!=39&&count!=43&&count!=44&&count!=46&&count!=48&&count!=49))exit 1}
+    END{if(bad||(count!=18&&count!=19&&count!=26&&count!=30&&count!=38&&count!=39&&count!=43&&count!=44&&count!=46&&count!=48&&count!=49&&count!=51))exit 1}
   ' "$_yad_profile_raw" || { echo "DNS profile has unknown, duplicate, missing, or malformed fields" >&2; return 2; }
   _profile_querylog_retention=7d
   _profile_querylog_memory_size=1000
+  _profile_querylog_ignored_enabled=0
+  _profile_querylog_ignored=
   _profile_statistics_enabled=0
   _profile_statistics_interval=10d
   _profile_statistics_ignored_enabled=0
@@ -1256,6 +1264,12 @@ dns_profile_restore() {
       QUERYLOG_MEMORY_SIZE)
         valid_dns_querylog_memory_size "$_profile_value" || { echo "invalid DNS query-log buffer size" >&2; return 2; }
         _profile_querylog_memory_size=$_profile_value
+        ;;
+      QUERYLOG_IGNORED_ENABLED)
+        case "$_profile_value" in 0|1) _profile_querylog_ignored_enabled=$_profile_value ;; *) echo "invalid DNS query-log ignored-domain flag" >&2; return 2 ;; esac
+        ;;
+      QUERYLOG_IGNORED)
+        _profile_querylog_ignored=$(valid_dns_querylog_domains "$_profile_value") || { echo "invalid DNS query-log ignored-domain list" >&2; return 2; }
         ;;
       STATISTICS_ENABLED)
         case "$_profile_value" in 0|1) _profile_statistics_enabled=$_profile_value ;; *) echo "invalid DNS statistics enabled flag" >&2; return 2 ;; esac
@@ -1417,6 +1431,7 @@ dns_profile_restore() {
     pg_set dns_querylog_enabled "$_profile_querylog" || return 1
   write_dns_querylog_retention "$_profile_querylog_retention" || return 1
   write_dns_querylog_runtime "$_profile_querylog_memory_size" || return 1
+  write_dns_querylog_ignored_settings "$_profile_querylog_ignored_enabled" "$_profile_querylog_ignored" || return 1
   write_dns_statistics_settings "$_profile_statistics_enabled" "$_profile_statistics_interval" "$_profile_statistics_ignored_enabled" "$_profile_statistics_ignored" || return 1
   awk -v min="$_profile_runtime_cache_ttl_min" -v max="$_profile_runtime_cache_ttl_max" 'BEGIN{exit !(min+0<=max+0)}' || { echo "DNS profile cache TTL minimum exceeds maximum" >&2; return 2; }
   write_dns_runtime_settings "$_profile_runtime_mode" "$_profile_runtime_fastest" "$_profile_runtime_timeout" "$_profile_runtime_cache_size" "$_profile_runtime_cache_enabled" "$_profile_runtime_cache_optimistic" "$_profile_runtime_dnssec" "$_profile_runtime_cache_ttl_min" "$_profile_runtime_cache_ttl_max" "$_profile_runtime_optimistic_answer_ttl" "$_profile_runtime_optimistic_max_age" || return 1
@@ -1634,7 +1649,109 @@ write_dns_querylog_runtime() {
 }
 dns_querylog_runtime_set() {
   write_dns_querylog_runtime "$1" || return $?
-  printf 'memory_size=%s\n' "$1"
+  printf 'memory_size=%s
+' "$1"
+}
+valid_dns_querylog_domains() {
+  valid_dns_statistics_domains "$1"
+}
+dns_querylog_ignored_values() {
+  awk -F= '
+    function valid_domain(value, n, labels, i) {
+      value=tolower(value)
+      if (length(value)>253 || value=="" ||
+          substr(value,1,1)=="." || substr(value,length(value),1)=="." ||
+          value ~ /\.\./ || value !~ /^[a-z0-9.-]+$/) return 0
+      n=split(value,labels,".")
+      for (i=1;i<=n;i++)
+        if (length(labels[i])<1 || length(labels[i])>63 ||
+            labels[i]!~/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/) return 0
+      return 1
+    }
+    BEGIN {
+      enabled="0"; ignored=""; inside=0; sections=0; bad=0
+      enabled_count=0; ignored_count=0
+    }
+    $0=="[conf:yulong_dns_querylog_ignored]" {
+      sections++
+      if (sections>1) bad=1
+      inside=1
+      next
+    }
+    /^\[/ {inside=0}
+    inside && /^[[:space:]]*#/ {next}
+    inside && /^[[:space:]]*$/ {next}
+    inside {
+      if(index($0,"=")<2){bad=1;next}
+      key=substr($0,1,index($0,"=")-1)
+      value=substr($0,index($0,"=")+1)
+      if(key=="enabled"){enabled_count++; enabled=value}
+      else if(key=="ignored"){ignored_count++; ignored=tolower(value)}
+      else bad=1
+    }
+    END {
+      if(sections>1 || bad || enabled_count>1 || ignored_count>1)exit 1
+      if(enabled!="0" && enabled!="1")exit 1
+      if(ignored!="") {
+        n=split(ignored,domains,",")
+        for(i=1;i<=n;i++) if(!valid_domain(domains[i]) || seen[domains[i]]++)exit 1
+      }
+      printf "QUERYLOG_IGNORED_ENABLED=%s\nQUERYLOG_IGNORED=%s\n",enabled,ignored
+    }
+  ' "$CONF" 2>/dev/null
+}
+dns_querylog_ignored_get() {
+  echo FXYULONGDNSQIGNORE1
+  dns_querylog_ignored_values
+}
+write_dns_querylog_ignored_settings() {
+  _qlog_ignore_enabled=$1
+  _qlog_ignore_domains=$(valid_dns_querylog_domains "$2") || {
+    echo "DNS query-log ignored-domain list is malformed or contains duplicates" >&2
+    return 2
+  }
+  case "$_qlog_ignore_enabled" in 0|1) : ;; *) echo "DNS query-log ignored-domain flag must be 0 or 1" >&2; return 2 ;; esac
+  dns_querylog_ignored_values >/dev/null || {
+    echo "existing DNS query-log ignored-domain settings are ambiguous or malformed" >&2
+    return 22
+  }
+  _qlog_ignore_tmp=$(mktemp "$CONF.yulong-dns-querylog-ignored.XXXXXX") || return 1
+  _yad_conf_tmp=$_qlog_ignore_tmp
+  if ! awk -v enabled="$_qlog_ignore_enabled" -v ignored="$_qlog_ignore_domains" '
+    function emit() {
+      print "enabled=" enabled
+      print "ignored=" ignored
+    }
+    $0=="[conf:yulong_dns_querylog_ignored]" {
+      if(seen++)bad=1
+      print
+      emit()
+      inside=1
+      written=1
+      next
+    }
+    /^\[/ {inside=0;print;next}
+    inside {next}
+    {print}
+    END {
+      if(bad)exit 1
+      if(!written){print "";print "[conf:yulong_dns_querylog_ignored]";emit()}
+    }
+  ' "$CONF" > "$_qlog_ignore_tmp"; then
+    rm -f "$_qlog_ignore_tmp"; _yad_conf_tmp=
+    echo "unable to stage DNS query-log ignored-domain settings" >&2
+    return 1
+  fi
+  if [ -s "$_qlog_ignore_tmp" ] && chmod 600 "$_qlog_ignore_tmp" && mv -f "$_qlog_ignore_tmp" "$CONF"; then
+    _yad_conf_tmp=
+    return 0
+  fi
+  rm -f "$_qlog_ignore_tmp"; _yad_conf_tmp=
+  return 1
+}
+dns_querylog_ignored_config_set() {
+  write_dns_querylog_ignored_settings "$1" "$2" || return $?
+  printf 'querylog_ignored_enabled=%s\n' "$1"
 }
 valid_dns_statistics_domains() {
   printf '%s\n' "$1" | awk -F, '
@@ -2538,6 +2655,14 @@ case "$cmd" in
  dns-querylog-runtime-set)
   [ "$#" -eq 2 ] || exit 2
   with_lock transaction dns_querylog_runtime_set "$2"
+  ;;
+ dns-querylog-ignored-get)
+  [ "$#" -eq 1 ] || exit 2
+  dns_querylog_ignored_get
+  ;;
+ dns-querylog-ignored-set)
+  [ "$#" -eq 3 ] || { echo "usage: $0 dns-querylog-ignored-set 0|1 domain-csv" >&2; exit 2; }
+  with_lock transaction dns_querylog_ignored_config_set "$2" "$3"
   ;;
  dns-statistics-get)
   [ "$#" -eq 1 ] || exit 2
