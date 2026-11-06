@@ -19,8 +19,8 @@ import java.util.regex.Pattern;
  *
  * Only remote HTTPS HTTP request/response entries that map to FX's current
  * URL-triggered hook metadata are emitted. Scheduling, network callbacks,
- * environment injection, body-required and binary-body records are not
- * converted into misleading or partially working hooks.
+ * environment injection and binary-body records are not converted into
+ * misleading or partially working hooks. Text body-required metadata is retained.
  */
 public final class EgernScriptYamlImporter {
     private static final Pattern ITEM = Pattern.compile(
@@ -99,7 +99,7 @@ public final class EgernScriptYamlImporter {
                 disabled, bodyRequired, binaryBody, hasEnvironment);
         if (scripts.length() == 0) {
             throw new IllegalArgumentException(
-                    "没有可安全迁移的 Egern HTTPS HTTP 脚本；定时/通用/网络脚本，以及含 env、body_required 或 binary_body 的条目暂不导入");
+                    "没有可安全迁移的 Egern HTTPS HTTP 脚本；定时/通用/网络脚本，以及含 env 或 binary_body 的条目暂不导入");
         }
 
         JSONObject document = new JSONObject();
@@ -117,7 +117,7 @@ public final class EgernScriptYamlImporter {
         if (name == null || name.trim().isEmpty() || name.trim().length() > 512
                 || match == null || match.isEmpty() || match.length() > 2048
                 || scriptUrl == null || !scriptUrl.regionMatches(true, 0, "https://", 0, 8)) return;
-        if (bodyRequired || binaryBody || hasEnvironment) return;
+        if (binaryBody || hasEnvironment) return;
 
         Uri uri = Uri.parse(scriptUrl);
         if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null
@@ -126,7 +126,7 @@ public final class EgernScriptYamlImporter {
         String type = "http_request".equals(kind) ? "request" : "response";
         String safeName = name.trim().replaceAll("[\\p{Cntrl}]", " ");
         if (safeName.isEmpty() || safeName.length() > 512) return;
-        String metadata = type + "\n" + match + "\n0\n" + safeName;
+        String metadata = type + "\n" + match + "\n" + (bodyRequired ? "1" : "0") + "\n" + safeName;
         String key = scriptUrl + "\n" + type + "\n" + match;
         if (!seen.add(key)) return;
 
