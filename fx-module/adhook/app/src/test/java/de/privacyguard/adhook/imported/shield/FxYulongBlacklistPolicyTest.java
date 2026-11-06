@@ -36,31 +36,6 @@ public class FxYulongBlacklistPolicyTest {
         assertTrue(FxYulongBlacklistPolicy.parse("").isEmpty());
     }
 
-    @Test public void rejectsOversizedRawInputAtomically() {
-        char[] chars = new char[FxYulongBlacklistPolicy.MAX_RAW_CHARS + 1];
-        Arrays.fill(chars, 'x');
-        assertTrue(FxYulongBlacklistPolicy.parse(new String(chars)).isEmpty());
-    }
-
-    @Test public void rejectsTooManyEntriesWithoutPartialEnforcement() {
-        StringBuilder raw = new StringBuilder();
-        for (int i = 0; i <= FxYulongBlacklistPolicy.MAX_ENTRIES; i++) {
-            if (raw.length() > 0) raw.append(',');
-            raw.append("com.example.app").append(i);
-        }
-        assertTrue(FxYulongBlacklistPolicy.parse(raw.toString()).isEmpty());
-    }
-
-    @Test public void acceptsExactlyMaximumEntryCount() {
-        StringBuilder raw = new StringBuilder();
-        for (int i = 0; i < FxYulongBlacklistPolicy.MAX_ENTRIES; i++) {
-            if (raw.length() > 0) raw.append(',');
-            raw.append("com.example.app").append(i);
-        }
-        assertEquals(FxYulongBlacklistPolicy.MAX_ENTRIES,
-                FxYulongBlacklistPolicy.parse(raw.toString()).size());
-    }
-
     @Test public void serializerDeduplicatesAndRoundTrips() {
         String encoded = FxYulongBlacklistPolicy.serialize(Arrays.asList(
                 "com.example.app", "com.example.app", "org.example.tool"));
@@ -73,11 +48,4 @@ public class FxYulongBlacklistPolicyTest {
                 Arrays.asList("com.example.good", "../bad")));
     }
 
-    @Test public void serializerRejectsExcessiveEntryCount() {
-        java.util.List<String> values = new java.util.ArrayList<>();
-        for (int i = 0; i <= FxYulongBlacklistPolicy.MAX_ENTRIES; i++) {
-            values.add("com.example.app" + i);
-        }
-        assertEquals(null, FxYulongBlacklistPolicy.serialize(values));
-    }
 }

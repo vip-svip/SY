@@ -7,12 +7,10 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-/** Shared parser and bounded serializer for the original Shield user whitelist preference. */
+/** Shared parser and serializer for the original Shield user whitelist preference. */
 public final class FxYulongWhitelistPolicy {
     private static final String PREFS = "shield_prefs";
     private static final String KEY = "whitelist_pkgs";
-    public static final int MAX_RAW_CHARS = 1024 * 1024;
-    public static final int MAX_ENTRIES = 10000;
 
     private FxYulongWhitelistPolicy() { }
 
@@ -23,13 +21,11 @@ public final class FxYulongWhitelistPolicy {
 
     public static boolean isWellFormed(String raw) {
         if (raw == null || raw.isEmpty()) return true;
-        if (raw.length() > MAX_RAW_CHARS) return false;
         LinkedHashSet<String> packages = new LinkedHashSet<>();
         for (String item : raw.split(",", -1)) {
             String candidate = item == null ? "" : item.trim();
             if (!isValidPackageName(candidate)) return false;
             packages.add(candidate);
-            if (packages.size() > MAX_ENTRIES) return false;
         }
         return true;
     }
@@ -49,7 +45,7 @@ public final class FxYulongWhitelistPolicy {
 
     /**
      * Canonical CSV writer shared by the management screen and full-screen picker.
-     * Returns null for an invalid package, too many entries, or an oversized payload.
+     * Returns null for an invalid package; never writes a partial list.
      * Callers must reject the entire write instead of truncating/partially saving it.
      */
     public static String serialize(Iterable<String> packageNames) {
@@ -58,12 +54,9 @@ public final class FxYulongWhitelistPolicy {
         for (String packageName : packageNames) {
             if (!isValidPackageName(packageName)) return null;
             unique.add(packageName);
-            if (unique.size() > MAX_ENTRIES) return null;
         }
         StringBuilder output = new StringBuilder();
         for (String packageName : unique) {
-            int additional = packageName.length() + (output.length() == 0 ? 0 : 1);
-            if (output.length() + additional > MAX_RAW_CHARS) return null;
             if (output.length() > 0) output.append(',');
             output.append(packageName);
         }
@@ -77,13 +70,7 @@ public final class FxYulongWhitelistPolicy {
                     .getSharedPreferences(PREFS, Context.MODE_PRIVATE);
             String raw = prefs.getString(KEY, "");
             if (raw == null) raw = "";
-            if (raw.length() > MAX_RAW_CHARS) {
-                android.util.Log.e("FX-YulongShield",
-                        "User whitelist exceeded the safe read limit; risk scanning will not suppress findings.");
-                return Collections.emptySet();
-            }
-            // parse() rejects lists above MAX_ENTRIES atomically; exactly MAX_ENTRIES
-            // valid packages remain a supported, usable whitelist.
+            // Malformed lists remain rejected atomically by parse().
             return parse(raw);
         } catch (RuntimeException error) {
             android.util.Log.e("FX-YulongShield",

@@ -615,7 +615,7 @@ public class WhitelistPickerActivity extends de.privacyguard.adhook.FxNativeTabA
             Toast.makeText(this, "请先选择要加入的应用", Toast.LENGTH_SHORT).show();
             return;
         }
-        // 再次过滤系统应用，并通过中央 policy 一次性验证条数与存储大小。
+        // 再次过滤系统应用，并通过中央 policy 一次性验证所有包名。
         Set<String> all = new HashSet<>();
         for (String p : currentWhitelist) {
             if (!isSystemPackage(p)) all.add(p);
@@ -637,9 +637,7 @@ public class WhitelistPickerActivity extends de.privacyguard.adhook.FxNativeTabA
         }
         String serialized = FxYulongWhitelistPolicy.serialize(all);
         if (serialized == null) {
-            Toast.makeText(this, "合并后的白名单超过 " + FxYulongWhitelistPolicy.MAX_ENTRIES
-                    + " 个应用或 " + FxYulongWhitelistPolicy.MAX_RAW_CHARS
-                    + " 个字符；没有保存任何条目，请减少选择数量。", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "白名单包含无效应用包名；没有保存任何条目。", Toast.LENGTH_LONG).show();
             return;
         }
         if (!prefs.edit().putString("whitelist_pkgs", serialized).commit()) {

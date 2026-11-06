@@ -287,7 +287,6 @@ public final class FxDiaMonitorEventsActivity extends de.privacyguard.adhook.FxN
                     if (result == null || result.exitCode != 0) {
                         String detail = result == null || result.output == null
                                 ? "Root 读取失败。" : result.output.trim();
-                        if (detail.length() > 240) detail = detail.substring(0, 240);
                         status.setText("读取监控事件失败："
                                 + (detail.isEmpty() ? "没有错误详情。" : detail));
                         events = new ArrayList<>();
