@@ -500,6 +500,13 @@ _render_managed_config() {
     _log 'saved fallback DNS list is invalid; refusing to render AdGuard config'
     return 1
   fi
+  # When an explicitly selected external upstream has no user-supplied
+  # fallback, keep DNS available through FX's own recursive Unbound service.
+  # Explicit fallback entries remain authoritative and are never overwritten.
+  if [ ! -s "$_fallback_file" ] &&
+     { [ "$_custom_dns_enabled" = 1 ] || [ "$_global_dns_enabled" = 1 ]; }; then
+    printf '  - 127.0.0.1:5353\n' > "$_fallback_file" || return 1
+  fi
   if ! awk -v querylog_interval="$_querylog_interval" -v querylog_enabled="$_dns_querylog_enabled" -v dns_response_mode="$_dns_response_mode" -v rules_file="$_rules_file" -v filters_file="$_filters_file" -v fallback_file="$_fallback_file" -v upstream_file="$_upstream_file" -v bootstrap_file="$_bootstrap_file" '
     /^querylog:[[:space:]]*$/ {in_querylog=1; print; next}
     in_querylog && /^[^[:space:]]/ {in_querylog=0}
@@ -688,12 +695,16 @@ _config_contract() {
     dns && fallback && /^  - / {
       server=$2
       fallback_count++
-      n=split(server,octets,".")
-      valid=(n==4)
-      for(i=1;i<=n;i++) if(octets[i]!~/^[0-9]+$/ || length(octets[i])>3 || octets[i]+0>255 || (octets[i]!="0" && octets[i]~/^0/)) valid=0
-      if(octets[1]+0==0 || octets[1]+0==127 || octets[1]+0>=224) valid=0
-      if(octets[1]+0==169 && octets[2]+0==254) valid=0
-      if(!valid || fallback_seen[server]++) unsafe_fallback=1
+      if (server=="127.0.0.1:5353") {
+        if (fallback_seen[server]++) unsafe_fallback=1
+      } else {
+        n=split(server,octets,".")
+        valid=(n==4)
+        for(i=1;i<=n;i++) if(octets[i]!~/^[0-9]+$/ || length(octets[i])>3 || octets[i]+0>255 || (octets[i]!="0" && octets[i]~/^0/)) valid=0
+        if(octets[1]+0==0 || octets[1]+0==127 || octets[1]+0>=224) valid=0
+        if(octets[1]+0==169 && octets[2]+0==254) valid=0
+        if(!valid || fallback_seen[server]++) unsafe_fallback=1
+      }
     }
     END {
       exit (http_loopback && dns_port=="53" &&
