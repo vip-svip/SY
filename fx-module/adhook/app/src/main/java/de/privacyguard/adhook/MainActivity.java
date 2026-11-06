@@ -2218,7 +2218,8 @@ public final class MainActivity extends ComponentActivity {
                         && !"false".equals(requiresBodyOption)) continue;
                 boolean requiresBody = actionRequiresBody
                         || ("1".equals(requiresBodyOption) || "true".equals(requiresBodyOption));
-                if (pattern.length() > 2048 || name.length() > 512) continue;
+                if (pattern.length() > 2048 || pattern.matches("(?s).*\\p{Cntrl}.*")
+                        || name.length() > 512) continue;
                 String safeName = name.replaceAll("[\\p{Cntrl}]", " ").trim();
                 if (safeName.isEmpty() || safeName.length() > 512) continue;
                 String bodyFlag = requiresBody ? "1" : "0";
