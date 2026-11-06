@@ -645,7 +645,13 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
        txt("远端 DNS",12,0xff617080,true),remoteDns,
        btn("保存远端 DNS",()->saveVpnDns("remote_dns",remoteDns)),
        txt("国内直连 DNS",12,0xff617080,true),cnDns,
-       btn("保存国内直连 DNS",()->saveVpnDns("cn_dns",cnDns)));
+       btn("保存国内直连 DNS",()->saveVpnDns("cn_dns",cnDns)),
+       btn("恢复 VPN DNS 默认值",()->fxDialogBuilder().setTitle("恢复 VPN DNS 默认值")
+         .setMessage("将远端 DNS 恢复为 1.1.1.1，国内直连 DNS 恢复为 223.5.5.5。两项在同一配置事务中写入，失败时回滚。是否继续？")
+         .setNegativeButton("取消",null).setPositiveButton("恢复",(d,w)->root("dns-vpn-reset",r->{
+           if(r.exitCode==0){remoteDns.setText("1.1.1.1");cnDns.setText("223.5.5.5");status.setText("VPN DNS 默认值已恢复。");load();}
+           else fxDialogBuilder().setTitle("恢复失败").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
+         })).show()));
   card("DNS 查询日志","默认关闭。仅本机保存最近 7 天 DNS 查询记录，不会上传查询记录。",
        dnsSwitch("启用本地 DNS 查询日志","dns_querylog_enabled"),
        btn("查看 DNS 查询日志",()->startActivity(new Intent(this,FxYulongDnsActivity.class))));
