@@ -1884,7 +1884,7 @@ dns_rewrites_values() {
     inside {
       if(substr($0,1,8)!="rewrite="){bad=1;next}
       value=substr($0,9)
-      parts=split(value,p,"|")
+      parts=split(value,p,/[|]/)
       host=tolower(p[1]); answer=tolower(p[2])
       if(parts!=2 || !valid_domain(host) || !valid_answer(answer) || seen[host]++){bad=1;next}
       print host "|" answer
@@ -1904,7 +1904,7 @@ dns_rewrites_yaml() {
   [ -n "$_rewrite_rows" ] || return 0
   while IFS='|' read -r _rewrite_domain _rewrite_answer; do
     [ -n "$_rewrite_domain" ] || continue
-    printf '  - domain: "%s"\n    answer: "%s"\n' "$_rewrite_domain" "$_rewrite_answer"
+    printf '    - domain: "%s"\n      answer: "%s"\n' "$_rewrite_domain" "$_rewrite_answer"
   done <<EOF_REWRITE_ROWS
 $_rewrite_rows
 EOF_REWRITE_ROWS
