@@ -538,11 +538,13 @@ _render_managed_config() {
       return n==2 && valid_ipv4(a[1]) && a[2]~/^[0-9]+$/ &&
         a[2]+0>=1 && a[2]+0<=65535
     }
-    $0=="[conf:yulong_dns_fallback]" {inside=1;next}
+    $0=="[conf:yulong_dns_fallback]" {sections++; if(sections>1) bad=1; inside=1; next}
     /^\[/ {inside=0}
-    inside && /^[[:space:]]*nameserver([[:space:]]|$)/ {
-      # Each entry is one exact key/value pair. Extra tokens, missing values,
-      # malformed keys, and duplicate nameserver keys are configuration errors.
+    inside && /^[[:space:]]*#/ {next}
+    inside && /^[[:space:]]*$/ {next}
+    inside && /^[[:space:]]*[^#[:space:]]/ {
+      # Accept only complete nameserver key/value pairs; reject malformed,
+      # duplicate, unknown, or empty fallback entries instead of skipping them.
       if(NF!=2 || $1!="nameserver") {bad=1; next}
       server=$2
       if(!valid_ipv4(server) && !valid_ipv4_port(server)) {bad=1; next}
@@ -550,10 +552,7 @@ _render_managed_config() {
       count++
       print "  - " server
     }
-    inside && /^[[:space:]]*[^#[:space:]][^[:space:]]*[[:space:]]+/ {
-      if($1!="nameserver") bad=1
-    }
-    END {if(bad) exit 1}
+    END {if(bad || sections>1) exit 1}
   ' "$PG/settings.conf" > "$_fallback_file"; then
     rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
     _log 'saved fallback DNS list is invalid; refusing to render AdGuard config'
