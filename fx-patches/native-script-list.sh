@@ -159,7 +159,7 @@ case "$ACTION" in
                 batch_duplicate=$((batch_duplicate+1))
                 continue
               fi
-              printf '%s|%s|%s\\n' "$value" "$note" "$enabled" >> "$ROWS" || {
+              printf '%s|%s|%s\n' "$value" "$note" "$enabled" >> "$ROWS" || {
                 batch_failed=$((batch_failed+1)); continue;
               }
               batch_added=$((batch_added+1))
