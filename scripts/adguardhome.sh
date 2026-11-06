@@ -677,11 +677,7 @@ _config_contract() {
       if(substr(v,1,8)=="https://") {
         rest=substr(v,9); split(rest,parts,"/"); authority=parts[1]
         if(!valid_hostport(authority)) return 0
-        return rest~/^[A-Za-z0-9.-]+(:[0-9]+)?(\/[A-Za-z0-9._~!_config_contract() {
-  # AdGuard must remain a loopback-only DNS filter. Its sole upstream is the
-  # local recursive Unbound listener; never allow a saved config to introduce
-  # a public resolver or expose the DNS/admin listeners on LAN interfaces.
-  awk '()*+,;=:@%/?#-]*)?$/
+        return rest~/^[A-Za-z0-9.-]+(:[0-9]+)?(\\/[A-Za-z0-9._~!$&()*+,;=:@%/?#-]*)?$/
       }
       if(substr(v,1,6)=="tls://") return valid_hostport(substr(v,7))
       if(substr(v,1,7)=="quic://") return valid_hostport(substr(v,8))
