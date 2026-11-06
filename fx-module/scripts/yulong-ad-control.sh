@@ -285,7 +285,8 @@ validate_existing_dns_section() {
   }
   case "$section" in
     custom_dns) [ -z "$existing" ] || valid_dns_csv "$existing" ;;
-    global_dns|yulong_dns_fallback) [ -z "$existing" ] || valid_ipv4_dns_csv "$existing" ;;
+    global_dns) [ -z "$existing" ] || valid_ipv4_dns_csv "$existing" ;;
+    yulong_dns_fallback) [ -z "$existing" ] || valid_fallback_dns_csv "$existing" ;;
     *) return 2 ;;
   esac || {
     echo "existing DNS section [$section] contains invalid or unsupported endpoints" >&2
