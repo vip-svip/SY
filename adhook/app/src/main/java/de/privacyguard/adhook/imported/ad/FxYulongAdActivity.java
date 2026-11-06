@@ -39,7 +39,7 @@ public final class FxYulongAdActivity extends de.privacyguard.adhook.FxNativeTab
  private final ThreadPoolExecutor worker = new ThreadPoolExecutor(1, 1, 30L,
          TimeUnit.SECONDS, new ArrayBlockingQueue<>(8),
          r -> new Thread(r, "fx-yulong-ad-ui"), new ThreadPoolExecutor.AbortPolicy());
- private LinearLayout body,entries; private TextView status; private EditText search;
+ private LinearLayout body,entries; private TextView status; private EditText search,domainSearch;
  private ScrollView pageScroll;
  private int pendingPageScrollY;
  private boolean pendingPageScrollRestore;
@@ -750,9 +750,35 @@ private void saveVpnDns(String key,EditText input){
       btn("分享全部白名单",()->shareDomainList("ALLOW")),
       btn("分享全部黑名单",()->shareDomainList("BLOCK")),
       btn("分享白名单 + 黑名单",()->shareDomainList("BOTH")));
+  domainSearch=draftField("domain_search");
+  domainSearch.setSingleLine(true);
+  domainSearch.setHint("筛选白名单/黑名单域名或备注");
+  domainSearch.addTextChangedListener(new TextWatcher(){
+   @Override public void beforeTextChanged(CharSequence s,int start,int count,int after){}
+   @Override public void onTextChanged(CharSequence s,int start,int before,int count){bind();}
+   @Override public void afterTextChanged(Editable e){}
+  });
+  card("域名名单筛选与批量管理",
+      "搜索同时匹配域名与备注；下面两项批量移除只作用于当前搜索命中的对应名单。",
+      domainSearch,
+      btn("批量移除筛选命中的白名单",()->removeFilteredDomains("ALLOW")),
+      btn("批量移除筛选命中的黑名单",()->removeFilteredDomains("BLOCK")));
   entries=new LinearLayout(this); entries.setOrientation(1); body.addView(entries);
  }
 
+ private void removeFilteredDomains(String kind){
+  String filter=domainSearch==null||domainSearch.getText()==null?"":domainSearch.getText().toString().trim().toLowerCase(Locale.ROOT);
+  List<String> selected=new ArrayList<>();
+  for(Row row:rows(kind)){
+   if(filter.isEmpty()||(row.value+" "+row.title).toLowerCase(Locale.ROOT).contains(filter))selected.add(row.value);
+  }
+  if(selected.isEmpty()){status.setText("当前筛选条件下没有匹配的"+("ALLOW".equals(kind)?"白名单":"黑名单")+"条目。");return;}
+  EditText values=new EditText(this);
+  StringBuilder joined=new StringBuilder();
+  for(String value:selected){if(joined.length()>0)joined.append('\n');joined.append(value);}
+  values.setText(joined.toString());
+  removeDomains("ALLOW".equals(kind)?"allow":"block",values);
+ }
 
  private void shareDomainList(String kind){
   if(snapshot==null||snapshot.isEmpty()){
@@ -948,7 +974,15 @@ private void saveVpnDns(String key,EditText input){
     }
    }
    else if("DNS 设置".equals(page)||"VPN 与 Root Proxy".equals(page)){syncing=true;for(int i=0;i<body.getChildCount();i++)if(body.getChildAt(i) instanceof LinearLayout){LinearLayout p=(LinearLayout)body.getChildAt(i);for(int j=0;j<p.getChildCount();j++)if(p.getChildAt(j) instanceof Switch){Switch sw=(Switch)p.getChildAt(j);if(sw.getTag() instanceof String){sw.setChecked(dnsValue((String)sw.getTag()).equals("1"));sw.setEnabled(true);}}}syncing=false;}
- else if("域名名单".equals(page)&&entries!=null){entries.removeAllViews();for(Row e:rows("ALLOW"))domainRow(e,true);for(Row e:rows("BLOCK"))domainRow(e,false);if(entries.getChildCount()==0)entries.addView(txt("暂无用户自定义域名名单。",12,0xff718091,false));}}
+ else if("域名名单".equals(page)&&entries!=null){
+    entries.removeAllViews();
+    String filter=domainSearch==null||domainSearch.getText()==null?"":domainSearch.getText().toString().trim().toLowerCase(Locale.ROOT);
+    int shown=0,total=0;
+    for(Row e:rows("ALLOW")){total++;if(filter.isEmpty()||(e.value+" "+e.title).toLowerCase(Locale.ROOT).contains(filter)){domainRow(e,true);shown++;}}
+    for(Row e:rows("BLOCK")){total++;if(filter.isEmpty()||(e.value+" "+e.title).toLowerCase(Locale.ROOT).contains(filter)){domainRow(e,false);shown++;}}
+    if(entries.getChildCount()==0)entries.addView(txt(total==0?"暂无用户自定义域名名单。":"当前筛选没有匹配的域名。",12,0xff718091,false));
+    status.setText("域名名单：显示 "+shown+" / "+total+" 条"+(filter.isEmpty()?"。":"（当前筛选）。"));
+   }}
  private void copyAutomationAction(String value){
   android.content.ClipboardManager clipboard=(android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
   if(clipboard!=null){clipboard.setPrimaryClip(android.content.ClipData.newPlainText("FX Tasker action",value));Toast.makeText(this,"广播 Action 已复制。",Toast.LENGTH_SHORT).show();}
