@@ -346,9 +346,17 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
                 if (isBlocked) blocked++;
             } catch (Exception ignored) { malformed++; }
         }
+        java.util.Collections.sort(data, (left, right) -> {
+            long leftTime = parseLogTime(left.time);
+            long rightTime = parseLogTime(right.time);
+            if (leftTime < 0L && rightTime >= 0L) return 1;
+            if (rightTime < 0L && leftTime >= 0L) return -1;
+            if (leftTime < 0L) return 0;
+            return Long.compare(rightTime, leftTime);
+        });
         status.setText("本次解析 " + total + " 条 · 拦截 " + blocked + " 条 · 放行/未拦截 "
                 + Math.max(0, total - blocked) + " 条 · 无法解析/缺少域名 " + malformed
-                + " 条。数据来自本机全部保留的活动及轮转查询日志；若异常数大于 0，请检查本地日志格式。");
+                + " 条。数据来自本机全部保留的活动及轮转查询日志，按时间从新到旧排序；无法识别时间的记录保留在末尾。");
         render();
     }
 
@@ -740,7 +748,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
 
     private void confirmClear() {
         fxDialogBuilder().setTitle("清理本地 DNS 查询日志")
-                .setMessage("只清理 FX AdGuard Home 自己的 querylog.json 文件，不修改 DNS 规则、Hosts 或系统日志。")
+                .setMessage("清理 FX AdGuard Home 自己的活动查询日志及全部轮转日志文件；不修改 DNS 规则、Hosts 或系统日志。")
                 .setNegativeButton("取消", null)
                 .setPositiveButton("清理", (d, w) -> {
                     loadGeneration.incrementAndGet();
@@ -749,7 +757,12 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
                     root(shell("dns-log-clear"), result -> {
                         if (clearButton != null) clearButton.setEnabled(true);
                         if (result.exitCode == 0) {
-                            status.setText("本地 DNS 查询日志已清理。");
+                            String output = result.output == null ? "" : result.output;
+                            java.util.regex.Matcher files = java.util.regex.Pattern
+                                    .compile("(?:^|\\s)files=([0-9]+)(?:\\s|$)")
+                                    .matcher(output);
+                            String count = files.find() ? files.group(1) : "未知";
+                            status.setText("本地活动及轮转 DNS 查询日志已清理，共处理 " + count + " 个文件。");
                             data.clear(); render();
                         } else status.setText("清理失败：" + safe(result.output));
                     });
