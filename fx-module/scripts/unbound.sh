@@ -226,6 +226,16 @@ _render_config() {
   _ub_prefetch=$(_unbound_runtime_value UNBOUND_PREFETCH) || return 1
   _ub_prefetch_key=$(_unbound_runtime_value UNBOUND_PREFETCH_KEY) || return 1
   _ub_qname_minimisation=$(_unbound_runtime_value UNBOUND_QNAME_MINIMISATION) || return 1
+  _ub_msg_cache_size=$(_unbound_runtime_value UNBOUND_MSG_CACHE_SIZE) || return 1
+  _ub_rrset_cache_size=$(_unbound_runtime_value UNBOUND_RRSET_CACHE_SIZE) || return 1
+  _ub_key_cache_size=$(_unbound_runtime_value UNBOUND_KEY_CACHE_SIZE) || return 1
+  _ub_neg_cache_size=$(_unbound_runtime_value UNBOUND_NEG_CACHE_SIZE) || return 1
+  for _ub_cache_size in "$_ub_msg_cache_size" "$_ub_rrset_cache_size" "$_ub_key_cache_size" "$_ub_neg_cache_size"; do
+    case "$_ub_cache_size" in ''|*[!0-9kKmMgG]*) _log 'Unbound cache pool size has invalid syntax'; return 1 ;; esac
+    _ub_cache_size_number=$_ub_cache_size
+    case "$_ub_cache_size_number" in *[kKmMgG]) _ub_cache_size_number=${_ub_cache_size_number%?} ;; esac
+    case "$_ub_cache_size_number" in ''|*[!0-9]*) _log 'Unbound cache pool size has invalid numeric value'; return 1 ;; esac
+  done
   case "$_ub_serve_expired:$_ub_prefetch:$_ub_prefetch_key:$_ub_qname_minimisation" in
     0:0:0:0|0:0:0:1|0:0:1:0|0:0:1:1|0:1:0:0|0:1:0:1|0:1:1:0|0:1:1:1|1:0:0:0|1:0:0:1|1:0:1:0|1:0:1:1|1:1:0:0|1:1:0:1|1:1:1:0|1:1:1:1) : ;;
     *) _log 'Unbound runtime boolean setting is invalid'; return 1 ;;
@@ -267,10 +277,10 @@ $_egress_config  port: 5353
   serve-expired-client-timeout: $_ub_serve_expired_client_timeout
   edns-buffer-size: 1232
   max-udp-size: 1232
-  msg-cache-size: 8m
-  rrset-cache-size: 16m
-  key-cache-size: 4m
-  neg-cache-size: 2m
+  msg-cache-size: $_ub_msg_cache_size
+  rrset-cache-size: $_ub_rrset_cache_size
+  key-cache-size: $_ub_key_cache_size
+  neg-cache-size: $_ub_neg_cache_size
   cache-max-ttl: $_ub_cache_max_ttl
   cache-min-ttl: $_ub_cache_min_ttl
   unwanted-reply-threshold: 10000000
