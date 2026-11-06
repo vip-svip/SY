@@ -6878,3 +6878,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 修复 AdGuard 配置指纹长度展开中的转义，恢复 `_current_config_hash()` 的长度判断。
 - 更新 `scripts/native-dns-settings.sh`（`3dbe084a`）及 `fx-module/scripts/native-dns-settings.sh`（`87e00622`），订阅总数/启用数统计现在与 AdGuard 过滤源编译器使用相同的 URL 字符白名单，避免界面数量与实际载入规则不一致。
 - 本批仅编辑源码和交接记录；未运行 shell 检查、回归测试、Python/Gradle 构建、CI 或真机验证。
+
+
+## 2026-11-06 — QuickJS 首批 Egern ctx 兼容接入
+
+- 更新 `fx-module/scripts/jsruntime/host.js`（`5b6fce94c8b6c90c2a9a26420fdb8c8fc2fc9cb9`）：在既有 QuickJS 宿主上接入 Egern 风格 `ctx` 子集，包括脚本/环境/应用/设备上下文、请求与响应对象、大小写不敏感 Headers 方法、HTTP Promise 方法、持久化存储和通知转发；HTTP 请求头支持数组多值。
+- 更新 `fx-module/scripts/jsruntime/runner.sh`（`b050125453af6d0dbc70dc273e315c14dffe78b9`）：识别 Egern 常见的 `export default async function(ctx)` 入口，转换为现有 QuickJS 执行入口，并将 Promise 返回值交回现有 `$done` 结果管道。
+- 更新 `fx-module/scripts/jsruntime/README-zh-CN.md`（`027bf4a704f17cdd5808c482559a6b3276cb709e`）：记录 Egern 首批支持 API 与边界，明确暂不支持 ESM import、流/Blob/ArrayBuffer、SSH、`ctx.respond()`、`ctx.abort()` 和策略/网络专属接口。
+- 更新 `.github/workflows/build-fx-kernelsu.yml`（`d2e2ab61b25d563fab0f11ff0b480551f1ca4894`）：恢复旧 FX 1.0.0 Release 模块归档后，重新放回当前分支的 QuickJS host、runner 和 README，避免迁移内容被旧归档覆盖。
+- 按当前推进要求，本批未执行测试、静态检查、Gradle/Android 构建、CI 或设备验证；Egern API 为首批兼容子集，尚不能描述为完整 Egern 运行时。
