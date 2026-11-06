@@ -7911,7 +7911,7 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - 三组 DNS 上游、VPN 双 DNS、拦截响应、查询日志及 DNS 策略统一写入；原生 AdGuard Home/转发/Root Proxy/VPN 兼容开关先按依赖关系归一化。
   - 使用单一 FX 配置锁、整份配置备份/回滚及完整 apply；应用失败恢复原配置并重新协调运行态。
 - UI 提交：1abd3b9e2cdd745ee2e916a658c2efe8b19679ab；文件 `adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
-  - DNS 备份卡新增快照粘贴与恢复入口，限制 48 KiB，确认后单次提交；成功刷新页面，失败显示后端回滚结果。
+  - DNS 备份卡新增快照粘贴与恢复入口，限制 48 KiB，确认后单次提交；兼容导出文件中的说明注释行，恢复前仅保留版本头与配置字段；成功刷新页面，失败显示后端回滚结果。
   - 恢复只作用于 DNS 配置范围，不上传快照、不改变其他模块设置。
 - 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证；恢复流程尚未验收。
 
