@@ -17,6 +17,7 @@ CFG="$STATE/AdGuardHome.yaml"
 WORK="$STATE/work"
 PIDFILE="$STATE/managed.pid"
 CONFIG_HASH="$STATE/config.sha256"
+LIFECYCLE_LOCK="$STATE/lifecycle.lock"
 LOG="$STATE/engine.log"
 PATH=/system/bin:/system/xbin:/sbin:/vendor/bin:/usr/bin:/bin
 export PATH
@@ -703,13 +704,54 @@ _ensure() {
   return 1
 }
 
+
+_release_lifecycle_lock() {
+  [ -d "$LIFECYCLE_LOCK" ] && [ ! -L "$LIFECYCLE_LOCK" ] || return 0
+  _lock_owner_file="$LIFECYCLE_LOCK/owner"
+  [ -f "$_lock_owner_file" ] && [ ! -L "$_lock_owner_file" ] || return 0
+  _lock_owner=$(cat "$_lock_owner_file" 2>/dev/null) || return 0
+  [ "$_lock_owner" = "$" ] || return 0
+  rm -f "$_lock_owner_file" 2>/dev/null || return 1
+  rmdir "$LIFECYCLE_LOCK" 2>/dev/null || return 1
+  return 0
+}
+_with_lifecycle_lock() {
+  _locked_action=$1
+  _prepare_state_dirs || return 1
+  _wait=0
+  while ! mkdir "$LIFECYCLE_LOCK" 2>/dev/null; do
+    [ ! -L "$LIFECYCLE_LOCK" ] && [ -d "$LIFECYCLE_LOCK" ] || {
+      _log 'unsafe AdGuard Home lifecycle lock path'
+      return 1
+    }
+    if [ "$_wait" -ge 35 ]; then
+      _log 'AdGuard Home lifecycle operation is busy; refusing concurrent start/stop'
+      return 1
+    fi
+    sleep 1
+    _wait=$((_wait+1))
+  done
+  if ! printf '%s\\n' "$" > "$LIFECYCLE_LOCK/owner"; then
+    rmdir "$LIFECYCLE_LOCK" 2>/dev/null || :
+    _log 'unable to publish AdGuard Home lifecycle lock owner'
+    return 1
+  fi
+  chmod 700 "$LIFECYCLE_LOCK" 2>/dev/null || {
+    rm -f "$LIFECYCLE_LOCK/owner" 2>/dev/null || :
+    rmdir "$LIFECYCLE_LOCK" 2>/dev/null || :
+    return 1
+  }
+  trap '_release_lifecycle_lock' EXIT
+  trap 'exit 1' HUP INT TERM
+  "$_locked_action"
+}
+
 case "$ACTION" in
   ensure)
-    _ensure
+    _with_lifecycle_lock _ensure
     ;;
   stop)
-    _prepare_state_dirs || exit 1
-    _stop
+    _with_lifecycle_lock _stop
     ;;
   status)
     if [ -z "$PG" ] || [ ! -d "$PG" ] || [ -L "$PG" ] || ! _path_components_are_safe "$PG"; then
