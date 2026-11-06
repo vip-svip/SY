@@ -7191,3 +7191,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Stash 版本字段现在只由后续显式 Stash compatibility profile 注入；其他 profile 不再被误识别为 Stash。保留 Android、FX 运行时版本、设备和语言等通用环境字段。
 - 代码提交：`ab486889b052fd0c8adbd13b71e57d2211f2e515`。
 - 按用户要求未运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-06 — 通知权限多层查询 Hook 部分注册重试
+
+- 扩展通知权限查询注册记账：NotificationManager 的应用/指定包通知开关查询、ContextWrapper/ContextImpl 的 checkSelfPermission/checkPermission、ApplicationPackageManager/PackageManager 的 checkPermission/getPermissionFlags，以及 AppOpsManager 的 post_notification 查询，全部按 Method 独立登记成功项。
+- 移除通知权限 Hook 单个全局成功布尔值的提前返回；某一层或某个 OEM API 无法注册时，其余查询入口继续安装，之后的包加载只重试未成功的方法，不重复注册已成功的方法。
+- 应用 Hook 提交：`cb8ab18a9216a03f99b593061a649efee2bfa436`；模块 Hook 提交：`7dac274ba44c667bec51d10e03b20e90cfb61b1b`。
+- 与本批剪贴板、Wi-Fi 扫描及通知读取方法级重试共同构成隐私 Hook 的分层注册；策略仍保留按应用授权、系统/FX/LSPosed 保护名单及共享包进程 fail-open。
+- 固定 FX 1.0.0。按要求未运行测试、静态检查、构建、CI 或真机验证。
