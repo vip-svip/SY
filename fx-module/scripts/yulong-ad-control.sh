@@ -1513,13 +1513,13 @@ dns_querylog_runtime_get() {
     echo "querylog_memory_size=unknown"
     return 22
   }
-  valid_dns_querylog_memory_size "$_mem_value" || {
-    echo "querylog_memory_size=unknown"
-    return 22
-  }
   _mem_limit=$(dns_querylog_memory_limit) || {
     echo "querylog_memory_size=unknown"
     echo "querylog_memory_max=unavailable"
+    return 22
+  }
+  valid_dns_querylog_memory_size "$_mem_value" || {
+    echo "querylog_memory_size=unknown"
     return 22
   }
   echo FXYULONGDNSQUERYLOG1
