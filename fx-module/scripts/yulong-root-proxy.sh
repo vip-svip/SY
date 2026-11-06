@@ -25,6 +25,7 @@ EGRESS="$PG/unbound-vpn-egress-ip"
 LOCK="$PG/yulong-root-proxy.lock"
 LOG="$PG/yulong-root-proxy.log"
 _RPROXY_TEMP=
+_RPROXY_PRUNE_PACKAGES=
 _reject_symlink_components() {
   _symlink_path=$1
   while [ -n "$_symlink_path" ] && [ "$_symlink_path" != "/" ]; do
@@ -680,6 +681,7 @@ with_lock() {
 
   cleanup_lock() {
     [ -z "$_RPROXY_TEMP" ] || rm -f "$_RPROXY_TEMP" 2>/dev/null || :
+    [ -z "$_RPROXY_PRUNE_PACKAGES" ] || rm -f "$_RPROXY_PRUNE_PACKAGES" 2>/dev/null || :
     [ "$_lock_held" = 1 ] || return 0
     _owner="$(_read_lock_owner "$LOCK" 2>/dev/null || true)"
     if [ "$_owner" = "$$" ]; then
@@ -726,24 +728,92 @@ _whitelist_prune_locked() {
   [ -f "$CONF" ] && [ ! -L "$CONF" ] || { _log "settings.conf is missing or unsafe"; return 21; }
   _snapshot=$(cmd package list packages -U 2>/dev/null) || { _log "cannot read PackageManager snapshot; whitelist unchanged"; return 1; }
   [ -n "$_snapshot" ] || { _log "PackageManager returned an empty snapshot; whitelist unchanged"; return 1; }
-  printf '%s\n' "$_snapshot" | awk '
+
+  # Materialize a validated installed-package set once. The previous loop
+  # rewrote settings.conf once per stale package, which made large inventories
+  # needlessly slow and exposed many separate write windows.
+  _RPROXY_PRUNE_PACKAGES=$(mktemp "$PG/yulong-root-proxy-packages.XXXXXX") || return 1
+  if ! printf '%s\n' "$_snapshot" | awk '
     $1 ~ /^package:[A-Za-z0-9_.-]+$/ {
-      for(i=2;i<=NF;i++) if($i ~ /^uid:[0-9]+$/) {valid=1; break}
+      pkg=substr($1,9); uid_ok=0
+      for(i=2;i<=NF;i++) if($i ~ /^uid:[0-9]+$/) {uid_ok=1; break}
+      if(uid_ok && pkg ~ /^[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+$/) {
+        if(!seen[pkg]++) print pkg
+        valid++
+      }
     }
     END {exit !valid}
-  ' || { _log "PackageManager snapshot is malformed; whitelist unchanged"; return 1; }
-  _removed=0
-  _packages=$(_list_whitelist_packages) || return 1
-  while IFS= read -r _package; do
-    [ -n "$_package" ] || continue
-    if ! printf '%s\n' "$_snapshot" | awk -v wanted="package:$_package" '$1==wanted {found=1} END {exit !found}'; then
-      _whitelist_set_value "$_package" 0 || return 1
-      _removed=$((_removed + 1))
+  ' > "$_RPROXY_PRUNE_PACKAGES"; then
+    rm -f "$_RPROXY_PRUNE_PACKAGES"; _RPROXY_PRUNE_PACKAGES=
+    _log "PackageManager snapshot is malformed; whitelist unchanged"
+    return 1
+  fi
+  [ -s "$_RPROXY_PRUNE_PACKAGES" ] || {
+    rm -f "$_RPROXY_PRUNE_PACKAGES"; _RPROXY_PRUNE_PACKAGES=
+    _log "PackageManager snapshot has no usable package/UID rows; whitelist unchanged"
+    return 1
+  }
+  chmod 600 "$_RPROXY_PRUNE_PACKAGES" 2>/dev/null || {
+    rm -f "$_RPROXY_PRUNE_PACKAGES"; _RPROXY_PRUNE_PACKAGES=
+    return 1
+  }
+
+  _removed=$(awk -F'|' '
+    FNR==NR {installed[$1]=1; next}
+    $0=="[list:yulong_root_proxy_whitelist]" {inside=1; next}
+    /^\[/ {inside=0}
+    inside && $1 ~ /^[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+$/ && $2=="1" && !($1 in installed) {
+      count++
+    }
+    END {print count+0}
+  ' "$_RPROXY_PRUNE_PACKAGES" "$CONF") || {
+    rm -f "$_RPROXY_PRUNE_PACKAGES"; _RPROXY_PRUNE_PACKAGES=
+    return 1
+  }
+  case "$_removed" in ''|*[!0-9]*)
+    rm -f "$_RPROXY_PRUNE_PACKAGES"; _RPROXY_PRUNE_PACKAGES=
+    _log "unable to count stale DNS whitelist entries; whitelist unchanged"
+    return 1
+    ;;
+  esac
+
+  if [ "$_removed" -gt 0 ]; then
+    [ -f "$CONF" ] && [ ! -L "$CONF" ] || {
+      rm -f "$_RPROXY_PRUNE_PACKAGES"; _RPROXY_PRUNE_PACKAGES=
+      _log "settings.conf changed to an unsafe path during whitelist prune"
+      return 21
+    }
+    _RPROXY_TEMP=$(mktemp "$CONF.yulong-rootproxy-prune.XXXXXX") || {
+      rm -f "$_RPROXY_PRUNE_PACKAGES"; _RPROXY_PRUNE_PACKAGES=
+      return 1
+    }
+    if ! awk -F'|' '
+      FNR==NR {installed[$1]=1; next}
+      $0=="[list:yulong_root_proxy_whitelist]" {inside=1; print; next}
+      /^\[/ {inside=0}
+      inside && $1 ~ /^[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+$/ && $2=="1" && !($1 in installed) {next}
+      {print}
+    ' "$_RPROXY_PRUNE_PACKAGES" "$CONF" > "$_RPROXY_TEMP"; then
+      rm -f "$_RPROXY_TEMP" "$_RPROXY_PRUNE_PACKAGES"
+      _RPROXY_TEMP=; _RPROXY_PRUNE_PACKAGES=
+      _log "unable to stage atomic DNS whitelist prune; configuration unchanged"
+      return 1
     fi
-  done <<EOF
-$_packages
-EOF
+    if [ -s "$_RPROXY_TEMP" ] && [ -f "$_RPROXY_TEMP" ] && [ ! -L "$_RPROXY_TEMP" ] \
+        && [ -f "$CONF" ] && [ ! -L "$CONF" ] \
+        && chmod 600 "$_RPROXY_TEMP" && mv -f "$_RPROXY_TEMP" "$CONF"; then
+      _RPROXY_TEMP=
+    else
+      rm -f "$_RPROXY_TEMP" "$_RPROXY_PRUNE_PACKAGES"
+      _RPROXY_TEMP=; _RPROXY_PRUNE_PACKAGES=
+      _log "atomic DNS whitelist prune commit failed; configuration unchanged"
+      return 1
+    fi
+  fi
+  rm -f "$_RPROXY_PRUNE_PACKAGES"
+  _RPROXY_PRUNE_PACKAGES=
   echo "removed=$_removed"
+
   if [ "$_removed" -gt 0 ] && [ -s "$ACTIVE_META" ]; then
     [ ! -L "$ACTIVE_META" ] || { _stop_locked; _log "unsafe active metadata after whitelist prune"; return 1; }
     _iface=$(sed -n '1p' "$ACTIVE_META" 2>/dev/null)
