@@ -67,11 +67,26 @@ valid_package() {
 }
 read_rows() {
   awk -F'|' '
-    $0=="[list:yulong_app_whitelist]" {inlist=1; next}
-    /^\[/ {inlist=0}
-    inlist && NF>=3 &&
-      $1 ~ /^[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+$/ &&
-      ($3=="0" || $3=="1") {print $1 "|" $2 "|" $3}
+    $0=="[list:yulong_app_whitelist]" {
+      sections++
+      if(sections>1) bad=1
+      inlist=1
+      next
+    }
+    /^\\[/ {inlist=0}
+    inlist && $0 !~ /^[[:space:]]*$/ && $0 !~ /^[[:space:]]*#/ {
+      if(NF!=3 ||
+         $1 !~ /^[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+$/ ||
+         $2=="" || $3!="0" && $3!="1" || seen[$1]++) {
+        bad=1
+        next
+      }
+      rows[++count]=$1 "|" $2 "|" $3
+    }
+    END {
+      if(sections!=1 || bad) exit 2
+      for(i=1;i<=count;i++) print rows[i]
+    }
   ' "$CONF"
 }
 write_item() {
