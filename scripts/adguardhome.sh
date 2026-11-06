@@ -19,6 +19,7 @@ PIDFILE="$STATE/managed.pid"
 CONFIG_HASH="$STATE/config.sha256"
 LIFECYCLE_LOCK="$STATE/lifecycle.lock"
 LOG="$STATE/engine.log"
+PROBE="$MODDIR/engines/unbound/fx-dns-probe"
 PATH=/system/bin:/system/xbin:/sbin:/vendor/bin:/usr/bin:/bin
 export PATH
 
@@ -119,7 +120,9 @@ _check_files() {
   _safe_file_or_absent "$TEMPLATE" && [ -s "$TEMPLATE" ] || {
     _log 'AdGuard Home runtime YAML template is missing or unsafe'; return 1;
   }
-  _hash "$BIN" "$BIN.sha256"
+  _hash "$BIN" "$BIN.sha256" || return 1
+  [ -x "$PROBE" ] || { _log 'FX uncached DNS health probe is missing or not executable'; return 1; }
+  _hash "$PROBE" "$PROBE.sha256"
 }
 _build_user_rules() {
   _output=$1
@@ -895,26 +898,13 @@ _valid_ipv4() {
     END {exit(ok ? 0 : 1)}
   '
 }
-_probe_endpoint() {
-  _server=$1
-  _probe_output=$(timeout 5 nslookup example.com "$_server" 2>&1) || return 1
-  _probe_answers=$(printf '%s\n' "$_probe_output" | awk '
-    tolower($0) ~ /^[[:space:]]*name:[[:space:]]*example[.]com([.]?)([[:space:]]|$)/ {
-      answer=1; next
-    }
-    answer && tolower($0) ~ /^[[:space:]]*address([[:space:]]+[0-9]+)?:[[:space:]]*[0-9]+([.][0-9]+){3}([[:space:]]|$)/ {
-      print $NF
-    }
-  ')
-  for _answer in $_probe_answers; do
-    _valid_ipv4 "$_answer" && return 0
-  done
-  return 1
-}
 _probe() {
-  command -v nslookup >/dev/null 2>&1 && command -v timeout >/dev/null 2>&1 || return 1
-  _probe_endpoint 127.0.0.1 || return 1
-  _probe_endpoint ::1 || return 1
+  # Use a random, uncached query and validate the DNS transaction itself.
+  # This checks the actual AdGuard listener and selected upstream/fallback
+  # path instead of allowing a cached example.com A record to mask failures.
+  "$PROBE" 127.0.0.1 53 5 >> "$LOG" 2>&1 || return 1
+  "$PROBE" ::1 53 5 >> "$LOG" 2>&1 || return 1
+  return 0
 }
 _stop() {
   _p=$(_owned_pid 2>/dev/null) || _p=
