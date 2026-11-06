@@ -1408,14 +1408,17 @@ cache_flush() {
   if [ "$forward_enabled" = 1 ]; then
     sh "$MP/scripts/unbound.sh" stop "$MP" "$PG" || u_stop_rc=$?
   fi
-    dns-log-summary)
-  [ "$#" -eq 1 ] || exit 2
-  with_lock dns_log_summary
-  ;;
-  dns-log-tail)
-  [ "$#" -eq 1 ] || exit 2
-  with_lock dns_log_tail
-  ;; ] || {
+  if [ "$forward_enabled" = 1 ]; then
+    sh "$MP/scripts/unbound.sh" ensure "$MP" "$PG" >> "$PG/boot.log" 2>&1 || u_rc=$?
+  fi
+  if [ "$agh_enabled" = 1 ]; then
+    sh "$MP/scripts/adguardhome.sh" ensure "$MP" "$PG" >> "$PG/boot.log" 2>&1 || a_rc=$?
+  fi
+  sh "$MP/scripts/apply.sh" fast >> "$PG/boot.log" 2>&1 || apply_rc=$?
+  echo "adguardhome_stop_exit=$a_stop_rc"; echo "unbound_stop_exit=$u_stop_rc"
+  echo "unbound_exit=$u_rc"; echo "adguardhome_exit=$a_rc"; echo "apply_exit=$apply_rc"
+  [ "$a_stop_rc" -eq 0 ] && [ "$u_stop_rc" -eq 0 ] \
+    && [ "$u_rc" -eq 0 ] && [ "$a_rc" -eq 0 ] && [ "$apply_rc" -eq 0 ] || {
       echo "cache refresh incomplete; FX DNS routing was reconciled on a best-effort basis" >&2
       return 31
     }
@@ -1425,25 +1428,11 @@ cmd="${1:-list}"
 case "$cmd" in
   dns-log-summary)
   [ "$#" -eq 1 ] || exit 2
-  if [ "$(pg_get dns_querylog_enabled 0 2>/dev/null)" != "1" ]; then
-    echo FXDNSLOG_DISABLED
-    exit 0
-  fi
-  helper="$MP/scripts/yulong-ad-dns-summary.sh"
-  [ -x "$helper" ] || { echo "DNS summary helper is not installed" >&2; exit 20; }
-  sh "$helper" "$PG/adguardhome/work/data"
+  with_lock dns_log_summary
   ;;
   dns-log-tail)
-  if [ "$(pg_get dns_querylog_enabled 0 2>/dev/null)" != "1" ]; then
-    echo FXDNSLOG_DISABLED
-    exit 0
-  fi
-  logfile="$PG/adguardhome/work/data/querylog.json"
-  if [ -s "$logfile" ]; then
-    cat "$logfile"
-  else
-    echo FXDNSLOG_EMPTY
-  fi
+  [ "$#" -eq 1 ] || exit 2
+  with_lock dns_log_tail
   ;;
  cache-flush)
   [ "$#" -ge 1 ] && [ "$#" -le 2 ] || exit 2
