@@ -247,8 +247,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
     card("可信 Wi-Fi SSID",
         "支持读取当前 SSID 或手动输入。名单保存在 root 私有文件中，不写入运行日志。",
         trustedSsidInput,
-        btn("填入当前 Wi-Fi SSID",() -> {
-          if (trustedCurrentSsid == null || trustedCurrentSsid.isEmpty()) {
+        btn("填入当前 Wi-Fi SSID",() -> {          if (trustedCurrentSsid == null || trustedCurrentSsid.isEmpty()) {
             status.setText("当前没有可读取的 Wi-Fi SSID；请手动输入。");
           } else {
             trustedSsidInput.setText(trustedCurrentSsid);
@@ -497,8 +496,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
     Switch allow=new Switch(this);allow.setTag("fx-switch-row");
     allow.setText("DNS 不经过 Root Proxy");
     allow.setChecked(proxyWhitelistSelected.contains(pkg));
-    final boolean[] suppress={false};
-    allow.setOnCheckedChangeListener((button,checked)->{
+    final boolean[] suppress={false};    allow.setOnCheckedChangeListener((button,checked)->{
      if(suppress[0])return;
      button.setEnabled(false);
      root("rootproxy-whitelist-set "+q(pkg)+" "+(checked?"1":"0"),result->{
@@ -616,12 +614,14 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
        dnsSwitch("DNS 兜底转发","dns_forward"),
        dnsSwitch("启用自定义 DNS","custom_dns"),
        dnsSwitch("启用全局 DNS 替换","global_dns"));
-  card("过滤策略","DNS 和网络策略开关；与 DNS 上游地址分开保存。",
+  card("过滤策略","DNS 和网络策略开关；与 DNS 上游地址分开保存。批量操作会一次性更新以下五项策略。",
        dnsSwitch("阻止 QUIC","block_quic"),
        dnsSwitch("阻止 DNS-over-TLS","block_dot"),
        dnsSwitch("阻止明文 DNS","block_plain_dns"),
        dnsSwitch("阻止 IPv6","block_ipv6"),
-       dnsSwitch("跟踪域名保护","block_track_domains"));
+       dnsSwitch("跟踪域名保护","block_track_domains"),
+       btn("一键启用全部过滤策略",()->setDnsFilterPolicy(true)),
+       btn("一键关闭全部过滤策略",()->setDnsFilterPolicy(false)));
   android.widget.RadioGroup responseGroup=new android.widget.RadioGroup(this);
   responseGroup.setOrientation(android.widget.RadioGroup.VERTICAL);
   android.widget.RadioButton responseNx=new android.widget.RadioButton(this);
@@ -747,8 +747,7 @@ private void loadDnsRuntimeStatus(TextView target){
     appendDnsStatus(out,"第三方 VPN Root Proxy",values.get("root_proxy"));
     appendDnsStatus(out,"DNS 过滤覆盖",values.get("dns_filter_coverage"));
     appendDnsStatus(out,"VPN 共存判定",values.get("vpn_coexistence_verdict"));
-    appendDnsStatus(out,"DNS 路由探测",values.get("vpn_route_probe"));
-    appendDnsStatus(out,"DNS 栈已启用",values.get("dns_stack_enabled"));
+    appendDnsStatus(out,"DNS 路由探测",values.get("vpn_route_probe"));    appendDnsStatus(out,"DNS 栈已启用",values.get("dns_stack_enabled"));
     appendDnsStatus(out,"DNS 栈就绪",values.get("dns_stack_ready"));
     appendDnsStatus(out,"过滤规则总数",values.get("dns_filter_sources_total"));
     appendDnsStatus(out,"已启用过滤规则",values.get("dns_filter_sources_enabled"));
@@ -788,6 +787,16 @@ private void clearDnsSection(String kind,EditText input){
        else fxDialogBuilder().setTitle("清除失败").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
       })).show();
  }
+private void setDnsFilterPolicy(boolean enabled){
+  String action=enabled?"启用":"关闭";
+  new AlertDialog.Builder(this).setTitle(action+"全部 DNS 过滤策略？")
+      .setMessage("此操作将以单次配置事务同时"+action+" QUIC、DNS-over-TLS、明文 DNS、IPv6 与跟踪域名保护五项策略。")
+      .setNegativeButton("取消",null)
+      .setPositiveButton("确认", (dialog,which)->root("dns-filter-policy-set "+(enabled?"1":"0")+" "+(enabled?"1":"0")+" "+(enabled?"1":"0")+" "+(enabled?"1":"0")+" "+(enabled?"1":"0"),r->{
+        if(r.exitCode==0){status.setText("五项 DNS 过滤策略已统一"+action+"并应用。");load();}
+        else fxDialogBuilder().setTitle("DNS 策略未更新").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
+      })).show();
+}
 private void saveDnsServerList(String kind,EditText input){
   String value=input.getText()==null?"":input.getText().toString().trim();
   root("dns-config-set "+kind+" "+q(value),r->{
@@ -997,8 +1006,7 @@ private void saveVpnDns(String key,EditText input){
   TextView state=txt("正在读取计划任务…",12,0xff526170,false);
   card("每周自动计划",
        "按设备本地时间自动启用/暂停FX 广告过滤列表。开始时间晚于结束时间时按跨午夜区间计算；开始时间等于结束时间表示空时间段，不会触发切换。",
-       enabled,start,end,daysBox,
-       btn("保存计划",()->{
+       enabled,start,end,daysBox,       btn("保存计划",()->{
          StringBuilder selected=new StringBuilder();
          for(int i=0;i<7;i++)if(days[i].isChecked()){if(selected.length()>0)selected.append(',');selected.append(FxYulongScheduleDayMapping.workerDayForUiIndex(i));}
          if(selected.length()==0){fxDialogBuilder().setMessage("至少选择一天。").setPositiveButton("知道了",null).show();return;}
