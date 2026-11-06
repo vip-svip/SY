@@ -1285,7 +1285,7 @@ private void saveVpnDns(String key,EditText input){
       btn("清空全部白名单",()->clearAllDomains("allow")));
   EditText allowBulk=draftField("allow_bulk"); allowBulk.setGravity(Gravity.TOP|Gravity.START);
   allowBulk.setMinLines(4); allowBulk.setHint("每行一个域名；可选格式：example.com|备注");
-  card("批量导入白名单","不限制名单条目数量；整批验证并通过一次 FX apply 事务。整批验证并通过一次 FX apply 事务；失败会回滚。",
+  card("批量导入白名单","不限制名单条目数量；整批验证并通过一次 FX apply 事务，失败会回滚。",
       allowBulk,btn("验证并批量导入白名单",()->importDomains("allow",allowBulk)));
 
   EditText block=draftField("block_domain"); block.setSingleLine(true); block.setHint("黑名单域名");
@@ -1300,7 +1300,7 @@ private void saveVpnDns(String key,EditText input){
       btn("清空全部黑名单",()->clearAllDomains("block")));
   EditText blockBulk=draftField("block_bulk"); blockBulk.setGravity(Gravity.TOP|Gravity.START);
   blockBulk.setMinLines(4); blockBulk.setHint("每行一个域名；可选格式：example.com|备注");
-  card("批量导入黑名单","最多 2000 条、48 Ki 字符（导入字节仍限制为 64 KiB）。整批验证并通过一次 FX apply 事务；失败会回滚。",
+  card("批量导入黑名单","不限制名单条目数量；整批验证并通过一次 FX apply 事务，失败会回滚。",
       blockBulk,btn("验证并批量导入黑名单",()->importDomains("block",blockBulk)));
 
   EditText allowRemoveBulk=draftField("allow_remove_bulk");
@@ -1317,7 +1317,7 @@ private void saveVpnDns(String key,EditText input){
   blockRemoveBulk.setMinLines(3);
   blockRemoveBulk.setHint("每行一个域名；仅删除黑名单中匹配的条目");
   card("批量移除黑名单",
-      "最多 2000 条。先完整校验域名，再在单次 FX 配置事务中移除；任何一步失败都会回滚。",
+      "完整校验域名，再在单次 FX 配置事务中移除；任何一步失败都会回滚。",
       blockRemoveBulk,
       btn("确认批量移除黑名单",()->removeDomains("block",blockRemoveBulk)));
 
