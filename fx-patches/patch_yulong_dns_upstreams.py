@@ -162,6 +162,10 @@ required_renderer_contract = (
     "dns-rewrites-yaml",
     "filtering:",
     "rewrites:",
+    "rewrites_enabled:",
+    "rewrites_enabled_count",
+    "runtime_rewrites_enabled",
+    "rewrite_has_enabled",
     "FX_YULONG_DNS_RESPONSE_BEGIN",
     "dns-response-get",
     "_dns_response_output=",
@@ -181,6 +185,29 @@ if missing_renderer:
         "AdGuard Home renderer is still a legacy/partial DNS implementation; "
         "refusing to package an incomplete FX 1.0.0 DNS stack: "
         + ", ".join(missing_renderer)
+    )
+
+runtime_template = module / "engines" / "adguardhome" / "AdGuardHome.yaml"
+if not runtime_template.is_file():
+    raise SystemExit(f"FX AdGuard Home runtime YAML is missing: {runtime_template}")
+runtime_lines = runtime_template.read_text(encoding="utf-8").splitlines()
+inside_filtering = False
+filtering_sections = 0
+rewrite_toggle_values = []
+for line in runtime_lines:
+    if line == "filtering:":
+        filtering_sections += 1
+        inside_filtering = True
+        continue
+    if line and not line.startswith(" "):
+        inside_filtering = False
+        continue
+    if inside_filtering and line.startswith("  rewrites_enabled:"):
+        rewrite_toggle_values.append(line.split(":", 1)[1].strip())
+if filtering_sections != 1 or rewrite_toggle_values != ["true"]:
+    raise SystemExit(
+        "FX AdGuard Home runtime template must contain exactly one "
+        "filtering.rewrites_enabled: true; refusing to package disabled DNS rewrites"
     )
 
 target.write_text(source, encoding="utf-8")

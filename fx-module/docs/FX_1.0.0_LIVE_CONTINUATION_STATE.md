@@ -7085,3 +7085,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 修改文件：四份 FX runtime YAML、两份 `scripts/adguardhome.sh`、两份续接文档。
 - 官方语义依据：AdGuard Home filtering 全局 `rewrites_enabled` 开关决定是否调用 Rewrite 处理；见官方源码 `internal/filtering/filtering.go`。
 - 按用户要求未运行测试、构建、静态检查、CI 或设备验证。
+
+
+## 2026-11-07 — DNS Rewrite 全局开关打包与 Host 配置门
+
+- `patch_yulong_dns_upstreams.py` canonical/module 两份现在要求恢复后的 AdGuard Home renderer 含全局 `rewrites_enabled` 解析与校验契约、逐条 `enabled` 校验，并读取实际将打入包的 `engines/adguardhome/AdGuardHome.yaml`，拒绝缺少/重复/非 true 的 `filtering.rewrites_enabled`。
+- `.github/workflows/check-adguardhome-config.yml` canonical/module 镜像新增精确断言：FX runtime template 必须恰好有一个 `  rewrites_enabled: true`；官方二进制 YAML check 之后仍保留原有本地 Unbound 上游与规则隔离条件。
+- 这一层防止 Release-source restore、补丁器和实际模板不同步时，将 Rewrite 全局关闭的旧 AdGuard 配置误打入 FX 包。
+- 按用户要求未运行 patcher、工作流、测试、静态检查、构建、CI 或真机验证；仅提交源码门控和续接文档。
