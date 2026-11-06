@@ -30,11 +30,40 @@ static int add_label(unsigned char *out,size_t *n,const char *s) {
     if(len==0 || len>63 || *n+len+1>=512) return -1;
     out[(*n)++]=(unsigned char)len; memcpy(out+*n,s,len); *n+=len; return 0;
 }
-static int transfer_all(int fd,unsigned char *buf,size_t len,int sending) {
+static int remaining_ms(const struct timespec *deadline) {
+    struct timespec now;
+    int64_t ns;
+    if(clock_gettime(CLOCK_MONOTONIC,&now)!=0) return -1;
+    ns=(int64_t)(deadline->tv_sec-now.tv_sec)*1000000000LL+
+       (int64_t)deadline->tv_nsec-now.tv_nsec;
+    if(ns<=0) return 0;
+    if(ns/1000000LL>2147483647LL) return 2147483647;
+    return (int)((ns+999999LL)/1000000LL);
+}
+static int wait_socket(int fd,short events,const struct timespec *deadline) {
+    struct pollfd pfd;
+    int ms,rc;
+    pfd.fd=fd; pfd.events=events;
+    for(;;) {
+        ms=remaining_ms(deadline);
+        if(ms<=0) return -1;
+        pfd.revents=0;
+        rc=poll(&pfd,1,ms);
+        if(rc<0 && errno==EINTR) continue;
+        if(rc<=0 || (pfd.revents&(POLLERR|POLLHUP|POLLNVAL))!=0) return -1;
+        if((pfd.revents&events)!=0) return 0;
+    }
+}
+static int transfer_all(int fd,unsigned char *buf,size_t len,int sending,
+                        const struct timespec *deadline) {
     size_t offset=0;
     while(offset<len) {
         ssize_t count=sending?send(fd,buf+offset,len-offset,0):recv(fd,buf+offset,len-offset,0);
         if(count<0 && errno==EINTR) continue;
+        if(count<0 && (errno==EAGAIN || errno==EWOULDBLOCK)) {
+            if(wait_socket(fd,sending?POLLOUT:POLLIN,deadline)!=0) return -1;
+            continue;
+        }
         if(count<=0) return -1;
         offset+=(size_t)count;
     }
@@ -46,33 +75,32 @@ static int retry_tcp(const struct sockaddr_in *server,const unsigned char *query
     uint16_t length;
     int fd=socket(AF_INET,SOCK_STREAM,0),flags,connect_rc,so_error=0;
     socklen_t so_error_len=sizeof(so_error);
-    struct pollfd waitfd;
+    struct timespec deadline;
     int wait_ms;
     if(fd<0) return -1;
     if(query_len>512 || timeout->tv_sec<0 || timeout->tv_sec>10) { close(fd); return -1; }
-    if(setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,timeout,sizeof(*timeout))!=0 ||
-       setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,timeout,sizeof(*timeout))!=0) { close(fd); return -1; }
+    if(clock_gettime(CLOCK_MONOTONIC,&deadline)!=0) { close(fd); return -1; }
+    deadline.tv_sec+=timeout->tv_sec;
+    deadline.tv_nsec+=timeout->tv_usec*1000L;
+    if(deadline.tv_nsec>=1000000000L) { deadline.tv_sec++; deadline.tv_nsec-=1000000000L; }
     flags=fcntl(fd,F_GETFL,0);
     if(flags<0 || fcntl(fd,F_SETFL,flags|O_NONBLOCK)!=0) { close(fd); return -1; }
     connect_rc=connect(fd,(const struct sockaddr *)server,sizeof(*server));
     if(connect_rc!=0 && errno!=EINPROGRESS) { close(fd); return -1; }
     if(connect_rc!=0) {
-        wait_ms=(int)(timeout->tv_sec*1000L+(timeout->tv_usec+999L)/1000L);
-        waitfd.fd=fd; waitfd.events=POLLOUT; waitfd.revents=0;
-        do { connect_rc=poll(&waitfd,1,wait_ms); } while(connect_rc<0 && errno==EINTR);
-        if(connect_rc<=0 || (waitfd.revents&(POLLERR|POLLHUP|POLLNVAL))!=0 ||
+        wait_ms=remaining_ms(&deadline);
+        if(wait_ms<=0 || wait_socket(fd,POLLOUT,&deadline)!=0 ||
            getsockopt(fd,SOL_SOCKET,SO_ERROR,&so_error,&so_error_len)!=0 || so_error!=0) {
             close(fd); return -1;
         }
     }
-    if(fcntl(fd,F_SETFL,flags)!=0) { close(fd); return -1; }
     put16(prefix,(uint16_t)query_len);
     memcpy(frame,prefix,2); memcpy(frame+2,query,query_len);
-    if(transfer_all(fd,frame,query_len+2,1)!=0 || transfer_all(fd,prefix,2,0)!=0) {
+    if(transfer_all(fd,frame,query_len+2,1,&deadline)!=0 || transfer_all(fd,prefix,2,0,&deadline)!=0) {
         close(fd); return -1;
     }
     length=(uint16_t)(((uint16_t)prefix[0]<<8)|prefix[1]);
-    if(length<12 || (size_t)length>reply_cap || transfer_all(fd,reply,length,0)!=0) {
+    if(length<12 || (size_t)length>reply_cap || transfer_all(fd,reply,length,0,&deadline)!=0) {
         close(fd); return -1;
     }
     close(fd); *reply_len=(size_t)length; return 0;
