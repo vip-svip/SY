@@ -823,7 +823,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
 
 private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTtl,
       Switch serveExpired,EditText serveExpiredTtl,EditText serveExpiredReplyTtl,
-      EditText serveExpiredClientTimeout,Switch prefetch,Switch qnameMinimisation,TextView state){
+      EditText serveExpiredClientTimeout,Switch prefetch,Switch prefetchKey,Switch qnameMinimisation,TextView state){
   root("unbound-runtime-get",result->{
     if(result.exitCode!=0){state.setText("读取 Unbound 递归缓存参数失败："+safe(result.output));return;}
     String raw=result.output==null?"":result.output;
@@ -843,7 +843,7 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
     String[] required={"UNBOUND_CACHE_MAX_TTL","UNBOUND_CACHE_MIN_TTL",
         "UNBOUND_SERVE_EXPIRED","UNBOUND_SERVE_EXPIRED_TTL",
         "UNBOUND_SERVE_EXPIRED_REPLY_TTL","UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT",
-        "UNBOUND_PREFETCH","UNBOUND_QNAME_MINIMISATION"};
+        "UNBOUND_PREFETCH","UNBOUND_PREFETCH_KEY","UNBOUND_QNAME_MINIMISATION"};
     for(String key:required)if(!values.containsKey(key)){
       state.setText("Unbound 参数响应缺少字段："+key+"。");return;
     }
@@ -856,7 +856,7 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
         ||!isValidDnsRuntimeUint32(values.get("UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT"),true)){
       state.setText("Unbound 缓存 TTL 或 serve-expired 时长超出有效范围。");return;
     }
-    for(String key:new String[]{"UNBOUND_SERVE_EXPIRED","UNBOUND_PREFETCH","UNBOUND_QNAME_MINIMISATION"})
+    for(String key:new String[]{"UNBOUND_SERVE_EXPIRED","UNBOUND_PREFETCH","UNBOUND_PREFETCH_KEY","UNBOUND_QNAME_MINIMISATION"})
       if(!"0".equals(values.get(key))&&!"1".equals(values.get(key))){
         state.setText("Unbound 开关值无效："+key+"。");return;
       }
@@ -867,6 +867,7 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
     serveExpiredReplyTtl.setText(values.get("UNBOUND_SERVE_EXPIRED_REPLY_TTL"));
     serveExpiredClientTimeout.setText(values.get("UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT"));
     prefetch.setChecked("1".equals(values.get("UNBOUND_PREFETCH")));
+    prefetchKey.setChecked("1".equals(values.get("UNBOUND_PREFETCH_KEY")));
     qnameMinimisation.setChecked("1".equals(values.get("UNBOUND_QNAME_MINIMISATION")));
     state.setText("已读取全部 Unbound 递归缓存与隐私参数。更改后会重新生成配置并重启 FX 自有 Unbound。");
   });
@@ -1001,6 +1002,8 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
   unboundServeExpiredClientTimeout.setHint("等待上游响应时间（毫秒）");
   Switch unboundPrefetch=new Switch(this);
   unboundPrefetch.setText("启用高频域名预取");
+  Switch unboundPrefetchKey=new Switch(this);
+  unboundPrefetchKey.setText("启用 DNSSEC 密钥预取");
   Switch unboundQnameMinimisation=new Switch(this);
   unboundQnameMinimisation.setText("启用 QNAME minimisation（减少递归查询泄露）");
   TextView unboundRuntimeState=txt("正在读取 Unbound 递归参数…",12,0xff617080,false);
@@ -1012,7 +1015,7 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
        txt("过期缓存最大年龄（秒）",12,0xff617080,true),unboundServeExpiredTtl,
        txt("过期答案返回 TTL（秒）",12,0xff617080,true),unboundServeExpiredReplyTtl,
        txt("serve-expired 客户端等待时间（毫秒）",12,0xff617080,true),unboundServeExpiredClientTimeout,
-       unboundPrefetch,unboundQnameMinimisation,
+       unboundPrefetch,unboundPrefetchKey,unboundQnameMinimisation,
        btn("保存并应用 Unbound 递归参数",()->{
          String maxTtl=unboundCacheMaxTtl.getText()==null?"":unboundCacheMaxTtl.getText().toString().trim();
          String minTtl=unboundCacheMinTtl.getText()==null?"":unboundCacheMinTtl.getText().toString().trim();
@@ -1030,6 +1033,7 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
          String command="unbound-runtime-set "+q(maxTtl)+" "+q(minTtl)+" "
              +(unboundServeExpired.isChecked()?"1":"0")+" "+q(expiredTtl)+" "+q(replyTtl)+" "
              +q(clientTimeout)+" "+(unboundPrefetch.isChecked()?"1":"0")+" "
+             +(unboundPrefetchKey.isChecked()?"1":"0")+" "
              +(unboundQnameMinimisation.isChecked()?"1":"0");
          root(command,result->{
            if(result.exitCode==0){unboundRuntimeState.setText("Unbound 递归参数已保存并应用。");load();}
@@ -1039,7 +1043,7 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
        unboundRuntimeState);
   loadUnboundRuntimeControls(unboundCacheMaxTtl,unboundCacheMinTtl,unboundServeExpired,
       unboundServeExpiredTtl,unboundServeExpiredReplyTtl,unboundServeExpiredClientTimeout,
-      unboundPrefetch,unboundQnameMinimisation,unboundRuntimeState);
+      unboundPrefetch,unboundPrefetchKey,unboundQnameMinimisation,unboundRuntimeState);
 
     card("过滤策略","DNS 和网络策略开关；与 DNS 上游地址分开保存。批量操作会一次性更新以下五项策略。",
        dnsSwitch("阻止 QUIC","block_quic"),
@@ -1263,7 +1267,7 @@ private void restoreDnsProfile(EditText input){
       "UPSTREAM_MODE","FASTEST_TIMEOUT","UPSTREAM_TIMEOUT","CACHE_SIZE","CACHE_ENABLED","CACHE_OPTIMISTIC","ENABLE_DNSSEC",
       "CACHE_TTL_MIN","CACHE_TTL_MAX","CACHE_OPTIMISTIC_ANSWER_TTL","CACHE_OPTIMISTIC_MAX_AGE",
       "UNBOUND_CACHE_MAX_TTL","UNBOUND_CACHE_MIN_TTL","UNBOUND_SERVE_EXPIRED","UNBOUND_SERVE_EXPIRED_TTL",
-      "UNBOUND_SERVE_EXPIRED_REPLY_TTL","UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT","UNBOUND_PREFETCH","UNBOUND_QNAME_MINIMISATION"};
+      "UNBOUND_SERVE_EXPIRED_REPLY_TTL","UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT","UNBOUND_PREFETCH","UNBOUND_PREFETCH_KEY","UNBOUND_QNAME_MINIMISATION"};
   java.util.Set<String> keys=new java.util.HashSet<>(java.util.Arrays.asList(allowed));
   java.util.Map<String,String> preview=new java.util.LinkedHashMap<>();
   for(String line:raw.split("\\n")){
@@ -1276,7 +1280,7 @@ private void restoreDnsProfile(EditText input){
     }
     preview.put(key,line.substring(split+1));
   }
-  if(preview.size()!=allowed.length&&preview.size()!=30&&preview.size()!=26&&preview.size()!=19&&preview.size()!=18){
+  if(preview.size()!=allowed.length&&preview.size()!=38&&preview.size()!=30&&preview.size()!=26&&preview.size()!=19&&preview.size()!=18){
     status.setText("快照字段不完整（"+preview.size()+"/"+allowed.length+"），未提交。");return;
   }
   for(String key:allowed)if(!preview.containsKey(key)){
@@ -1299,6 +1303,7 @@ private void restoreDnsProfile(EditText input){
     else if("UNBOUND_SERVE_EXPIRED_REPLY_TTL".equals(key))preview.put(key,"30");
     else if("UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT".equals(key))preview.put(key,"1800");
     else if("UNBOUND_PREFETCH".equals(key))preview.put(key,"1");
+    else if("UNBOUND_PREFETCH_KEY".equals(key))preview.put(key,"1");
     else if("UNBOUND_QNAME_MINIMISATION".equals(key))preview.put(key,"1");
     else {status.setText("快照缺少字段："+key+"；未提交。");return;}
   }
@@ -1347,7 +1352,7 @@ private void restoreDnsProfile(EditText input){
       ||!isValidDnsRuntimeUint32(preview.get("UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT"),true)){
     status.setText("快照 Unbound TTL 或 serve-expired 时长非法；未提交。");return;
   }
-  for(String key:new String[]{"UNBOUND_SERVE_EXPIRED","UNBOUND_PREFETCH","UNBOUND_QNAME_MINIMISATION"})
+  for(String key:new String[]{"UNBOUND_SERVE_EXPIRED","UNBOUND_PREFETCH","UNBOUND_PREFETCH_KEY","UNBOUND_QNAME_MINIMISATION"})
     if(!"0".equals(preview.get(key))&&!"1".equals(preview.get(key))){
       status.setText("快照 Unbound 开关值非法："+key+"；未提交。");return;
     }
@@ -1370,9 +1375,9 @@ private void restoreDnsProfile(EditText input){
       "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled"})
     if("1".equals(preview.get(key)))enabled++;
   for(String key:new String[]{"CACHE_ENABLED","CACHE_OPTIMISTIC","ENABLE_DNSSEC"})if("1".equals(preview.get(key)))enabled++;
-  for(String key:new String[]{"UNBOUND_SERVE_EXPIRED","UNBOUND_PREFETCH","UNBOUND_QNAME_MINIMISATION"})
+  for(String key:new String[]{"UNBOUND_SERVE_EXPIRED","UNBOUND_PREFETCH","UNBOUND_PREFETCH_KEY","UNBOUND_QNAME_MINIMISATION"})
     if("1".equals(preview.get(key)))enabled++;
-  String summary="快照包含 38 项字段、18 个开关（启用 "+enabled+" 项）。\\n"
+  String summary="快照包含 39 项字段、19 个开关（启用 "+enabled+" 项）。\\n"
       +"自定义上游："+countDnsEndpoints(preview.get("CUSTOM_SERVERS"))+" 条；"
       +"全局上游："+countDnsEndpoints(preview.get("GLOBAL_SERVERS"))+" 条；"
       +"备用上游："+countDnsEndpoints(preview.get("FALLBACK_SERVERS"))+" 条。\\n"
@@ -1406,7 +1411,7 @@ private void restoreDnsProfile(EditText input){
       "UPSTREAM_MODE","FASTEST_TIMEOUT","UPSTREAM_TIMEOUT","CACHE_SIZE","CACHE_ENABLED","CACHE_OPTIMISTIC","ENABLE_DNSSEC",
       "CACHE_TTL_MIN","CACHE_TTL_MAX","CACHE_OPTIMISTIC_ANSWER_TTL","CACHE_OPTIMISTIC_MAX_AGE",
       "UNBOUND_CACHE_MAX_TTL","UNBOUND_CACHE_MIN_TTL","UNBOUND_SERVE_EXPIRED","UNBOUND_SERVE_EXPIRED_TTL",
-      "UNBOUND_SERVE_EXPIRED_REPLY_TTL","UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT","UNBOUND_PREFETCH","UNBOUND_QNAME_MINIMISATION"};
+      "UNBOUND_SERVE_EXPIRED_REPLY_TTL","UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT","UNBOUND_PREFETCH","UNBOUND_PREFETCH_KEY","UNBOUND_QNAME_MINIMISATION"};
     StringBuilder changes=new StringBuilder();
     for(String key:labels){
       String oldValue=current.get(key),newValue=preview.get(key);
