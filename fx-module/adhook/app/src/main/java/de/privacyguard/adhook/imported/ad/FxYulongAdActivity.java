@@ -1306,12 +1306,17 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
       String key=line.substring(0,split),value=line.substring(split+1);
       if(!"anchor_state".equals(key)&&!"anchor_bytes".equals(key)&&!"anchor_age".equals(key)
           &&!"refresh_route".equals(key)&&!"resolver_state".equals(key)
-          &&!"root_hints_state".equals(key)&&!"root_hints_bytes".equals(key)){
+          &&!"root_hints_state".equals(key)&&!"root_hints_bytes".equals(key)
+          &&!"root_hints_refresh".equals(key)){
         target.setText("DNSSEC 信任锚状态包含未知字段："+key);return;
       }
       if(values.put(key,value)!=null){target.setText("DNSSEC 信任锚状态包含重复字段："+key);return;}
     }
-    if(values.size()!=7){target.setText("DNSSEC 信任锚状态字段不完整。");return;}
+    if(values.size()!=7&&values.size()!=8){target.setText("DNSSEC 信任锚状态字段不完整。");return;}
+    String refreshResult=values.get("root_hints_refresh");
+    if(refreshResult!=null&&!"updated".equals(refreshResult)){
+      target.setText("Root Hints 更新回执值异常，拒绝显示。");return;
+    }
     String state=values.get("anchor_state"),age=values.get("anchor_age");
     String bytes=values.get("anchor_bytes"),route=values.get("refresh_route");
     String resolver=values.get("resolver_state");
@@ -1328,7 +1333,8 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
     target.setText("DNSSEC 信任锚："+state+"；文件大小："+bytes+" 字节；更新状态："+age
         +"；Unbound："+resolver+"；刷新出口："+route
         +("stale".equals(age)?"。信任锚超过 14 天未更新；在线 Unbound 会继续执行 RFC5011 维护。":"。")
-        +"\nRoot Hints："+hintsState+"；文件大小："+hintsBytes+" 字节（SHA-256 完整性校验）。");
+        +"\nRoot Hints："+hintsState+"；文件大小："+hintsBytes+" 字节（SHA-256 与 13 个根服务器结构校验）。"
+        +( "updated".equals(refreshResult)?"\n最近操作：Root Hints 已更新。":""));
   });
 }
  private void renderDns(){

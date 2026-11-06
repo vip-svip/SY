@@ -7006,3 +7006,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - IPv4 记录增加非公网/保留范围拒绝；AAAA 使用完整 1–8 hextet 与 :: 压缩规则校验，并要求根服务器地址属于全球单播 2000::/3，避免仅用十六进制冒号字符集误判畸形地址。
 - 同一 validator 同时用于模块启动前完整性检查与官方 HTTPS Root Hints 手动下载后的暂存文件检查；保留 SHA-256 sidecar、原子发布、失败回滚和 VPN-bound/运行中拒绝更新策略。
 - 本批未运行 Shell regression、静态检查、构建、CI 或 Android 真机测试；仅按要求提交源码，不将源码改动描述为验证通过。
+
+
+## 2026-11-07 — Root Hints 状态结构校验与刷新回执闭环
+
+- Root Hints 状态接口现在同时要求 SHA-256 sidecar 匹配和 A–M 13 个根服务器 NS/A 结构校验通过，避免仅有正确 checksum、实际 root hints 记录却不完整时误报 valid。
+- 手动更新命令在正常状态字段后附带可选 `root_hints_refresh=updated`；原生状态解析白名单允许该可选回执，并在状态卡片显示“最近操作：Root Hints 已更新”，不会再把成功回执误报为未知字段。
+- 同步普通与模块 APK 的 FxYulongAdActivity；Unbound 生命周期结构校验、启动前检查和更新后验证继续复用同一 `_root_hints_valid` 函数。
+- 本批未运行测试、静态检查、构建、CI 或真机验证。

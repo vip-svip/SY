@@ -594,7 +594,7 @@ _anchor_status() {
   else
     _root_hints_bytes=$(wc -c < "$ROOT_HINTS" 2>/dev/null | tr -d ' ')
     case "$_root_hints_bytes" in ''|*[!0-9]*) _root_hints_bytes=unknown ;; esac
-    if _hash "$ROOT_HINTS" "$ROOT/root.hints.sha256"; then
+    if _hash "$ROOT_HINTS" "$ROOT/root.hints.sha256" && _root_hints_valid "$ROOT_HINTS"; then
       _root_hints_state=valid
     else
       _root_hints_state=invalid

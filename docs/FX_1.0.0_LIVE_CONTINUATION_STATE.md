@@ -1368,3 +1368,11 @@
 - 原生页面同步升级协议白名单、字段完整性、数值/枚举/时长校验，并按日志、统计、AdGuard 缓存、Unbound 递归参数、DNSSEC 分组展示。仍为只读报告，不修改配置、不重启服务、不改写 VPN 或 DNS 路由。
 - 同步正式/模块 Root 控制脚本与两份原生 Ad 页面。
 - 按用户要求未运行测试、Shell/Java 静态检查、构建、CI 或 Android 真机验证；本次仅完成源码接线与续接记录。
+
+
+## 2026-11-07 — Root Hints 状态结构校验与刷新回执闭环
+
+- Root Hints 状态接口现在同时要求 SHA-256 sidecar 匹配和 A–M 13 个根服务器 NS/A 结构校验通过，避免仅有正确 checksum、实际 root hints 记录却不完整时误报 valid。
+- 手动更新命令在正常状态字段后附带可选 `root_hints_refresh=updated`；原生状态解析白名单允许该可选回执，并在状态卡片显示“最近操作：Root Hints 已更新”，不会再把成功回执误报为未知字段。
+- 同步普通与模块 APK 的 FxYulongAdActivity；Unbound 生命周期结构校验、启动前检查和更新后验证继续复用同一 `_root_hints_valid` 函数。
+- 本批未运行测试、静态检查、构建、CI 或真机验证。
