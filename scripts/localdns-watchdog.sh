@@ -298,6 +298,21 @@ _stop() {
 case "$ACTION" in
   start) [ "$#" -eq 3 ] || exit 2; _start ;;
   stop) [ "$#" -eq 3 ] || exit 2; _stop ;;
+  repair)
+    [ "$#" -eq 3 ] || exit 2
+    _prepare || exit 22
+    _issue=
+    if _reconcile_once; then
+      _log "manual DNS recovery completed"
+      echo "dns_repair=ready"
+      exit 0
+    fi
+    _issue=${_issue:-DNS recovery attempt failed}
+    _log "manual DNS recovery failed: $_issue"
+    echo "dns_repair=failed"
+    echo "reason=$_issue"
+    exit 1
+    ;;
   status)
     [ "$#" -eq 3 ] || exit 2
     if [ -L "$PIDFILE" ]; then
