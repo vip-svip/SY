@@ -674,29 +674,34 @@ public final class FxDiaActivityBrowserActivity extends de.privacyguard.adhook.F
         }
         String query = activitySearch == null || activitySearch.getText() == null ? ""
                 : activitySearch.getText().toString().trim().toLowerCase(Locale.ROOT);
-        List<String> components = new ArrayList<>();
+        List<ActivityEntry> matches = new ArrayList<>();
         for (ActivityEntry entry : activities) {
-            String name = entry.info == null ? null : entry.info.name;
+            String name = entry.info == null || entry.info.name == null ? "" : entry.info.name;
             String permission = entry.info == null || entry.info.permission == null
                     ? "" : entry.info.permission;
             String state = Integer.toString(entry.componentState);
-            boolean matches = query.isEmpty()
-                    || name != null && name.toLowerCase(Locale.ROOT).contains(query)
+            if (query.isEmpty() || name.toLowerCase(Locale.ROOT).contains(query)
                     || permission.toLowerCase(Locale.ROOT).contains(query)
                     || state.contains(query)
                     || Boolean.toString(entry.info.exported).contains(query)
-                    || Boolean.toString(entry.enabled).contains(query);
-            if (!matches || entry.enabled || name == null
-                    || !name.matches("[A-Za-z0-9_.$]+")) continue;
-            components.add(selected.packageName + "/" + name);
+                    || Boolean.toString(entry.enabled).contains(query)) {
+                matches.add(entry);
+            }
         }
         int start = activityPage * ACTIVITY_PAGE_SIZE;
-        int end = Math.min(components.size(), start + ACTIVITY_PAGE_SIZE);
-        if (start >= end) {
+        int end = Math.min(matches.size(), start + ACTIVITY_PAGE_SIZE);
+        List<String> components = new ArrayList<>();
+        for (int i = start; i < end; i++) {
+            ActivityEntry entry = matches.get(i);
+            String name = entry.info == null ? null : entry.info.name;
+            if (entry.enabled || name == null || !name.matches("[A-Za-z0-9_.$]+")) continue;
+            components.add(selected.packageName + "/" + name);
+        }
+        if (components.isEmpty()) {
             Toast.makeText(this, "当前页筛选结果中没有已禁用的 Activity。", Toast.LENGTH_SHORT).show();
             return;
         }
-        List<String> currentPage = new ArrayList<>(components.subList(start, end));
+        final List<String> currentPage = new ArrayList<>(components);
         final String packageName = selected.packageName;
         fxDialogBuilder()
                 .setTitle("批量启用当前页 Activity？")
@@ -707,7 +712,6 @@ public final class FxDiaActivityBrowserActivity extends de.privacyguard.adhook.F
                 .setPositiveButton("启用所列组件", (dialog, which) -> {
                     status.setText("正在批量启用当前页 " + currentPage.size() + " 个组件…");
                     submitWorker(() -> {
-                        String user = "";
                         RootAccess.Result result = null;
                         String failure = null;
                         try {
