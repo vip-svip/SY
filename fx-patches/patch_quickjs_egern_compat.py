@@ -151,13 +151,13 @@ FX_EGERN_ENTRY
 fi
 # FX_EGERN_SCRIPT_ENTRY_V2_END
 """
-README_SECTION = """## Egern script compatibility entry (extended subset)
+README_SECTION = """## Egern 脚本兼容入口（扩展子集）
 
-The runner accepts top-level default-exported async and synchronous functions, including named functions. It provides ctx.script, ctx.env, ctx.app, ctx.device, ctx.cron, ctx.widgetFamily, ctx.request, ctx.response, ctx.http, ctx.storage, ctx.notify and ctx.log. Request and response objects are exposed only for HTTP request/response events, and mutations reuse the original hook objects so supported changes are returned through $done().
+运行器支持顶层默认导出的异步或同步函数，包括带名称的函数。提供 ctx.script、ctx.env、ctx.app、ctx.device、ctx.cron、ctx.widgetFamily、ctx.request、ctx.response、ctx.http、ctx.storage、ctx.notify 和 ctx.log。请求/响应对象只在对应 HTTP 事件中提供；对象修改会复用原始 Hook 对象，并通过 $done() 结果回传。
 
-HTTP includes GET, POST, PUT, PATCH, DELETE, HEAD and OPTIONS methods. Responses provide status, headers, text() and json(). Timeout is accepted in milliseconds and bounded by FX. Headers are case-insensitive and support get, getAll, has, set, append, delete, entries and iteration. Storage supports get, set, getJSON, setJSON and delete.
+HTTP 支持 GET、POST、PUT、PATCH、DELETE、HEAD、OPTIONS，以及 fetch/request 入口；响应提供 status、headers、text()、json()。Headers 大小写不敏感并支持 get、getAll、has、set、append、delete、entries 和迭代。存储支持 get、set、getJSON、setJSON 和 delete。
 
-Environment, device, cron and widget fields are passed through only when the event actually supplies them. Notifications are recorded in FX script logs, not posted to the Android notification shade. This remains a subset: ESM imports, streams, binary body APIs, SSH, lookupIP, compression, ctx.respond(), ctx.abort(), redirect controls, proxy policies and Egern-specific network services are not implemented. FX HTTP calls run through a synchronous native bridge under a Promise-compatible API.
+环境、设备、cron 和 widget 字段只透传事件实际提供的值。通知写入 FX 脚本日志，不会调用 Android 通知栏。当前仍是兼容子集：不支持 ESM import、流与二进制正文 API、SSH、lookupIP、压缩、ctx.respond()、ctx.abort()、重定向控制、代理策略或 Egern 专属网络服务；HTTP 底层同步执行，仅提供 Promise 兼容层。
 """
 def replace_marked(source: str, begin: str, end: str, block: str,
                    old_begin: str = "", old_end: str = "") -> str:
@@ -167,7 +167,7 @@ def replace_marked(source: str, begin: str, end: str, block: str,
         start = source.index(begin)
         finish = source.index(end, start) + len(end)
         existing = source[start:finish]
-        expected = block.rstrip("\\n")
+        expected = block.rstrip("\n")
         if existing == expected:
             return source
         return source[:start] + expected + source[finish:]
@@ -176,7 +176,7 @@ def replace_marked(source: str, begin: str, end: str, block: str,
             raise SystemExit("partial or duplicate previous Egern compatibility markers")
         start = source.index(old_begin)
         finish = source.index(old_end, start) + len(old_end)
-        return source[:start] + block.rstrip("\\n") + source[finish:]
+        return source[:start] + block.rstrip("\n") + source[finish:]
     return ""
 
 def update_host(path: Path) -> bool:
@@ -186,7 +186,7 @@ def update_host(path: Path) -> bool:
     updated = replace_marked(source, HOST_BEGIN_V2, HOST_END_V2, HOST_BLOCK,
                              HOST_BEGIN_V1, HOST_END_V1)
     if not updated:
-        anchor = "  // Only publish the selected compatibility version key; absence means that\\n"
+        anchor = "  // Only publish the selected compatibility version key; absence means that\n"
         if source.count(anchor) != 1:
             raise SystemExit("QuickJS Egern host insertion anchor is missing or ambiguous")
         updated = source.replace(anchor, HOST_BLOCK + anchor, 1)
@@ -202,7 +202,7 @@ def update_runner(path: Path) -> bool:
     updated = replace_marked(source, RUNNER_BEGIN_V2, RUNNER_END_V2, RUNNER_BLOCK,
                              RUNNER_BEGIN_V1, RUNNER_END_V1)
     if not updated:
-        anchor = 'chmod 600 "$EV" 2>/dev/null || :\\n'
+        anchor = 'chmod 600 "$EV" 2>/dev/null || :\n'
         if source.count(anchor) != 1:
             raise SystemExit("QuickJS runner Egern insertion anchor is missing or ambiguous")
         updated = source.replace(anchor, anchor + RUNNER_BLOCK, 1)
@@ -233,18 +233,17 @@ def update_readme(path: Path) -> bool:
     source = path.read_text(encoding="utf-8")
     begin = "## Egern 脚本兼容入口"
     end = "## 明确的能力边界"
-    section = README_SECTION.replace("## Egern script compatibility entry (initial subset)",
-                                    "## Egern 脚本兼容入口（扩展子集）")
+    section = README_SECTION
     if begin in source:
         start = source.index(begin)
         finish = source.find(end, start)
         if finish < 0:
             raise SystemExit("QuickJS Egern README section terminator is missing")
-        updated = source[:start] + section + "\\n" + source[finish:]
+        updated = source[:start] + section + "\n" + source[finish:]
     else:
         if source.count(end) != 1:
             raise SystemExit("QuickJS Egern README insertion anchor is missing or ambiguous")
-        updated = source.replace(end, section + "\\n" + end, 1)
+        updated = source.replace(end, section + "\n" + end, 1)
     if updated != source:
         path.write_text(updated, encoding="utf-8")
         return True
