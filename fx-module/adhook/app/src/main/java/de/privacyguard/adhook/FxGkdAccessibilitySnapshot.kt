@@ -88,6 +88,7 @@ internal class FxGkdAccessibilitySnapshot private constructor(
                 val reportedChildCount = try {
                     info.childCount.coerceAtLeast(0)
                 } catch (_: RuntimeException) {
+                    truncated = true
                     0
                 }
                 if (reportedChildCount > MAX_CHILDREN_PER_NODE) truncated = true
@@ -97,10 +98,19 @@ internal class FxGkdAccessibilitySnapshot private constructor(
                         truncated = true
                         break
                     }
-                    val child = try { info.getChild(childIndex) } catch (_: RuntimeException) { null }
-                    if (child != null) {
-                        copyNode(child, node, childIndex, depth + 1)?.let(node.children::add)
+                    val child = try {
+                        info.getChild(childIndex)
+                    } catch (_: RuntimeException) {
+                        truncated = true
+                        null
                     }
+                    if (child == null) {
+                        // A child reported by the platform but unavailable to this
+                        // snapshot means the tree is incomplete; never match a prefix.
+                        truncated = true
+                        continue
+                    }
+                    copyNode(child, node, childIndex, depth + 1)?.let(node.children::add)
                 }
                 return node
             }
