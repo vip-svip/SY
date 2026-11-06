@@ -18,7 +18,8 @@ data class FxGkdRule(
     val cooldownMillis: Long,
     val enabled: Boolean,
     val action: String = "click",
-    val group: String = "默认"
+    val group: String = "默认",
+    val excludeSelector: String = ""
 )
 
 /**
@@ -95,7 +96,9 @@ object FxGkdRuleStore {
                         .coerceIn(MIN_COOLDOWN_MS, MAX_COOLDOWN_MS)
                     val action = item.optString("action", "click").takeIf { it == "click" || it == "long_click" } ?: "click"
                     val group = item.optString("group", "默认").trim().takeIf { it.isNotEmpty() && it.length <= 40 } ?: "默认"
-                    add(FxGkdRule(id, pkg, selector, cooldown, item.optBoolean("enabled", true), action, group))
+                    val excludeSelector = item.optString("exclude_selector", "").trim()
+                        .takeIf { it.length <= 512 && (it.isEmpty() || FxGkdSelectorEngine.compile(it).isValid) } ?: ""
+                    add(FxGkdRule(id, pkg, selector, cooldown, item.optBoolean("enabled", true), action, group, excludeSelector))
                 }
             }
         } catch (_: Exception) {
@@ -124,6 +127,7 @@ object FxGkdRuleStore {
                     .put("enabled", rule.enabled)
                     .put("action", rule.action)
                     .put("group", rule.group)
+                    .put("exclude_selector", rule.excludeSelector)
             )
         }
         return JSONObject()
@@ -190,7 +194,10 @@ object FxGkdRuleStore {
                 cooldownMillis = cooldown,
                 enabled = false,
                 action = item.optString("action", "click").takeIf { it == "click" || it == "long_click" } ?: "click",
-                group = item.optString("group", "默认").trim().takeIf { it.isNotEmpty() && it.length <= 40 } ?: "默认"
+                group = item.optString("group", "默认").trim().takeIf { it.isNotEmpty() && it.length <= 40 } ?: "默认",
+                excludeSelector = item.optString("exclude_selector", "").trim().takeIf {
+                    it.length <= 512 && (it.isEmpty() || FxGkdSelectorEngine.compile(it).isValid)
+                } ?: ""
             )
         }
 
@@ -224,7 +231,8 @@ object FxGkdRuleStore {
         selector: String,
         cooldownMillis: Long = DEFAULT_COOLDOWN_MS,
         action: String = "click",
-        group: String = "默认"
+        group: String = "默认",
+        excludeSelector: String = ""
     ): FxGkdRule? {
         val pkg = packageName.trim()
         val expression = selector.trim()
@@ -234,7 +242,11 @@ object FxGkdRuleStore {
         ) return null
         val compiled = FxGkdSelectorEngine.compile(expression)
         val safeGroup = group.trim().ifEmpty { "默认" }
-        if (!compiled.isValid || (action != "click" && action != "long_click") || safeGroup.length > 40) return null
+        val safeExclude = excludeSelector.trim()
+        if (!compiled.isValid || (action != "click" && action != "long_click") ||
+            safeGroup.length > 40 || safeExclude.length > 512 ||
+            (safeExclude.isNotEmpty() && !FxGkdSelectorEngine.compile(safeExclude).isValid)
+        ) return null
         val existing = getRules(context)
         if (existing.size >= MAX_RULES) return null
         val rule = FxGkdRule(
@@ -244,7 +256,8 @@ object FxGkdRuleStore {
             cooldownMillis = cooldownMillis.coerceIn(MIN_COOLDOWN_MS, MAX_COOLDOWN_MS),
             enabled = true,
             action = action,
-            group = safeGroup
+            group = safeGroup,
+            excludeSelector = safeExclude
         )
         val next = existing + rule
         return if (writeRules(context, next)) rule else null
@@ -258,19 +271,24 @@ object FxGkdRuleStore {
         selector: String,
         cooldownMillis: Long,
         action: String = "click",
-        group: String? = null
+        group: String? = null,
+        excludeSelector: String? = null
     ): FxGkdRule? {
         val expression = selector.trim()
         if (expression.isEmpty() || expression.length > 512 ||
             cooldownMillis !in MIN_COOLDOWN_MS..MAX_COOLDOWN_MS ||
             !FxGkdSelectorEngine.compile(expression).isValid ||
-            (action != "click" && action != "long_click")
+            (action != "click" && action != "long_click") ||
+            (excludeSelector != null && (excludeSelector.length > 512 ||
+                (excludeSelector.isNotBlank() && !FxGkdSelectorEngine.compile(excludeSelector).isValid)))
         ) return null
         val rules = getRules(context)
         val current = rules.firstOrNull { it.id == id } ?: return null
         val safeGroup = (group ?: current.group).trim().ifEmpty { "默认" }
         if (safeGroup.length > 40) return null
-        val updated = current.copy(selector = expression, cooldownMillis = cooldownMillis, action = action, group = safeGroup)
+        val safeExclude = (excludeSelector ?: current.excludeSelector).trim()
+        val updated = current.copy(selector = expression, cooldownMillis = cooldownMillis, action = action,
+            group = safeGroup, excludeSelector = safeExclude)
         val next = rules.map { if (it.id == id) updated else it }
         return if (writeRules(context, next)) updated else null
     }
@@ -342,7 +360,8 @@ object FxGkdRuleStore {
                 .put("cooldown_ms", rule.cooldownMillis)
                 .put("enabled", rule.enabled)
                 .put("action", rule.action)
-                .put("group", rule.group))
+                .put("group", rule.group)
+                .put("exclude_selector", rule.excludeSelector))
         }
         val editor = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit()
