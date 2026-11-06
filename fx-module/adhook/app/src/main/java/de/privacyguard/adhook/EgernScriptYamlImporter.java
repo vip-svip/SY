@@ -166,7 +166,7 @@ public final class EgernScriptYamlImporter {
                 doubleQuoted = true;
             } else if (c == '\'') {
                 singleQuoted = true;
-            } else if (c == '#' && (i == 0 || Character.isWhitespace(line.charAt(i - 1))))) {
+            } else if (c == '#' && (i == 0 || Character.isWhitespace(line.charAt(i - 1)))) {
                 return line.substring(0, i);
             }
         }
