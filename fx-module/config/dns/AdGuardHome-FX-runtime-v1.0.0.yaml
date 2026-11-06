@@ -19,6 +19,13 @@ dns:
   - 127.0.0.1
   - ::1
   port: 53
+  # Privacy baseline: mask client addresses and reject DNS server fingerprint probes.
+  anonymize_client_ip: true
+  refuse_any: true
+  blocked_hosts:
+  - version.bind
+  - id.server
+  - hostname.bind
   # All cache misses go to the device-local Unbound recursive resolver.
   # Unbound queries root/TLD/authoritative servers directly, with no fixed
   # No external forwarding resolver is configured here.
