@@ -37,7 +37,12 @@ FX_ARB_FILTER_DNS_PORT=${FX_ARB_FILTER_DNS_PORT:-53}
 FX_ARB_PROXY_PORT=${FX_ARB_PROXY_PORT:-7890}
 FX_ARB_LINK_FILE=${FX_ARB_LINK_FILE:-}
 FX_ARB_VPNINFO_FILE=${FX_ARB_VPNINFO_FILE:-}
-FX_ARB_SELF_UID=${FX_ARB_SELF_UID:-}
+# Package UID injection is fixture-only; production must resolve the installed app UID via Android package manager.
+if [ "${FX_ARB_TESTING:-0}" = "1" ]; then
+  FX_ARB_SELF_UID=${FX_ARB_SELF_UID:-}
+else
+  FX_ARB_SELF_UID=
+fi
 FX_ARB_SELF_VPN=false
 FX_ARB_SELF_IF=""
 FX_ARB_PROC_NET_DIR=${FX_ARB_PROC_NET_DIR:-/proc/net}
