@@ -761,8 +761,14 @@ private boolean targetDeveloperOptIn(String packageName) {
         synchronized (locationAccessHookedMethods) {
             int installed = 0;
             Set<String> blockedNames = new HashSet<>(Arrays.asList(
+                    // Direct position reads and active/single-shot location requests.
                     "getLastKnownLocation", "getCurrentLocation",
-                    "requestLocationUpdates", "requestSingleUpdate"));
+                    "requestLocationUpdates", "requestSingleUpdate",
+                    // GNSS and legacy GPS/NMEA callbacks expose position-derived data
+                    // even when an app never calls getLastKnownLocation().
+                    "registerGnssStatusCallback", "registerGnssMeasurementsCallback",
+                    "registerGnssNavigationMessageCallback", "addGpsStatusListener",
+                    "addNmeaListener", "addProximityAlert"));
             for (Method method : LocationManager.class.getDeclaredMethods()) {
                 if (!blockedNames.contains(method.getName()) || locationAccessHookedMethods.contains(method)) continue;
                 try {
