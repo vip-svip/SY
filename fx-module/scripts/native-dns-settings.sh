@@ -98,27 +98,26 @@ status() {
   _root_dns_probe=unavailable
   _root_route=unknown
   if [ -f "$CONF" ] && [ ! -L "$CONF" ] && [ -r "$CONF" ]; then
-    _filter_counts=$(awk -F'|' '
-      function valid_url(u, i, ch, allowed) {
-        if (length(u)>2048 || (index(u,"http://")!=1 && index(u,"https://")!=1)) return 0
-        allowed="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._~:/?#@!$&\\047()*+,;=%-"
-        for (i=1; i<=length(u); i++) {
-          ch=substr(u,i,1)
-          if (!index(allowed,ch)) return 0
-        }
-        return 1
-      }
-      $0=="[list:rule]" {section="rule"; next}
-      /^\[/ {section=""; next}
-      section=="rule" && valid_url($1) && ($3=="0" || $3=="1") {
-        total++
-        if ($3=="1") enabled++
-      }
-      END {printf "%d|%d\n", total+0, enabled+0}
-    ' "$CONF")
-    _filter_total=${_filter_counts%%|*}
-    _filter_enabled=${_filter_counts#*|}
-    case "$_filter_total:$_filter_enabled" in *[!0-9:]*|:*) _filter_total=unknown; _filter_enabled=unknown ;; esac
+    _rule_rows=
+    if [ -f "$MP/scripts/native-managed-lists.sh" ] && [ ! -L "$MP/scripts/native-managed-lists.sh" ]; then
+      _rule_rows=$(MP="$MP" PG="$PG" sh "$MP/scripts/native-managed-lists.sh" list ruleList 2>/dev/null) || _rule_rows=
+    fi
+    if [ -n "$_rule_rows" ]; then
+      _filter_counts=$(printf '%s\\n' "$_rule_rows" | awk -F'|' '
+        NR==1 {if($0!="FXLIST1") exit 2; next}
+        NF!=4 || $1 !~ /^[0-9]+$/ || $4 !~ /^[01]$/ {exit 2}
+        {total++; if($4=="1") enabled++}
+        END {if(NR<1) exit 2; printf "%d|%d\\n", total+0, enabled+0}
+      ') || _filter_counts=
+      case "$_filter_counts" in
+        ''|*[!0-9|]*) _filter_total=unknown; _filter_enabled=unknown ;;
+        *'|'*) _filter_total=${_filter_counts%%|*}; _filter_enabled=${_filter_counts#*|} ;;
+        *) _filter_total=unknown; _filter_enabled=unknown ;;
+      esac
+    else
+      _filter_total=unknown
+      _filter_enabled=unknown
+    fi
   fi
   if [ -f "$MP/scripts/yulong-root-proxy.sh" ] && [ ! -L "$MP/scripts/yulong-root-proxy.sh" ]; then
     if _root_output=$(MP="$MP" PG="$PG" sh "$MP/scripts/yulong-root-proxy.sh" status 2>/dev/null); then :; else _root_status_rc=$?; fi
