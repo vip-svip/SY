@@ -7857,3 +7857,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - DNS 架构卡新增“一键启用本地 DNS 引擎组 / 一键关闭本地 DNS 引擎组”，二次确认后单次提交。
   - 仅调整本地引擎及其依赖开关，不修改上游服务器、过滤规则或 VPN 节点。
 - 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证；本批尚未验收。
+
+
+## 2026-11-06 — Ad DNS 三组上游一次性事务保存
+
+- 后端提交：`77ecbcd4587a28f9ad61a16045e3cb70e7aadf9e`，文件 `scripts/yulong-ad-control.sh`。
+  - 新增 `dns-config-set-many CUSTOM GLOBAL FALLBACK`，三组 DNS 上游先全部完成格式校验，再在同一 FX 配置锁、备份/回滚与单次 apply 中写入。
+  - 自定义 DNS 支持既有 IPv4/DoH/DoT/DoQ 规则；全局与备用 DNS 仅接受 IPv4；参数 `-` 表示清除对应服务器段。任一写入失败由现有事务恢复整份配置。
+  - 不自动关闭 DNS 开关，不修改 VPN 节点 DNS 或过滤策略。
+- UI 提交：`3b3e7142afe06427ce61ee0630f3dde17cb2090c`，文件 `adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
+  - Ad → DNS 上游卡新增“一次性保存三组 DNS 上游”，同时读取自定义、全局、备用三个输入框；留空明确映射为清除对应服务器段，确认后单次调用后端事务。
+  - 保留原有逐组保存与清除入口；批量入口成功后刷新 DNS 页面。
+- 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证；本批尚未验收。
