@@ -590,7 +590,6 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
      .setPositiveButton("保存",(d,w)->{
       String value=name.getText()==null?"":name.getText().toString().trim();
       if(value.isEmpty()){status.setText("过滤列表名称不能为空。");return;}
-      if(value.length()>256){status.setText("过滤列表名称不能超过 256 个字符。");return;}
       apply("rule-rename "+q(rule.value)+" "+q(value),"过滤列表重命名");
      }).show();
   }
@@ -627,14 +626,12 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
     payload.append(line);included++;
    }
    if(included==0){status.setText("没有可导出的有效过滤订阅。");return;}
-   if(omitted>0)payload.append("# omitted ").append(omitted).append(" rows at 64 KiB export limit\n");
    try{
     Intent send=new Intent(Intent.ACTION_SEND);send.setType("text/plain");
     send.putExtra(Intent.EXTRA_SUBJECT,"FX Ad 过滤订阅备份");
     send.putExtra(Intent.EXTRA_TEXT,payload.toString());
     startActivity(Intent.createChooser(send,"分享过滤订阅"));
-    status.setText("已准备分享 "+included+" 个过滤订阅"
-        "。");
+    status.setText("已准备分享 "+included+" 个过滤订阅。");
    }catch(RuntimeException unavailable){status.setText("无法打开系统分享面板："+safe(unavailable.getMessage()));}
   }
   private void importRuleSubscriptions(EditText input){
@@ -1408,7 +1405,7 @@ private void saveVpnDns(String key,EditText input){
    if(filter.isEmpty()||(row.value+" "+row.title).toLowerCase(Locale.ROOT).contains(filter))selected.add(row.value);
   }
   if(selected.isEmpty()){status.setText("当前筛选条件下没有匹配的黑名单条目。");return;}
-  String payload=String.join("\\n",selected);
+   String payload=String.join("\n",selected);
   byte[] bytes=payload.getBytes(java.nio.charset.StandardCharsets.UTF_8);
   String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);
   String action=enabled?"启用":"停用";
@@ -1432,21 +1429,14 @@ private void saveVpnDns(String key,EditText input){
    return;
   }
   StringBuilder payload=new StringBuilder();
-  payload.append("# FX Ad domain list export\\n")
-      .append("# format: allow|domain|note or block|domain|note\\n");
+   payload.append("# FX Ad domain list export\n")
+       .append("# format: allow|domain|note or block|domain|note\n");
   int included=0;
-  final int maxBytes=64*1024;
-  int used=payload.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
   for(Row row:selected){
    String line=row.kind.toLowerCase(Locale.ROOT)+"|"
        +cleanDomainExportField(row.value)+"|"
-       +cleanDomainExportField(row.title)+"\\n";
-   int bytes=line.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
-   if(used+bytes>maxBytes){
-    status.setText("名单导出未完成，已取消生成不完整备份。请检查系统分享目标或设备资源后重试。");
-    return;
-   }
-   payload.append(line);used+=bytes;included++;
+        +cleanDomainExportField(row.title)+"\n";
+    payload.append(line);included++;
   }
   if(included!=selected.size()){
    status.setText("名单导出数量不完整，已取消导出。");return;
@@ -1457,8 +1447,7 @@ private void saveVpnDns(String key,EditText input){
    send.putExtra(Intent.EXTRA_SUBJECT,"FX Ad 域名名单备份");
    send.putExtra(Intent.EXTRA_TEXT,payload.toString());
    startActivity(Intent.createChooser(send,"分享域名名单"));
-   status.setText("已准备分享 "+included+" 条域名名单"
-       "。");
+    status.setText("已准备分享 "+included+" 条域名名单。");
   }catch(RuntimeException unavailable){
    status.setText("无法打开系统分享面板："+safe(unavailable.getMessage()));
   }
@@ -1476,7 +1465,7 @@ private void saveVpnDns(String key,EditText input){
    String[] fields=value.split("\\|",-1);
    if(fields.length!=3||!("allow".equals(fields[0].trim())||"block".equals(fields[0].trim()))
        ||fields[1].trim().isEmpty()||fields[1].trim().length()>253
-       ||fields[2].trim().length()>180){
+       ){
     status.setText("合并备份格式错误：每行必须为 allow|domain|note 或 block|domain|note。");
     return;
    }
@@ -1527,7 +1516,7 @@ private void saveVpnDns(String key,EditText input){
    if(value.isEmpty()||value.startsWith("#")) continue;
    String[] fields=value.split("\\|",-1);
    if(fields.length>2 || fields[0].trim().isEmpty() || fields[0].trim().length()>253
-       || (fields.length==2 && fields[1].trim().length()>180)){
+       ){
     status.setText("导入格式错误：请使用 domain 或 domain|note，每行一条。");
     return;
    }
@@ -1677,7 +1666,7 @@ private String dnsValue(String key){for(String line:snapshot.split("\\r?\\n")){S
    .setPositiveButton("保存",(dialog,which)->{
     String note=input.getText()==null?"":input.getText().toString().trim();
     if(note.isEmpty()){status.setText("备注不能为空；如需清空请使用单个空格以外的明确备注。");return;}
-    if(note.length()>160||note.indexOf(10)>=0||note.indexOf(13)>=0){status.setText("备注最多 160 个字符且不能包含换行。");return;}
+    if(note.indexOf(10)>=0||note.indexOf(13)>=0){status.setText("备注不能包含换行。");return;}
     apply((allow?"allow-note ":"block-note ")+q(e.value)+" "+q(note),allow?"白名单备注":"黑名单备注");
    }).show();
  }
