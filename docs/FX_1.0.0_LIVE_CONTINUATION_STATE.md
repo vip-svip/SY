@@ -7067,3 +7067,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - Egern 导入错误提示现区分可用的扁平 env 与无法表示的 env 结构；应用提交 7078f59a33f258124d5ccd25978ffe6c874ecc80，模块提交 21688a47aa7691d623ef7c85afcd693fcd42ed86。
 - 传感器隐私新增 SensorManager.requestTriggerSensor() 与 DynamicSensorCallback.onDynamicSensorConnected() 拦截，命中同一按应用传感器类别策略时不向目标应用注册触发器或推送连接事件；应用 Hook 提交 fa666744595d582f142e88fc62e7d877bf2154ed、36389f2f8accfffca35ec55c4e53307611cc967f；模块 Hook 提交 d93942f67e34764411b82d9464cfeea29e1075a5、5209cf1b442f29baa889690bb0bb2d9d72c719bd。
 - 固定 FX 1.0.0。按当前推进要求未运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-06 — Egern 正文阶段文档对齐
+
+- README 将 Egern `body_required: true` 的实际映射范围更正为 `http_request` 与 `http_response` 两个阶段；正文仍受现有 FX 未压缩文本正文和 1 MiB 限制，`binary_body` 仍跳过。
+- 提交：`75d41471dad57fe47a96a602d8f8cf8e92667140`。
+- 按要求未运行测试、静态检查、构建、CI 或设备验证。
