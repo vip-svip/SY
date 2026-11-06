@@ -213,9 +213,10 @@ README_SECTION = """## Egern 脚本兼容入口（扩展子集）
 
 HTTP 支持 GET、POST、PUT、PATCH、DELETE、HEAD、OPTIONS，以及 fetch/request 入口；响应提供 status、headers、text()、json()。Headers 大小写不敏感并支持 get、getAll、has、set、append、delete、entries 和迭代。存储支持 get、set、getJSON、setJSON 和 delete。
 
-FX-SCRIPT-NAME 会映射到 ctx.script.name；FX-SCRIPT-ENV-JSON 会合并到 ctx.env，事件本身提供的环境字段优先。请求/响应与其他设备信息只透传事件实际提供的值。通知写入 FX 脚本日志，不会调用 Android 通知栏。当前仍是兼容子集：不支持 ESM import、流与二进制正文 API、SSH、lookupIP、压缩、ctx.respond()、ctx.abort()、重定向控制、代理策略或 Egern 专属网络服务；HTTP 底层同步执行，仅提供 Promise 兼容层。
-"""
-def replace_marked(source: str, begin: str, end: str, block: str,
+FX-SCRIPT-NAME 会映射到 ctx.script.name；FX-SCRIPT-ENV-JSON 会合并到 ctx.env，事件本身提供的环境字段优先。FX-SCRIPT-ARGUMENT 会映射到全局 $argument 与 ctx.script.argument。请求/响应与其他设备信息只透传事件实际提供的值。通知写入 FX 脚本日志，不会调用 Android 通知栏。当前仍是兼容子集：不支持 ESM import、流与二进制正文 API、SSH、lookupIP、压缩、ctx.respond()、ctx.abort()、重定向控制、代理策略或 Egern 专属网络服务；HTTP 底层同步执行，仅提供 Promise 兼容层。
+
+Stash YAML 的 http.script + script-providers 导入映射到 HTTPS request/response Hook；支持 match、require-body、disabled 与 argument，argument 进入 $argument。仅接受 engine=auto、binary-mode=false、timeout=10、max-size=1048576 与 provider interval=86400 的配置；其他 Stash 专属能力会跳过，不伪装为已支持。
+"""def replace_marked(source: str, begin: str, end: str, block: str,
                    old_begin: str = "", old_end: str = "") -> str:
     if begin in source or end in source:
         if source.count(begin) != 1 or source.count(end) != 1:
