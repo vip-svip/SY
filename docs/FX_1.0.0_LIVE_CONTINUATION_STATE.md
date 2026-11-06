@@ -6854,3 +6854,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `fx-module/scripts/adguardhome.sh`（`9dbb8f70`）将过滤订阅源 ID 从顺序递增改为基于规范 URL 内容生成的稳定数值 ID，并在哈希碰撞时执行确定性递增避让；调整订阅列表顺序不再导致所有后续订阅源 ID 改变。
 - 本项仅改变 AdGuard 过滤器条目的标识生成方式，保留 URL 去重、启用状态、名称和远程订阅分区。
 - 本批按当前推进要求未运行测试、构建、CI 或设备核验。
+
+## 2026-11-06 — DNS 引擎状态统计修复与统一依赖入口
+
+- 修复 `scripts/native-dns-settings.sh`（`e1c2d503`、`4617cf59`）和 `fx-module/scripts/native-dns-settings.sh`（`21d3d5d1`、`8fbbf04e`）的远程订阅 URL 统计器：去除被拼入正则的杂散文本，改为明确识别 http/https scheme 和空白/分隔符；修正 Shell 参数展开，恢复订阅总数与启用数的实际统计输出。
+- 同两份 DNS 状态脚本新增 `dns_stack_enabled` 与依照当前启用引擎计算的 `dns_stack_ready`：关闭全部 DNS 引擎显示为已关闭；仅启用 Unbound 时以 Unbound 运行态为准；启用 AdGuard 时必须同时启用并运行其本地 Unbound 上游。
+- 更新 `scripts/yulong-ad-control.sh`（`671a564d`）和 `fx-module/scripts/yulong-ad-control.sh`（`8b598119`）：Yulong UI 对 AdGuard、Unbound、第三方 VPN 兼容及 Root Proxy 的开关转交统一 DNS 依赖管理器，避免旧入口写入单个布尔值绕过依赖关系。
+- 更新 `fx-module/scripts/yulong-root-proxy.sh`（`8d9f37f1`）：Root Proxy 自身 enable/disable 入口也通过统一 DNS 依赖管理器执行；模块缺少新管理器时保留旧兼容路径。
+- 更新 `MainActivity.java`（`82469744`），分开展示 DNS 引擎“已启用/已关闭”与“链路就绪/未就绪”，避免把用户主动关闭引擎显示成运行故障。
+- 本批未运行 Shell/Python/Java/Gradle 检查、回归测试、构建、CI 或真机验证。修复来自源码文本调整，尚无设备行为验证结论。
