@@ -7913,5 +7913,6 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - UI 提交：1abd3b9e2cdd745ee2e916a658c2efe8b19679ab；文件 `adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
   - DNS 备份卡新增快照粘贴与恢复入口，限制 48 KiB，确认后单次提交；兼容导出文件中的说明注释行，恢复前仅保留版本头与配置字段；成功刷新页面，失败显示后端回滚结果。
   - 恢复只作用于 DNS 配置范围，不上传快照、不改变其他模块设置。
+- 后续修正提交：`12e1f11419e7987deb8046c6c176617a032a8771`，确保四个原生依赖开关经原生 DNS 依赖管理器批量写入；外层 DNS 事务仍保留整份配置回滚。
 - 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证；恢复流程尚未验收。
 
