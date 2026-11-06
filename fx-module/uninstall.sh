@@ -15,7 +15,7 @@ _mitm_warn() {
 }
 # Validate every network teardown log before invoking any network helper.
 # A symlink or special file here could redirect shell output outside FX state.
-for _fx_log in "$STATE_DIR/vpn-external-watchdog.log" "$STATE_DIR/yulong-root-proxy.log"; do
+for _fx_log in "$STATE_DIR/vpn-external-watchdog.log" "$STATE_DIR/yulong-root-proxy.log" "$STATE_DIR/yulong-root-proxy-package-watch.log"; do
   if [ -L "$_fx_log" ] || { [ -e "$_fx_log" ] && [ ! -f "$_fx_log" ]; }; then
     _mitm_warn "network teardown log is a symlink or non-regular file ($_fx_log); preserving state and aborting uninstall"
     exit 1
@@ -52,6 +52,16 @@ if [ -f "$MODDIR/scripts/vpn-external-watchdog.sh" ]; then
     _mitm_warn "external VPN watcher shutdown was not confirmed; preserving state and aborting uninstall"
     exit 1
   fi
+fi
+if [ -f "$MODDIR/scripts/yulong-root-proxy-package-watch.sh" ]; then
+  if ! sh "$MODDIR/scripts/yulong-root-proxy-package-watch.sh" stop "$MODDIR" "$STATE_DIR" \
+      >> "$STATE_DIR/yulong-root-proxy-package-watch.log" 2>&1; then
+    _mitm_warn "Root Proxy package watcher shutdown was not confirmed; preserving state and aborting uninstall"
+    exit 1
+  fi
+elif [ -e "$STATE_DIR/yulong-root-proxy-package-watch.pid" ]; then
+  _mitm_warn "Root Proxy package watcher PID exists but its helper is missing; preserving state and aborting uninstall"
+  exit 1
 fi
 if [ -f "$MODDIR/scripts/yulong-root-proxy.sh" ]; then
   if ! MP="$MODDIR" PG="$STATE_DIR" CONF="$STATE_DIR/settings.conf" \
