@@ -71,7 +71,10 @@ _prepare_state_dirs() {
   else
     (umask 077; mkdir "$WORK") || return 1
   fi
-  chmod 700 "$STATE" "$WORK" 2>/dev/null || :
+  chmod 700 "$STATE" "$WORK" 2>/dev/null || {
+    echo "cannot enforce private Unbound state/work directory permissions" >&2
+    return 1
+  }
   for _safe_candidate in "$CFG" "$PIDFILE" "$LOG" "$STATE/root.key" "$EGRESS"; do
     _safe_file_or_absent "$_safe_candidate" || {
       echo "Unbound refuses a symlink or non-regular state file: $_safe_candidate" >&2
