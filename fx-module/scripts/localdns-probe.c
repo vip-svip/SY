@@ -28,6 +28,37 @@ static int add_label(unsigned char *out,size_t *n,const char *s) {
     if(len==0 || len>63 || *n+len+1>=512) return -1;
     out[(*n)++]=(unsigned char)len; memcpy(out+*n,s,len); *n+=len; return 0;
 }
+static int transfer_all(int fd,unsigned char *buf,size_t len,int sending) {
+    size_t offset=0;
+    while(offset<len) {
+        ssize_t count=sending?send(fd,buf+offset,len-offset,0):recv(fd,buf+offset,len-offset,0);
+        if(count<0 && errno==EINTR) continue;
+        if(count<=0) return -1;
+        offset+=(size_t)count;
+    }
+    return 0;
+}
+static int retry_tcp(const struct sockaddr_in *server,const unsigned char *query,size_t query_len,
+                     unsigned char *reply,size_t reply_cap,const struct timeval *timeout,size_t *reply_len) {
+    unsigned char prefix[2],frame[514];
+    uint16_t length;
+    int fd=socket(AF_INET,SOCK_STREAM,0);
+    if(fd<0) return -1;
+    if(setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,timeout,sizeof(*timeout))!=0 ||
+       setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,timeout,sizeof(*timeout))!=0 ||
+       connect(fd,(const struct sockaddr *)server,sizeof(*server))!=0) { close(fd); return -1; }
+    if(query_len>512) { close(fd); return -1; }
+    put16(prefix,(uint16_t)query_len);
+    memcpy(frame,prefix,2); memcpy(frame+2,query,query_len);
+    if(transfer_all(fd,frame,query_len+2,1)!=0 || transfer_all(fd,prefix,2,0)!=0) {
+        close(fd); return -1;
+    }
+    length=(uint16_t)(((uint16_t)prefix[0]<<8)|prefix[1]);
+    if(length<12 || (size_t)length>reply_cap || transfer_all(fd,reply,length,0)!=0) {
+        close(fd); return -1;
+    }
+    close(fd); *reply_len=(size_t)length; return 0;
+}
 int main(int argc,char **argv) {
     const char *ip=argc>1?argv[1]:"127.0.0.1";
     long port=5353,timeout=5;
@@ -56,9 +87,15 @@ int main(int argc,char **argv) {
     if(setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&tv,sizeof(tv))!=0) { perror("SO_RCVTIMEO"); close(fd); return 70; }
     if(connect(fd,(struct sockaddr *)&server,sizeof(server))!=0) { perror("connect"); close(fd); return 70; }
     if(send(fd,query,n,0)!=(ssize_t)n) { perror("send"); close(fd); return 71; }
-    ssize_t got=recv(fd,reply,sizeof(reply),0);
-    if(got<0) { perror("recv"); close(fd); return 72; } close(fd);
-    if((size_t)got<n) { fputs("DNS response shorter than echoed question\n",stderr); return 72; }
+    ssize_t udp_got=recv(fd,reply,sizeof(reply),0);
+    if(udp_got<0) { perror("recv"); close(fd); return 72; } close(fd);
+    if(udp_got<12) { fputs("DNS response shorter than header\\n",stderr); return 72; }
+    flags=(uint16_t)(((uint16_t)reply[2]<<8)|reply[3]);
+    size_t got=(size_t)udp_got;
+    if((flags&0x0200u)!=0 && retry_tcp(&server,query,n,reply,sizeof(reply),&tv,&got)!=0) {
+        fputs("truncated UDP DNS response and TCP retry failed\\n",stderr); return 72;
+    }
+    if(got<n) { fputs("DNS response shorter than echoed question\\n",stderr); return 72; }
     uint16_t response_id=(uint16_t)(((uint16_t)reply[0]<<8)|reply[1]);
     flags=(uint16_t)(((uint16_t)reply[2]<<8)|reply[3]); rcode=(uint16_t)(flags&0x000fu);
     qdcount=(uint16_t)(((uint16_t)reply[4]<<8)|reply[5]);
