@@ -265,15 +265,11 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
             return countOrder != 0 ? countOrder : left.getKey().compareTo(right.getKey());
         });
         if (!blockedDomains.isEmpty()) {
-            out.append("\n高频拦截域名：");
-            int visible = Math.min(5, blockedDomains.size());
-            for (int i = 0; i < visible; i++) {
+            out.append("\n全部高频拦截域名（按次数降序）：");
+            for (int i = 0; i < blockedDomains.size(); i++) {
                 java.util.Map.Entry<String, Long> entry = blockedDomains.get(i);
                 if (i > 0) out.append("；");
                 out.append(entry.getKey()).append(" × ").append(entry.getValue());
-            }
-            if (blockedDomains.size() > visible) {
-                out.append("；另有 ").append(blockedDomains.size() - visible).append(" 个域名");
             }
         }
         summaryStatus.setText(out.toString());
