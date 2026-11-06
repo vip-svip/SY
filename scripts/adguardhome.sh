@@ -364,10 +364,26 @@ _config_contract() {
       if ($2=="127.0.0.1:5353") local_upstream=1
       else unsafe_upstream=1
     }
+    dns && /^  fallback_dns:/ {
+      fallback=1
+      if ($2=="[]") fallback_empty=1
+      next
+    }
+    dns && fallback && /^  [A-Za-z_][A-Za-z0-9_-]*:/ {fallback=0}
+    dns && fallback && /^  - / {
+      server=$2
+      fallback_count++
+      n=split(server,octets,".")
+      valid=(n==4)
+      for(i=1;i<=n;i++) if(octets[i]!~/^[0-9]+$/ || length(octets[i])>3 || octets[i]+0>255 || (octets[i]!="0" && octets[i]~/^0/)) valid=0
+      if(octets[1]+0==0 || octets[1]+0>=224) valid=0
+      if(!valid || fallback_seen[server]++) unsafe_fallback=1
+    }
     END {
       exit (http_loopback && dns_port=="53" &&
         hosts["127.0.0.1"] && hosts["::1"] && bind_count==2 &&
-        upstream_count==1 && local_upstream && !unsafe_upstream) ? 0 : 1
+        upstream_count==1 && local_upstream && !unsafe_upstream &&
+        !unsafe_fallback && fallback_count<=3) ? 0 : 1
     }
   ' "$CFG" || {
     _log 'AdGuard config violates FX loopback/listener/local-Unbound policy'
