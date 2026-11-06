@@ -1947,9 +1947,26 @@ valid_dns_rewrite_ipv6() {
     {if(!valid_ipv6($0))exit 1}
   '
 }
+valid_dns_rewrite_source_domain() {
+  _rewrite_source=$1
+  case "$_rewrite_source" in
+    \*.*)
+      _rewrite_suffix=\${_rewrite_source#*.}
+      case "$_rewrite_suffix" in *\**) return 1 ;; esac
+      [ "\${#_rewrite_source}" -le 253 ] || return 1
+      _rewrite_suffix=$(valid_domain "$_rewrite_suffix") || return 1
+      printf '*.%s' "$_rewrite_suffix"
+      ;;
+    *\*) return 1 ;;
+    *) valid_domain "$_rewrite_source" ;;
+  esac
+}
 valid_dns_rewrite_answer() {
   _rewrite_answer=$1
   case "$_rewrite_answer" in
+    A|a|AAAA|aaaa)
+      printf '%s' "$_rewrite_answer" | tr 'a-z' 'A-Z'
+      ;;
     *[!0-9.]*)
       case "$_rewrite_answer" in
         *:*)
@@ -2010,7 +2027,17 @@ dns_rewrites_values() {
       for(i=1;i<=n;i++) if(a[i]!~/^[0-9A-Fa-f][0-9A-Fa-f]?[0-9A-Fa-f]?[0-9A-Fa-f]?$/) return 0
       return 1
     }
+    function valid_source_domain(v,suffix) {
+      v=tolower(v)
+      if(substr(v,1,2)=="*.") {
+        suffix=substr(v,3)
+        return length(v)<=253 && index(suffix,"*")==0 && valid_domain(suffix)
+      }
+      if(index(v,"*")) return 0
+      return valid_domain(v)
+    }
     function valid_answer(v) {
+      if(v=="A" || v=="AAAA") return 1
       if(v~/^[0-9.]+$/) return valid_ipv4(v)
       if(v~/^[0-9A-Fa-f:]+$/ && index(v,":")) return valid_ipv6(v)
       return valid_domain(v)
@@ -2025,7 +2052,8 @@ dns_rewrites_values() {
       value=substr($0,9)
       parts=split(value,p,/[|]/)
       host=tolower(p[1]); answer=tolower(p[2])
-      if(parts!=2 || !valid_domain(host) || !valid_answer(answer) || seen[host]++){bad=1;next}
+      if(answer=="a" || answer=="aaaa") answer=toupper(answer)
+      if(parts!=2 || !valid_source_domain(host) || !valid_answer(answer) || seen[host]++){bad=1;next}
       print host "|" answer
     }
     END {if(sections>1 || bad)exit 1}
@@ -2069,7 +2097,7 @@ dns_rewrites_set_many() {
     _rewrite_answer=$(printf '%s' "$_rewrite_answer" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
     [ -n "$_rewrite_domain$_rewrite_answer$_rewrite_extra" ] || continue
     [ -z "$_rewrite_extra" ] || { echo "DNS rewrite rows must use domain|answer" >&2; return 2; }
-    _rewrite_domain=$(valid_domain "$_rewrite_domain") || { echo "invalid DNS rewrite source domain" >&2; return 2; }
+    _rewrite_domain=$(valid_dns_rewrite_source_domain "$_rewrite_domain") || { echo "invalid DNS rewrite source domain or wildcard pattern" >&2; return 2; }
     _rewrite_answer=$(valid_dns_rewrite_answer "$_rewrite_answer") || { echo "invalid DNS rewrite answer for $_rewrite_domain" >&2; return 2; }
     if awk -F'|' -v domain="$_rewrite_domain" '$1==domain{found=1} END{exit !found}' "$_yad_rewrite_clean"; then
       echo "duplicate DNS rewrite source domain: $_rewrite_domain" >&2

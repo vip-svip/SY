@@ -979,8 +979,17 @@ _config_contract() {
       for(i=1;i<=n;i++) if(a[i]!~/^[0-9A-Fa-f][0-9A-Fa-f]?[0-9A-Fa-f]?[0-9A-Fa-f]?$/) return 0
       return 1
     }
-    function valid_rewrite_domain(v,n,a,i) {
+    function valid_rewrite_domain(v,suffix) {
       v=tolower(v)
+      if(length(v)>253) return 0
+      if(substr(v,1,2)=="*.") {
+        suffix=substr(v,3)
+        if(index(suffix,"*")) return 0
+        v=suffix
+      } else if(index(v,"*")) return 0
+      return valid_rewrite_host(v)
+    }
+    function valid_rewrite_host(v,n,a,i) {
       if(v=="" || length(v)>253 || v~/\.\./ || v~/^[.]|[.]$/ || v~/[^a-z0-9.-]/) return 0
       n=split(v,a,".")
       for(i=1;i<=n;i++)
@@ -997,9 +1006,10 @@ _config_contract() {
       return 1
     }
     function valid_rewrite_answer(v) {
+      if(v=="A" || v=="AAAA") return 1
       if(v~/^[0-9.]+$/) return valid_rewrite_ipv4(v)
       if(v~/^[0-9A-Fa-f:]+$/ && index(v,":")) return valid_ipv6(v)
-      return valid_rewrite_domain(v)
+      return valid_rewrite_host(v)
     }
     function valid_ipv6_port(v, close, host, tail, port) {
       if(substr(v,1,1)!="[") return 0

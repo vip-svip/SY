@@ -1384,3 +1384,12 @@
 - 保存请求单独记录 pending 数据；取消、目标 URI 缺失、Activity Result 迟到/内容丢失、文件流失败均明确报错并清空待处理内容，不报告虚假的保存成功。
 - 修改文件：正式与模块 APK 的两份 `FxYulongAdActivity.java`。
 - 本批未运行 Java/Gradle 测试、静态检查、构建、CI 或 Android 真机验证。
+
+## 2026-11-07 — DNS Rewrite 通配来源与 A/AAAA 保留答案
+
+- DNS Rewrite 来源新增精确域名与 `*.example.com` 通配子域名模式；只允许单一前缀通配符，禁止中间/后缀通配、多个通配符、非法标签和超长域名，来源匹配以规范化小写值做重复检测。
+- DNS Rewrite 答案新增 `A` 与 `AAAA` 特殊值，按 AdGuard Home 语义保留上游对应记录类型；同时继续支持 IPv4、IPv6 和 CNAME 域名答案。Root 写入、读取、profile snapshot 导入/导出均保留特殊值大写形态。
+- AdGuard Home renderer 的运行配置契约同步接受通配来源和 A/AAAA 答案，同时对其他通配位置和未知答案继续 fail closed。原生编辑器提示和说明同步新增格式。
+- 兼容性：配置仍使用 `rewrite=domain|answer` / `DNS_REWRITES` 原有字段协议；普通旧规则无需迁移，快照版本及字段数量不变。
+- 同步正式与模块源码：两份 `yulong-ad-control.sh`、两份 `adguardhome.sh`、两份 `FxYulongAdActivity.java`。
+- 按用户要求未运行测试、静态检查、构建、CI 或设备验证；本批为源码移植，不代表运行验收。

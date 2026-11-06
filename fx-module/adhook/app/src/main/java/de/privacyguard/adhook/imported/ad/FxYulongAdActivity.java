@@ -805,6 +805,18 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
    return java.net.InetAddress.getByName(value) instanceof java.net.Inet6Address;
   }catch(Exception invalid){return false;}
  }
+ private String normalizeDnsRewriteSource(String raw){
+  String source=raw==null?"":raw.trim().toLowerCase(java.util.Locale.ROOT);
+  if(source.startsWith("*.")){
+   String suffix=normalizeDnsStatisticsDomains(source.substring(2),true);
+   if(source.length()>253||suffix.contains("*"))
+    throw new IllegalArgumentException("通配重写仅支持 *.example.com 格式："+source);
+   return "*."+suffix;
+  }
+  if(source.contains("*"))
+   throw new IllegalArgumentException("通配符只能出现在域名前缀 *. ："+source);
+  return normalizeDnsStatisticsDomains(source,true);
+ }
  private String normalizeDnsRewrites(String raw){
   java.util.LinkedHashMap<String,String> rewrites=new java.util.LinkedHashMap<>();
   String supplied=raw==null?"":raw;
@@ -814,11 +826,13 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
    String[] pair=row.split("\\|",-1);
    if(pair.length!=2||pair[0].trim().isEmpty()||pair[1].trim().isEmpty())
     throw new IllegalArgumentException("每行必须使用 source.example|answer，且只包含一个竖线。");
-   String domain=normalizeDnsStatisticsDomains(pair[0].trim(),true);
+   String domain=normalizeDnsRewriteSource(pair[0]);
    if(domain.matches("[0-9.]+"))
     throw new IllegalArgumentException("重写源必须是域名，不能是 IP 地址："+domain);
    String answer=pair[1].trim();
-   if(answer.matches("[0-9.]+")){
+   if("A".equalsIgnoreCase(answer)||"AAAA".equalsIgnoreCase(answer)){
+    answer=answer.toUpperCase(java.util.Locale.ROOT);
+   }else if(answer.matches("[0-9.]+")){
     if(!isValidDnsRewriteIpv4(answer))
      throw new IllegalArgumentException("DNS 重写 IPv4 地址无效："+answer);
    }else if(answer.contains(":")){
@@ -863,10 +877,10 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
    input.setSingleLine(false);
    input.setMinLines(5);
    input.setGravity(android.view.Gravity.TOP|android.view.Gravity.START);
-   input.setHint("每行一条：域名|IPv4/IPv6/CNAME 目标");
+   input.setHint("每行一条：域名或 *.example.com|IPv4/IPv6/CNAME/A/AAAA");
    input.setText(normalized.replace(",", "\n"));
    fxDialogBuilder().setTitle("DNS 域名重写")
-    .setMessage("为指定域名固定返回 IPv4、IPv6 地址或 CNAME 目标。每行格式：域名|目标；同一源域名只能有一条规则，规则条数不设应用层上限。留空会清除全部重写。")
+    .setMessage("支持精确域名和 *.example.com 通配子域名；答案可为 IPv4、IPv6、CNAME 目标，或 A/AAAA（保留上游对应记录类型）。每行格式：域名|答案；同一来源模式只能有一条规则，规则条数不设应用层上限。留空会清除全部重写。")
     .setView(input)
     .setNegativeButton("取消",null)
     .setPositiveButton("保存",(dialog,which)->{
