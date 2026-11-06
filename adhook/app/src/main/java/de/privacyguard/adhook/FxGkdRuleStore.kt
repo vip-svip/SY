@@ -356,9 +356,20 @@ object FxGkdRuleStore {
     @Synchronized
     fun removeDuplicateRules(context: Context): Int {
         val rules = getRules(context)
-        val seen = HashSet<String>()
-        val next = rules.filter { rule ->
-            seen.add(rule.packageName + "\u0000" + rule.selector)
+        val retainedIndex = LinkedHashMap<String, Int>()
+        val next = mutableListOf<FxGkdRule>()
+        for (rule in rules) {
+            // Rules with different actions, cooldowns, groups or exclusions are not duplicates.
+            val key = listOf(rule.packageName, rule.selector, rule.action,
+                rule.cooldownMillis.toString(), rule.group, rule.excludeSelector).joinToString("\u0000")
+            val existingIndex = retainedIndex[key]
+            if (existingIndex == null) {
+                retainedIndex[key] = next.size
+                next += rule
+            } else if (rule.enabled && !next[existingIndex].enabled) {
+                // Preserve an enabled state if any exact duplicate was enabled.
+                next[existingIndex] = next[existingIndex].copy(enabled = true)
+            }
         }
         val removed = rules.size - next.size
         if (removed == 0) return 0
