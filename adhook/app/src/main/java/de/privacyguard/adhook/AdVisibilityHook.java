@@ -1088,9 +1088,23 @@ private boolean targetDeveloperOptIn(String packageName) {
                                 .intercept(chain -> {
                                     String activePackage = currentPackage;
                                     UnifiedHookConfigParser.Target active = targets.get(activePackage);
+                                    java.util.List<Object> args = new java.util.ArrayList<>(chain.getArgs());
+                                    Object sensor = args.size() > 1 ? args.get(1) : null;
+                                    if (sensor != null) {
+                                        try {
+                                            Object sensorType = sensor.getClass().getMethod("getType").invoke(sensor);
+                                            if (sensorType instanceof Integer && SensorPrivacyPolicy.shouldHide(
+                                                    privacyEnabled, processPackages.size(), activePackage, active,
+                                                    ((Integer) sensorType).intValue())) {
+                                                return method.getReturnType() == boolean.class
+                                                        ? Boolean.FALSE : null;
+                                            }
+                                        } catch (Throwable ignored) {
+                                            // Unrecognized OEM sensor handles remain usable.
+                                        }
+                                    }
                                     if (!SensorPrivacyPolicy.shouldClampRate(privacyEnabled, processPackages.size(),
                                             activePackage, active)) return chain.proceed();
-                                    java.util.List<Object> args = new java.util.ArrayList<>(chain.getArgs());
                                     Object period = args.size() > 2 ? args.get(2) : null;
                                     if (!(period instanceof Integer)) return chain.proceed();
                                     int originalPeriod = ((Integer) period).intValue();
