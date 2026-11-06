@@ -2310,111 +2310,11 @@ public final class MainActivity extends ComponentActivity {
     /** Import Egern HTTP request/response scriptings and their bounded flat env map. */
     private void importNativeEgernScriptConfig(String payload) {
         try {
-            JSONArray entries=new JSONArray();
-            java.util.Set<String> seen=new java.util.HashSet<>();
-            boolean inScriptings=false;
-            String kind="",name="",match="",scriptUrl="";
-            boolean disabled=false,bodyRequired=false,binaryBody=false,envValid=true,unsupportedLimits=false;
-            int envIndent=-1,envEntryIndent=-1;
-            JSONObject env=new JSONObject();
-            String[] lines=(payload==null?"":payload).split("\\r?\\n");
-            for(String sourceLine:lines) {
-                String uncommented=stripEgernYamlComment(sourceLine);
-                if(uncommented.trim().isEmpty())continue;
-                int indent=0;
-                while(indent<uncommented.length()&&(uncommented.charAt(indent)==' '||uncommented.charAt(indent)=='\t'))indent++;
-                String line=uncommented.trim();
-                if(indent==0) {
-                    if("scriptings:".equalsIgnoreCase(line)){inScriptings=true;continue;}
-                    if(inScriptings)appendEgernYamlHttpEntry(entries,seen,kind,name,match,scriptUrl,
-                            disabled,bodyRequired,binaryBody,env,envValid,unsupportedLimits);
-                    inScriptings=false;kind="";
-                    continue;
-                }
-                if(!inScriptings)continue;
-                if(envIndent>=0) {
-                    if(indent>envIndent) {
-                        if(envEntryIndent<0) envEntryIndent=indent;
-                        else if(indent!=envEntryIndent) { envValid=false; continue; }
-                        int envColon=line.indexOf(':');
-                        if(envColon<=0){envValid=false;continue;}
-                        String envKey=line.substring(0,envColon).trim();
-                        String envValue=egernYamlScalar(line.substring(envColon+1));
-                        if(!envKey.matches("[A-Za-z_][A-Za-z0-9_.-]{0,63}")
-                                ||envValue.length()>512||env.length()>=32
-                                ||env.has(envKey)) {
-                            envValid=false;
-                        } else {
-                            env.put(envKey,envValue);
-                        }
-                        continue;
-                    }
-                    envIndent=-1;
-                    envEntryIndent=-1;
-                }
-                java.util.regex.Matcher item=java.util.regex.Pattern
-                        .compile("^-\\s*(http_request|http_response|schedule|generic|network)\\s*:\\s*$")
-                        .matcher(line);
-                if(item.matches()) {
-                    appendEgernYamlHttpEntry(entries,seen,kind,name,match,scriptUrl,
-                            disabled,bodyRequired,binaryBody,env,envValid,unsupportedLimits);
-                    kind=item.group(1);name="";match="";scriptUrl="";
-                    disabled=false;bodyRequired=false;binaryBody=false;envValid=true;unsupportedLimits=false;
-                    env=new JSONObject();envIndent=-1;envEntryIndent=-1;
-                    continue;
-                }
-                if(kind.isEmpty())continue;
-                int colon=line.indexOf(':');if(colon<=0)continue;
-                String key=line.substring(0,colon).trim().toLowerCase(Locale.ROOT);
-                String rawValue=line.substring(colon+1).trim();
-                String value=egernYamlScalar(rawValue);
-                switch(key) {
-                    case "name":name=value;break;
-                    case "match":match=value;break;
-                    case "script_url":scriptUrl=value;break;
-                    case "disabled":disabled=egernYamlTrue(value);break;
-                    case "body_required":bodyRequired=egernYamlTrue(value);break;
-                    case "binary_body":binaryBody=egernYamlTrue(value);break;
-                    case "env":
-                        if(rawValue.isEmpty()) {
-                            envIndent=indent;
-                            envEntryIndent=-1;
-                        } else if("{}".equals(rawValue)||"{ }".equals(rawValue)) {
-                            envIndent=-1;
-                            envEntryIndent=-1;
-                        } else if(rawValue.startsWith("{")) {
-                            try {
-                                JSONObject inline=new JSONObject(rawValue);
-                                java.util.Iterator<String> keys=inline.keys();
-                                while(keys.hasNext()) {
-                                    String k=keys.next();Object v=inline.opt(k);
-                                    if(!k.matches("[A-Za-z_][A-Za-z0-9_.-]{0,63}")
-                                            ||!(v instanceof String)||((String)v).length()>512||env.length()>=32) {
-                                        envValid=false;break;
-                                    }
-                                    env.put(k,v);
-                                }
-                            } catch(Exception invalidInlineEnv) { envValid=false; }
-                        } else {
-                            envValid=false;
-                        }
-                        break;
-                    case "timeout":unsupportedLimits|=!egernYamlDefaultNumber(value,10);break;
-                    case "max_size":unsupportedLimits|=!egernYamlDefaultNumber(value,1048576);break;
-                    case "update_interval":unsupportedLimits|=!egernYamlDefaultNumber(value,86400);break;
-                    default:break;
-                }
-            }
-            appendEgernYamlHttpEntry(entries,seen,kind,name,match,scriptUrl,
-                    disabled,bodyRequired,binaryBody,env,envValid,unsupportedLimits);
-            if(entries.length()==0)throw new IllegalArgumentException("没有可安全迁移的 Egern HTTP 脚本；schedule/generic/network、binary_body 和非默认资源选项暂不支持");
-            JSONObject document=new JSONObject();
-            document.put("format","FX-SCRIPT-LIST");
-            document.put("version",1);
-            document.put("scripts",entries);
+            JSONObject document = EgernScriptYamlImporter.parse(payload);
             importNativeScriptDocument(document.toString());
-        } catch(Exception error) {
-            Toast.makeText(this,"Egern YAML 导入失败："+error.getMessage(),Toast.LENGTH_LONG).show();
+        } catch (Exception error) {
+            Toast.makeText(this, "Egern YAML 导入失败：" + error.getMessage(),
+                    Toast.LENGTH_LONG).show();
         }
     }
 
