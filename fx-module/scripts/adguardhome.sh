@@ -299,7 +299,7 @@ _build_dns_upstreams() {
       return 1
     }
     function dns_host(v, n, labels, i) {
-      if(v~/^[0-9.]+$/) return ipv4(v)
+      if(v~/^[0-9.]+$/) return valid_ipv4(v)
       if(length(v)>253 || substr(v,1,1)=="." || substr(v,length(v),1)==".") return 0
       n=split(v,labels,".")
       for(i=1;i<=n;i++)
@@ -314,8 +314,13 @@ _build_dns_upstreams() {
         a[2]+0>=1 && a[2]+0<=65535
       return 0
     }
+    function valid_ipv4_port(v, n, a) {
+      n=split(v,a,":")
+      return n==2 && valid_ipv4(a[1]) && a[2]~/^[0-9]+$/ &&
+        a[2]+0>=1 && a[2]+0<=65535
+    }
     function valid_endpoint(v, rest, parts, authority) {
-      if(valid_ipv4(v)) return 1
+      if(valid_ipv4(v) || valid_ipv4_port(v)) return 1
       if(substr(v,1,8)=="https://") {
         rest=substr(v,9)
         split(rest,parts,"/")
@@ -696,7 +701,7 @@ _config_contract() {
       return 1
     }
     function dns_host(v, n, labels, i) {
-      if(v~/^[0-9.]+$/) return ipv4(v)
+      if(v~/^[0-9.]+$/) return valid_ipv4(v)
       if(length(v)>253 || substr(v,1,1)=="." || substr(v,length(v),1)==".") return 0
       n=split(v,labels,".")
       for(i=1;i<=n;i++)
@@ -711,8 +716,13 @@ _config_contract() {
         a[2]+0>=1 && a[2]+0<=65535
       return 0
     }
+    function valid_ipv4_port(v, n, a) {
+      n=split(v,a,":")
+      return n==2 && valid_ipv4(a[1]) && a[2]~/^[0-9]+$/ &&
+        a[2]+0>=1 && a[2]+0<=65535
+    }
     function valid_endpoint(v, rest, parts, authority) {
-      if(valid_ipv4(v)) return 1
+      if(valid_ipv4(v) || valid_ipv4_port(v)) return 1
       if(substr(v,1,8)=="https://") {
         rest=substr(v,9); split(rest,parts,"/"); authority=parts[1]
         if(!valid_hostport(authority)) return 0
