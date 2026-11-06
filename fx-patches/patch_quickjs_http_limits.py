@@ -66,30 +66,34 @@ else:
         "throw new Error('HTTP URL is invalid or exceeds 4096 characters');\n",
         "URL bound",
     )
-    replace_once(
-        "    const headers=options.headers||{}, headerLines=[];\n"
-        "    for(const k of Object.keys(headers)){\n"
-        "      const v=String(headers[k]);\n"
-        "      if(/\\r|\\n/.test(k+v)||/^(host|content-length|transfer-encoding)$/i.test(k)) "
-        "throw new Error('unsafe HTTP header: '+k);\n"
-        "      headerLines.push(k+': '+v);\n"
-        "    }\n",
-        "    const headers=options.headers||{}, headerLines=[];\n"
-        "    let headerBytes=0;\n"
-        "    for(const k of Object.keys(headers)){\n"
-        "      const v=String(headers[k]);\n"
-        "      if(!/^[!#$%&'*+.^_\\x60|~0-9A-Za-z-]+$/.test(k)||"
-        "/[\\x00-\\x08\\x0a-\\x1f\\x7f]/.test(v)||"
-        "/^(host|content-length|transfer-encoding)$/i.test(k)) "
-        "throw new Error('unsafe HTTP header: '+k);\n"
-        "      const line=k+': '+v;\n"
-        "      headerBytes+=_fxUtf8Size(line)+2;\n"
-        "      if(headerBytes>_FX_HTTP_MAX_HEADER_BYTES) "
-        "throw new Error('HTTP request headers exceed 16 KiB');\n"
-        "      headerLines.push(line);\n"
-        "    }\n",
-        "header validation",
-    )
+    header_start = "    const headers=options.headers||{}, headerLines=[];\n"
+    header_end = "    const tmp=_fxStateDir+'/http-'"
+    start = source.find(header_start)
+    finish = source.find(header_end, start + len(header_start)) if start >= 0 else -1
+    if start < 0 or finish < 0:
+        raise SystemExit("QuickJS HTTP header serialization block is missing or ambiguous")
+    existing_headers = source[start:finish]
+    if "for(const k of Object.keys(headers))" not in existing_headers or "headerLines.push" not in existing_headers:
+        raise SystemExit("QuickJS HTTP header serialization block is not recognized")
+    bounded_headers = r"""    const headers=options.headers||{}, headerLines=[];
+    let headerBytes=0;
+    for(const k of Object.keys(headers)){
+      const values=Array.isArray(headers[k])?headers[k]:[headers[k]];
+      for(const rawValue of values){
+        const v=String(rawValue);
+        if(!/^[!#$%&'*+.^_\\x60|~0-9A-Za-z-]+$/.test(k)||
+        /[\\x00-\\x08\\x0a-\\x1f\\x7f]/.test(v)||
+        /^(host|content-length|transfer-encoding)$/i.test(k))
+          throw new Error('unsafe HTTP header: '+k);
+        const line=k+': '+v;
+        headerBytes+=_fxUtf8Size(line)+2;
+        if(headerBytes>_FX_HTTP_MAX_HEADER_BYTES)
+          throw new Error('HTTP request headers exceed 16 KiB');
+        headerLines.push(line);
+      }
+    }
+"""
+    source = source[:start] + bounded_headers + source[finish:]
     replace_once(
         "    _fxWrite(tmp+'.headers',headerLines.join('\\n'));\n"
         "    _fxWrite(tmp+'.body',options.body==null?'':"
