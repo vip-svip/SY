@@ -239,8 +239,11 @@ valid_dns_csv() {
       if(n==2) return dns_host(a[1]) && a[2]~/^[0-9]+$/ && a[2]+0>=1 && a[2]+0<=65535
       return 0
     }
-    function endpoint(v, rest, parts, hostpart) {
+    function endpoint(v, rest, parts, hostpart, address) {
       if(ipv4(v)) return 1
+      # Plain IPv4 upstreams may use a non-standard UDP/TCP port.
+      if(split(v,address,":")==2 && ipv4(address[1]) &&
+         address[2]~/^[0-9]+$/ && address[2]+0>=1 && address[2]+0<=65535) return 1
       if(substr(v,1,8)=="https://") {
         rest=substr(v,9)
         split(rest,parts,"/")
