@@ -7369,3 +7369,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`：新增统一隐私策略状态格式化方法；对总开关、Wi-Fi 扫描、剪贴板隔离、通知权限提示隐藏、通知监听策略，区分“已启用”“未启用”“状态接口未提供”“状态格式未知”。避免旧版模块或字段缺失时将默认 false 错报为策略已关闭。
 - 提交：`e9b36862523f0dbb0bb51b8283cf046245e68ff5`。
 - 按提速要求未运行测试、静态检查、构建、CI 或真机验证。
+
+
+## 2026-11-06 — Android 隐私授权快捷入口
+
+- `adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`：隐私页新增“通知读取授权”和“应用使用情况访问”入口，分别跳转 Android `ACTION_NOTIFICATION_LISTENER_SETTINGS` 与 `ACTION_USAGE_ACCESS_SETTINGS`；抽取统一系统设置跳转方法，先检查 Intent 处理组件，缺失/启动失败时提示用户手动进入系统设置。
+- 提交：`eec880cbf5027a70dc7a58e539e5c39956df21ae`。
+- 这两个系统授权彼此独立，打开设置页不代表已授予权限；用户需在系统界面自行确认授权。
+- 按提速要求未运行测试、静态检查、构建、CI 或真机验证。
