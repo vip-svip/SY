@@ -105,6 +105,7 @@ while IFS='|' read -r url note enabled; do
       meta_requires_body=$(printf '%s\n' "$meta" | sed -n '3p')
       meta_display_name=$(printf '%s\n' "$meta" | sed -n '4p')
       meta_env_json=$(printf '%s\n' "$meta" | sed -n '5p')
+      meta_argument=$(printf '%s\n' "$meta" | sed -n '6p')
       case "$meta_type" in request|response|both) ;; *) meta_type='' ;; esac
       case "$meta_match" in ''|*"$(printf '\r')"*) meta_match='' ;; esac
       case "$meta_requires_body" in ''|0) meta_requires_body=0 ;; 1) ;; *) meta_requires_body='' ;; esac
@@ -119,6 +120,12 @@ while IFS='|' read -r url note enabled; do
       if [ -n "$meta_env_json" ]; then
         case "$meta_env_json" in \{*\}) ;; *) meta_env_json='' ;; esac
       fi
+      # Stash's per-script argument is carried as field 6. Strip control bytes
+      # before writing a source header so metadata cannot inject extra directives.
+      meta_argument=$(printf '%s' "$meta_argument" | tr '\r\n' '  ' | sed 's/[[:cntrl:]]/ /g')
+      meta_argument_length=$(printf '%s' "$meta_argument" | wc -c | tr -d ' ')
+      case "$meta_argument_length" in ''|*[!0-9]*) meta_argument='' ;; esac
+      [ "$meta_argument_length" -le 512 ] 2>/dev/null || meta_argument=''
       if [ -z "$meta_type" ] || [ -z "$meta_match" ] || [ -z "$meta_requires_body" ]; then
         rm -f "$tmp"; pg_log "js-sub: invalid encoded trigger metadata for [subscription URL redacted]"; failed=$((failed+1)); continue
       fi
@@ -128,6 +135,7 @@ while IFS='|' read -r url note enabled; do
         if [ "$meta_requires_body" = 1 ]; then printf '// FX-SCRIPT-REQUIRES-BODY: 1\n'; fi
         if [ -n "$meta_display_name" ]; then printf '// FX-SCRIPT-NAME: %s\n' "$meta_display_name"; fi
         if [ -n "$meta_env_json" ]; then printf '// FX-SCRIPT-ENV-JSON: %s\n' "$meta_env_json"; fi
+        if [ -n "$meta_argument" ]; then printf '// FX-SCRIPT-ARGUMENT: %s\n' "$meta_argument"; fi
         cat "$tmp"
       } > "$wrapped"; then
         rm -f "$tmp" "$wrapped"; failed=$((failed+1)); continue
