@@ -217,7 +217,7 @@ _build_filter_sources() {
   [ -f "$PG/settings.conf" ] && [ ! -L "$PG/settings.conf" ] && [ -r "$PG/settings.conf" ] || return 1
   awk -F'|' '
     function valid_url(u, i, ch, allowed) {
-      if (length(u)>2048 || (index(u,"http://")!=1 && index(u,"https://")!=1)) return 0
+      if ((index(u,"http://")!=1 && index(u,"https://")!=1)) return 0
       allowed="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._~:/?#@!$&\047()*+,;=%-"
       for (i=1; i<=length(u); i++) {
         ch=substr(u,i,1)

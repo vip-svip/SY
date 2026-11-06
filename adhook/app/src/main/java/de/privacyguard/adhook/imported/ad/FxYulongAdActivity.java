@@ -365,7 +365,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
         if (separator <= 0) continue;
         String key = line.substring(0, separator).trim();
         String value = line.substring(separator + 1).trim();
-        if (key.matches("[a-z_]+") && value.length() <= 256) values.put(key, value);
+        if (key.matches("[a-z_]+")) values.put(key, value);
       }
       String enabled = values.getOrDefault("enabled", "unknown");
       String active = values.getOrDefault("active", "unknown");

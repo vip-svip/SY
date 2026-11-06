@@ -1,5 +1,14 @@
 
 
+### FX DNS 订阅字段、备注与状态输出残余长度门槛清理（2026-11-07）
+
+- 文件：`scripts/native-managed-lists.sh`、`scripts/adguardhome.sh`、`FxYulongAdActivity.java`。
+- 移除托管名单普通字段 4096 字符、备注 180 字符和 AdGuard 订阅 URL 2048 字符的应用层长度门槛；不再因这些人为字符数上限拒绝较长的有效订阅地址、名单字段或备注。
+- Root Proxy 状态 UI 不再丢弃超过 256 字符的字段值，状态响应按完整字段读取。
+- 继续保留字段分隔符、反斜杠、控制字符、HTTP/HTTPS 协议、DNS 域名 253 字符/标签 63 字符等语法和协议校验；Wi-Fi SSID 与 IP/端口约束未放宽。
+- 根目录构建源码和模块目录镜像同步修改；本轮未运行测试、静态检查、构建、CI 或设备验证。
+
+
 ### FX Unbound 健康探测器 TCP 截断回退同步到编译源码（2026-11-07）
 
 - 文件：`scripts/localdns-probe.c`。
