@@ -7224,6 +7224,23 @@ public final class MainActivity extends ComponentActivity {
         notify.setOnCheckedChangeListener((button, checked) ->
                 getPreferences(0).edit().putBoolean(draftNotifyKey, checked).apply());
 
+        Button discardDraft = new Button(this);
+        discardDraft.setAllCaps(false);
+        discardDraft.setText("放弃未发布修改，恢复已发布配置");
+        discardDraft.setEnabled(targetDebuggable);
+        discardDraft.setOnClickListener(v -> {
+            boolean cleared = getPreferences(0).edit()
+                    .remove(draftEnabledKey).remove(draftTextKey)
+                    .remove(draftIdsKey).remove(draftNotifyKey).commit();
+            if (!cleared) {
+                Toast.makeText(this, "草稿清理失败，当前页面未重置。", Toast.LENGTH_LONG).show();
+                return;
+            }
+            showDiaDialogTarget(target, targetDebuggable);
+            Toast.makeText(this, "已恢复上次发布的 Dialog 配置。", Toast.LENGTH_SHORT).show();
+        });
+        content.addView(discardDraft, new LinearLayout.LayoutParams(-1, -2));
+
         Button save = new Button(this);
         save.setAllCaps(false);
         save.setText("保存并发布 Dialog 规则");
@@ -7355,6 +7372,22 @@ public final class MainActivity extends ComponentActivity {
                         value == null ? "" : value.toString()).apply();
             }
         });
+
+        Button discardDraft = new Button(this);
+        discardDraft.setAllCaps(false);
+        discardDraft.setText("放弃未发布修改，恢复已发布配置");
+        discardDraft.setEnabled(userTarget);
+        discardDraft.setOnClickListener(v -> {
+            boolean cleared = getPreferences(0).edit()
+                    .remove(draftEnabledKey).remove(draftTermsKey).commit();
+            if (!cleared) {
+                Toast.makeText(this, "草稿清理失败，当前页面未重置。", Toast.LENGTH_LONG).show();
+                return;
+            }
+            showDiaToastTarget(target);
+            Toast.makeText(this, "已恢复上次发布的 Toast 配置。", Toast.LENGTH_SHORT).show();
+        });
+        content.addView(discardDraft, new LinearLayout.LayoutParams(-1, -2));
 
         Button save = new Button(this);
         save.setAllCaps(false);
@@ -7523,6 +7556,22 @@ public final class MainActivity extends ComponentActivity {
             }
             @Override public void onNothingSelected(android.widget.AdapterView<?> parent) { }
         });
+
+        Button discardDraft = new Button(this);
+        discardDraft.setAllCaps(false);
+        discardDraft.setText("放弃未发布修改，恢复已发布配置");
+        discardDraft.setEnabled(userTarget);
+        discardDraft.setOnClickListener(v -> {
+            boolean cleared = getPreferences(0).edit()
+                    .remove(finishDraftKey).remove(dialogDraftKey).commit();
+            if (!cleared) {
+                Toast.makeText(this, "草稿清理失败，当前页面未重置。", Toast.LENGTH_LONG).show();
+                return;
+            }
+            showDiaKeyControlTarget(target);
+            Toast.makeText(this, "已恢复上次发布的按键配置。", Toast.LENGTH_SHORT).show();
+        });
+        content.addView(discardDraft, new LinearLayout.LayoutParams(-1, -2));
 
         Button save = new Button(this);
         save.setAllCaps(false);
