@@ -190,10 +190,8 @@ valid_ipv4_dns_csv() {
         if($i!~/^[0-9.]+$/){bad=1;exit}
         n=split($i,a,".")
         if(n!=4){bad=1;exit}
-        for(j=1;j<=4;j++)if(a[j]==""||a[j]!~/^[0-9]+$/||length(a[j])>3||a[j]+0>255||(a[j]!="0"&&a[j]~/^0/)){bad=1;exit}
-        first=a[1]+0; second=a[2]+0
-        if($i=="0.0.0.0"||$i=="255.255.255.255"||
-           first==0||first==127||first>=224||(first==169&&second==254)){bad=1;exit}
+        for(j=1;j<=4;j++)if(a[j]==""||a[j]!~/^[0-9]+$/||length(a[j])>3||a[j]+0>255){bad=1;exit}
+        if($i=="0.0.0.0"||$i=="255.255.255.255"){bad=1;exit}
       }
     }
     END{exit bad}
@@ -207,11 +205,9 @@ valid_fallback_dns_csv() {
         if($i!~/^[0-9.]+$/){bad=1;exit}
         n=split($i,a,".")
         if(n!=4){bad=1;exit}
-        for(j=1;j<=4;j++)if(a[j]==""||a[j]!~/^[0-9]+$/||length(a[j])>3||a[j]+0>255||(a[j]!="0"&&a[j]~/^0/)){bad=1;exit}
-        first=a[1]+0; second=a[2]+0
+        for(j=1;j<=4;j++)if(a[j]==""||a[j]!~/^[0-9]+$/||length(a[j])>3||a[j]+0>255){bad=1;exit}
         if($i=="0.0.0.0"||$i=="255.255.255.255" ||
-           first==0 || first==127 || first>=224 ||
-           (first==169 && second==254)){bad=1;exit}
+           a[1]+0==127 || (a[1]+0==169 && a[2]+0==254)){bad=1;exit}
       }
     }
     END{exit bad}
@@ -223,14 +219,10 @@ valid_dns_csv() {
       if(v!~/^[0-9.]+$/) return 0
       n=split(v,a,".")
       if(n!=4) return 0
-      for(j=1;j<=4;j++) if(a[j]==""||a[j]!~/^[0-9]+$/||length(a[j])>3||a[j]+0>255||(a[j]!="0"&&a[j]~/^0/)) return 0
-      first=a[1]+0; second=a[2]+0
-      if(v=="0.0.0.0"||v=="255.255.255.255"||
-         first==0||first==127||first>=224||(first==169&&second==254)) return 0
-      return 1
-    }
+      for(j=1;j<=4;j++) if(a[j]==""||a[j]!~/^[0-9]+$/||length(a[j])>3||a[j]+0>255) return 0
+      if(v=="0.0.0.0"||v=="255.255.255.255") return 0
+      return 1    }
     function dns_host(v) {
-      if(v~/^[0-9.]+$/) return ipv4(v)
       return v~/^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/ && v!~/\.\./
     }
     function valid_hostport(v, n, a) {
@@ -635,6 +627,113 @@ dns_vpn_set_many() {
   echo "vpn_dns=updated remote_dns=$_vpn_remote cn_dns=$_vpn_cn"
 }
 m_vpn_dns_reset() { write_vpn_dns_many 1.1.1.1 223.5.5.5; }
+dns_runtime_values() {
+  awk -F= '
+    BEGIN {
+      mode="load_balance"; fastest="1s"; timeout="10s"; cache_size="4194304";
+      cache_enabled="1"; cache_optimistic="0"; dnssec="1";
+      inside=0; sections=0; bad=0
+    }
+    $0=="[conf:yulong_dns_runtime]" { sections++; if(sections>1)bad=1; inside=1; next }
+    /^\[/ { inside=0 }
+    inside && /^[[:space:]]*#/ { next }
+    inside && /^[[:space:]]*$/ { next }
+    inside {
+      if(index($0,"=")<2){bad=1;next}
+      key=substr($0,1,index($0,"=")-1)
+      value=substr($0,index($0,"=")+1)
+      if(seen[key]++){bad=1;next}
+      if(key=="upstream_mode")mode=value
+      else if(key=="fastest_timeout")fastest=value
+      else if(key=="upstream_timeout")timeout=value
+      else if(key=="cache_size")cache_size=value
+      else if(key=="cache_enabled")cache_enabled=value
+      else if(key=="cache_optimistic")cache_optimistic=value
+      else if(key=="enable_dnssec")dnssec=value
+      else bad=1
+    }
+    END {
+      if(sections>1 || bad)exit 1
+      if(mode!="load_balance" && mode!="parallel" && mode!="fastest_addr")exit 1
+      if(fastest!="500ms" && fastest!="1s" && fastest!="2s" && fastest!="5s")exit 1
+      if(timeout!="3s" && timeout!="5s" && timeout!="10s" && timeout!="15s" && timeout!="30s")exit 1
+      if(cache_size!~/^[0-9]+$/ || cache_size+0<=0)exit 1
+      if(cache_enabled!="0" && cache_enabled!="1")exit 1
+      if(cache_optimistic!="0" && cache_optimistic!="1")exit 1
+      if(dnssec!="0" && dnssec!="1")exit 1
+      print "UPSTREAM_MODE=" mode
+      print "FASTEST_TIMEOUT=" fastest
+      print "UPSTREAM_TIMEOUT=" timeout
+      print "CACHE_SIZE=" cache_size
+      print "CACHE_ENABLED=" cache_enabled
+      print "CACHE_OPTIMISTIC=" cache_optimistic
+      print "ENABLE_DNSSEC=" dnssec
+    }
+  ' "$CONF"
+}
+dns_runtime_get() {
+  echo FXYULONGDNSRUNTIME1
+  dns_runtime_values
+}
+write_dns_runtime_settings() {
+  _runtime_mode=$1; _runtime_fastest=$2; _runtime_timeout=$3
+  _runtime_cache_size=$4; _runtime_cache_enabled=$5
+  _runtime_cache_optimistic=$6; _runtime_dnssec=$7
+  case "$_runtime_mode" in load_balance|parallel|fastest_addr) : ;; *) echo "invalid DNS upstream mode" >&2; return 2 ;; esac
+  case "$_runtime_fastest" in 500ms|1s|2s|5s) : ;; *) echo "invalid DNS fastest-address timeout" >&2; return 2 ;; esac
+  case "$_runtime_timeout" in 3s|5s|10s|15s|30s) : ;; *) echo "invalid DNS upstream timeout" >&2; return 2 ;; esac
+  case "$_runtime_cache_size" in ''|*[!0-9]*|0) echo "DNS cache size must be a positive byte count" >&2; return 2 ;; esac
+  for _runtime_flag in "$_runtime_cache_enabled" "$_runtime_cache_optimistic" "$_runtime_dnssec"; do
+    case "$_runtime_flag" in 0|1) : ;; *) echo "DNS runtime flags must be 0 or 1" >&2; return 2 ;; esac
+  done
+  dns_runtime_values >/dev/null || { echo "existing DNS runtime settings are ambiguous or malformed" >&2; return 22; }
+  _runtime_tmp=$(mktemp "$CONF.yulong-dns-runtime.XXXXXX") || return 1
+  _yad_conf_tmp=$_runtime_tmp
+  if ! awk -v mode="$_runtime_mode" -v fastest="$_runtime_fastest" \
+      -v timeout="$_runtime_timeout" -v cache_size="$_runtime_cache_size" \
+      -v cache_enabled="$_runtime_cache_enabled" -v cache_optimistic="$_runtime_cache_optimistic" \
+      -v dnssec="$_runtime_dnssec" '
+    function emit() {
+      print "upstream_mode=" mode
+      print "fastest_timeout=" fastest
+      print "upstream_timeout=" timeout
+      print "cache_size=" cache_size
+      print "cache_enabled=" cache_enabled
+      print "cache_optimistic=" cache_optimistic
+      print "enable_dnssec=" dnssec
+    }
+    $0=="[conf:yulong_dns_runtime]" {
+      if(seen++)bad=1
+      print
+      emit()
+      inside=1
+      written=1
+      next
+    }
+    /^\[/ {inside=0;print;next}
+    inside {next}
+    {print}
+    END {
+      if(bad)exit 1
+      if(!written){print "";print "[conf:yulong_dns_runtime]";emit()}
+    }
+  ' "$CONF" > "$_runtime_tmp"; then
+    rm -f "$_runtime_tmp"; _yad_conf_tmp=
+    echo "unable to stage DNS runtime settings" >&2
+    return 1
+  fi
+  if [ -s "$_runtime_tmp" ] && chmod 600 "$_runtime_tmp" && mv -f "$_runtime_tmp" "$CONF"; then
+    _yad_conf_tmp=
+    return 0
+  fi
+  rm -f "$_runtime_tmp"; _yad_conf_tmp=
+  return 1
+}
+dns_runtime_set() {
+  write_dns_runtime_settings "$@" || return $?
+  echo "dns_runtime=updated"
+}
+
 dns_profile_get() {
   validate_existing_dns_section custom_dns || return $?
   validate_existing_dns_section global_dns || return $?
@@ -664,6 +763,7 @@ dns_profile_get() {
   [ -n "$mode" ] || mode=nxdomain
   printf 'RESPONSE_MODE=%s\n' "$mode"
   printf 'QUERYLOG_RETENTION=%s\n' "$_profile_retention"
+  dns_runtime_values || return $?
 }
 
 dns_profile_restore() {
@@ -680,13 +780,20 @@ dns_profile_restore() {
       if(index($0,"=")<2 || $0 ~ /\r/){bad=1;next}
       key=substr($0,1,index($0,"=")-1)
       value=substr($0,index($0,"=")+1)
-      if(key !~ /^(dns_engine_adguardhome|dns_forward|custom_dns|global_dns|block_quic|block_dot|block_plain_dns|block_ipv6|block_track_domains|vpn_external_dns_proxy|vpn_external_compat|dns_querylog_enabled|CUSTOM_SERVERS|GLOBAL_SERVERS|FALLBACK_SERVERS|VPN_REMOTE|VPN_CN|RESPONSE_MODE|QUERYLOG_RETENTION)$/)bad=1
+      if(key !~ /^(dns_engine_adguardhome|dns_forward|custom_dns|global_dns|block_quic|block_dot|block_plain_dns|block_ipv6|block_track_domains|vpn_external_dns_proxy|vpn_external_compat|dns_querylog_enabled|CUSTOM_SERVERS|GLOBAL_SERVERS|FALLBACK_SERVERS|VPN_REMOTE|VPN_CN|RESPONSE_MODE|QUERYLOG_RETENTION|UPSTREAM_MODE|FASTEST_TIMEOUT|UPSTREAM_TIMEOUT|CACHE_SIZE|CACHE_ENABLED|CACHE_OPTIMISTIC|ENABLE_DNSSEC)$/)bad=1
       if(seen[key]++)bad=1
       count++
     }
-    END{if(bad||(count!=18&&count!=19))exit 1}
+    END{if(bad||(count!=18&&count!=19&&count!=26))exit 1}
   ' "$_yad_profile_raw" || { echo "DNS profile has unknown, duplicate, missing, or malformed fields" >&2; return 2; }
   _profile_querylog_retention=7d
+  _profile_runtime_mode=load_balance
+  _profile_runtime_fastest=1s
+  _profile_runtime_timeout=10s
+  _profile_runtime_cache_size=4194304
+  _profile_runtime_cache_enabled=1
+  _profile_runtime_cache_optimistic=0
+  _profile_runtime_dnssec=1
   while IFS= read -r _profile_line || [ -n "$_profile_line" ]; do
     [ "$_profile_line" = FXYULONGDNSPROFILE1 ] && continue
     _profile_key=${_profile_line%%=*}; _profile_value=${_profile_line#*=}
@@ -715,6 +822,27 @@ dns_profile_restore() {
       QUERYLOG_RETENTION)
         valid_dns_querylog_retention "$_profile_value" || { echo "invalid DNS query-log retention" >&2; return 2; }
         _profile_querylog_retention=$_profile_value
+        ;;
+      UPSTREAM_MODE)
+        case "$_profile_value" in load_balance|parallel|fastest_addr) _profile_runtime_mode=$_profile_value ;; *) echo "invalid DNS upstream mode" >&2; return 2 ;; esac
+        ;;
+      FASTEST_TIMEOUT)
+        case "$_profile_value" in 500ms|1s|2s|5s) _profile_runtime_fastest=$_profile_value ;; *) echo "invalid fastest-address timeout" >&2; return 2 ;; esac
+        ;;
+      UPSTREAM_TIMEOUT)
+        case "$_profile_value" in 3s|5s|10s|15s|30s) _profile_runtime_timeout=$_profile_value ;; *) echo "invalid upstream timeout" >&2; return 2 ;; esac
+        ;;
+      CACHE_SIZE)
+        case "$_profile_value" in ''|*[!0-9]*|0) echo "invalid DNS cache size" >&2; return 2 ;; *) _profile_runtime_cache_size=$_profile_value ;; esac
+        ;;
+      CACHE_ENABLED)
+        case "$_profile_value" in 0|1) _profile_runtime_cache_enabled=$_profile_value ;; *) return 2 ;; esac
+        ;;
+      CACHE_OPTIMISTIC)
+        case "$_profile_value" in 0|1) _profile_runtime_cache_optimistic=$_profile_value ;; *) return 2 ;; esac
+        ;;
+      ENABLE_DNSSEC)
+        case "$_profile_value" in 0|1) _profile_runtime_dnssec=$_profile_value ;; *) return 2 ;; esac
         ;;
     esac
     case "$_profile_key" in
@@ -766,6 +894,7 @@ dns_profile_restore() {
     pg_set block_track_domains "$_profile_track" &&
     pg_set dns_querylog_enabled "$_profile_querylog" || return 1
   write_dns_querylog_retention "$_profile_querylog_retention" || return 1
+  write_dns_runtime_settings "$_profile_runtime_mode" "$_profile_runtime_fastest" "$_profile_runtime_timeout" "$_profile_runtime_cache_size" "$_profile_runtime_cache_enabled" "$_profile_runtime_cache_optimistic" "$_profile_runtime_dnssec" || return 1
   if [ -n "$_profile_custom" ]; then m_dns_servers custom_dns "$_profile_custom" || return 1
   else m_dns_section_clear custom_dns || return 1; fi
   if [ -n "$_profile_global" ]; then m_dns_servers global_dns "$_profile_global" || return 1
@@ -1625,6 +1754,15 @@ case "$cmd" in
  dns-querylog-retention-set)
   [ "$#" -eq 2 ] || exit 2
   with_lock transaction dns_querylog_retention_set "$2"
+  ;;
+ dns-runtime-get)
+  [ "$#" -eq 1 ] || exit 2
+  dns_runtime_get
+  ;;
+ dns-runtime-set)
+  [ "$#" -eq 8 ] || { echo "usage: $0 dns-runtime-set MODE FASTEST_TIMEOUT UPSTREAM_TIMEOUT CACHE_SIZE CACHE_ENABLED CACHE_OPTIMISTIC DNSSEC" >&2; exit 2; }
+  shift
+  with_lock transaction dns_runtime_set "$@"
   ;;
  dns-profile-get)
   [ "$#" -eq 1 ] || exit 2

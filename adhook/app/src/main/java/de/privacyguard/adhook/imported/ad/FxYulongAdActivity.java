@@ -712,6 +712,61 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
       }).setNegativeButton("取消",null).show();
   });
  }
+ private static boolean isValidDnsRuntimeCacheSize(String value){
+  if(value==null||!value.matches("[0-9]+"))return false;
+  try{return Long.parseLong(value)>0;}catch(NumberFormatException failure){return false;}
+ }
+ private static boolean isValidDnsRuntimeMode(String value){
+  return "load_balance".equals(value)||"parallel".equals(value)||"fastest_addr".equals(value);
+ }
+ private static boolean isValidDnsRuntimeFastestTimeout(String value){
+  return "500ms".equals(value)||"1s".equals(value)||"2s".equals(value)||"5s".equals(value);
+ }
+ private static boolean isValidDnsRuntimeUpstreamTimeout(String value){
+  return "3s".equals(value)||"5s".equals(value)||"10s".equals(value)||"15s".equals(value)||"30s".equals(value);
+ }
+ private void loadDnsRuntimeControls(EditText mode,EditText fastest,EditText upstream,
+      EditText cacheSize,Switch cacheEnabled,Switch cacheOptimistic,Switch dnssec,TextView state){
+  root("dns-runtime-get",result->{
+    if(result.exitCode!=0){state.setText("读取 AdGuard Home 引擎参数失败："+safe(result.output));return;}
+    java.util.Map<String,String> values=new java.util.LinkedHashMap<>();
+    String[] lines=(result.output==null?"":result.output).split("\\\\r?\\\\n");
+    if(lines.length==0||!"FXYULONGDNSRUNTIME1".equals(lines[0].trim())){
+      state.setText("DNS 引擎参数响应版本错误，未更新界面。");return;
+    }
+    for(int i=1;i<lines.length;i++){
+      int split=lines[i].indexOf('=');
+      if(split<=0||values.put(lines[i].substring(0,split),lines[i].substring(split+1))!=null){
+        state.setText("DNS 引擎参数响应有格式错误或重复字段，未更新界面。");return;
+      }
+    }
+    String[] required={"UPSTREAM_MODE","FASTEST_TIMEOUT","UPSTREAM_TIMEOUT","CACHE_SIZE",
+        "CACHE_ENABLED","CACHE_OPTIMISTIC","ENABLE_DNSSEC"};
+    for(String key:required)if(!values.containsKey(key)){
+      state.setText("DNS 引擎参数响应缺少字段："+key+"。");return;
+    }
+    if(!isValidDnsRuntimeMode(values.get("UPSTREAM_MODE"))
+        ||!isValidDnsRuntimeFastestTimeout(values.get("FASTEST_TIMEOUT"))
+        ||!isValidDnsRuntimeUpstreamTimeout(values.get("UPSTREAM_TIMEOUT"))
+        ||!isValidDnsRuntimeCacheSize(values.get("CACHE_SIZE"))){
+      state.setText("DNS 引擎参数响应的策略、超时或缓存容量无效。");return;
+    }
+    for(String key:new String[]{"CACHE_ENABLED","CACHE_OPTIMISTIC","ENABLE_DNSSEC"})
+      if(!"0".equals(values.get(key))&&!"1".equals(values.get(key))){
+        state.setText("DNS 引擎开关值无效："+key+"。");return;
+      }
+    mode.setText(values.get("UPSTREAM_MODE"));
+    fastest.setText(values.get("FASTEST_TIMEOUT"));
+    upstream.setText(values.get("UPSTREAM_TIMEOUT"));
+    cacheSize.setText(values.get("CACHE_SIZE"));
+    cacheEnabled.setChecked("1".equals(values.get("CACHE_ENABLED")));
+    cacheOptimistic.setChecked("1".equals(values.get("CACHE_OPTIMISTIC")));
+    dnssec.setChecked("1".equals(values.get("ENABLE_DNSSEC")));
+    state.setText("已读取完整 AdGuard Home 参数。上游策略、超时、缓存和 DNSSEC 将由运行 YAML 实际应用。");
+  });
+ }
+
+
  private void renderDns(){
   EditText dnsProfileImport=draftField("dns_profile_import");dnsProfileImport.setSingleLine(false);dnsProfileImport.setMinLines(5);dnsProfileImport.setHint("粘贴完整 FXYULONGDNSPROFILE1 快照文本");dnsProfileImportField=dnsProfileImport;
  private void refreshDnsCache(String target,String label){
@@ -735,6 +790,55 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
        dnsSwitch("启用全局 DNS 替换","global_dns"),
        btn("一键启用本地 DNS 引擎组",()->setDnsEngineProfile(true)),
        btn("一键关闭本地 DNS 引擎组",()->setDnsEngineProfile(false)));
+  EditText dnsRuntimeMode=draftField("dns_runtime_upstream_mode");
+  dnsRuntimeMode.setSingleLine(true);
+  dnsRuntimeMode.setHint("load_balance / parallel / fastest_addr");
+  EditText dnsRuntimeFastest=draftField("dns_runtime_fastest_timeout");
+  dnsRuntimeFastest.setSingleLine(true);
+  dnsRuntimeFastest.setHint("500ms / 1s / 2s / 5s");
+  EditText dnsRuntimeTimeout=draftField("dns_runtime_upstream_timeout");
+  dnsRuntimeTimeout.setSingleLine(true);
+  dnsRuntimeTimeout.setHint("3s / 5s / 10s / 15s / 30s");
+  EditText dnsRuntimeCacheSize=draftField("dns_runtime_cache_size");
+  dnsRuntimeCacheSize.setSingleLine(true);
+  dnsRuntimeCacheSize.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+  dnsRuntimeCacheSize.setHint("缓存容量（字节），例如 4194304");
+  Switch dnsCacheEnabled=new Switch(this);
+  dnsCacheEnabled.setText("启用 AdGuard Home DNS 缓存");
+  Switch dnsCacheOptimistic=new Switch(this);
+  dnsCacheOptimistic.setText("缓存过期时先返回旧答案并后台刷新");
+  Switch dnssecEnabled=new Switch(this);
+  dnssecEnabled.setText("AdGuard Home 上游启用 DNSSEC 校验");
+  TextView dnsRuntimeState=txt("正在读取 AdGuard Home 引擎参数…",12,0xff617080,false);
+  card("AdGuard Home 解析策略与性能",
+       "上游策略：load_balance 按健康与响应表现选择；parallel 并发请求全部上游；fastest_addr 按地址响应延迟选择。缓存容量以字节计；乐观缓存可在过期数据刷新期间优先返回旧答案。DNSSEC 会对上游 DNSSEC 响应执行验证。EDNS Client Subnet 保持关闭，避免向上游泄露客户端网段。",
+       txt("多上游选择策略",12,0xff617080,true),dnsRuntimeMode,
+       txt("fastest_addr 探测超时",12,0xff617080,true),dnsRuntimeFastest,
+       txt("上游请求超时",12,0xff617080,true),dnsRuntimeTimeout,
+       txt("DNS 缓存容量（字节）",12,0xff617080,true),dnsRuntimeCacheSize,
+       dnsCacheEnabled,dnsCacheOptimistic,dnssecEnabled,
+       btn("保存并应用 AdGuard Home 引擎参数",()->{
+         String modeValue=dnsRuntimeMode.getText()==null?"":dnsRuntimeMode.getText().toString().trim();
+         String fastestValue=dnsRuntimeFastest.getText()==null?"":dnsRuntimeFastest.getText().toString().trim();
+         String timeoutValue=dnsRuntimeTimeout.getText()==null?"":dnsRuntimeTimeout.getText().toString().trim();
+         String cacheValue=dnsRuntimeCacheSize.getText()==null?"":dnsRuntimeCacheSize.getText().toString().trim();
+         if(!isValidDnsRuntimeMode(modeValue)||!isValidDnsRuntimeFastestTimeout(fastestValue)
+             ||!isValidDnsRuntimeUpstreamTimeout(timeoutValue)||!isValidDnsRuntimeCacheSize(cacheValue)){
+           status.setText("策略、超时或缓存容量格式无效；未提交任何变更。");
+           return;
+         }
+         String command="dns-runtime-set "+q(modeValue)+" "+q(fastestValue)+" "+q(timeoutValue)+" "
+             +q(cacheValue)+" "+(dnsCacheEnabled.isChecked()?"1":"0")+" "
+             +(dnsCacheOptimistic.isChecked()?"1":"0")+" "+(dnssecEnabled.isChecked()?"1":"0");
+         root(command,result->{
+           if(result.exitCode==0){dnsRuntimeState.setText("AdGuard Home 引擎参数已保存并应用。");load();}
+           else fxDialogBuilder().setTitle("DNS 引擎参数未应用").setMessage(safe(result.output)).setPositiveButton("关闭",null).show();
+         });
+       }),
+       dnsRuntimeState);
+  loadDnsRuntimeControls(dnsRuntimeMode,dnsRuntimeFastest,dnsRuntimeTimeout,dnsRuntimeCacheSize,
+      dnsCacheEnabled,dnsCacheOptimistic,dnssecEnabled,dnsRuntimeState);
+
   card("过滤策略","DNS 和网络策略开关；与 DNS 上游地址分开保存。批量操作会一次性更新以下五项策略。",
        dnsSwitch("阻止 QUIC","block_quic"),
        dnsSwitch("阻止 DNS-over-TLS","block_dot"),
@@ -945,7 +1049,8 @@ private void restoreDnsProfile(EditText input){
   String[] allowed={"dns_engine_adguardhome","dns_forward","custom_dns","global_dns",
       "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
       "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled",
-      "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE","QUERYLOG_RETENTION"};
+      "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE","QUERYLOG_RETENTION",
+      "UPSTREAM_MODE","FASTEST_TIMEOUT","UPSTREAM_TIMEOUT","CACHE_SIZE","CACHE_ENABLED","CACHE_OPTIMISTIC","ENABLE_DNSSEC"};
   java.util.Set<String> keys=new java.util.HashSet<>(java.util.Arrays.asList(allowed));
   java.util.Map<String,String> preview=new java.util.LinkedHashMap<>();
   for(String line:raw.split("\\n")){
@@ -958,15 +1063,19 @@ private void restoreDnsProfile(EditText input){
     }
     preview.put(key,line.substring(split+1));
   }
-  if(preview.size()!=allowed.length&&preview.size()!=allowed.length-1){
+  if(preview.size()!=allowed.length&&preview.size()!=19&&preview.size()!=18){
     status.setText("快照字段不完整（"+preview.size()+"/"+allowed.length+"），未提交。");return;
   }
   for(String key:allowed)if(!preview.containsKey(key)){
-    if("QUERYLOG_RETENTION".equals(key)){
-      preview.put(key,"7d");
-    }else{
-      status.setText("快照缺少字段："+key+"；未提交。");return;
-    }
+    if("QUERYLOG_RETENTION".equals(key))preview.put(key,"7d");
+    else if("UPSTREAM_MODE".equals(key))preview.put(key,"load_balance");
+    else if("FASTEST_TIMEOUT".equals(key))preview.put(key,"1s");
+    else if("UPSTREAM_TIMEOUT".equals(key))preview.put(key,"10s");
+    else if("CACHE_SIZE".equals(key))preview.put(key,"4194304");
+    else if("CACHE_ENABLED".equals(key))preview.put(key,"1");
+    else if("CACHE_OPTIMISTIC".equals(key))preview.put(key,"0");
+    else if("ENABLE_DNSSEC".equals(key))preview.put(key,"1");
+    else {status.setText("快照缺少字段："+key+"；未提交。");return;}
   }
   for(String key:new String[]{"dns_engine_adguardhome","dns_forward","custom_dns","global_dns",
       "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
@@ -989,6 +1098,16 @@ private void restoreDnsProfile(EditText input){
   if(!isValidDnsQueryLogRetention(querylogRetention)){
     status.setText("快照 DNS 查询日志保留期限非法；未提交。");return;
   }
+  if(!isValidDnsRuntimeMode(preview.get("UPSTREAM_MODE"))
+      ||!isValidDnsRuntimeFastestTimeout(preview.get("FASTEST_TIMEOUT"))
+      ||!isValidDnsRuntimeUpstreamTimeout(preview.get("UPSTREAM_TIMEOUT"))
+      ||!isValidDnsRuntimeCacheSize(preview.get("CACHE_SIZE"))){
+    status.setText("快照包含无效的 DNS 上游策略、超时或缓存容量；未提交。");return;
+  }
+  for(String key:new String[]{"CACHE_ENABLED","CACHE_OPTIMISTIC","ENABLE_DNSSEC"})
+    if(!"0".equals(preview.get(key))&&!"1".equals(preview.get(key))){
+      status.setText("快照 DNS 引擎开关值非法："+key+"；未提交。");return;
+    }
   for(String key:new String[]{"CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS"}){
     String value=preview.get(key);
     boolean encrypted="CUSTOM_SERVERS".equals(key);
@@ -1001,12 +1120,15 @@ private void restoreDnsProfile(EditText input){
       "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
       "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled"})
     if("1".equals(preview.get(key)))enabled++;
-  String summary="快照包含 19 项字段、12 个开关（启用 "+enabled+" 项）。\\n"
+  for(String key:new String[]{"CACHE_ENABLED","CACHE_OPTIMISTIC","ENABLE_DNSSEC"})if("1".equals(preview.get(key)))enabled++;
+  String summary="快照包含 26 项字段、15 个开关（启用 "+enabled+" 项）。\\n"
       +"自定义上游："+countDnsEndpoints(preview.get("CUSTOM_SERVERS"))+" 条；"
       +"全局上游："+countDnsEndpoints(preview.get("GLOBAL_SERVERS"))+" 条；"
       +"备用上游："+countDnsEndpoints(preview.get("FALLBACK_SERVERS"))+" 条。\\n"
       +"VPN 远端 DNS："+preview.get("VPN_REMOTE")+"；国内 DNS："+preview.get("VPN_CN")+"。\\n"
-      +"拦截响应模式："+preview.get("RESPONSE_MODE")+"；查询日志保留："+querylogRetention+"。\\n\\n"
+      +"拦截响应模式："+preview.get("RESPONSE_MODE")+"；查询日志保留："+querylogRetention+"。\\n"
+      +"上游策略："+preview.get("UPSTREAM_MODE")+"；fastest 超时："+preview.get("FASTEST_TIMEOUT")+"；上游超时："+preview.get("UPSTREAM_TIMEOUT")+"。\\n"
+      +"DNS 缓存："+preview.get("CACHE_SIZE")+" 字节；缓存开关："+preview.get("CACHE_ENABLED")+"；乐观缓存："+preview.get("CACHE_OPTIMISTIC")+"；DNSSEC："+preview.get("ENABLE_DNSSEC")+"。\\n\\n"
       +"这是本地结构预览，不代表端点及配置语义已通过后端校验；继续后仍由 FX Root 后端完整校验。";
   String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);
   root("dns-profile-get",currentResult->{
@@ -1028,7 +1150,8 @@ private void restoreDnsProfile(EditText input){
     String[] labels={"dns_engine_adguardhome","dns_forward","custom_dns","global_dns",
       "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
       "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled",
-      "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE","QUERYLOG_RETENTION"};
+      "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE","QUERYLOG_RETENTION",
+      "UPSTREAM_MODE","FASTEST_TIMEOUT","UPSTREAM_TIMEOUT","CACHE_SIZE","CACHE_ENABLED","CACHE_OPTIMISTIC","ENABLE_DNSSEC"};
     StringBuilder changes=new StringBuilder();
     for(String key:labels){
       String oldValue=current.get(key),newValue=preview.get(key);
@@ -1042,35 +1165,20 @@ private void restoreDnsProfile(EditText input){
       .setMessage(summary+"\\n\\n"+changeText)
       .setNegativeButton("取消",null)
       .setPositiveButton("继续恢复",(d,w)->fxDialogBuilder().setTitle("确认完整替换 DNS 配置")
-        .setMessage("将完整替换当前 DNS 引擎开关、过滤策略、全部上游服务器、VPN DNS、拦截响应模式与查询日志保留期限。后端会再次校验全部字段；恢复应用失败会回滚原配置。不会修改 VPN 节点或其他 FX 模块设置。")
+        .setMessage("将完整替换当前 DNS 引擎开关、过滤策略、全部上游服务器、VPN DNS、拦截响应模式、日志保留期限、上游选择/超时、缓存和 DNSSEC。后端会再次校验全部字段；恢复应用失败会回滚原配置。不会修改 VPN 节点或其他 FX 模块设置。")
         .setNegativeButton("取消",null)
         .setPositiveButton("恢复",(dialog,which)->root("dns-profile-restore "+encoded,r->{
           if(r.exitCode==0){status.setText("DNS 配置快照已恢复并应用。");input.setText("");load();}
           else fxDialogBuilder().setTitle("DNS 快照恢复失败").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
         })).show()).show();
   });
-private boolean isValidProfileIpv4(String value){
+v4(String value){
   if(value==null||!value.matches("[0-9]{1,3}(\\.[0-9]{1,3}){3}")||
       "0.0.0.0".equals(value)||"255.255.255.255".equals(value))return false;
   for(String part:value.split("\\.")){
-    try{int octet=Integer.parseInt(part);if(octet>255||(part.length()>1&&part.charAt(0)=='0'))return false;}catch(NumberFormatException e){return false;}
+    try{if(Integer.parseInt(part)>255)return false;}catch(NumberFormatException e){return false;}
   }
   return true;
-}
-private boolean isValidProfileDnsIpv4(String value){
-  if(!isValidProfileIpv4(value))return false;
-  String[] parts=value.split("\\.");
-  try{
-    int first=Integer.parseInt(parts[0]),second=Integer.parseInt(parts[1]);
-    return first!=0&&first!=127&&first<224&&!(first==169&&second==254);
-  }catch(RuntimeException invalid){return false;}
-}
-private boolean isValidProfileDnsHostPort(String authority){
-  String hostPort="[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?";
-  int colon=authority.lastIndexOf(':');
-  String host=colon<0?authority:authority.substring(0,colon);
-  if(host.matches("[0-9.]+")&&!isValidProfileDnsIpv4(host))return false;
-  return authority.matches(hostPort)&&validProfilePort(authority);
 }
 private boolean isValidProfileDnsCsv(String value,boolean encryptedAllowed){
   if(value==null||value.isEmpty())return true;
@@ -1078,20 +1186,19 @@ private boolean isValidProfileDnsCsv(String value,boolean encryptedAllowed){
   java.util.Set<String> seen=new java.util.HashSet<>();
   for(String entry:entries){
     if(entry.isEmpty()||!seen.add(entry.toLowerCase(java.util.Locale.ROOT)))return false;
-    if(isValidProfileDnsIpv4(entry))continue;
+    if(isValidProfileIpv4(entry))continue;
     if(!encryptedAllowed)return false;
     String hostPort="[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?";
     if(entry.startsWith("tls://")||entry.startsWith("quic://")){
       String authority=entry.substring(entry.indexOf("://")+3);
-      if(!isValidProfileDnsHostPort(authority))return false;
+      if(!authority.matches(hostPort)||!validProfilePort(authority))return false;
     }else if(entry.startsWith("https://")){
       String rest=entry.substring(8);
       int slash=rest.indexOf('/');
       String authority=slash<0?rest:rest.substring(0,slash);
       String path=slash<0?"":rest.substring(slash);
-      if(!isValidProfileDnsHostPort(authority)||
-          !path.matches("(/[A-Za-z0-9._~!      if(!authority.matches(hostPort)||!validProfilePort(authority)||
-          !path.matches("(/[A-Za-z0-9._~!$&()*+,;=:@%/?#-]*)?"))return false;()*+,;=:@%/?#-]*)?"))return false;
+      if(!authority.matches(hostPort)||!validProfilePort(authority)||
+          !path.matches("(/[A-Za-z0-9._~!$&()*+,;=:@%/?#-]*)?"))return false;
     }else return false;
   }
   return true;

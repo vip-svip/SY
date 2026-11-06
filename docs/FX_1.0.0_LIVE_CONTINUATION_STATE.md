@@ -1,4 +1,15 @@
 
+
+### FX AdGuard Home 上游策略、请求超时、缓存与 DNSSEC 引擎参数移植（2026-11-07）
+
+- 文件：`scripts/yulong-ad-control.sh`、`scripts/adguardhome.sh`、`adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java` 及 `fx-module/` 对应模块镜像；同步运行模板 `.github/dns/AdGuardHome-FX-runtime-v1.0.0.yaml`、模块配置副本和 `fx-module/engines/adguardhome/AdGuardHome.yaml`。
+- 新增受配置锁与事务保护的 DNS 引擎参数读写：上游选择 `load_balance / parallel / fastest_addr`、fastest 地址探测超时、上游查询超时、DNS 缓存开关与容量、过期缓存乐观应答、DNSSEC。
+- AdGuard Home 配置渲染器从后端 `dns-runtime-get` 读取参数并写入实际运行 YAML；启动前的配置契约同步校验策略、超时、缓存容量和布尔开关，避免只保存 UI 值而运行配置未变化。
+- DNS 页面新增参数编辑/读取/保存入口。新 DNS 快照扩展为 26 个字段（15 个布尔开关），旧 18/19 字段快照仍保留默认值兼容；快照恢复将运行参数与上游、VPN DNS、过滤策略和日志保留期限一起暂存，在外层事务中统一应用，失败回滚原配置。
+- 运行 YAML 补齐此前缺失的 `fallback_dns` 与 `blocking_mode` 模板字段，确保现有备用解析和拦截响应模式能够被渲染器真正覆写。
+- 参数按 AdGuard Home v0.107.79 支持的配置项实现；EDNS Client Subnet 仍关闭，避免将客户端网段信息发送给上游。参考官方配置说明：`https://github.com/AdguardTeam/AdGuardHome/wiki/Configuration`。
+- 按用户要求未运行测试、静态检查、构建、CI 或设备验证；此次只提交源码和运行配置模板，尚未生成新的 AdGuard Home 二进制或 FX 安装包。
+
 ### FX DNS 策略值与上游状态统一回传（2026-11-07）
 
 - 文件：`scripts/native-dns-settings.sh`、`fx-module/scripts/native-dns-settings.sh`、根 APK 与 fx-module APK 源码中的 `FxYulongAdActivity.java`。

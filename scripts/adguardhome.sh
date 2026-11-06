@@ -413,6 +413,26 @@ _render_managed_config() {
     rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
     return 1
   }
+  _dns_runtime_output=$(MP="$MODDIR" PG="$PG" sh "$MODDIR/scripts/yulong-ad-control.sh" dns-runtime-get) || {
+    _log 'unable to read complete AdGuard Home runtime settings'
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
+    return 1
+  }
+  _dns_runtime_upstream_mode=$(printf '%s\n' "$_dns_runtime_output" | sed -n 's/^UPSTREAM_MODE=//p')
+  _dns_runtime_fastest_timeout=$(printf '%s\n' "$_dns_runtime_output" | sed -n 's/^FASTEST_TIMEOUT=//p')
+  _dns_runtime_upstream_timeout=$(printf '%s\n' "$_dns_runtime_output" | sed -n 's/^UPSTREAM_TIMEOUT=//p')
+  _dns_runtime_cache_size=$(printf '%s\n' "$_dns_runtime_output" | sed -n 's/^CACHE_SIZE=//p')
+  _dns_runtime_cache_enabled=$(printf '%s\n' "$_dns_runtime_output" | sed -n 's/^CACHE_ENABLED=//p')
+  _dns_runtime_cache_optimistic=$(printf '%s\n' "$_dns_runtime_output" | sed -n 's/^CACHE_OPTIMISTIC=//p')
+  _dns_runtime_dnssec=$(printf '%s\n' "$_dns_runtime_output" | sed -n 's/^ENABLE_DNSSEC=//p')
+  [ -n "$_dns_runtime_upstream_mode" ] && [ -n "$_dns_runtime_fastest_timeout" ] &&
+    [ -n "$_dns_runtime_upstream_timeout" ] && [ -n "$_dns_runtime_cache_size" ] &&
+    [ -n "$_dns_runtime_cache_enabled" ] && [ -n "$_dns_runtime_cache_optimistic" ] &&
+    [ -n "$_dns_runtime_dnssec" ] || {
+      _log 'AdGuard Home runtime settings response is incomplete'
+      rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
+      return 1
+    }
   _querylog_interval=$(awk '
     BEGIN { inside=0; sections=0; intervals=0; value=""; bad=0 }
     $0=="[conf:yulong_dns_querylog_retention]" {
@@ -511,7 +531,7 @@ _render_managed_config() {
      { [ "$_custom_dns_enabled" = 1 ] || [ "$_global_dns_enabled" = 1 ]; }; then
     printf '  - 127.0.0.1:5353\n' > "$_fallback_file" || return 1
   fi
-  if ! awk -v querylog_interval="$_querylog_interval" -v querylog_enabled="$_dns_querylog_enabled" -v dns_response_mode="$_dns_response_mode" -v rules_file="$_rules_file" -v filters_file="$_filters_file" -v fallback_file="$_fallback_file" -v upstream_file="$_upstream_file" -v bootstrap_file="$_bootstrap_file" '
+  if ! awk -v querylog_interval="$_querylog_interval" -v querylog_enabled="$_dns_querylog_enabled" -v dns_response_mode="$_dns_response_mode" -v upstream_mode="$_dns_runtime_upstream_mode" -v fastest_timeout="$_dns_runtime_fastest_timeout" -v upstream_timeout="$_dns_runtime_upstream_timeout" -v cache_size="$_dns_runtime_cache_size" -v cache_enabled="$_dns_runtime_cache_enabled" -v cache_optimistic="$_dns_runtime_cache_optimistic" -v dnssec="$_dns_runtime_dnssec" -v rules_file="$_rules_file" -v filters_file="$_filters_file" -v fallback_file="$_fallback_file" -v upstream_file="$_upstream_file" -v bootstrap_file="$_bootstrap_file" '
     /^querylog:[[:space:]]*$/ {in_querylog=1; print; next}
     in_querylog && /^[^[:space:]]/ {in_querylog=0}
     in_querylog && /^  enabled:/ {
@@ -523,6 +543,13 @@ _render_managed_config() {
       next
     }
     in_querylog && /^  interval:/ {print "  interval: " querylog_interval; next}
+    /^  upstream_mode:/ {print "  upstream_mode: " upstream_mode; next}
+    /^  fastest_timeout:/ {print "  fastest_timeout: " fastest_timeout; next}
+    /^  upstream_timeout:/ {print "  upstream_timeout: " upstream_timeout; next}
+    /^  cache_enabled:/ {print "  cache_enabled: " (cache_enabled=="1" ? "true" : "false"); next}
+    /^  cache_size:/ {print "  cache_size: " cache_size; next}
+    /^  cache_optimistic:/ {print "  cache_optimistic: " (cache_optimistic=="1" ? "true" : "false"); next}
+    /^  enable_dnssec:/ {print "  enable_dnssec: " (dnssec=="1" ? "true" : "false"); next}
     # FX_YULONG_DNS_RESPONSE_BEGIN
     /^  blocking_mode:/ {
       print "  blocking_mode: " dns_response_mode
@@ -658,6 +685,13 @@ _config_contract() {
     /^dns:$/ {dns=1; next}
     dns && /^[^[:space:]]/ {dns=0}
     dns && /^  port:/ {dns_port=$2}
+    dns && /^  upstream_mode:/ {runtime_mode=$2}
+    dns && /^  fastest_timeout:/ {runtime_fastest=$2}
+    dns && /^  upstream_timeout:/ {runtime_timeout=$2}
+    dns && /^  cache_size:/ {runtime_cache_size=$2}
+    dns && /^  cache_enabled:/ {runtime_cache_enabled=$2}
+    dns && /^  cache_optimistic:/ {runtime_cache_optimistic=$2}
+    dns && /^  enable_dnssec:/ {runtime_dnssec=$2}
     dns && /^  bind_hosts:/ {bind=1; next}
     dns && bind && /^  [A-Za-z_][A-Za-z0-9_-]*:/ {bind=0}
     dns && bind && /^  - / {hosts[$2]=1; bind_count++}
@@ -719,7 +753,14 @@ _config_contract() {
         hosts["127.0.0.1"] && hosts["::1"] && bind_count==2 &&
         upstream_count>=1 && !unsafe_upstream &&
         (!local_upstream || (local_count==1 && upstream_count==1)) &&
-        !unsafe_bootstrap && !unsafe_fallback) ? 0 : 1
+        !unsafe_bootstrap && !unsafe_fallback &&
+        (runtime_mode=="load_balance" || runtime_mode=="parallel" || runtime_mode=="fastest_addr") &&
+        (runtime_fastest=="500ms" || runtime_fastest=="1s" || runtime_fastest=="2s" || runtime_fastest=="5s") &&
+        (runtime_timeout=="3s" || runtime_timeout=="5s" || runtime_timeout=="10s" || runtime_timeout=="15s" || runtime_timeout=="30s") &&
+        runtime_cache_size~/^[0-9]+$/ && runtime_cache_size+0>0 &&
+        (runtime_cache_enabled=="true" || runtime_cache_enabled=="false") &&
+        (runtime_cache_optimistic=="true" || runtime_cache_optimistic=="false") &&
+        (runtime_dnssec=="true" || runtime_dnssec=="false")) ? 0 : 1
     }
   ' "$CFG" || {
     _log 'AdGuard config violates FX loopback/listener/local-Unbound policy'

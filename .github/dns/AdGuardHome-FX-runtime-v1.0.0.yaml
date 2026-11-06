@@ -24,12 +24,19 @@ dns:
   # No external forwarding resolver is configured here.
   upstream_dns:
   - 127.0.0.1:5353
+  fallback_dns: []
   cache_enabled: true
   cache_size: 4194304
+  cache_optimistic: false
+  enable_dnssec: true
+  upstream_mode: load_balance
+  fastest_timeout: 1s
+  upstream_timeout: 10s
   hostsfile_enabled: false
 filtering:
   protection_enabled: true
   filtering_enabled: true
+  blocking_mode: nxdomain
   blocked_response_ttl: 10
   safe_fs_patterns: []
   rewrites: []
