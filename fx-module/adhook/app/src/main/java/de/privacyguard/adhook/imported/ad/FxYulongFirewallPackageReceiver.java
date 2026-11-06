@@ -87,9 +87,11 @@ public final class FxYulongFirewallPackageReceiver extends BroadcastReceiver {
                 + (firewallEnabled
                     ? "sh \"$MP/scripts/yulong-app-firewall.sh\" apply-event || _rc=$?; "
                     : "")
-                // Prune stale DNS bypass entries and reconcile the active VPN route
-                // under one Root Proxy lock for each package lifecycle event.
-                + "sh \\"$MP/scripts/yulong-root-proxy.sh\\" package-event || _rc=$?; "
+                // Prune both independent bypass lists when module settings are present.
+                + "if [ -f /data/adb/privacyguard/settings.conf ]; then "
+                + "sh \"$MP/scripts/yulong-app-whitelist.sh\" prune || _rc=$?; fi; "
+                // Root Proxy combines its own DNS whitelist prune and route reconcile.
+                + "sh \"$MP/scripts/yulong-root-proxy.sh\" package-event || _rc=$?; "
                 + "exit \"$_rc\"";
     }
 
