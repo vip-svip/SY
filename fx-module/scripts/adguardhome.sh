@@ -1219,6 +1219,7 @@ _config_contract() {
     dns && fallback && /^  [A-Za-z_][A-Za-z0-9_-]*:/ {fallback=0}
     dns && fallback && /^  - / {
       server=$2
+      sub(/^"/,"",server); sub(/"$/,"",server)
       fallback_count++
       if (server=="127.0.0.1:5353") {
         if (fallback_seen[server]++) unsafe_fallback=1
