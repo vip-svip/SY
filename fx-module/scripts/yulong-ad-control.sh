@@ -3189,19 +3189,114 @@ case "$cmd" in
   case "$_diag_upstream_state" in ready|missing_primary|unknown) : ;; *) _diag_upstream_state=unknown ;; esac
   case "$_diag_bootstrap_mode" in not_required|local_unbound|unknown) : ;; *) _diag_bootstrap_mode=unknown ;; esac
   case "$_diag_fallback_mode" in none|explicit|local_unbound|unknown) : ;; *) _diag_fallback_mode=unknown ;; esac
+  _diag_kv_value() {
+    printf '%s\n' "$1" | awk -F= -v wanted="$2" '
+      index($0,"=")>0 {key=substr($0,1,index($0,"=")-1); value=substr($0,index($0,"=")+1); if(key==wanted){count++; found=value}}
+      END {if(count==1)print found; else exit 1}
+    '
+  }
+  _diag_dns_runtime=$(dns_runtime_get 2>/dev/null || :)
+  _diag_unbound_runtime=$(unbound_runtime_get 2>/dev/null || :)
+  _diag_querylog_retention_raw=$(dns_querylog_retention_get 2>/dev/null || :)
+  _diag_querylog_runtime=$(dns_querylog_runtime_get 2>/dev/null || :)
+  _diag_statistics_runtime=$(dns_statistics_get 2>/dev/null || :)
+  _diag_dns_runtime_header=$(printf '%s\n' "$_diag_dns_runtime" | sed -n '1p')
+  _diag_unbound_runtime_header=$(printf '%s\n' "$_diag_unbound_runtime" | sed -n '1p')
+  _diag_querylog_runtime_header=$(printf '%s\n' "$_diag_querylog_runtime" | sed -n '1p')
+  _diag_statistics_runtime_header=$(printf '%s\n' "$_diag_statistics_runtime" | sed -n '1p')
+  _diag_retention_header=$(_diag_kv_value "$_diag_querylog_retention_raw" querylog_retention 2>/dev/null) || _diag_retention_header=unknown
+  _diag_querylog_enabled=$(_diag_value "$_diag_status" dns_querylog_enabled 2>/dev/null) || _diag_querylog_enabled=unknown
+  _diag_querylog_memory_size=unknown; _diag_querylog_memory_max=unknown
+  [ "$_diag_querylog_runtime_header" = FXYULONGDNSQUERYLOG1 ] && {
+    _diag_querylog_memory_size=$(_diag_kv_value "$_diag_querylog_runtime" memory_size 2>/dev/null) || _diag_querylog_memory_size=unknown
+    _diag_querylog_memory_max=$(_diag_kv_value "$_diag_querylog_runtime" memory_max 2>/dev/null) || _diag_querylog_memory_max=unknown
+  }
+  _diag_statistics_enabled=unknown; _diag_statistics_interval=unknown
+  [ "$_diag_statistics_runtime_header" = FXYULONGDNSSTAT1 ] && {
+    _diag_statistics_enabled=$(_diag_kv_value "$_diag_statistics_runtime" STATISTICS_ENABLED 2>/dev/null) || _diag_statistics_enabled=unknown
+    _diag_statistics_interval=$(_diag_kv_value "$_diag_statistics_runtime" STATISTICS_INTERVAL 2>/dev/null) || _diag_statistics_interval=unknown
+  }
+  _diag_adguard_upstream_mode=unknown
+  _diag_adguard_fastest_timeout=unknown
+  _diag_adguard_upstream_timeout=unknown
+  _diag_adguard_cache_size=unknown
+  _diag_adguard_cache_ttl_min=unknown
+  _diag_adguard_cache_ttl_max=unknown
+  _diag_adguard_optimistic_answer_ttl=unknown
+  _diag_adguard_optimistic_max_age=unknown
+  _diag_adguard_cache_enabled=unknown
+  _diag_adguard_cache_optimistic=unknown
+  _diag_adguard_dnssec_enabled=unknown
+  [ "$_diag_dns_runtime_header" = FXYULONGDNSRUNTIME1 ] && {
+    _diag_adguard_upstream_mode=$(_diag_kv_value "$_diag_dns_runtime" UPSTREAM_MODE 2>/dev/null) || _diag_adguard_upstream_mode=unknown
+    _diag_adguard_fastest_timeout=$(_diag_kv_value "$_diag_dns_runtime" FASTEST_TIMEOUT 2>/dev/null) || _diag_adguard_fastest_timeout=unknown
+    _diag_adguard_upstream_timeout=$(_diag_kv_value "$_diag_dns_runtime" UPSTREAM_TIMEOUT 2>/dev/null) || _diag_adguard_upstream_timeout=unknown
+    _diag_adguard_cache_size=$(_diag_kv_value "$_diag_dns_runtime" CACHE_SIZE 2>/dev/null) || _diag_adguard_cache_size=unknown
+    _diag_adguard_cache_ttl_min=$(_diag_kv_value "$_diag_dns_runtime" CACHE_TTL_MIN 2>/dev/null) || _diag_adguard_cache_ttl_min=unknown
+    _diag_adguard_cache_ttl_max=$(_diag_kv_value "$_diag_dns_runtime" CACHE_TTL_MAX 2>/dev/null) || _diag_adguard_cache_ttl_max=unknown
+    _diag_adguard_optimistic_answer_ttl=$(_diag_kv_value "$_diag_dns_runtime" CACHE_OPTIMISTIC_ANSWER_TTL 2>/dev/null) || _diag_adguard_optimistic_answer_ttl=unknown
+    _diag_adguard_optimistic_max_age=$(_diag_kv_value "$_diag_dns_runtime" CACHE_OPTIMISTIC_MAX_AGE 2>/dev/null) || _diag_adguard_optimistic_max_age=unknown
+    _diag_adguard_cache_enabled=$(_diag_kv_value "$_diag_dns_runtime" CACHE_ENABLED 2>/dev/null) || _diag_adguard_cache_enabled=unknown
+    _diag_adguard_cache_optimistic=$(_diag_kv_value "$_diag_dns_runtime" CACHE_OPTIMISTIC 2>/dev/null) || _diag_adguard_cache_optimistic=unknown
+    _diag_adguard_dnssec_enabled=$(_diag_kv_value "$_diag_dns_runtime" ENABLE_DNSSEC 2>/dev/null) || _diag_adguard_dnssec_enabled=unknown
+  }
+  _diag_unbound_cache_max_ttl=unknown
+  _diag_unbound_cache_min_ttl=unknown
+  _diag_unbound_serve_expired=unknown
+  _diag_unbound_serve_expired_ttl=unknown
+  _diag_unbound_serve_expired_reply_ttl=unknown
+  _diag_unbound_serve_expired_client_timeout=unknown
+  _diag_unbound_prefetch=unknown
+  _diag_unbound_prefetch_key=unknown
+  _diag_unbound_qname_minimisation=unknown
+  _diag_unbound_msg_cache_size=unknown
+  _diag_unbound_rrset_cache_size=unknown
+  _diag_unbound_key_cache_size=unknown
+  _diag_unbound_neg_cache_size=unknown
+  _diag_unbound_num_threads=unknown
+  _diag_unbound_threads_max=unknown
+  [ "$_diag_unbound_runtime_header" = FXYULONGUNBOUND1 ] && {
+    _diag_unbound_cache_max_ttl=$(_diag_kv_value "$_diag_unbound_runtime" UNBOUND_CACHE_MAX_TTL 2>/dev/null) || _diag_unbound_cache_max_ttl=unknown
+    _diag_unbound_cache_min_ttl=$(_diag_kv_value "$_diag_unbound_runtime" UNBOUND_CACHE_MIN_TTL 2>/dev/null) || _diag_unbound_cache_min_ttl=unknown
+    _diag_unbound_serve_expired=$(_diag_kv_value "$_diag_unbound_runtime" UNBOUND_SERVE_EXPIRED 2>/dev/null) || _diag_unbound_serve_expired=unknown
+    _diag_unbound_serve_expired_ttl=$(_diag_kv_value "$_diag_unbound_runtime" UNBOUND_SERVE_EXPIRED_TTL 2>/dev/null) || _diag_unbound_serve_expired_ttl=unknown
+    _diag_unbound_serve_expired_reply_ttl=$(_diag_kv_value "$_diag_unbound_runtime" UNBOUND_SERVE_EXPIRED_REPLY_TTL 2>/dev/null) || _diag_unbound_serve_expired_reply_ttl=unknown
+    _diag_unbound_serve_expired_client_timeout=$(_diag_kv_value "$_diag_unbound_runtime" UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT 2>/dev/null) || _diag_unbound_serve_expired_client_timeout=unknown
+    _diag_unbound_prefetch=$(_diag_kv_value "$_diag_unbound_runtime" UNBOUND_PREFETCH 2>/dev/null) || _diag_unbound_prefetch=unknown
+    _diag_unbound_prefetch_key=$(_diag_kv_value "$_diag_unbound_runtime" UNBOUND_PREFETCH_KEY 2>/dev/null) || _diag_unbound_prefetch_key=unknown
+    _diag_unbound_qname_minimisation=$(_diag_kv_value "$_diag_unbound_runtime" UNBOUND_QNAME_MINIMISATION 2>/dev/null) || _diag_unbound_qname_minimisation=unknown
+    _diag_unbound_msg_cache_size=$(_diag_kv_value "$_diag_unbound_runtime" UNBOUND_MSG_CACHE_SIZE 2>/dev/null) || _diag_unbound_msg_cache_size=unknown
+    _diag_unbound_rrset_cache_size=$(_diag_kv_value "$_diag_unbound_runtime" UNBOUND_RRSET_CACHE_SIZE 2>/dev/null) || _diag_unbound_rrset_cache_size=unknown
+    _diag_unbound_key_cache_size=$(_diag_kv_value "$_diag_unbound_runtime" UNBOUND_KEY_CACHE_SIZE 2>/dev/null) || _diag_unbound_key_cache_size=unknown
+    _diag_unbound_neg_cache_size=$(_diag_kv_value "$_diag_unbound_runtime" UNBOUND_NEG_CACHE_SIZE 2>/dev/null) || _diag_unbound_neg_cache_size=unknown
+    _diag_unbound_num_threads=$(_diag_kv_value "$_diag_unbound_runtime" UNBOUND_NUM_THREADS 2>/dev/null) || _diag_unbound_num_threads=unknown
+    _diag_unbound_threads_max=$(_diag_kv_value "$_diag_unbound_runtime" UNBOUND_THREADS_MAX 2>/dev/null) || _diag_unbound_threads_max=unknown
+  }
   _diag_anchor_state=unknown
+  _diag_anchor_age=unknown
+  _diag_anchor_bytes=unknown
+  _diag_refresh_route=unknown
+  _diag_anchor_resolver_state=unknown
   _diag_root_hints_state=unknown
   _diag_root_hints_bytes=unknown
   _diag_anchor_raw=$(MP="$MP" PG="$PG" sh "$MP/scripts/unbound.sh" anchor-status "$MP" "$PG" 2>/dev/null || :)
   if [ "$(printf '%s\n' "$_diag_anchor_raw" | sed -n '1p')" = FXYUNBOUNDANCHOR2 ]; then
-    _diag_anchor_state=$(printf '%s\n' "$_diag_anchor_raw" | sed -n 's/^anchor_state=//p')
-    _diag_root_hints_state=$(printf '%s\n' "$_diag_anchor_raw" | sed -n 's/^root_hints_state=//p')
-    _diag_root_hints_bytes=$(printf '%s\n' "$_diag_anchor_raw" | sed -n 's/^root_hints_bytes=//p')
+    _diag_anchor_state=$(_diag_kv_value "$_diag_anchor_raw" anchor_state 2>/dev/null) || _diag_anchor_state=unknown
+    _diag_anchor_age=$(_diag_kv_value "$_diag_anchor_raw" anchor_age 2>/dev/null) || _diag_anchor_age=unknown
+    _diag_anchor_bytes=$(_diag_kv_value "$_diag_anchor_raw" anchor_bytes 2>/dev/null) || _diag_anchor_bytes=unknown
+    _diag_refresh_route=$(_diag_kv_value "$_diag_anchor_raw" refresh_route 2>/dev/null) || _diag_refresh_route=unknown
+    _diag_anchor_resolver_state=$(_diag_kv_value "$_diag_anchor_raw" resolver_state 2>/dev/null) || _diag_anchor_resolver_state=unknown
+    _diag_root_hints_state=$(_diag_kv_value "$_diag_anchor_raw" root_hints_state 2>/dev/null) || _diag_root_hints_state=unknown
+    _diag_root_hints_bytes=$(_diag_kv_value "$_diag_anchor_raw" root_hints_bytes 2>/dev/null) || _diag_root_hints_bytes=unknown
   fi
   case "$_diag_anchor_state" in valid|missing|invalid|unsafe) : ;; *) _diag_anchor_state=unknown ;; esac
+  case "$_diag_anchor_age" in stale|current|unknown) : ;; *) _diag_anchor_age=unknown ;; esac
+  case "$_diag_anchor_bytes" in ''|*[!0-9]*) _diag_anchor_bytes=unknown ;; esac
+  case "$_diag_refresh_route" in system_default|vpn_bound|unsafe|unknown) : ;; *) _diag_refresh_route=unknown ;; esac
+  case "$_diag_anchor_resolver_state" in running|stopped|unknown) : ;; *) _diag_anchor_resolver_state=unknown ;; esac
   case "$_diag_root_hints_state" in valid|missing|invalid|unsafe) : ;; *) _diag_root_hints_state=unknown ;; esac
   case "$_diag_root_hints_bytes" in ''|*[!0-9]*) _diag_root_hints_bytes=unknown ;; esac
-  echo FXYULONGDNSDIAG2
+  echo FXYULONGDNSDIAG3
   printf 'dns_stack_ready=%s\n' "$_diag_ready"
   printf 'dns_stack_readiness_reason=%s\n' "$_diag_reason"
   printf 'unbound_process=%s\n' "$_diag_unbound_process"
@@ -3220,6 +3315,42 @@ case "$cmd" in
   printf 'dnssec_anchor_state=%s\n' "$_diag_anchor_state"
   printf 'root_hints_state=%s\n' "$_diag_root_hints_state"
   printf 'root_hints_bytes=%s\n' "$_diag_root_hints_bytes"
+  printf 'dns_querylog_enabled=%s\n' "$_diag_querylog_enabled"
+  printf 'dns_querylog_retention=%s\n' "$_diag_retention_header"
+  printf 'dns_querylog_memory_size=%s\n' "$_diag_querylog_memory_size"
+  printf 'dns_querylog_memory_max=%s\n' "$_diag_querylog_memory_max"
+  printf 'dns_statistics_enabled=%s\n' "$_diag_statistics_enabled"
+  printf 'dns_statistics_interval=%s\n' "$_diag_statistics_interval"
+  printf 'adguard_upstream_mode=%s\n' "$_diag_adguard_upstream_mode"
+  printf 'adguard_fastest_timeout=%s\n' "$_diag_adguard_fastest_timeout"
+  printf 'adguard_upstream_timeout=%s\n' "$_diag_adguard_upstream_timeout"
+  printf 'adguard_cache_size=%s\n' "$_diag_adguard_cache_size"
+  printf 'adguard_cache_ttl_min=%s\n' "$_diag_adguard_cache_ttl_min"
+  printf 'adguard_cache_ttl_max=%s\n' "$_diag_adguard_cache_ttl_max"
+  printf 'adguard_optimistic_answer_ttl=%s\n' "$_diag_adguard_optimistic_answer_ttl"
+  printf 'adguard_optimistic_max_age=%s\n' "$_diag_adguard_optimistic_max_age"
+  printf 'adguard_cache_enabled=%s\n' "$_diag_adguard_cache_enabled"
+  printf 'adguard_cache_optimistic=%s\n' "$_diag_adguard_cache_optimistic"
+  printf 'adguard_dnssec_enabled=%s\n' "$_diag_adguard_dnssec_enabled"
+  printf 'unbound_cache_max_ttl=%s\n' "$_diag_unbound_cache_max_ttl"
+  printf 'unbound_cache_min_ttl=%s\n' "$_diag_unbound_cache_min_ttl"
+  printf 'unbound_serve_expired=%s\n' "$_diag_unbound_serve_expired"
+  printf 'unbound_serve_expired_ttl=%s\n' "$_diag_unbound_serve_expired_ttl"
+  printf 'unbound_serve_expired_reply_ttl=%s\n' "$_diag_unbound_serve_expired_reply_ttl"
+  printf 'unbound_serve_expired_client_timeout=%s\n' "$_diag_unbound_serve_expired_client_timeout"
+  printf 'unbound_prefetch=%s\n' "$_diag_unbound_prefetch"
+  printf 'unbound_prefetch_key=%s\n' "$_diag_unbound_prefetch_key"
+  printf 'unbound_qname_minimisation=%s\n' "$_diag_unbound_qname_minimisation"
+  printf 'unbound_msg_cache_size=%s\n' "$_diag_unbound_msg_cache_size"
+  printf 'unbound_rrset_cache_size=%s\n' "$_diag_unbound_rrset_cache_size"
+  printf 'unbound_key_cache_size=%s\n' "$_diag_unbound_key_cache_size"
+  printf 'unbound_neg_cache_size=%s\n' "$_diag_unbound_neg_cache_size"
+  printf 'unbound_num_threads=%s\n' "$_diag_unbound_num_threads"
+  printf 'unbound_threads_max=%s\n' "$_diag_unbound_threads_max"
+  printf 'dnssec_anchor_age=%s\n' "$_diag_anchor_age"
+  printf 'dnssec_anchor_bytes=%s\n' "$_diag_anchor_bytes"
+  printf 'dnssec_refresh_route=%s\n' "$_diag_refresh_route"
+  printf 'dnssec_resolver_state=%s\n' "$_diag_anchor_resolver_state"
   ;;
  dns-repair)
   [ "$#" -eq 1 ] || exit 2

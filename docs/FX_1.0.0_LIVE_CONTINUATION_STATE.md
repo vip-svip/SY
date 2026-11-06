@@ -1359,3 +1359,12 @@
 - 历史安装缺少 Profile flag 时按关闭处理；默认 YAML 的关闭状态仍为有效值。
 - 同步 `scripts/adguardhome.sh` 与 `fx-module/scripts/adguardhome.sh`。
 - 按用户要求未运行脚本测试、静态检查、构建、CI 或设备验证；本轮仅完成源码提交。
+
+
+## 2026-11-07 — DNS 全链路诊断扩展到全部运行参数
+
+- `dns-diagnose` 响应升级为 `FXYULONGDNSDIAG3`，除 DNS/VPN 共存与本地 IPv4/IPv6 回环探测外，同一只读报告现纳入逐条查询日志开关/保留周期/内存刷盘批量与设备动态上限、聚合统计开关/周期、AdGuard Home 上游策略/超时/缓存容量/TTL/乐观缓存/DNSSEC，以及 Unbound TTL/serve-expired/预取/QNAME minimisation/四类缓存池/线程数与在线核心上限。
+- DNSSEC 诊断补入 root.key 文件大小、14 天陈旧状态、Unbound 运行状态与手动刷新出口；Root Hints SHA-256 状态及文件大小继续保留。读取失败或配置响应版本不符的单项以 `unknown` 表示，不阻断其他诊断字段。
+- 原生页面同步升级协议白名单、字段完整性、数值/枚举/时长校验，并按日志、统计、AdGuard 缓存、Unbound 递归参数、DNSSEC 分组展示。仍为只读报告，不修改配置、不重启服务、不改写 VPN 或 DNS 路由。
+- 同步正式/模块 Root 控制脚本与两份原生 Ad 页面。
+- 按用户要求未运行测试、Shell/Java 静态检查、构建、CI 或 Android 真机验证；本次仅完成源码接线与续接记录。

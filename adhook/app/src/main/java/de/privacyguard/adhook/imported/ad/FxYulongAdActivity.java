@@ -2260,7 +2260,7 @@ private void runDnsDiagnostics(){
     }
     String raw=result.output==null?"":result.output.trim();
     String[] lines=raw.split("\\r?\\n");
-    if(lines.length<19||!"FXYULONGDNSDIAG2".equals(lines[0].trim())){
+    if(lines.length<2||!"FXYULONGDNSDIAG3".equals(lines[0].trim())){
       status.setText("DNS 诊断响应版本或字段数量错误，拒绝显示不完整报告。");
       return;
     }
@@ -2269,7 +2269,19 @@ private void runDnsDiagnostics(){
       "adguardhome_ipv4_probe","adguardhome_ipv6_probe","localdns_watchdog",
       "vpn_coexistence_verdict","vpn_route_probe","private_dns_mode",
       "dns_upstream_mode","dns_upstream_state","dns_bootstrap_mode","dns_fallback_mode",
-      "dnssec_anchor_state","root_hints_state","root_hints_bytes"};
+      "dnssec_anchor_state","root_hints_state","root_hints_bytes",
+      "dns_querylog_enabled","dns_querylog_retention","dns_querylog_memory_size","dns_querylog_memory_max",
+      "dns_statistics_enabled","dns_statistics_interval",
+      "adguard_upstream_mode","adguard_fastest_timeout","adguard_upstream_timeout",
+      "adguard_cache_size","adguard_cache_ttl_min","adguard_cache_ttl_max",
+      "adguard_optimistic_answer_ttl","adguard_optimistic_max_age",
+      "adguard_cache_enabled","adguard_cache_optimistic","adguard_dnssec_enabled",
+      "unbound_cache_max_ttl","unbound_cache_min_ttl","unbound_serve_expired",
+      "unbound_serve_expired_ttl","unbound_serve_expired_reply_ttl",
+      "unbound_serve_expired_client_timeout","unbound_prefetch","unbound_prefetch_key",
+      "unbound_qname_minimisation","unbound_msg_cache_size","unbound_rrset_cache_size",
+      "unbound_key_cache_size","unbound_neg_cache_size","unbound_num_threads","unbound_threads_max",
+      "dnssec_anchor_age","dnssec_anchor_bytes","dnssec_refresh_route","dnssec_resolver_state"};
     java.util.Set<String> keys=new java.util.HashSet<>(java.util.Arrays.asList(allowed));
     java.util.Map<String,String> values=new java.util.LinkedHashMap<>();
     for(int i=1;i<lines.length;i++){
@@ -2319,7 +2331,54 @@ private void runDnsDiagnostics(){
         case "dnssec_anchor_state":
         case "root_hints_state": valid="valid".equals(value)||"missing".equals(value)
             ||"invalid".equals(value)||"unsafe".equals(value)||"unknown".equals(value);break;
-        case "root_hints_bytes": valid=android.text.TextUtils.isDigitsOnly(value)||"unknown".equals(value);break;
+        case "root_hints_bytes":
+        case "dnssec_anchor_bytes":
+        case "dns_querylog_memory_size":
+        case "dns_querylog_memory_max":
+        case "adguard_cache_size":
+        case "adguard_cache_ttl_min":
+        case "adguard_cache_ttl_max":
+        case "unbound_cache_max_ttl":
+        case "unbound_cache_min_ttl":
+        case "unbound_serve_expired_ttl":
+        case "unbound_serve_expired_reply_ttl":
+        case "unbound_serve_expired_client_timeout":
+        case "unbound_num_threads":
+        case "unbound_threads_max":
+            valid=android.text.TextUtils.isDigitsOnly(value)||"unknown".equals(value);break;
+        case "dns_querylog_enabled":
+        case "dns_statistics_enabled":
+        case "adguard_cache_enabled":
+        case "adguard_cache_optimistic":
+        case "adguard_dnssec_enabled":
+        case "unbound_serve_expired":
+        case "unbound_prefetch":
+        case "unbound_prefetch_key":
+        case "unbound_qname_minimisation":
+            valid="0".equals(value)||"1".equals(value)||"unknown".equals(value);break;
+        case "dns_querylog_retention":
+        case "dns_statistics_interval":
+            valid=value.matches("[0-9]+[hd]")||"unknown".equals(value);break;
+        case "adguard_upstream_mode":
+            valid="load_balance".equals(value)||"parallel".equals(value)
+                ||"fastest_addr".equals(value)||"unknown".equals(value);break;
+        case "adguard_fastest_timeout":
+        case "adguard_upstream_timeout":
+        case "adguard_optimistic_answer_ttl":
+        case "adguard_optimistic_max_age":
+            valid=value.matches("[0-9]+(ms|s|m|h)")||"unknown".equals(value);break;
+        case "unbound_msg_cache_size":
+        case "unbound_rrset_cache_size":
+        case "unbound_key_cache_size":
+        case "unbound_neg_cache_size":
+            valid=value.matches("[0-9]+([kKmMgG])?")||"unknown".equals(value);break;
+        case "dnssec_anchor_age":
+            valid="stale".equals(value)||"current".equals(value)||"unknown".equals(value);break;
+        case "dnssec_refresh_route":
+            valid="system_default".equals(value)||"vpn_bound".equals(value)
+                ||"unsafe".equals(value)||"unknown".equals(value);break;
+        case "dnssec_resolver_state":
+            valid="running".equals(value)||"stopped".equals(value)||"unknown".equals(value);break;
         default: valid=false;
       }
       if(!valid){status.setText("DNS 诊断字段值非法："+key);return;}
@@ -2340,7 +2399,39 @@ private void runDnsDiagnostics(){
         .append("；上游配置：").append(values.get("dns_upstream_state")).append('\n');
     report.append("加密上游引导解析：").append(values.get("dns_bootstrap_mode"))
         .append("；故障回退：").append(values.get("dns_fallback_mode")).append('\n');
-    report.append("DNSSEC 根信任锚：").append(values.get("dnssec_anchor_state")).append('\n');
+    report.append("\nDNS 查询日志：").append(values.get("dns_querylog_enabled"))
+        .append("；保留：").append(values.get("dns_querylog_retention"))
+        .append("；内存刷盘批量/动态上限：").append(values.get("dns_querylog_memory_size"))
+        .append("/").append(values.get("dns_querylog_memory_max")).append('\n');
+    report.append("DNS 聚合统计：").append(values.get("dns_statistics_enabled"))
+        .append("；周期：").append(values.get("dns_statistics_interval")).append('\n');
+    report.append("AdGuard 上游策略/超时：").append(values.get("adguard_upstream_mode"))
+        .append("；最快/总超时：").append(values.get("adguard_fastest_timeout"))
+        .append("/").append(values.get("adguard_upstream_timeout")).append('\n');
+    report.append("AdGuard 缓存：").append(values.get("adguard_cache_enabled"))
+        .append("；容量：").append(values.get("adguard_cache_size"))
+        .append("；TTL：").append(values.get("adguard_cache_ttl_min"))
+        .append("~").append(values.get("adguard_cache_ttl_max"))
+        .append("；乐观缓存：").append(values.get("adguard_cache_optimistic"))
+        .append("；DNSSEC：").append(values.get("adguard_dnssec_enabled")).append('\n');
+    report.append("Unbound TTL：").append(values.get("unbound_cache_min_ttl"))
+        .append("~").append(values.get("unbound_cache_max_ttl"))
+        .append("；线程：").append(values.get("unbound_num_threads"))
+        .append("/").append(values.get("unbound_threads_max"))
+        .append("；serve-expired：").append(values.get("unbound_serve_expired"))
+        .append("；预取/QNAME minimisation：").append(values.get("unbound_prefetch"))
+        .append("/").append(values.get("unbound_prefetch_key"))
+        .append("/").append(values.get("unbound_qname_minimisation")).append('\n');
+    report.append("Unbound 消息/RRset/Key/否定缓存：")
+        .append(values.get("unbound_msg_cache_size")).append("/")
+        .append(values.get("unbound_rrset_cache_size")).append("/")
+        .append(values.get("unbound_key_cache_size")).append("/")
+        .append(values.get("unbound_neg_cache_size")).append('\n');
+    report.append("DNSSEC 根信任锚：").append(values.get("dnssec_anchor_state"))
+        .append("；文件大小：").append(values.get("dnssec_anchor_bytes"))
+        .append("；更新：").append(values.get("dnssec_anchor_age"))
+        .append("；Unbound：").append(values.get("dnssec_resolver_state"))
+        .append("；手动刷新出口：").append(values.get("dnssec_refresh_route")).append('\n');
     report.append("Root Hints：").append(values.get("root_hints_state"))
         .append("；文件大小：").append(values.get("root_hints_bytes")).append(" 字节（SHA-256）。\n\n");
     report.append("本报告只读本地配置与完整性状态，并探测回环监听；不会修改 DNS 配置、重启解析器或更改 VPN 路由。");
