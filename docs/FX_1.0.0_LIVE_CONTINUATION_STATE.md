@@ -6808,6 +6808,7 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - `35b567a8`：增加本地 DNS 缓存刷新入口，调用现有 `yulong-ad-control.sh cache-flush`；只有后端返回完整 `cache=flushed` 才提示刷新成功。
   - `05f6b6ac` / `25ddc7d1`：修正 DNS 状态详情的换行展示，并显示 Root Proxy DNS 白名单应用数量。
 - 更新 `scripts/native-dns-settings.sh`（`a5feaf82`）和模块副本 `fx-module/scripts/native-dns-settings.sh`（`9381fa88`）：状态协议新增 `rootproxy_whitelist_count`，从 Root Proxy 实时状态读取，不再只显示开关状态。
-- 更新 `scripts/adguardhome.sh`（`a9b15f89`）和模块副本 `fx-module/scripts/adguardhome.sh`（`8c9aca97`）：在原有动态 `user_rules` 生成之外，读取 `[list:rule]` 中启用/停用的 HTTP/HTTPS 订阅项，生成 AdGuard Home 原生 `filters` 对象（保留启用状态、URL、名称和稳定列表序号 ID）；无效 URL 不进入 YAML，重复 URL 合并。原有 Yulong 内置域名源仍走独立的本地文件规则处理，不混入 FX 的 `[list:fx]` 96110 专用区。
+- 更新 `scripts/adguardhome.sh`（`a9b15f89`）和模块副本 `fx-module/scripts/adguardhome.sh`（`8c9aca97`）：在原有动态 `user_rules` 生成之外，读取 `[list:rule]` 中启用/停用的 HTTP/HTTPS 订阅项，生成 AdGuard Home 原生 `filters` 对象（保留启用状态、URL、名称和由列表当前顺序生成的唯一序号 ID）；无效 URL 不进入 YAML，重复 URL 合并。原有 Yulong 内置域名源仍走独立的本地文件规则处理，不混入 FX 的 `[list:fx]` 96110 专用区。
 - 订阅列表和域名 allow/block 规则更新后，AdGuard 生命周期脚本会重建配置指纹并在差异变化时重启受管进程以加载新配置；缓存刷新入口则使用既有停止、启动与 apply 协调链路。
 - 这些是源码和 UI/打包链路移植记录。本批按要求未运行 Gradle、Shell 静态检查、回归测试、构建、CI、Actions 或 Android 真机验证；没有声称设备端行为已经通过验证。
+- 迁移兼容脚本补充提交：`22923f00`（`scripts/integrate_yulong_ad_rules.py`），现在把 `_build_filter_sources()` 纳入原生 AdGuard 规则渲染能力识别，避免对已具备远程订阅渲染逻辑的模块重复注入旧补丁。
