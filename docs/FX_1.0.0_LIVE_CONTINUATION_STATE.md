@@ -7184,3 +7184,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 新增模块级 `yulong-root-proxy-package-watch.sh`：开机先执行一次 `package-event`，随后每 30 秒读取并规范化 PackageManager 包名/UID 快照，只有集合变化时才重新清理和协调 Root Proxy；snapshot 标记原子发布，PID/锁路径拒绝 symlink，进程身份按脚本路径和参数识别。提交 316b35ee11cd257172fb1d02ca68851248ce6e7f。
 - `service.sh` 在 FX `apply.sh` 后启动后台 watcher：e952bda552defb40e9a98277261839f64f5fbfc5；`uninstall.sh` 在 Root Proxy 拆除前停止 watcher，并将 watcher 日志纳入卸载安全路径检查：9108ddc905fa15969a27c252c3c868125fbacb83。
 - 固定 FX 1.0.0；本轮按当前移植节奏未运行测试、构建、静态检查、CI 或真机验证。
+
+## 2026-11-06 — QuickJS 兼容平台环境标识修正
+
+- `fx-module/scripts/jsruntime/host.js` 不再默认注入 `stash-version`；此前即使事件选择 FX/Surge/Loon/QuanX/Shadowrocket，脚本也会无条件看到 Stash 版本字段，与“仅发布当前选择的兼容平台标识”策略冲突。
+- Stash 版本字段现在只由后续显式 Stash compatibility profile 注入；其他 profile 不再被误识别为 Stash。保留 Android、FX 运行时版本、设备和语言等通用环境字段。
+- 代码提交：`ab486889b052fd0c8adbd13b71e57d2211f2e515`。
+- 按用户要求未运行测试、静态检查、构建、CI 或真机验证。
