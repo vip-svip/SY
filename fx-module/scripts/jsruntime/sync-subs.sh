@@ -88,9 +88,16 @@ if ! acquire_lock; then
   printf '{"ok":false,"busy":true,"error":"another script subscription sync is still running"}\n'
   exit 75
 fi
-ACTIVE="$DEST/.active.$$"
-: > "$ACTIVE" || { release_lock; exit 1; }
-cleanup() { rm -f "$ACTIVE" "$DEST/.fetch.$$" "$DEST/.wrap.$$" "$DEST"/*.previous.$$ 2>/dev/null; release_lock; }
+ACTIVE=$(mktemp "$DEST/.active.XXXXXX") || { release_lock; exit 1; }
+chmod 600 "$ACTIVE" || { rm -f "$ACTIVE"; release_lock; exit 1; }
+FETCH_TMP=
+WRAP_TMP=
+cleanup() {
+  [ -z "$FETCH_TMP" ] || rm -f "$FETCH_TMP" 2>/dev/null || :
+  [ -z "$WRAP_TMP" ] || rm -f "$WRAP_TMP" 2>/dev/null || :
+  rm -f "$ACTIVE" "$DEST"/*.previous.$ 2>/dev/null
+  release_lock
+}
 trap cleanup EXIT
 trap 'exit 129' HUP
 trap 'exit 130' INT
@@ -117,16 +124,18 @@ while IFS='|' read -r url note enabled; do
   case "$key" in ''|*[!0-9]*) failed=$((failed+1)); continue ;; esac
   name="pgsub_${key}.js"
   printf '%s\n' "$name" >> "$ACTIVE"
-  tmp="$DEST/.fetch.$$"
+  tmp=$(mktemp "$DEST/.fetch.XXXXXX") || { failed=$((failed+1)); continue; }
+  FETCH_TMP=$tmp
+  chmod 600 "$tmp" 2>/dev/null || { rm -f "$tmp"; FETCH_TMP=; failed=$((failed+1)); continue; }
   if ! fetch_script_https "$url" "$tmp" || [ ! -s "$tmp" ]; then
-    rm -f "$tmp"
+    rm -f "$tmp"; FETCH_TMP=
     pg_log "js-sub: fetch failed; preserving last known good script $name"
     failed=$((failed+1)); continue
   fi
   size=$(wc -c < "$tmp" 2>/dev/null | tr -d ' ')
   case "$size" in ''|*[!0-9]*) size=0 ;; esac
   if [ "$size" -gt 1048576 ] || [ "$size" -lt 16 ]; then
-    rm -f "$tmp"; pg_log "js-sub: rejected invalid size for [subscription URL redacted] ($size bytes)"; failed=$((failed+1)); continue
+    rm -f "$tmp"; FETCH_TMP=; pg_log "js-sub: rejected invalid size for [subscription URL redacted] ($size bytes)"; failed=$((failed+1)); continue
   fi
   case "$note" in
     FXMETA_B64:*)
@@ -168,7 +177,9 @@ while IFS='|' read -r url note enabled; do
       if [ -z "$meta_type" ] || [ -z "$meta_match" ] || [ -z "$meta_requires_body" ] || [ "$meta_argument_invalid" -eq 1 ]; then
         rm -f "$tmp"; pg_log "js-sub: invalid encoded trigger metadata for [subscription URL redacted]"; failed=$((failed+1)); continue
       fi
-      wrapped="$DEST/.wrap.$$"
+      wrapped=$(mktemp "$DEST/.wrap.XXXXXX") || { rm -f "$tmp"; FETCH_TMP=; failed=$((failed+1)); continue; }
+      WRAP_TMP=$wrapped
+      chmod 600 "$wrapped" 2>/dev/null || { rm -f "$tmp" "$wrapped"; FETCH_TMP=; WRAP_TMP=; failed=$((failed+1)); continue; }
       if ! {
         printf '// FX-SCRIPT-TYPE: %s\n// FX-SCRIPT-MATCH: %s\n' "$meta_type" "$meta_match"
         if [ "$meta_requires_body" = 1 ]; then printf '// FX-SCRIPT-REQUIRES-BODY: 1\n'; fi
@@ -177,9 +188,10 @@ while IFS='|' read -r url note enabled; do
         if [ -n "$meta_argument" ]; then printf '// FX-SCRIPT-ARGUMENT: %s\n' "$meta_argument"; fi
         cat "$tmp"
       } > "$wrapped"; then
-        rm -f "$tmp" "$wrapped"; failed=$((failed+1)); continue
+        rm -f "$tmp" "$wrapped"; FETCH_TMP=; WRAP_TMP=; failed=$((failed+1)); continue
       fi
-      mv -f "$wrapped" "$tmp" || { rm -f "$tmp" "$wrapped"; failed=$((failed+1)); continue; }
+      mv -f "$wrapped" "$tmp" || { rm -f "$tmp" "$wrapped"; FETCH_TMP=; WRAP_TMP=; failed=$((failed+1)); continue; }
+      WRAP_TMP=
       ;;
   esac
   _head=$(head -c 8192 "$tmp")
@@ -194,18 +206,21 @@ while IFS='|' read -r url note enabled; do
       rm -f "$tmp"; pg_log "js-sub: rejected script without supported FX or userscript URL metadata: [subscription URL redacted]"; skipped=$((skipped+1)); continue
     fi
     if [ "$has_type" != yes ]; then
-      wrapped="$DEST/.wrap.$$"
+      wrapped=$(mktemp "$DEST/.wrap.XXXXXX") || { rm -f "$tmp"; FETCH_TMP=; failed=$((failed+1)); continue; }
+      WRAP_TMP=$wrapped
+      chmod 600 "$wrapped" 2>/dev/null || { rm -f "$tmp" "$wrapped"; FETCH_TMP=; WRAP_TMP=; failed=$((failed+1)); continue; }
       if ! { printf '// FX-SCRIPT-TYPE: both\n'; cat "$tmp"; } > "$wrapped"; then
-        rm -f "$tmp" "$wrapped"; failed=$((failed+1)); continue
+        rm -f "$tmp" "$wrapped"; FETCH_TMP=; WRAP_TMP=; failed=$((failed+1)); continue
       fi
-      mv -f "$wrapped" "$tmp" || { rm -f "$tmp" "$wrapped"; failed=$((failed+1)); continue; }
+      mv -f "$wrapped" "$tmp" || { rm -f "$tmp" "$wrapped"; FETCH_TMP=; WRAP_TMP=; failed=$((failed+1)); continue; }
+      WRAP_TMP=
     fi
   fi
   size=$(wc -c < "$tmp" 2>/dev/null | tr -d ' ')
   case "$size" in ''|*[!0-9]*) size=0 ;; esac
   if [ "$size" -gt 1048576 ]; then rm -f "$tmp"; pg_log "js-sub: metadata-wrapped script exceeds 1 MiB: [subscription URL redacted]"; failed=$((failed+1)); continue; fi
   # SHA-256 records the exact accepted bytes; verify the committed file before reporting success.
-  hashline=$(sha256sum "$tmp" 2>/dev/null) || { rm -f "$tmp"; failed=$((failed+1)); continue; }
+  hashline=$(sha256sum "$tmp" 2>/dev/null) || { rm -f "$tmp"; FETCH_TMP=; failed=$((failed+1)); continue; }
   hash=${hashline%% *}
   case "$hash" in *[!0-9a-fA-F]*|'') rm -f "$tmp"; failed=$((failed+1)); continue ;; esac
   target="$DEST/$name"
@@ -214,7 +229,7 @@ while IFS='|' read -r url note enabled; do
   had_old=0; had_side=0
   if [ -f "$target" ]; then cp -p "$target" "$backup" || { rm -f "$tmp"; failed=$((failed+1)); continue; }; had_old=1; fi
   if [ -f "$target.sha256" ]; then cp -p "$target.sha256" "$sidebackup" || { rm -f "$tmp" "$backup"; failed=$((failed+1)); continue; }; had_side=1; fi
-  if ! mv -f "$tmp" "$target"; then rm -f "$tmp" "$backup" "$sidebackup"; failed=$((failed+1)); continue; fi
+  if ! mv -f "$tmp" "$target"; then rm -f "$tmp" "$backup" "$sidebackup"; FETCH_TMP=; failed=$((failed+1)); continue; fi
   chmod 600 "$target" 2>/dev/null || :
   gotline=$(sha256sum "$target" 2>/dev/null) || gotline=''
   got=${gotline%% *}
