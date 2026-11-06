@@ -179,6 +179,40 @@ jobs:
           grep -q 'Android ARM64' "$destination/BUILD-INFO.txt"
           echo "PASS: checksum-verified Unbound 1.26.2 ARM64 daemon, checker, anchor, probe and root data staged at the exact runtime paths used by FX Root Proxy."
           sh scripts/tests/fx-unbound-package-staging-regression.sh
+      - name: Stage checksum-pinned AdGuard Home Android ARM64 runtime
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          workflow="build-adguardhome-android-arm64.yml"
+          run_id="$(gh run list --workflow "$workflow" --repo vip-svip/SY --branch "$GITHUB_REF_NAME" --status success --limit 1 --json databaseId --jq '.[0].databaseId')"
+          [[ "$run_id" =~ ^[0-9]+$ ]] || { echo "::error::No successful AdGuard Home Android ARM64 build is available."; exit 1; }
+          artifact_sha="$(gh run view "$run_id" --repo vip-svip/SY --json headSha --jq '.headSha')"
+          source_sha="$(git log -1 --format=%H -- .github/workflows/build-adguardhome-android-arm64.yml .github/dns/AdGuardHome-FX-runtime-v1.0.0.yaml)"
+          [[ -n "$source_sha" && "$artifact_sha" = "$source_sha" ]] || {
+            echo "::error::AdGuard Home artifact is stale: artifact=$artifact_sha latest_runtime_source=$source_sha"
+            exit 1
+          }
+          source_dir="$RUNNER_TEMP/fx-adguardhome-artifact"
+          destination="fx-module/engines/adguardhome"
+          mkdir -p "$source_dir" "$destination"
+          gh run download "$run_id" --repo vip-svip/SY --name adguardhome-android-arm64-v0.107.79 --dir "$source_dir"
+          [[ -s "$source_dir/AdGuardHome" && -s "$source_dir/SHA256SUMS" ]] || {
+            echo "::error::AdGuard Home artifact is missing its executable or SHA256SUMS."; exit 1;
+          }
+          expected="$(awk 'NR == 1 { print $1; exit }' "$source_dir/SHA256SUMS")"
+          actual="$(sha256sum "$source_dir/AdGuardHome" | awk '{print $1}')"
+          [[ "$expected" =~ ^[0-9a-fA-F]{64}$ && "$expected" = "$actual" ]] || {
+            echo "::error::AdGuard Home Android ARM64 artifact checksum mismatch."; exit 1;
+          }
+          install -m 0755 "$source_dir/AdGuardHome" "$destination/AdGuardHome"
+          printf '%s  %s\\n' "$actual" "AdGuardHome" > "$destination/AdGuardHome.sha256"
+          install -m 0644 "$source_dir/BUILD-STATUS.txt" "$destination/BUILD-STATUS.txt"
+          install -m 0644 .github/dns/AdGuardHome-FX-runtime-v1.0.0.yaml "$destination/AdGuardHome.yaml"
+          (cd "$destination" && sha256sum AdGuardHome > BINARY-SHA256SUMS)
+          install -D -m 0755 scripts/adguardhome.sh fx-module/scripts/adguardhome.sh
+          echo "Staged checksum-pinned AdGuard Home v0.107.79 Android ARM64 runtime and FX loopback/Unbound configuration."
       - name: Decode and integrate Yulong 7.0.1 built-in DNS/Hosts rules
         shell: bash
         env:
@@ -243,6 +277,8 @@ jobs:
           install -D -m 0755 scripts/yulong-stellar-control.sh fx-module/scripts/yulong-stellar-control.sh
           install -D -m 0755 scripts/yulong-app-whitelist.sh fx-module/scripts/yulong-app-whitelist.sh
           install -D -m 0755 scripts/native-managed-lists.sh fx-module/scripts/native-managed-lists.sh
+          install -D -m 0755 scripts/adguardhome.sh fx-module/scripts/adguardhome.sh
+          install -D -m 0644 .github/dns/AdGuardHome-FX-runtime-v1.0.0.yaml fx-module/engines/adguardhome/AdGuardHome.yaml
           install -D -m 0755 scripts/native-vpn-config.sh fx-module/scripts/native-vpn-config.sh
           install -D -m 0755 scripts/fx-vpn-coexistence-arbiter.sh fx-module/scripts/fx-vpn-coexistence-arbiter.sh
           sh scripts/tests/fx-vpn-coexistence-arbiter-regression.sh fx-module/scripts/fx-vpn-coexistence-arbiter.sh
