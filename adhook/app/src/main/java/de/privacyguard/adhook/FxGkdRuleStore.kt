@@ -327,6 +327,44 @@ object FxGkdRuleStore {
         return true
     }
 
+    /** Apply an enabled state to a bounded set of explicitly selected rule IDs. */
+    @JvmStatic
+    @Synchronized
+    fun setRulesEnabled(context: Context, ids: Set<String>, enabled: Boolean): Int {
+        if (ids.isEmpty()) return 0
+        val rules = getRules(context)
+        val selected = rules.filter { it.id in ids }
+        if (selected.isEmpty()) return 0
+        val next = rules.map { if (it.id in ids) it.copy(enabled = enabled) else it }
+        return if (writeRules(context, next)) selected.size else -1
+    }
+
+    /** Remove only explicitly selected IDs; unrelated rules and order are preserved. */
+    @JvmStatic
+    @Synchronized
+    fun removeRules(context: Context, ids: Set<String>): Int {
+        if (ids.isEmpty()) return 0
+        val rules = getRules(context)
+        val next = rules.filterNot { it.id in ids }
+        val removed = rules.size - next.size
+        if (removed == 0) return 0
+        return if (writeRules(context, next)) removed else -1
+    }
+
+    /** Keep the first rule for each package + selector pair; preserve original order. */
+    @JvmStatic
+    @Synchronized
+    fun removeDuplicateRules(context: Context): Int {
+        val rules = getRules(context)
+        val seen = HashSet<String>()
+        val next = rules.filter { rule ->
+            seen.add(rule.packageName + "\u0000" + rule.selector)
+        }
+        val removed = rules.size - next.size
+        if (removed == 0) return 0
+        return if (writeRules(context, next)) removed else -1
+    }
+
     @JvmStatic
     @Synchronized
     fun setRuleEnabled(context: Context, id: String, enabled: Boolean): Boolean {
