@@ -1,8 +1,8 @@
 package de.privacyguard.adhook;
 
 /**
- * Per-package, opt-in sensor enumeration policy. Public Android sensor types
- * are assigned to broad privacy families; private/unknown types fail open.
+ * Per-package, opt-in sensor enumeration policy. Known public Android sensor
+ * types are grouped by data family; private and unknown OEM types fail open.
  */
 public final class SensorPrivacyPolicy {
     private SensorPrivacyPolicy() {}
@@ -10,13 +10,12 @@ public final class SensorPrivacyPolicy {
     public static boolean isEnabled(UnifiedHookConfigParser.Target target, int type) {
         if (target == null) return false;
         switch (type) {
-            // Accelerometer, gravity, linear acceleration and calibrated variants.
+            // Accelerometer, linear acceleration and calibrated/limited variants.
             case 1:  // TYPE_ACCELEROMETER
             case 9:  // TYPE_GRAVITY
             case 10: // TYPE_LINEAR_ACCELERATION
             case 35: // TYPE_ACCELEROMETER_UNCALIBRATED
-            case 38: // TYPE_ACCELEROMETER_LIMITED_AXES
-            case 40: // TYPE_ACCELEROMETER_LIMITED_AXES_UNCALIBRATED
+            case 40: // TYPE_ACCELEROMETER_LIMITED_AXES
                 return target.sensorAccel;
             // Magnetic field and uncalibrated magnetic field.
             case 2:  // TYPE_MAGNETIC_FIELD
@@ -28,18 +27,15 @@ public final class SensorPrivacyPolicy {
             case 39: // TYPE_GYROSCOPE_LIMITED_AXES
             case 41: // TYPE_GYROSCOPE_LIMITED_AXES_UNCALIBRATED
                 return target.sensorGyro;
-            case 5:  // TYPE_LIGHT
-                return target.sensorLight;
-            case 6:  // TYPE_PRESSURE
-                return target.sensorPressure;
-            case 8:  // TYPE_PROXIMITY
-                return target.sensorProx;
+            case 5: return target.sensorLight;     // TYPE_LIGHT
+            case 6: return target.sensorPressure;  // TYPE_PRESSURE
+            case 8: return target.sensorProx;      // TYPE_PROXIMITY
             // Temperature and humidity sensors.
-            case 7:  // TYPE_TEMPERATURE (deprecated; older devices may report it)
+            case 7:  // TYPE_TEMPERATURE (deprecated)
             case 12: // TYPE_RELATIVE_HUMIDITY
             case 13: // TYPE_AMBIENT_TEMPERATURE
                 return target.sensorEnvironment;
-            // Orientation, rotation, pose and hinge/head-tracking sensors.
+            // Orientation, rotation, pose and multi-axis fusion sensors.
             case 3:  // TYPE_ORIENTATION (deprecated)
             case 11: // TYPE_ROTATION_VECTOR
             case 15: // TYPE_GAME_ROTATION_VECTOR
@@ -48,6 +44,7 @@ public final class SensorPrivacyPolicy {
             case 28: // TYPE_POSE_6DOF
             case 36: // TYPE_HINGE_ANGLE
             case 37: // TYPE_HEAD_TRACKER
+            case 38: // TYPE_LIMITED_AXES_IMU
             case 42: // TYPE_HEADING
                 return target.sensorFusion;
             // Significant motion, steps, gestures and activity detectors.
@@ -67,11 +64,18 @@ public final class SensorPrivacyPolicy {
             case 21: // TYPE_HEART_RATE
             case 31: // TYPE_HEART_BEAT
                 return target.sensorBiometric;
-            // Dynamic sensor metadata, additional-info and vendor-private types
-            // are intentionally not blanket-hidden by these user-facing groups.
+            // Dynamic sensor metadata and additional-info pseudo-types are not
+            // physical sensor readings; OEM-private types remain fail-open.
             default:
                 return false;
         }
+    }
+
+    public static boolean hasAnyEnumerationRule(UnifiedHookConfigParser.Target target) {
+        return target != null && (target.sensorAccel || target.sensorGyro || target.sensorLight
+                || target.sensorMagnet || target.sensorPressure || target.sensorProx
+                || target.sensorEnvironment || target.sensorFusion || target.sensorGesture
+                || target.sensorBiometric);
     }
 
     public static boolean shouldClampRate(boolean privacyMaster, int processPackageCount,
