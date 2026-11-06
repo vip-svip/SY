@@ -1554,6 +1554,18 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
           })).show()));
     loadUnboundAnchorStatus(anchorState);
 
+    card("DNSSEC Root Hints 更新",
+        "通过 HTTPS 从 InterNIC 获取当前 named.root；更新前校验 A–M 13 个根服务器的 NS/A 记录，并生成新的 SHA-256 sidecar。仅允许 Unbound 已停止且没有 VPN egress 绑定时更新；失败会恢复原文件。此流程不执行 PGP detached-signature 校验。",
+        btn("安全条件下更新 Root Hints",()->fxDialogBuilder().setTitle("更新 DNSSEC Root Hints")
+          .setMessage("将通过 HTTPS 从 InterNIC 下载当前 named.root，并检查 13 个根服务器的 NS/A 记录后原子替换本地文件及 SHA-256 sidecar。要求 Unbound 已停止且不存在 VPN egress 绑定；失败时恢复旧文件。此流程不执行 PGP detached-signature 校验。是否继续？")
+          .setNegativeButton("取消",null)
+          .setPositiveButton("下载并更新",(dialog,which)->root("unbound-root-hints-refresh",refresh->{
+            if(refresh.exitCode==0)status.setText("DNSSEC Root Hints 已更新。");
+            else fxDialogBuilder().setTitle("Root Hints 未更新")
+              .setMessage(safe(refresh.output)).setPositiveButton("关闭",null).show();
+            loadUnboundAnchorStatus(anchorState);
+          })).show()));
+
     card("过滤策略","DNS 和网络策略开关；与 DNS 上游地址分开保存。批量操作会一次性更新以下五项策略。",
        dnsSwitch("阻止 QUIC","block_quic"),
        dnsSwitch("阻止 DNS-over-TLS","block_dot"),

@@ -6970,3 +6970,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 原生 Ad 页面协议升级到 `FXYULONGDNSDIAG2`，同步严格字段白名单、值校验和报告显示；修正 Root Hints 状态卡片换行显示。
 - 同步正式 APK 源码与模块打包源码、Root 控制脚本及两份续接文档。
 - 按当前要求未运行测试、静态检查、构建、CI 或 Android 真机验证；本批仅完成源码修改和 GitHub 提交。
+
+
+## 2026-11-07 — Unbound Root Hints 安全手动更新闭环
+
+- fx-module/scripts/unbound.sh 新增 root-hints-refresh：通过 HTTPS 获取 InterNIC named.root（IANA Root Files 官方页面所链接的文件），限时 25 秒；要求 Unbound 已停止且不存在 VPN egress marker。
+- 下载内容通过 A–M 13 个根服务器 NS/A 记录结构校验；SHA-256 sidecar 与 Root Hints 同目录发布。发布后再次校验，任何步骤失败均尝试恢复原文件与 sidecar；回滚不完整时保留恢复副本并返回失败。
+- _check_files 与 Root Hints 状态检查复用 13 个 root NS/A 结构校验，不再将 A/M 根服务器当前 IPv4 地址写死在代码中；状态仍保留 SHA-256 sidecar 比对。
+- 两份 yulong-ad-control.sh 新增 unbound-root-hints-refresh；两份 FxYulongAdActivity.java 增加更新按钮、限制说明与更新后状态刷新。
+- 安全边界：本批依赖 HTTPS/TLS 证书链和文件结构校验，不执行 PGP detached-signature 校验；不在 Unbound 运行或 VPN egress 绑定时更新，不修改第三方 VPN、系统 DNS 或用户上游配置。
+- 按用户要求未运行 Shell/Java 测试、静态检查、构建、CI 或 Android 真机验证。
