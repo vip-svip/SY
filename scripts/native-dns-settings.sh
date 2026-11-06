@@ -136,6 +136,12 @@ mutate() {
       pg_set dns_forward 1 || _set_rc=$?
       [ "$_set_rc" -ne 0 ] || pg_set dns_engine_adguardhome 1 || _set_rc=$?
       ;;
+    dns_engine_adguardhome:0)
+      # Root Proxy redirects to AdGuard on port 53. Disarm it before disabling
+      # that listener; Unbound may remain enabled for independent local DNS.
+      pg_set vpn_external_dns_proxy 0 || _set_rc=$?
+      [ "$_set_rc" -ne 0 ] || pg_set dns_engine_adguardhome 0 || _set_rc=$?
+      ;;
     dns_forward:0)
       # Do not leave an enabled filter pointing at a resolver that is disabled.
       pg_set dns_engine_adguardhome 0 || _set_rc=$?
@@ -149,9 +155,10 @@ mutate() {
       [ "$_set_rc" -ne 0 ] || pg_set vpn_external_compat 0 || _set_rc=$?
       ;;
     vpn_external_dns_proxy:1)
-      # Root Proxy requires both the explicit compatibility path and local
-      # recursive DNS; make those dependencies part of the same transaction.
+      # Root Proxy requires the explicit compatibility path, AdGuard's local
+      # listener and its Unbound upstream in the same settings transaction.
       pg_set dns_forward 1 || _set_rc=$?
+      [ "$_set_rc" -ne 0 ] || pg_set dns_engine_adguardhome 1 || _set_rc=$?
       [ "$_set_rc" -ne 0 ] || pg_set vpn_external_compat 1 || _set_rc=$?
       [ "$_set_rc" -ne 0 ] || pg_set vpn_external_dns_proxy 1 || _set_rc=$?
       ;;
