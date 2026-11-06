@@ -578,7 +578,38 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
     .setPositiveButton(action,(d,w)->apply("rule-set-many "+(enabled?"1":"0")+" "+encoded,"批量"+action+"过滤列表"))
     .show();
  }
- private void importRuleSubscriptions(EditText input){
+ private void shareRuleSubscriptions(){
+   List<Row> configured=rows("RULE");
+   if(configured.isEmpty()){status.setText("当前没有已配置的过滤订阅可导出。");return;}
+   StringBuilder payload=new StringBuilder();
+   payload.append("# FX Ad filter subscription export\\n")
+       .append("# format: source|name\\n")
+       .append("# importing adds sources enabled by default\\n");
+   int included=0,omitted=0;
+   final int maxBytes=64*1024;
+   for(Row row:configured){
+    String source=row.value==null?"":row.value.trim();
+    String name=row.title==null?"":row.title.trim();
+    if(source.isEmpty())continue;
+    String line=source.replace('|',' ').replace('\\r',' ').replace('\\n',' ')
+        +"|"+name.replace('|',' ').replace('\\r',' ').replace('\\n',' ')+"\\n";
+    int used=payload.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+    int bytes=line.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+    if(used+bytes>maxBytes){omitted++;continue;}
+    payload.append(line);included++;
+   }
+   if(included==0){status.setText("没有可导出的有效过滤订阅。");return;}
+   if(omitted>0)payload.append("# omitted ").append(omitted).append(" rows at 64 KiB export limit\\n");
+   try{
+    Intent send=new Intent(Intent.ACTION_SEND);send.setType("text/plain");
+    send.putExtra(Intent.EXTRA_SUBJECT,"FX Ad 过滤订阅备份");
+    send.putExtra(Intent.EXTRA_TEXT,payload.toString());
+    startActivity(Intent.createChooser(send,"分享过滤订阅"));
+    status.setText("已准备分享 "+included+" 个过滤订阅"
+        +(omitted>0?"；另有 "+omitted+" 个因 64 KiB 上限省略。":"。"));
+   }catch(RuntimeException unavailable){status.setText("无法打开系统分享面板："+safe(unavailable.getMessage()));}
+  }
+  private void importRuleSubscriptions(EditText input){
   String raw=input==null||input.getText()==null?"":input.getText().toString();
   java.util.LinkedHashMap<String,String> parsed=new java.util.LinkedHashMap<>();
   for(String line:raw.split("\\r?\\n")){
@@ -601,7 +632,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
    .setPositiveButton("导入",(d,w)->apply("rule-add-many "+encoded,"批量导入过滤列表"))
    .show();
  }
- private void renderRules(){EditText url=draftField("rule_url");url.setSingleLine(true);url.setHint("https://… 或 builtin://…");EditText name=draftField("rule_name");name.setSingleLine(true);name.setHint("列表名称");card("添加过滤列表","仅允许 HTTPS 订阅及 FX 本地资源。",url,name,btn("添加并应用",()->{String u=url.getText().toString().trim(),n=name.getText().toString().trim();if(!u.isEmpty()&&!n.isEmpty())apply("rule-add "+q(u)+" "+q(n)+" 1","规则添加");}));EditText ruleImport=draftField("rule_import_text");ruleImport.setSingleLine(false);ruleImport.setMinLines(4);ruleImport.setHint("每行：HTTPS或builtin来源|列表名称");card("批量导入过滤列表","支持多行来源|名称；空行和 # 注释行忽略。新订阅默认启用，已存在来源不会被覆盖。",ruleImport,btn("批量导入",()->importRuleSubscriptions(ruleImport)));search=draftField("rule_search");search.setSingleLine(true);search.setHint("搜索过滤列表");card("搜索","输入来源或列表名称",search,btn("启用当前筛选全部列表",()->setFilteredRules(true)),btn("暂停当前筛选全部列表",()->setFilteredRules(false)));search.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int st,int c,int a){}public void onTextChanged(CharSequence s,int st,int be,int co){bind();}public void afterTextChanged(Editable e){}});entries=new LinearLayout(this);entries.setOrientation(1);body.addView(entries);}
+ private void renderRules(){EditText url=draftField("rule_url");url.setSingleLine(true);url.setHint("https://… 或 builtin://…");EditText name=draftField("rule_name");name.setSingleLine(true);name.setHint("列表名称");card("添加过滤列表","仅允许 HTTPS 订阅及 FX 本地资源。",url,name,btn("添加并应用",()->{String u=url.getText().toString().trim(),n=name.getText().toString().trim();if(!u.isEmpty()&&!n.isEmpty())apply("rule-add "+q(u)+" "+q(n)+" 1","规则添加");}));EditText ruleImport=draftField("rule_import_text");ruleImport.setSingleLine(false);ruleImport.setMinLines(4);ruleImport.setHint("每行：HTTPS或builtin来源|列表名称");card("批量导入过滤列表","支持多行来源|名称；空行和 # 注释行忽略。新订阅默认启用，已存在来源不会被覆盖。",ruleImport,btn("批量导入",()->importRuleSubscriptions(ruleImport)),btn("分享全部过滤订阅",()->shareRuleSubscriptions()));search=draftField("rule_search");search.setSingleLine(true);search.setHint("搜索过滤列表");card("搜索","输入来源或列表名称",search,btn("启用当前筛选全部列表",()->setFilteredRules(true)),btn("暂停当前筛选全部列表",()->setFilteredRules(false)));search.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int st,int c,int a){}public void onTextChanged(CharSequence s,int st,int be,int co){bind();}public void afterTextChanged(Editable e){}});entries=new LinearLayout(this);entries.setOrientation(1);body.addView(entries);}
  private void renderDns(){
   EditText dnsProfileImport=draftField("dns_profile_import");dnsProfileImport.setSingleLine(false);dnsProfileImport.setMinLines(5);dnsProfileImport.setHint("粘贴完整 FXYULONGDNSPROFILE1 快照文本");
  private void refreshDnsCache(String target,String label){
