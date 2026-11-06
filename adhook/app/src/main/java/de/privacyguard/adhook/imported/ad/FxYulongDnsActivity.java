@@ -73,6 +73,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
     private boolean pendingScrollRestore;
     private List<Entry> pendingExportEntries;
     private String pendingExportMetadata;
+    private boolean pendingShareAfterExport;
 
     private static final class Entry {
         final String time, domain, type, reason, rcode;
@@ -755,51 +756,35 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         }
     }
 
-    /** Share all locally loaded rows matching the current query, independent of pagination. */
+    /** Share complete filtered results as a document URI, never as a large EXTRA_TEXT payload. */
     private void shareFilteredResults() {
+        beginFilteredResultsExport(true);
+    }
+
+    private void beginFilteredResultsExport(boolean shareAfterSave) {
         if (data.isEmpty()) {
-            status.setText("当前没有可分享的 DNS 查询记录；请先刷新并确认本地日志已启用。");
+            status.setText("当前没有可导出的 DNS 查询记录；请先刷新并确认本地日志已启用。");
             return;
         }
-        String query = search == null || search.getText() == null ? ""
-                : search.getText().toString().trim().toLowerCase(Locale.ROOT);
-        StringBuilder report = new StringBuilder();
-        report.append("FX Ad DNS query log\n")
-                .append("filter=").append(query).append("\n")
-                .append("result=").append(resultFilter == 1 ? "blocked" : resultFilter == 2 ? "allowed" : "all").append("\n")
-                .append("time=").append(timeFilter == 1 ? "1h" : timeFilter == 2 ? "24h" : timeFilter == 3 ? "7d" : "all").append("\n")
-                .append("dns_type=").append(typeFilter.isEmpty() ? "all" : typeFilter).append("\n")
-                .append("rcode=").append(rcodeFilter.isEmpty() ? "all" : rcodeFilter).append("\n")
-                .append("scope=all locally retained parsed records\n")
-                .append("time\tdomain\ttype\trcode\tresult\treason\n");
-        int included = 0;
-        int omitted = 0;
-        for (Entry item : data) {
-            if (!matchesResultFilter(item) || !matchesTimeFilter(item) || !matchesTypeFilter(item) || !matchesRcodeFilter(item)
-                    || (!query.isEmpty() && !item.searchable().contains(query))) continue;
-            String row = cleanExportField(item.time) + "\t"
-                    + cleanExportField(item.domain) + "\t"
-                    + cleanExportField(item.type) + "\t"
-                    + cleanExportField(item.rcode) + "\t"
-                    + (item.blocked ? "blocked" : "allowed") + "\t"
-                    + cleanExportField(item.reason) + "\n";
-            report.append(row);
-            included++;
-        }
-        if (included == 0) {
-            status.setText("当前搜索条件没有可分享的 DNS 查询记录。");
+        List<Entry> selected = collectFilteredEntries();
+        if (selected.isEmpty()) {
+            status.setText("当前筛选条件没有可导出的 DNS 查询记录。");
             return;
         }
+        Intent create = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        create.addCategory(Intent.CATEGORY_OPENABLE);
+        create.setType("text/tab-separated-values");
+        create.putExtra(Intent.EXTRA_TITLE, "FX-DNS-filtered-querylog.tsv");
+        pendingExportEntries = selected;
+        pendingExportMetadata = currentExportMetadata();
+        pendingShareAfterExport = shareAfterSave;
         try {
-            Intent send = new Intent(Intent.ACTION_SEND);
-            send.setType("text/plain");
-            send.putExtra(Intent.EXTRA_SUBJECT, "FX Ad DNS 查询记录（筛选结果）");
-            send.putExtra(Intent.EXTRA_TEXT, report.toString());
-            startActivity(Intent.createChooser(send, "分享 DNS 查询记录"));
-            status.setText("已准备分享 " + included + " 条筛选匹配记录"
-                    + "。");
+            startActivityForResult(create, SAVE_FILTERED_RESULTS_REQUEST);
         } catch (RuntimeException unavailable) {
-            status.setText("无法打开系统分享面板：" + safe(unavailable.getMessage()));
+            pendingExportEntries = null;
+            pendingExportMetadata = null;
+            pendingShareAfterExport = false;
+            status.setText("无法打开系统文件保存器：" + safe(unavailable.getMessage()));
         }
     }
 
@@ -831,31 +816,10 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
     }
 
     private void saveFilteredResultsToFile() {
-        if (data.isEmpty()) {
-            status.setText("当前没有可保存的 DNS 查询记录；请先刷新并确认本地日志已启用。");
-            return;
-        }
-        List<Entry> selected = collectFilteredEntries();
-        if (selected.isEmpty()) {
-            status.setText("当前筛选条件没有可保存的 DNS 查询记录。");
-            return;
-        }
-        Intent create = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-        create.addCategory(Intent.CATEGORY_OPENABLE);
-        create.setType("text/tab-separated-values");
-        create.putExtra(Intent.EXTRA_TITLE, "FX-DNS-filtered-querylog.tsv");
-        pendingExportEntries = selected;
-        pendingExportMetadata = currentExportMetadata();
-        try {
-            startActivityForResult(create, SAVE_FILTERED_RESULTS_REQUEST);
-        } catch (RuntimeException unavailable) {
-            pendingExportEntries = null;
-            pendingExportMetadata = null;
-            status.setText("无法打开系统文件保存器：" + safe(unavailable.getMessage()));
-        }
+        beginFilteredResultsExport(false);
     }
 
-    private void writeFilteredResultsToUri(Uri uri, List<Entry> selected, String metadata) {
+    private void writeFilteredResultsToUri(Uri uri, List<Entry> selected, String metadata, boolean shareAfterSave) {
         int written = 0;
         String failure = null;
         try {
@@ -889,11 +853,26 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         final String saveFailure = failure;
         runOnUiThread(() -> {
             if (isFinishing() || isDestroyed() || status == null) return;
-            if (saveFailure == null) {
-                status.setText("已将 " + savedRows + " 条筛选匹配记录完整写入所选文件（TSV/UTF-8）。");
-            } else {
+            if (saveFailure != null) {
                 status.setText("保存 DNS 查询记录失败：" + saveFailure
                         + "；已写入 " + savedRows + " 条。");
+                return;
+            }
+            if (!shareAfterSave) {
+                status.setText("已将 " + savedRows + " 条筛选匹配记录完整写入所选文件（TSV/UTF-8）。");
+                return;
+            }
+            try {
+                Intent send = new Intent(Intent.ACTION_SEND);
+                send.setType("text/tab-separated-values");
+                send.putExtra(Intent.EXTRA_SUBJECT, "FX Ad DNS 查询记录（筛选结果）");
+                send.putExtra(Intent.EXTRA_STREAM, uri);
+                send.setClipData(android.content.ClipData.newRawUri("FX DNS query log", uri));
+                send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                startActivity(Intent.createChooser(send, "分享 DNS 查询记录文件"));
+                status.setText("已将 " + savedRows + " 条筛选匹配记录写入文件并打开分享面板。");
+            } catch (RuntimeException unavailable) {
+                status.setText("文件已完整写入，但无法打开系统分享面板：" + safe(unavailable.getMessage()));
             }
         });
     }
@@ -903,20 +882,22 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         if (requestCode != SAVE_FILTERED_RESULTS_REQUEST) return;
         List<Entry> selected = pendingExportEntries;
         String metadata = pendingExportMetadata;
+        boolean shareAfterSave = pendingShareAfterExport;
         pendingExportEntries = null;
         pendingExportMetadata = null;
+        pendingShareAfterExport = false;
         Uri destination = resultData == null ? null : resultData.getData();
         if (resultCode != Activity.RESULT_OK || destination == null) {
-            status.setText("已取消保存 DNS 查询结果。");
+            status.setText(shareAfterSave ? "已取消分享 DNS 查询结果。" : "已取消保存 DNS 查询结果。");
             return;
         }
         if (selected == null || selected.isEmpty()) {
-            status.setText("没有待保存的 DNS 查询记录；请重新选择筛选范围。");
+            status.setText("没有待导出的 DNS 查询记录；请重新选择筛选范围。");
             return;
         }
         status.setText("正在流式写入 " + selected.size() + " 条 DNS 查询记录…");
         try {
-            worker.execute(() -> writeFilteredResultsToUri(destination, selected, metadata));
+            worker.execute(() -> writeFilteredResultsToUri(destination, selected, metadata, shareAfterSave));
         } catch (RejectedExecutionException full) {
             status.setText("DNS 日志后台队列繁忙，文件尚未写入；请稍后重试。");
         }

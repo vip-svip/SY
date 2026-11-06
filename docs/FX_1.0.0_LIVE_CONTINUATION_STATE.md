@@ -1299,3 +1299,12 @@
 - 校验值与 Root 持久化读取、运行 YAML 注入一致；缺失、重复、格式错误或模式/地址组合不一致的配置拒绝启动/发布。
 - 同步 `scripts/adguardhome.sh` 与 `fx-module/scripts/adguardhome.sh`。
 - 按用户要求未运行脚本测试、静态检查、构建、CI 或设备验证；本轮只更新源码和续接记录。
+
+
+## 2026-11-07 — DNS 查询日志分享统一改为文件 URI
+
+- 移除 DNS 查询日志“分享全部筛选结果”将全部记录拼成 `Intent.EXTRA_TEXT` 并一次性跨进程传输的路径；分享按钮现在与文件导出共用系统 `ACTION_CREATE_DOCUMENT`，在后台逐条以 UTF-8/TSV 写入用户选定文件。
+- 写入成功后通过 `Intent.EXTRA_STREAM`、`ClipData` 和 `FLAG_GRANT_READ_URI_PERMISSION` 分享文件 URI；不将原始日志正文装进 Intent，不受 Binder 文本事务大小影响。用户只保存文件时仍使用原有独立入口。
+- 取消、写入失败、后台队列繁忙及分享面板不可用均清理待处理状态并给出对应提示；只分享当前搜索/状态/时间/RR 类型/响应码筛选匹配的全部记录，不受列表 50 条显示分页限制。
+- 同步普通 APK 与 `fx-module/` 原生 DNS 日志页面。
+- 按用户要求未运行测试、构建、静态检查、CI 或真机验证；本轮仅提交源码与续接记录。
