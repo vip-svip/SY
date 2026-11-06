@@ -69,6 +69,8 @@ public final class FxYulongAdActivity extends de.privacyguard.adhook.FxNativeTab
  private static final int DNS_PROFILE_OPEN_REQUEST=4202;
  private static final int DNS_PROFILE_SAVE_REQUEST=4203;
  private static final int DNS_PROFILE_SHARE_REQUEST=4204;
+ private static final int DNS_DIAGNOSTIC_SAVE_REQUEST=4205;
+ private String pendingDnsDiagnosticExport="";
  private EditText dnsProfileImportField;
  private String pendingDnsProfileExport="";
  private Bundle pendingRestoredDrafts;
@@ -1790,7 +1792,28 @@ private void openDnsProfileFile(){
 }
 @Override protected void onActivityResult(int requestCode,int resultCode,Intent data){
   super.onActivityResult(requestCode,resultCode,data);
-  if(requestCode==DNS_PROFILE_SAVE_REQUEST||requestCode==DNS_PROFILE_SHARE_REQUEST){
+  if(requestCode==DNS_DIAGNOSTIC_SAVE_REQUEST){
+     String report=pendingDnsDiagnosticExport;
+     pendingDnsDiagnosticExport="";
+     if(resultCode!=Activity.RESULT_OK||data==null||data.getData()==null){
+       status.setText("已取消 DNS 诊断报告文件保存。");
+       return;
+     }
+     if(report.isEmpty()){
+       status.setText("DNS 诊断报告内容已失效，请重新执行诊断。");
+       return;
+     }
+     try(java.io.OutputStream stream=getContentResolver().openOutputStream(data.getData(),"w")){
+       if(stream==null)throw new java.io.IOException("无法打开目标文件");
+       stream.write(report.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+       stream.flush();
+       status.setText("DNS 诊断报告已保存到所选文件。报告不包含查询域名、客户端 IP 或原始查询日志。");
+     }catch(Exception failure){
+       status.setText("DNS 诊断报告保存失败："+safe(failure.getMessage()));
+     }
+     return;
+   }
+   if(requestCode==DNS_PROFILE_SAVE_REQUEST||requestCode==DNS_PROFILE_SHARE_REQUEST){
     boolean shareAfterSave=requestCode==DNS_PROFILE_SHARE_REQUEST;
     String payload=pendingDnsProfileExport;
     pendingDnsProfileExport="";
@@ -2255,6 +2278,26 @@ private int countDnsEndpoints(String value){
   for(String endpoint:value.split(",",-1))if(!endpoint.trim().isEmpty())count++;
   return count;
 }
+private void saveDnsDiagnosticsReport(String report){
+  if(report==null||report.trim().isEmpty()){
+    status.setText("DNS 诊断报告为空，未创建文件。");
+    return;
+  }
+  pendingDnsDiagnosticExport=report;
+  try{
+    Intent create=new Intent(Intent.ACTION_CREATE_DOCUMENT);
+    create.addCategory(Intent.CATEGORY_OPENABLE);
+    create.setType("text/plain");
+    String stamp=new java.text.SimpleDateFormat("yyyyMMdd-HHmmss",java.util.Locale.ROOT)
+        .format(new java.util.Date());
+    create.putExtra(Intent.EXTRA_TITLE,"FX-DNS-diagnostics-"+stamp+".txt");
+    startActivityForResult(create,DNS_DIAGNOSTIC_SAVE_REQUEST);
+    status.setText("请选择 DNS 诊断报告的本地保存位置。");
+  }catch(RuntimeException unavailable){
+    pendingDnsDiagnosticExport="";
+    status.setText("无法打开系统文件保存器："+safe(unavailable.getMessage()));
+  }
+}
 private void runDnsDiagnostics(){
   status.setText("正在执行只读 DNS 链路诊断…");
   root("dns-diagnose",result->{
@@ -2443,6 +2486,7 @@ private void runDnsDiagnostics(){
     report.append("本报告只读本地配置与完整性状态，并探测回环监听；不会修改 DNS 配置、重启解析器或更改 VPN 路由。");
     fxDialogBuilder().setTitle("FX DNS 链路诊断报告")
       .setMessage(report.toString())
+      .setNegativeButton("保存报告到文件",(dialog,which)->saveDnsDiagnosticsReport(report.toString()))
       .setPositiveButton("关闭",null).show();
   });
 }

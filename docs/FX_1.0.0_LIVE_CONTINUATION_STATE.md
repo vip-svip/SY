@@ -1376,3 +1376,11 @@
 - 手动更新命令在正常状态字段后附带可选 `root_hints_refresh=updated`；原生状态解析白名单允许该可选回执，并在状态卡片显示“最近操作：Root Hints 已更新”，不会再把成功回执误报为未知字段。
 - 同步普通与模块 APK 的 FxYulongAdActivity；Unbound 生命周期结构校验、启动前检查和更新后验证继续复用同一 `_root_hints_valid` 函数。
 - 本批未运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-07 — 本地 DNS 诊断报告文件导出
+
+- 原生 DNS 页面“执行完整 DNS 链路诊断”在显示报告后新增“保存报告到文件”；通过系统 ACTION_CREATE_DOCUMENT 保存 UTF-8 文本，文件名带本地时间戳，不把报告正文放进跨进程 Intent 文本参数。
+- 导出内容复用既有 `FXYULONGDNSDIAG3` 已校验诊断报告，包含引擎状态、IPv4/IPv6 回环探测、上游/Bootstrap/Fallback 配置状态、VPN 共存/路由判定、DNSSEC/Root Hints 完整性、缓存与查询日志参数；不包含查询域名、客户端 IP 或原始查询日志。
+- 保存请求单独记录 pending 数据；取消、目标 URI 缺失、Activity Result 迟到/内容丢失、文件流失败均明确报错并清空待处理内容，不报告虚假的保存成功。
+- 修改文件：正式与模块 APK 的两份 `FxYulongAdActivity.java`。
+- 本批未运行 Java/Gradle 测试、静态检查、构建、CI 或 Android 真机验证。
