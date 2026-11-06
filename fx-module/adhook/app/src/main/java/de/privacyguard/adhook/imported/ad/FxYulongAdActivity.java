@@ -793,7 +793,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
   globalServers.setSingleLine(false);globalServers.setMinLines(2);
   globalServers.setHint("例如：8.8.8.8,1.1.1.1");
   card("自定义/全局/备用 DNS 服务器",
-       "自定义 DNS 支持任意多条上游地址（保留逐条格式与协议校验，不设置应用层条数上限），可混合 IPv4、DoH、DoT、DoQ；备用 DNS 只支持 IPv4。加密上游的域名引导解析经 FX 本地 Unbound 递归服务完成，不固定依赖公共 DNS；仅在 FX 本地 AdGuard Home 过滤引擎运行时生效；启用“阻止 DoT/QUIC”会阻断对应传输协议。",
+       "自定义 DNS 支持任意多条上游地址（保留逐条格式与协议校验，不设置应用层条数上限），可混合 IPv4、DoH、DoT、DoQ；备用 DNS 支持任意多条 IPv4；留空时，启用自定义/全局外部上游会自动以 FX 本地 Unbound 作为故障回退。加密上游的域名引导解析经 FX 本地 Unbound 递归服务完成，不固定依赖公共 DNS；仅在 FX 本地 AdGuard Home 过滤引擎运行时生效；启用“阻止 DoT/QUIC”会阻断对应传输协议。",
        btn("一次性保存三组 DNS 上游",()->saveDnsServerLists(customServers,globalServers,fallbackServers)),
        txt("自定义 DNS 上游",12,0xff617080,true),customServers,
        btn("保存自定义 DNS",()->saveDnsServerList("custom",customServers)),
@@ -1119,7 +1119,7 @@ private void loadDnsRuntimeStatus(TextView target){
         "dns_stack_ready",
         "dns_stack_readiness_reason","dns_upstream_mode","dns_upstream_state",
         "dns_custom_upstreams","dns_global_upstreams","dns_fallback_upstreams",
-        "dns_encrypted_upstreams","dns_bootstrap_mode"));
+        "dns_encrypted_upstreams","dns_bootstrap_mode","dns_fallback_mode"));
     for(int index=1;index<lines.length;index++){
       String line=lines[index].trim();
       if(line.isEmpty())continue;
@@ -1171,6 +1171,7 @@ private void loadDnsRuntimeStatus(TextView target){
     appendDnsStatus(out,"备用 DNS 上游数量",values.get("dns_fallback_upstreams"));
     appendDnsStatus(out,"加密 DNS 上游数量",values.get("dns_encrypted_upstreams"));
     appendDnsStatus(out,"加密上游引导解析",values.get("dns_bootstrap_mode"));
+    appendDnsStatus(out,"DNS 故障回退方式",values.get("dns_fallback_mode"));
     target.setText(out.length()==0?"未收到可识别的 DNS 状态字段。":out.toString().trim());
   });
 }
