@@ -193,6 +193,8 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
         body.addView(actions);
         body.addView(button("删除当前筛选页脚本", this::confirmDeleteCurrentPage),
                 new LinearLayout.LayoutParams(-1, -2));
+        body.addView(button("复制当前筛选页 JSON", this::copyCurrentPageJson),
+                new LinearLayout.LayoutParams(-1, -2));
         rows = new LinearLayout(this);
         rows.setOrientation(LinearLayout.VERTICAL);
         body.addView(rows, new LinearLayout.LayoutParams(-1, -2));
@@ -310,6 +312,58 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
             lp.setMargins(dp(10), dp(3), dp(10), dp(3));
             rows.addView(row, lp);
         }
+    }
+
+    private void copyCurrentPageJson() {
+        if (scripts == null) {
+            setStatus("脚本库尚未读取完成。");
+            return;
+        }
+        String query = search == null || search.getText() == null ? ""
+                : search.getText().toString().trim().toLowerCase(java.util.Locale.ROOT);
+        List<String> names = new ArrayList<>();
+        Iterator<String> keys = scripts.keys();
+        while (keys.hasNext()) {
+            String name = keys.next();
+            if (query.isEmpty() || name.toLowerCase(java.util.Locale.ROOT).contains(query)) {
+                names.add(name);
+            }
+        }
+        Collections.sort(names, String.CASE_INSENSITIVE_ORDER);
+        int pageCount = (names.size() + PAGE_SIZE - 1) / PAGE_SIZE;
+        if (pageCount == 0) {
+            setStatus("当前筛选没有可导出的脚本。");
+            return;
+        }
+        currentPage = Math.max(0, Math.min(currentPage, pageCount - 1));
+        int from = currentPage * PAGE_SIZE;
+        int to = Math.min(names.size(), from + PAGE_SIZE);
+        final List<String> pageNames = new ArrayList<>(names.subList(from, to));
+        setStatus("正在生成当前页 " + pageNames.size() + " 个脚本的兼容 JSON…");
+        submitIo(() -> {
+            try {
+                String json = FxDiaScriptLibraryStore.exportJson(this, pageNames);
+                if (json.getBytes(StandardCharsets.UTF_8).length > 512 * 1024) {
+                    runOnUiThread(() -> setStatus("当前页 JSON 超过 512 KiB 剪贴板上限，请减少脚本数量或使用完整 JSON 文件导出。"));
+                    return;
+                }
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    android.content.ClipboardManager clipboard =
+                            (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                    if (clipboard == null) {
+                        setStatus("系统剪贴板不可用，未复制 JSON。");
+                        return;
+                    }
+                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText(
+                            "FX Frida script page JSON", json));
+                    setStatus("已复制当前页 " + pageNames.size()
+                            + " 个脚本的 JSON；schema 与脚本库完整导入格式兼容。");
+                });
+            } catch (Throwable error) {
+                runOnUiThread(() -> setStatus("当前页 JSON 导出失败：" + detail(error)));
+            }
+        });
     }
 
     private void confirmDeleteCurrentPage() {
