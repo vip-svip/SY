@@ -7058,3 +7058,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 将同一脚本存储实现同步到 `fx-patches/native-script-list.sh`、`fx-module/scripts/jsruntime/native-list.sh`、`fx-module/build-tools/patches/native-script-list.sh`，保持构建恢复模板与模块运行时一致。提交：构建源 `1bab891ddbdb5a7d289ce50f67a39dadbdb8317f`、运行时更新 `eca4be369479df8528ebc42385dfa7dbd8f75344`、模块构建模板 `f5440406b5206cb21283b78cf7d9abee92bb6a0c`。
 - `patch_native_script_store.py` 改为同目录临时文件 + fsync + os.replace 原子发布 `native-list.sh`、`local-run.sh` 与 WebUI HTML；拒绝目标符号链接，保留 WebUI 原权限，并在发布后尽力同步父目录。减少打包进程中断时留下半写文件的风险。提交：构建源 `ac430e5cb3ba4f6663138232f8ed04ca71ff8f74`、模块构建模板 `8b142c5ddd8f3d50edfe6742607240e9dc362b83`。
 - 固定 FX 1.0.0；按当前要求未运行 Shell/Java 检查、回归测试、构建、CI 或真机验证。
+
+## 2026-11-06 — Egern 元数据保真与传感器注册旁路补齐
+
+- 修复两份 EgernScriptYamlImporter 的 addEntry 参数链，`unsupportedLimits` 现在从 YAML 顶层解析到单条记录过滤器，防止资源限制字段判定引用未定义变量；应用提交 06d67376bd5495d5b9e64e323461f722b7920b80，模块提交 93c0a7d578be8a6db315b6964ba2fe677fc8bcdd。
+- 脚本编辑仅重写元数据中的显示名称，保留后续 Egern env JSON 等扩展字段；详情页仅列出环境变量键名，不展示变量值。应用提交 6306b22754ca0292b4778c6a8ba31b54c0f18b4d、2b8ca77c611ca95b36de1538cbd86169f65db1ca；模块提交 98105feda9a591c49fb48d7153cedf641983407f、027d82d9f2421048a3b2ea3717ff70e04a97de47。
+- QuickJS ctx 现在把订阅头 `FX-SCRIPT-NAME` 映射到 `ctx.script.name`；`FX-SCRIPT-ENV-JSON` 仍合并至 `ctx.env`。运行时 host 提交 ccf05168a97413db380c3521b12f3709cc9db20c；根构建补丁提交 fa313d9ef4ac5604dc31d36a774baf7074f6c634；模块构建补丁提交 7955c9826b70349e29348a55c49df8d9f0aea07d；README 更新由后续提交记录。
+- Egern 导入错误提示现区分可用的扁平 env 与无法表示的 env 结构；应用提交 7078f59a33f258124d5ccd25978ffe6c874ecc80，模块提交 21688a47aa7691d623ef7c85afcd693fcd42ed86。
+- 传感器隐私新增 SensorManager.requestTriggerSensor() 与 DynamicSensorCallback.onDynamicSensorConnected() 拦截，命中同一按应用传感器类别策略时不向目标应用注册触发器或推送连接事件；应用 Hook 提交 fa666744595d582f142e88fc62e7d877bf2154ed、36389f2f8accfffca35ec55c4e53307611cc967f；模块 Hook 提交 d93942f67e34764411b82d9464cfeea29e1075a5、5209cf1b442f29baa889690bb0bb2d9d72c719bd。
+- 固定 FX 1.0.0。按当前推进要求未运行测试、静态检查、构建、CI 或真机验证。
