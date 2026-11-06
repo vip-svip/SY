@@ -188,43 +188,86 @@ valid_ipv4() {
   '
 }
 normalize_dns_csv() { printf '%s' "$1" | tr -d '[:space:]'; }
-valid_ipv4_dns_csv() {
+valid_ipv4_dns_csv() { valid_ip_dns_csv "$1"; }
+valid_fallback_dns_csv() { valid_ip_dns_csv "$1"; }
+valid_ip_dns_csv() {
   printf '%s\n' "$1" | awk -F, '
     function valid_ipv4(v,n,a,j,first,second) {
       n=split(v,a,".")
       if(n!=4)return 0
       for(j=1;j<=4;j++)
-        if(a[j]==""||a[j]!~/^[0-9]+$/||length(a[j])>3||a[j]+0>255||(a[j]!="0"&&a[j]~/^0/))return 0
+        if(a[j]==""||a[j]!~/^[0-9]+$/||length(a[j])>3||a[j]+0>255||
+           (a[j]!="0"&&a[j]~/^0/))return 0
       first=a[1]+0;second=a[2]+0
-      if(v=="0.0.0.0"||v=="255.255.255.255"||first==0||first==127||first>=224||(first==169&&second==254))return 0
+      if(v=="0.0.0.0"||v=="255.255.255.255"||first==0||first==127||
+         first>=224||(first==169&&second==254))return 0
       return 1
     }
-    function valid_endpoint(v,n,a) {
+    function valid_ipv6(v,pos,left,right,count,i,n,a,b) {
+      if(v=="" || v !~ /^[0-9A-Fa-f:]+$/ || v~/:::/) return 0
+      pos=index(v,"::")
+      if(pos && index(substr(v,pos+2),"::")) return 0
+      count=0
+      if(pos) {
+        left=substr(v,1,pos-1); right=substr(v,pos+2)
+        if(left!="") {
+          n=split(left,a,":")
+          for(i=1;i<=n;i++) if(a[i]!~/^[0-9A-Fa-f][0-9A-Fa-f]?[0-9A-Fa-f]?[0-9A-Fa-f]?$/) return 0
+          count+=n
+        }
+        if(right!="") {
+          n=split(right,b,":")
+          for(i=1;i<=n;i++) if(b[i]!~/^[0-9A-Fa-f][0-9A-Fa-f]?[0-9A-Fa-f]?[0-9A-Fa-f]?$/) return 0
+          count+=n
+        }
+        return count<8
+      }
       n=split(v,a,":")
-      if(n==1)return valid_ipv4(v)
-      return n==2&&valid_ipv4(a[1])&&a[2]~/^[0-9]+$/&&a[2]+0>=1&&a[2]+0<=65535
-    }
-    {if(NF<1){bad=1;exit} for(i=1;i<=NF;i++)if(!valid_endpoint($i)){bad=1;exit}}
-    END{exit bad}
-  '
-}
-valid_fallback_dns_csv() {
-  printf '%s\n' "$1" | awk -F, '
-    function valid_ipv4(v,n,a,j,first,second) {
-      n=split(v,a,".")
-      if(n!=4)return 0
-      for(j=1;j<=4;j++)
-        if(a[j]==""||a[j]!~/^[0-9]+$/||length(a[j])>3||a[j]+0>255||(a[j]!="0"&&a[j]~/^0/))return 0
-      first=a[1]+0;second=a[2]+0
-      if(v=="0.0.0.0"||v=="255.255.255.255"||first==0||first==127||first>=224||(first==169&&second==254))return 0
+      if(n!=8)return 0
+      for(i=1;i<=n;i++) if(a[i]!~/^[0-9A-Fa-f][0-9A-Fa-f]?[0-9A-Fa-f]?[0-9A-Fa-f]?$/) return 0
       return 1
     }
+    function routable_ipv6(v,words,pos,left,right,n,a,b,i,first,allzero,loopback,last) {
+      if(!valid_ipv6(v))return 0
+      for(i=1;i<=8;i++)words[i]="0"
+      pos=index(v,"::")
+      if(pos) {
+        left=substr(v,1,pos-1);right=substr(v,pos+2)
+        if(left!=""){n=split(left,a,":");for(i=1;i<=n;i++)words[i]=tolower(a[i])}
+        if(right!=""){n=split(right,b,":");for(i=1;i<=n;i++)words[9-n+i]=tolower(b[i])}
+      } else {
+        n=split(v,a,":")
+        for(i=1;i<=8;i++)words[i]=tolower(a[i])
+      }
+      first=words[1]
+      if(first~/^fe[89ab]/ || first~/^ff/)return 0
+      allzero=1;loopback=1
+      for(i=1;i<=8;i++)if(words[i]!~/^0+$/)allzero=0
+      for(i=1;i<=7;i++)if(words[i]!~/^0+$/)loopback=0
+      last=words[8];sub(/^0+/,"",last)
+      if(allzero || (loopback && last=="1"))return 0
+      return 1
+    }
+    function valid_ipv6_port(v,close,host,tail,port) {
+      if(substr(v,1,1)!="[")return 0
+      close=index(v,"]")
+      if(close<3)return 0
+      host=substr(v,2,close-2);tail=substr(v,close+1)
+      if(!routable_ipv6(host))return 0
+      if(tail=="")return 1
+      if(substr(tail,1,1)!=":")return 0
+      port=substr(tail,2)
+      return port~/^[0-9]+$/ && port+0>=1 && port+0<=65535
+    }
     function valid_endpoint(v,n,a) {
+      if(valid_ipv4(v)||routable_ipv6(v)||valid_ipv6_port(v))return 1
       n=split(v,a,":")
-      if(n==1)return valid_ipv4(v)
       return n==2&&valid_ipv4(a[1])&&a[2]~/^[0-9]+$/&&a[2]+0>=1&&a[2]+0<=65535
     }
-    {if(NF<1){bad=1;exit} for(i=1;i<=NF;i++)if(!valid_endpoint($i)){bad=1;exit}}
+    {
+      if(NF<1){bad=1;exit}
+      for(i=1;i<=NF;i++)if(!valid_endpoint($i)){bad=1;exit}
+    }
     END{exit bad}
   '
 }
@@ -536,10 +579,10 @@ dns_config_set_many() {
     valid_dns_csv "$_many_custom" || { echo "custom DNS accepts one or more IPv4, https:// DoH, tls:// DoT, or quic:// DoQ endpoints" >&2; return 2; }
   fi
   if [ "$_many_global" != "-" ]; then
-    valid_ipv4_dns_csv "$_many_global" || { echo "global DNS requires one or more IPv4 literals" >&2; return 2; }
+    valid_ipv4_dns_csv "$_many_global" || { echo "global DNS requires routable IPv4/IPv6 literals, optionally with ports" >&2; return 2; }
   fi
   if [ "$_many_fallback" != "-" ]; then
-    valid_fallback_dns_csv "$_many_fallback" || { echo "fallback DNS requires one or more IPv4 literals" >&2; return 2; }
+    valid_fallback_dns_csv "$_many_fallback" || { echo "fallback DNS requires routable IPv4/IPv6 literals, optionally with ports" >&2; return 2; }
   fi
   write_dns_sections_many "$_many_custom" "$_many_global" "$_many_fallback" || return 1
   echo "dns_servers=updated custom=$_many_custom global=$_many_global fallback=$_many_fallback"
@@ -2959,11 +3002,11 @@ case "$cmd" in
       ;;
     global)
       section=global_dns
-      valid_ipv4_dns_csv "$servers" || { echo "global DNS requires one or more IPv4 literals" >&2; exit 2; }
+      valid_ipv4_dns_csv "$servers" || { echo "global DNS requires routable IPv4/IPv6 literals, optionally with ports" >&2; exit 2; }
       ;;
     fallback)
       section=yulong_dns_fallback
-      valid_fallback_dns_csv "$servers" || { echo "fallback DNS requires one or more routable IPv4 literals" >&2; exit 2; }
+      valid_fallback_dns_csv "$servers" || { echo "fallback DNS requires routable IPv4/IPv6 literals, optionally with ports" >&2; exit 2; }
       ;;
     *) exit 2 ;;
   esac
