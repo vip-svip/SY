@@ -16,7 +16,8 @@ import android.view.accessibility.AccessibilityNodeInfo
 object FxGkdAutomationRuntime {
     private data class CompiledRule(
         val source: FxGkdRule,
-        val selector: li.gkd.selector.Selector
+        val selector: li.gkd.selector.Selector,
+        val excludeSelector: li.gkd.selector.Selector?
     )
 
     @Volatile
@@ -76,6 +77,11 @@ object FxGkdAutomationRuntime {
             for (rule in rules) {
                 val lastAction = lastActionByRule[rule.source.id] ?: 0L
                 if (now - lastAction < rule.source.cooldownMillis) continue
+
+                // A matching exclusion selector suppresses this rule for the current event.
+                if (rule.excludeSelector != null &&
+                    FxGkdSelectorEngine.findMatches(snapshot.root, rule.excludeSelector, maximum = 1).isNotEmpty()
+                ) continue
 
                 val matches = FxGkdSelectorEngine.findMatches(
                     snapshot.root,
@@ -164,7 +170,11 @@ object FxGkdAutomationRuntime {
                 if (!rule.enabled) return@mapNotNull null
                 val compilation = FxGkdSelectorEngine.compile(rule.selector)
                 val selector = compilation.selector ?: return@mapNotNull null
-                CompiledRule(rule, selector)
+                val exclude = rule.excludeSelector.takeIf { it.isNotBlank() }?.let {
+                    FxGkdSelectorEngine.compile(it).selector
+                }
+                if (rule.excludeSelector.isNotBlank() && exclude == null) return@mapNotNull null
+                CompiledRule(rule, selector, exclude)
             }
             lastActionByRule.keys.retainAll(source.map { it.id }.toSet())
             scanThrottle.retainPackages(cachedCompiled.map { it.source.packageName }.toSet())
