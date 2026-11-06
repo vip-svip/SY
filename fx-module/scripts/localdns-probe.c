@@ -58,7 +58,7 @@ static int transfer_all(int fd,unsigned char *buf,size_t len,int sending,
                         const struct timespec *deadline) {
     size_t offset=0;
     while(offset<len) {
-        ssize_t count=sending?send(fd,buf+offset,len-offset,0):recv(fd,buf+offset,len-offset,0);
+        ssize_t count=sending?send(fd,buf+offset,len-offset,MSG_NOSIGNAL):recv(fd,buf+offset,len-offset,0);
         if(count<0 && errno==EINTR) continue;
         if(count<0 && (errno==EAGAIN || errno==EWOULDBLOCK)) {
             if(wait_socket(fd,sending?POLLOUT:POLLIN,deadline)!=0) return -1;
