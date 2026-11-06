@@ -1942,6 +1942,8 @@ public final class MainActivity extends ComponentActivity {
         addNativeActionCard("应用使用情况访问", "管理应用使用情况访问权限；此权限独立于通知读取授权，也不会自动授予 Root 或 Hook 权限。", "打开使用情况授权", () -> openAndroidSettingsPage(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS, "使用情况访问设置"));
         addNativeActionCard("悬浮窗显示权限", "管理 FX 是否可以在其他应用上层显示内容；此系统权限不等于无障碍或 Hook 授权。", "打开悬浮窗设置", this::openOverlayPermissionSettings);
         addNativeActionCard("电池优化例外", "查看并管理 FX 是否被系统电池优化限制。豁免可能增加后台耗电，请按实际需要设置。", "打开电池优化设置", () -> openAndroidSettingsPage(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS, "电池优化设置"));
+        addNativeActionCard("精确闹钟访问", "管理 FX 是否可安排精确时间闹钟。仅在确实需要准时触发任务时授予；Android 12 及以上才提供此特殊访问权限。", "管理精确闹钟访问", this::openExactAlarmSettings);
+        addNativeActionCard("勿扰模式访问", "管理 FX 是否可读取或更改勿扰模式策略。仅在使用通知静默/勿扰联动功能时授予。", "管理勿扰模式访问", this::openNotificationPolicySettings);
 
         section("高级隐私与系统防护");
         addNativeSettingsCategory("Root / 模块隐藏", "rootPanel");
@@ -2060,6 +2062,54 @@ public final class MainActivity extends ComponentActivity {
         return power.isIgnoringBatteryOptimizations(getPackageName()) ? "已豁免" : "受系统优化管理";
     }
 
+    private void openExactAlarmSettings() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            FxNativeSkin.builder(this).setTitle("无需精确闹钟特殊访问")
+                    .setMessage("当前 Android 版本不使用 Android 12 的精确闹钟特殊访问权限。")
+                    .setPositiveButton("知道了", null).show();
+            return;
+        }
+        Intent intent = new Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                Uri.parse("package:" + getPackageName()));
+        openAndroidIntent(intent, "精确闹钟访问设置");
+    }
+
+    private void openNotificationPolicySettings() {
+        openAndroidSettingsPage(android.provider.Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS,
+                "勿扰模式访问设置");
+    }
+
+    private void openAndroidIntent(Intent intent, String label) {
+        if (intent.resolveActivity(getPackageManager()) == null) {
+            FxNativeSkin.builder(this).setTitle(label + "不可用")
+                    .setMessage("当前系统未提供此特殊访问页面，请在系统设置中手动查找对应权限。")
+                    .setPositiveButton("知道了", null).show();
+            return;
+        }
+        try {
+            startActivity(intent);
+        } catch (RuntimeException error) {
+            FxNativeSkin.builder(this).setTitle("无法打开" + label)
+                    .setMessage(error.getMessage() == null ? "系统拒绝打开该设置页面。" : error.getMessage())
+                    .setPositiveButton("关闭", null).show();
+        }
+    }
+
+    private String exactAlarmAccessStatus() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return "当前系统无需此特殊访问";
+        android.app.AlarmManager alarms = (android.app.AlarmManager)
+                getSystemService(Context.ALARM_SERVICE);
+        if (alarms == null) return "状态不可用";
+        return alarms.canScheduleExactAlarms() ? "已允许" : "未允许";
+    }
+
+    private String notificationPolicyAccessStatus() {
+        android.app.NotificationManager manager = (android.app.NotificationManager)
+                getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager == null) return "状态不可用";
+        return manager.isNotificationPolicyAccessGranted() ? "已授予" : "未授予";
+    }
+
     private String usageAccessStatus() {
         try {
             android.app.AppOpsManager ops = (android.app.AppOpsManager)
@@ -2099,6 +2149,8 @@ public final class MainActivity extends ComponentActivity {
                         + " · 使用情况访问：" + usageAccessStatus()
                         + " · 悬浮窗：" + overlayPermissionStatus()
                         + " · 电池优化：" + batteryOptimizationStatus()
+                        + " · 精确闹钟访问：" + exactAlarmAccessStatus()
+                        + " · 勿扰模式访问：" + notificationPolicyAccessStatus()
                         + "\nRemote Files：" + json.optString("hook_remote_status", "unknown")
                         + " · 已发布目标：" + json.optInt("hook_native_targets", 0)
                         + "\n隐私目标：" + json.optInt("hook_native_privacy_targets", 0)
