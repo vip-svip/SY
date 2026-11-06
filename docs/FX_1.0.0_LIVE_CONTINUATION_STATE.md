@@ -7410,3 +7410,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 隐私状态回读新增 `AlarmManager.canScheduleExactAlarms()` 与 `NotificationManager.isNotificationPolicyAccessGranted()`，与通知读取、FX 通知显示权限分开展示。
 - 应用 UI 提交：`d5083f759be4d3ae526c9487f6fda8191844c242`。
 - 按提速要求未运行测试、静态检查、构建、CI 或真机验证；系统 ROM 是否提供对应设置页尚未验证。
+
+
+## 2026-11-06 — 所有文件访问特殊权限
+
+- 隐私页新增 Android 11（API 30）及以上的“所有文件访问”设置入口，使用当前 FX 包名打开应用专属特殊访问页面；旧系统提示无需该特殊访问。
+- 隐私状态面板读取 `Environment.isExternalStorageManager()`，与普通媒体/文档选择器权限分开展示。
+- 此权限范围较大，仅提供用户主动授权入口，不自动申请或授予；授权状态不代表 FX 已执行文件操作。
+- 应用 UI 提交：`4da0800f9dbce8053b02310d32d23904ffbb8824`。
+- 按提速要求未运行测试、静态检查、构建、CI 或真机验证。
