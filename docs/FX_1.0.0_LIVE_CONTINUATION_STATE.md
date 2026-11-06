@@ -7800,3 +7800,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - Ad DNS 页面新增“分享 DNS 配置快照”，调用只读接口后通过 Android 系统分享面板导出纯文本备份；限制 48 KiB，并检查版本头，不自动上传或发送。
   - 当前批次实现的是配置快照导出，不包含导入/恢复；恢复流程仍需独立实现并采用完整校验与事务写入。
 - 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或真机验证；导出内容与分享链路尚未验收。
+
+
+## 2026-11-06 — Ad DNS 引擎运行状态面板
+
+- 后端提交：`12552de288577419611d0c8aa1b86915863434e9`，文件 `scripts/yulong-ad-control.sh`。
+  - 新增只读 `dns-runtime-status` 命令，调用现有 `native-dns-settings.sh status`，复用其 AdGuard Home、Unbound、Root Proxy、DNS 过滤覆盖和 VPN 共存状态信息。
+  - 命令不启动/停止服务、不改配置、不调整路由。
+- UI 提交：`cb4f823ec61bfeb026211d0d17812d6e58061c8e`，文件 `adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
+  - Ad → DNS 新增 DNS 引擎运行状态卡片与手动刷新入口，展示解析服务健康、Root Proxy 状态、过滤覆盖、VPN 共存判定、路由探测及规则数量。
+  - 只读状态输出按字段映射展示，不提供自动修复或隐式服务重启。
+- 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或真机验证；状态展示与底层服务报告尚未验收。
