@@ -1153,3 +1153,11 @@
 - 同步正式源码与模块源码：`fx-module/adhook/app/.../FxYulongDnsActivity.java`、`adhook/app/.../FxYulongDnsActivity.java`。
 - 代码提交：`207cb5b0669f41ad650f0eda2b2b575c814818d3`。
 - 按当前要求未运行测试、静态检查、构建、CI 或 Android 真机验证。
+## 2026-11-07 — DNS 查询日志轮转时长边界与输入修复
+
+- 对照 AdGuard Home 配置语义，将自定义查询日志轮转时长限制为上游支持的 1 小时至 8760 小时（最长 365 天）；保留 1/3/7/30 天快捷值，新增小时或天数输入，例如 12h、90d。
+- 修复 `valid_dns_querylog_retention` 中参数后缀展开被反斜杠转义的问题；Root 写入、配置读取与 DNS 快照恢复现在共用相同的数值/单位范围校验。
+- AdGuard Home 配置渲染器同步校验 `h` 与 `d` 单位及 8760 小时上界，避免设置落盘但服务启动时拒绝配置。
+- 同步文件：`scripts/yulong-ad-control.sh`、`fx-module/scripts/yulong-ad-control.sh`、`scripts/adguardhome.sh`、`fx-module/scripts/adguardhome.sh`、两个源码树中的 `FxYulongAdActivity.java`。
+- 本批提交：`f30b3d5e4cbad8ed8c6257c01225d84813dd5925`、`ea9bf037cae0ac37d93a4f8295dbd8d8dadf724f`、`e924227716cf6e8c8396927f2e380c288a44cfc5`、`6aea643681d284b92c82c430ded3cdc1102503ef`、`39cebb0f00fd12fe395f871d55c397fa5390b63e`、`49ace88241568722cec75b56ae8c1838eeebb122`。
+- 按当前要求未运行测试、静态检查、构建、CI 或 Android 真机验证；仅确认 GitHub 文件写入返回成功并进行了源码回读。
