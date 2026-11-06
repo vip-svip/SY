@@ -7454,3 +7454,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 无记录或筛选结果为空时不创建空文件；导出数据继续受已有 Root 输出上限约束，不扩大日志读取范围、不清理系统 logcat、不采集目标页面文本。
 - 提交：419a37b0be2116fddf218780b032b90f168de067。
 - 按用户要求未运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-06 — GKD 本地规则原生编辑能力
+
+- 代码提交：`3cafcd702f1a959bc218ae95cbea0ce8bc643c9a`（规则存储层）；`fa5d53bf13f016e6a8353236dd9e277315a24669`（Hook UI）。
+- 改动路径：`adhook/app/src/main/java/de/privacyguard/adhook/FxGkdRuleStore.kt`、`adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAutomationActivity.java`。
+- GKD 本地规则卡片新增“编辑”：可修改现有 GKD selector 与 1–60 秒冷却时间，保留规则 ID、目标包名及当前启用状态。
+- 存储层重新执行 selector 编译校验、长度与冷却范围校验；写入失败时保留原规则。成功后清空运行时规则缓存、请求无障碍服务重配置并刷新页面。
+- 本批未运行测试、静态检查、构建、CI 或真机验证；不代表编辑流程已运行验收。
+- 下一批：继续补齐 GKD 规则执行动作与触发控制，或转入 Dia Frida 会话真实执行状态回读；优先避免再次堆叠纯入口。
