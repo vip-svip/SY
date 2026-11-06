@@ -907,6 +907,33 @@ valid_unbound_cache_size() {
   case "$_ub_size_number" in ''|*[!0-9]*) return 1 ;; esac
   return 0
 }
+unbound_online_cpu_count() {
+  _ub_online_cores=$(awk -F, '
+    {
+      for (i=1; i<=NF; i++) {
+        split($i, range, "-")
+        first=range[1]+0
+        last=(range[2]=="" ? first : range[2]+0)
+        if (range[1] ~ /^[0-9]+$/ && last>=first) total+=last-first+1
+      }
+    }
+    END { if (total>0) print total }
+  ' /sys/devices/system/cpu/online 2>/dev/null)
+  case "$_ub_online_cores" in ''|*[!0-9]*|0)
+    _ub_online_cores=$(getconf _NPROCESSORS_ONLN 2>/dev/null | tr -d '[:space:]') ;;
+  esac
+  case "$_ub_online_cores" in ''|*[!0-9]*|0)
+    _ub_online_cores=$(awk '/^processor[[:space:]]*:/ {n++} END {print n+0}' /proc/cpuinfo 2>/dev/null) ;;
+  esac
+  case "$_ub_online_cores" in ''|*[!0-9]*|0) _ub_online_cores=1 ;; esac
+  printf '%s' "$_ub_online_cores"
+}
+valid_unbound_thread_count() {
+  valid_dns_runtime_uint32 "$1" 0 || return 1
+  [ "$1" -gt 0 ] 2>/dev/null || return 1
+  _ub_available_cores=$(unbound_online_cpu_count)
+  awk -v requested="$1" -v available="$_ub_available_cores" 'BEGIN{exit !(requested<=available)}'
+}
 unbound_runtime_values() {
   awk -F= '
     function valid_uint32(value, allow_zero) {
@@ -924,7 +951,7 @@ unbound_runtime_values() {
       msg_cache_size="8m"; rrset_cache_size="16m"; key_cache_size="4m"; neg_cache_size="2m"
       serve_expired="1"; serve_expired_ttl="86400"
       serve_expired_reply_ttl="30"; serve_expired_client_timeout="1800"
-      prefetch="1"; prefetch_key="1"; qname_minimisation="1"
+      prefetch="1"; prefetch_key="1"; qname_minimisation="1"; num_threads="1"
       inside=0; sections=0; bad=0
     }
     $0=="[conf:yulong_unbound_runtime]" {sections++; if(sections>1)bad=1; inside=1; next}
@@ -949,6 +976,7 @@ unbound_runtime_values() {
       else if(key=="rrset_cache_size")rrset_cache_size=value
       else if(key=="key_cache_size")key_cache_size=value
       else if(key=="neg_cache_size")neg_cache_size=value
+      else if(key=="num_threads")num_threads=value
       else bad=1
     }
     END {
@@ -964,6 +992,7 @@ unbound_runtime_values() {
       if(qname_minimisation!="0" && qname_minimisation!="1")exit 1
       if(!valid_cache_size(msg_cache_size) || !valid_cache_size(rrset_cache_size) ||
          !valid_cache_size(key_cache_size) || !valid_cache_size(neg_cache_size))exit 1
+      if(!valid_uint32(num_threads,0) || num_threads+0<1)exit 1
       print "UNBOUND_CACHE_MAX_TTL=" cache_max_ttl
       print "UNBOUND_CACHE_MIN_TTL=" cache_min_ttl
       print "UNBOUND_SERVE_EXPIRED=" serve_expired
@@ -977,6 +1006,7 @@ unbound_runtime_values() {
       print "UNBOUND_RRSET_CACHE_SIZE=" rrset_cache_size
       print "UNBOUND_KEY_CACHE_SIZE=" key_cache_size
       print "UNBOUND_NEG_CACHE_SIZE=" neg_cache_size
+      print "UNBOUND_NUM_THREADS=" num_threads
     }
   ' "$CONF"
 }
@@ -998,6 +1028,7 @@ write_unbound_runtime_settings() {
   _ub_rrset_cache_size=${11}
   _ub_key_cache_size=${12}
   _ub_neg_cache_size=${13}
+  _ub_num_threads=${14}
 
   valid_dns_runtime_uint32 "$_ub_cache_max_ttl" 0 &&
     valid_dns_runtime_uint32 "$_ub_cache_min_ttl" 1 &&
@@ -1027,6 +1058,10 @@ write_unbound_runtime_settings() {
       return 2
     }
   done
+  valid_unbound_thread_count "$_ub_num_threads" || {
+    echo "Unbound worker threads must be positive and no greater than online CPU cores" >&2
+    return 2
+  }
   unbound_runtime_values >/dev/null || {
     echo "existing Unbound runtime settings are ambiguous or malformed" >&2
     return 22
@@ -1039,7 +1074,8 @@ write_unbound_runtime_settings() {
       -v serve_expired_client_timeout="$_ub_serve_expired_client_timeout" \
       -v prefetch="$_ub_prefetch" -v prefetch_key="$_ub_prefetch_key" -v qname_minimisation="$_ub_qname_minimisation" \
       -v msg_cache_size="$_ub_msg_cache_size" -v rrset_cache_size="$_ub_rrset_cache_size" \
-      -v key_cache_size="$_ub_key_cache_size" -v neg_cache_size="$_ub_neg_cache_size" '
+      -v key_cache_size="$_ub_key_cache_size" -v neg_cache_size="$_ub_neg_cache_size" \
+      -v num_threads="$_ub_num_threads" '
     function emit() {
       print "cache_max_ttl=" cache_max_ttl
       print "cache_min_ttl=" cache_min_ttl
@@ -1054,6 +1090,7 @@ write_unbound_runtime_settings() {
       print "rrset_cache_size=" rrset_cache_size
       print "key_cache_size=" key_cache_size
       print "neg_cache_size=" neg_cache_size
+      print "num_threads=" num_threads
     }
     $0=="[conf:yulong_unbound_runtime]" {
       if(seen++)bad=1
@@ -1149,11 +1186,11 @@ dns_profile_restore() {
       if(index($0,"=")<2 || $0 ~ /\r/){bad=1;next}
       key=substr($0,1,index($0,"=")-1)
       value=substr($0,index($0,"=")+1)
-      if(key !~ /^(dns_engine_adguardhome|dns_forward|custom_dns|global_dns|block_quic|block_dot|block_plain_dns|block_ipv6|block_track_domains|vpn_external_dns_proxy|vpn_external_compat|dns_querylog_enabled|CUSTOM_SERVERS|GLOBAL_SERVERS|FALLBACK_SERVERS|VPN_REMOTE|VPN_CN|RESPONSE_MODE|QUERYLOG_RETENTION|QUERYLOG_MEMORY_SIZE|STATISTICS_ENABLED|STATISTICS_INTERVAL|STATISTICS_IGNORED_ENABLED|STATISTICS_IGNORED|UPSTREAM_MODE|FASTEST_TIMEOUT|UPSTREAM_TIMEOUT|CACHE_SIZE|CACHE_TTL_MIN|CACHE_TTL_MAX|CACHE_OPTIMISTIC_ANSWER_TTL|CACHE_OPTIMISTIC_MAX_AGE|CACHE_ENABLED|CACHE_OPTIMISTIC|ENABLE_DNSSEC|UNBOUND_CACHE_MAX_TTL|UNBOUND_CACHE_MIN_TTL|UNBOUND_SERVE_EXPIRED|UNBOUND_SERVE_EXPIRED_TTL|UNBOUND_SERVE_EXPIRED_REPLY_TTL|UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT|UNBOUND_PREFETCH|UNBOUND_PREFETCH_KEY|UNBOUND_QNAME_MINIMISATION|UNBOUND_MSG_CACHE_SIZE|UNBOUND_RRSET_CACHE_SIZE|UNBOUND_KEY_CACHE_SIZE|UNBOUND_NEG_CACHE_SIZE)$/)bad=1
+      if(key !~ /^(dns_engine_adguardhome|dns_forward|custom_dns|global_dns|block_quic|block_dot|block_plain_dns|block_ipv6|block_track_domains|vpn_external_dns_proxy|vpn_external_compat|dns_querylog_enabled|CUSTOM_SERVERS|GLOBAL_SERVERS|FALLBACK_SERVERS|VPN_REMOTE|VPN_CN|RESPONSE_MODE|QUERYLOG_RETENTION|QUERYLOG_MEMORY_SIZE|STATISTICS_ENABLED|STATISTICS_INTERVAL|STATISTICS_IGNORED_ENABLED|STATISTICS_IGNORED|UPSTREAM_MODE|FASTEST_TIMEOUT|UPSTREAM_TIMEOUT|CACHE_SIZE|CACHE_TTL_MIN|CACHE_TTL_MAX|CACHE_OPTIMISTIC_ANSWER_TTL|CACHE_OPTIMISTIC_MAX_AGE|CACHE_ENABLED|CACHE_OPTIMISTIC|ENABLE_DNSSEC|UNBOUND_CACHE_MAX_TTL|UNBOUND_CACHE_MIN_TTL|UNBOUND_SERVE_EXPIRED|UNBOUND_SERVE_EXPIRED_TTL|UNBOUND_SERVE_EXPIRED_REPLY_TTL|UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT|UNBOUND_PREFETCH|UNBOUND_PREFETCH_KEY|UNBOUND_QNAME_MINIMISATION|UNBOUND_MSG_CACHE_SIZE|UNBOUND_RRSET_CACHE_SIZE|UNBOUND_KEY_CACHE_SIZE|UNBOUND_NEG_CACHE_SIZE|UNBOUND_NUM_THREADS)$/)bad=1
       if(seen[key]++)bad=1
       count++
     }
-    END{if(bad||(count!=18&&count!=19&&count!=26&&count!=30&&count!=38&&count!=39&&count!=43&&count!=44&&count!=46&&count!=48))exit 1}
+    END{if(bad||(count!=18&&count!=19&&count!=26&&count!=30&&count!=38&&count!=39&&count!=43&&count!=44&&count!=46&&count!=48&&count!=49))exit 1}
   ' "$_yad_profile_raw" || { echo "DNS profile has unknown, duplicate, missing, or malformed fields" >&2; return 2; }
   _profile_querylog_retention=7d
   _profile_querylog_memory_size=1000
@@ -1185,6 +1222,7 @@ dns_profile_restore() {
   _profile_unbound_rrset_cache_size=16m
   _profile_unbound_key_cache_size=4m
   _profile_unbound_neg_cache_size=2m
+  _profile_unbound_num_threads=1
   while IFS= read -r _profile_line || [ -n "$_profile_line" ]; do
     [ "$_profile_line" = FXYULONGDNSPROFILE1 ] && continue
     _profile_key=${_profile_line%%=*}; _profile_value=${_profile_line#*=}
@@ -1319,6 +1357,10 @@ dns_profile_restore() {
         valid_unbound_cache_size "$_profile_value" || return 2
         _profile_unbound_neg_cache_size=$_profile_value
         ;;
+      UNBOUND_NUM_THREADS)
+        valid_unbound_thread_count "$_profile_value" || { echo "invalid Unbound worker count for this device" >&2; return 2; }
+        _profile_unbound_num_threads=$_profile_value
+        ;;
     esac
     case "$_profile_key" in
       dns_engine_adguardhome) _profile_agh=$_profile_value ;;
@@ -1377,7 +1419,7 @@ dns_profile_restore() {
   write_dns_statistics_settings "$_profile_statistics_enabled" "$_profile_statistics_interval" "$_profile_statistics_ignored_enabled" "$_profile_statistics_ignored" || return 1
   awk -v min="$_profile_runtime_cache_ttl_min" -v max="$_profile_runtime_cache_ttl_max" 'BEGIN{exit !(min+0<=max+0)}' || { echo "DNS profile cache TTL minimum exceeds maximum" >&2; return 2; }
   write_dns_runtime_settings "$_profile_runtime_mode" "$_profile_runtime_fastest" "$_profile_runtime_timeout" "$_profile_runtime_cache_size" "$_profile_runtime_cache_enabled" "$_profile_runtime_cache_optimistic" "$_profile_runtime_dnssec" "$_profile_runtime_cache_ttl_min" "$_profile_runtime_cache_ttl_max" "$_profile_runtime_optimistic_answer_ttl" "$_profile_runtime_optimistic_max_age" || return 1
-  write_unbound_runtime_settings "$_profile_unbound_cache_max_ttl" "$_profile_unbound_cache_min_ttl" "$_profile_unbound_serve_expired" "$_profile_unbound_serve_expired_ttl" "$_profile_unbound_serve_expired_reply_ttl" "$_profile_unbound_serve_expired_client_timeout" "$_profile_unbound_prefetch" "$_profile_unbound_prefetch_key" "$_profile_unbound_qname_minimisation" "$_profile_unbound_msg_cache_size" "$_profile_unbound_rrset_cache_size" "$_profile_unbound_key_cache_size" "$_profile_unbound_neg_cache_size" || return 1
+  write_unbound_runtime_settings "$_profile_unbound_cache_max_ttl" "$_profile_unbound_cache_min_ttl" "$_profile_unbound_serve_expired" "$_profile_unbound_serve_expired_ttl" "$_profile_unbound_serve_expired_reply_ttl" "$_profile_unbound_serve_expired_client_timeout" "$_profile_unbound_prefetch" "$_profile_unbound_prefetch_key" "$_profile_unbound_qname_minimisation" "$_profile_unbound_msg_cache_size" "$_profile_unbound_rrset_cache_size" "$_profile_unbound_key_cache_size" "$_profile_unbound_neg_cache_size" "$_profile_unbound_num_threads" || return 1
   if [ -n "$_profile_custom" ]; then m_dns_servers custom_dns "$_profile_custom" || return 1
   else m_dns_section_clear custom_dns || return 1; fi
   if [ -n "$_profile_global" ]; then m_dns_servers global_dns "$_profile_global" || return 1
@@ -2522,7 +2564,7 @@ case "$cmd" in
   unbound_runtime_get
   ;;
  unbound-runtime-set)
-  [ "$#" -eq 14 ] || { echo "usage: $0 unbound-runtime-set CACHE_MAX_TTL CACHE_MIN_TTL SERVE_EXPIRED SERVE_EXPIRED_TTL REPLY_TTL CLIENT_TIMEOUT_MS PREFETCH PREFETCH_KEY QNAME_MINIMISATION MSG_CACHE_SIZE RRSET_CACHE_SIZE KEY_CACHE_SIZE NEG_CACHE_SIZE" >&2; exit 2; }
+  [ "$#" -eq 15 ] || { echo "usage: $0 unbound-runtime-set CACHE_MAX_TTL CACHE_MIN_TTL SERVE_EXPIRED SERVE_EXPIRED_TTL REPLY_TTL CLIENT_TIMEOUT_MS PREFETCH PREFETCH_KEY QNAME_MINIMISATION MSG_CACHE_SIZE RRSET_CACHE_SIZE KEY_CACHE_SIZE NEG_CACHE_SIZE NUM_THREADS" >&2; exit 2; }
   shift
   with_lock transaction unbound_runtime_set "$@"
   ;;
