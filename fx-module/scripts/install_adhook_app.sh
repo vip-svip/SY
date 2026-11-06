@@ -199,8 +199,33 @@ install_one(){
     log_msg "FX Hook already installed and unchanged; obsolete standalone app removed"
     return 0
   fi
-  _stage="$TMP_DIR/.fx-unified-hook-$$.apk"; rm -f "$_stage" 2>/dev/null
-  cp "$_apk" "$_stage" 2>/dev/null || { log_msg "ERROR: cannot stage unified APK"; return 1; }
+  # /data/local/tmp is shared and writable by other apps. Use an atomically
+  # created private directory rather than a predictable staging-file path.
+  _stage_dir=$(mktemp -d "$TMP_DIR/.fx-unified-hook.XXXXXX" 2>/dev/null) || _stage_dir=''
+  if [ -z "$_stage_dir" ]; then
+    log_msg "ERROR: cannot create a private Hook staging directory; refusing installation"
+    return 1
+  fi
+  if [ ! -d "$_stage_dir" ] || [ -L "$_stage_dir" ] ||
+     ! path_components_are_safe "$_stage_dir" ||
+     ! chmod 0700 "$_stage_dir" 2>/dev/null; then
+    log_msg "ERROR: private Hook staging directory is unsafe; refusing installation"
+    [ -d "$_stage_dir" ] && [ ! -L "$_stage_dir" ] && rmdir "$_stage_dir" 2>/dev/null || :
+    return 1
+  fi
+  _stage="$_stage_dir/FXUnifiedHook.apk"
+  cleanup_stage() {
+    # Never recursively remove a path that may have been replaced.
+    if [ -d "$_stage_dir" ] && [ ! -L "$_stage_dir" ]; then
+      [ ! -L "$_stage" ] && cleanup_stage || :
+      rmdir "$_stage_dir" 2>/dev/null || :
+    fi
+  }
+  cp "$_apk" "$_stage" 2>/dev/null || {
+    cleanup_stage
+    log_msg "ERROR: cannot stage unified APK"
+    return 1
+  }
   # Never mark a package as FX-owned before PackageManager confirms installation.
   # Otherwise a failed first install can leave a stale marker that later removes
   # an unrelated user-installed package with the same applicationId.
@@ -237,7 +262,7 @@ install_one(){
     if tail -n "+$((_log_lines+1))" "$LOG" 2>/dev/null | grep -Eqi 'INSTALL_FAILED_UPDATE_INCOMPATIBLE|signatures do not match|signing certificate'; then
       if [ "$_is_system_app" = 1 ]; then
         log_msg "ERROR: signing certificate changed for a system app; refusing uninstall/migration to protect the system package and app data. Build with the stable FX signing identity."
-        rm -f "$_stage"
+        cleanup_stage
         return 1
       fi
       log_msg "WARN: Android rejected in-place update because the APK signing certificate changed; attempting data-preserving migration"
@@ -247,13 +272,13 @@ install_one(){
       else
         _migration_rc=$?
         [ "$_migration_rc" -eq 2 ] && log_msg "CRITICAL: rollback APK is retained; inspect $LOG before retrying"
-        rm -f "$_stage"
+        cleanup_stage
         return 1
       fi
     fi
     log_msg "WARN: PackageManager attempt $_attempt/3 failed"; _attempt=$((_attempt+1)); [ "$_attempt" -le 3 ] && sleep 2
   done
-  rm -f "$_stage" 2>/dev/null
+  cleanup_stage
   [ "$_installed" = 1 ] || { log_msg "ERROR: unable to install unified Hook; core FX installation continues"; return 1; }
   if [ -s "$_overlay_apk" ]; then
     log_msg "WARN: systemless overlay is not visible to PackageManager; installed compatibility copy as an ordinary app"
