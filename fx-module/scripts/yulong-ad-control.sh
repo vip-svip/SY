@@ -309,6 +309,40 @@ write_vpn_dns() {
 }
 m_dns_servers() { write_dns_section "$1" "$2"; }
 m_vpn_dns() { write_vpn_dns "$1" "$2"; }
+write_dns_querylog_retention() {
+  interval=$1
+  case "$interval" in 1d|3d|7d|30d) : ;; *) return 2 ;; esac
+  tmp=$(mktemp "$CONF.yulong-querylog-retention.XXXXXX") || return 1
+  _yad_conf_tmp=$tmp
+  awk -v interval="$interval" '
+    BEGIN{inside=0;seen=0;written=0}
+    $0=="[conf:yulong_dns_querylog_retention]" {
+      if(inside&&!written){print "interval=" interval;written=1}
+      inside=1;seen=1;print;next
+    }
+    /^\[/ {
+      if(inside&&!written){print "interval=" interval;written=1}
+      inside=0;print;next
+    }
+    inside&&/^interval=/ {if(!written)print "interval=" interval;written=1;next}
+    {print}
+    END{
+      if(inside&&!written)print "interval=" interval
+      if(!seen){print "";print "[conf:yulong_dns_querylog_retention]";print "interval=" interval}
+    }
+  ' "$CONF" > "$tmp" || { rm -f "$tmp"; _yad_conf_tmp=; return 1; }
+  if [ -s "$tmp" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"; then _yad_conf_tmp=; return 0; fi
+  rm -f "$tmp"; _yad_conf_tmp=; return 1
+}
+dns_querylog_retention_get() {
+  value=$(awk '$0=="[conf:yulong_dns_querylog_retention]"{inside=1;next} /^\[/{inside=0} inside&&/^interval=/{sub(/^interval=/,"");print;exit}' "$CONF" 2>/dev/null)
+  case "$value" in 1d|3d|7d|30d) ;; *) value=7d ;; esac
+  echo "querylog_retention=$value"
+}
+dns_querylog_retention_set() {
+  write_dns_querylog_retention "$1" || return $?
+  echo "querylog_retention=$1"
+}
 dns_config_get() {
   echo FXYULONGDNS1
   echo "CUSTOM_ENABLED|$(pg_get custom_dns 0)"
@@ -685,6 +719,14 @@ case "$cmd" in
   esac ;;
  dns-config-get)
   dns_config_get
+  ;;
+ dns-querylog-retention-get)
+  [ "$#" -eq 1 ] || exit 2
+  dns_querylog_retention_get
+  ;;
+ dns-querylog-retention-set)
+  [ "$#" -eq 2 ] || exit 2
+  with_lock transaction dns_querylog_retention_set "$2"
   ;;
  dns-config-set)
   [ "$#" -eq 3 ] || { echo "usage: $0 dns-config-set custom|global|fallback server[,server...]" >&2; exit 2; }
