@@ -97,9 +97,12 @@
     if(!/^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)$/.test(method)) throw new Error('unsupported HTTP method');
     const headers=options.headers||{}, headerLines=[];
     for(const k of Object.keys(headers)){
-      const v=String(headers[k]);
-      if(/\r|\n/.test(k+v)||/^(host|content-length|transfer-encoding)$/i.test(k)) throw new Error('unsafe HTTP header: '+k);
-      headerLines.push(k+': '+v);
+      const values=Array.isArray(headers[k])?headers[k]:[headers[k]];
+      for(const rawValue of values){
+        const v=String(rawValue);
+        if(/[\r\n]/.test(k+v)||/^(host|content-length|transfer-encoding)$/i.test(k)) throw new Error('unsafe HTTP header: '+k);
+        headerLines.push(k+': '+v);
+      }
     }
     const tmp=_fxStateDir+'/http-'+_fxOS.getpid()+'-'+Date.now();
     _fxWrite(tmp+'.headers',headerLines.join('\n'));
@@ -189,6 +192,82 @@
     read(k){return globalThis.$persistentStore.read(k);},
     write(v,k){return globalThis.$persistentStore.write(v,k);}
   };
+  // FX_EGERN_COMPAT_V1_BEGIN
+  function _fxEgernHeaders(source) {
+    const values=Object.create(null);
+    Object.keys(source||{}).forEach(name=>{
+      const key=String(name).toLowerCase(), raw=source[name];
+      values[key]=Array.isArray(raw)?raw.map(v=>String(v)):[String(raw)];
+    });
+    const api={
+      get(name){const v=values[String(name).toLowerCase()];return v&&v.length?v.join(', '):null;},
+      getAll(name){const v=values[String(name).toLowerCase()];return v?v.slice():[];},
+      has(name){return Object.prototype.hasOwnProperty.call(values,String(name).toLowerCase());},
+      set(name,value){const key=String(name).toLowerCase();if(!/^[!#$%&'*+.^_\x60|~0-9A-Za-z-]+$/.test(key)||/[\r\n]/.test(String(value)))throw new Error('invalid header');values[key]=[String(value)];},
+      append(name,value){const key=String(name).toLowerCase();if(!/^[!#$%&'*+.^_\x60|~0-9A-Za-z-]+$/.test(key)||/[\r\n]/.test(String(value)))throw new Error('invalid header');(values[key]||(values[key]=[])).push(String(value));},
+      delete(name){delete values[String(name).toLowerCase()];},
+      toJSON(){const out={};Object.keys(values).forEach(k=>{out[k]=values[k].length===1?values[k][0]:values[k].slice();});return out;}
+    };
+    return new Proxy(api,{
+      get(target,key){if(typeof key!=='string'||Object.prototype.hasOwnProperty.call(target,key))return target[key];const v=values[key.toLowerCase()];return v?(v.length===1?v[0]:v.slice()):undefined;},
+      set(target,key,value){if(typeof key!=='string'||Object.prototype.hasOwnProperty.call(target,key)){target[key]=value;return true;}values[key.toLowerCase()]=Array.isArray(value)?value.map(v=>String(v)):[String(value)];return true;},
+      deleteProperty(target,key){if(typeof key==='string'&&!Object.prototype.hasOwnProperty.call(target,key)){delete values[key.toLowerCase()];return true;}return delete target[key];},
+      ownKeys(target){return Array.from(new Set(Reflect.ownKeys(target).concat(Object.keys(values))));},
+      getOwnPropertyDescriptor(target,key){if(Object.prototype.hasOwnProperty.call(target,key))return Object.getOwnPropertyDescriptor(target,key);const v=typeof key==='string'?values[key.toLowerCase()]:null;return v?{configurable:true,enumerable:true,writable:true,value:v.length===1?v[0]:v.slice()}:undefined;}
+    });
+  }
+  function _fxEgernMessage(source,isResponse) {
+    const message=Object.assign({},source||{});
+    message.headers=_fxEgernHeaders(message.headers||{});
+    if(isResponse){
+      message.status=Number(message.statusCode||message.status||200);
+      message.statusCode=message.status;
+      message.text=function(){return Promise.resolve(message.body==null?'':(typeof message.body==='string'?message.body:JSON.stringify(message.body)));};
+      message.json=function(){return Promise.resolve(JSON.parse(message.body==null?'':(typeof message.body==='string'?message.body:JSON.stringify(message.body))));};
+    }
+    return message;
+  }
+  function _fxEgernHttp(method,url,options) {
+    const settings=Object.assign({},options||{},{url:String(url||''),method:method.toUpperCase()});
+    if(settings.timeout!=null){
+      const milliseconds=Number(settings.timeout);
+      settings.timeout=Number.isFinite(milliseconds)?Math.max(1,Math.min(20000,milliseconds))/1000:10;
+    }
+    return globalThis.$task.fetch(settings).then(result=>{
+      const response={
+        status:Number(result.statusCode||result.status||0),
+        statusCode:Number(result.statusCode||result.status||0),
+        ok:!!result.ok,
+        headers:_fxEgernHeaders(result.headers||{}),
+        body:result.body==null?'':String(result.body)
+      };
+      response.text=function(){return Promise.resolve(response.body);};
+      response.json=function(){return Promise.resolve(JSON.parse(response.body));};
+      return response;
+    });
+  }
+  const _fxEgernHttpApi={};
+  for(const method of ['get','post','put','patch','delete','head','options']){
+    _fxEgernHttpApi[method]=function(url,options){return _fxEgernHttp(method,url,options);};
+  }
+  const _fxEgernEnv=(_fxEvent.env&&typeof _fxEvent.env==='object')?_fxEvent.env:{};
+  globalThis.ctx={
+    script:Object.assign({},globalThis.$script),
+    env:Object.assign({},_fxEgernEnv),
+    app:{version:String(globalThis.$environment.version||''),language:String(globalThis.$environment.language||'')},
+    device:Object.assign({},(_fxEvent.device&&typeof _fxEvent.device==='object')?_fxEvent.device:{}),
+    request:_fxEgernMessage(globalThis.$request,false),
+    response:_fxEgernMessage(globalThis.$response,true),
+    http:_fxEgernHttpApi,
+    storage:{
+      get(key){const value=globalThis.$prefs.valueForKey(String(key));return value==null?null:(typeof value==='string'?value:JSON.stringify(value));},
+      set(key,value){globalThis.$prefs.setValueForKey(String(value),String(key));},
+      getJSON(key){const value=this.get(key);if(value==null)return null;try{return JSON.parse(value);}catch(_){return null;}}
+    },
+    notify(options){options=options||{};return _fxNotify(options.title||'',options.subtitle||'',options.body||'',options);}
+  };
+  globalThis.__fxEgernFail=function(error){if(!_fxDone)_fxSaveResult(false,error);};
+  // FX_EGERN_COMPAT_V1_END
   // Only publish the selected compatibility version key; absence means that
   // the native vendor runtime is not present. This is a compatibility profile,
   // not a claim that FX is the original client.
