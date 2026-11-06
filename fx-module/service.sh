@@ -128,12 +128,43 @@ else
   echo "[$(date '+%m-%d %H:%M:%S')] Hook APK PackageManager work deferred: sys.boot_completed is not 1; main FX startup continues" >> "$PG/boot.log"
 fi
 
-if [ ! -f "$PG/settings.conf" ]; then
-  if cat "$MODDIR/scripts/default.conf" > "$PG/settings.conf" 2>>"$PG/boot.log"; then
-    chmod 660 "$PG/settings.conf"
-  else
-    echo "[$(date '+%m-%d %H:%M:%S')] boot: default config generation failed" >> "$PG/boot.log"
+# settings.conf is the shared source of truth for DNS, VPN and Hosts.
+# Never follow a pre-existing symlink, and never expose a partially copied
+# default file if storage fills or the boot service is interrupted.
+_pg_settings="$PG/settings.conf"
+_pg_defaults="$MODDIR/scripts/default.conf"
+if [ -L "$_pg_settings" ] || { [ -e "$_pg_settings" ] && [ ! -f "$_pg_settings" ]; }; then
+  echo "[$(date '+%m-%d %H:%M:%S')] boot: refusing unsafe settings.conf path" >> "$PG/boot.log"
+  exit 1
+fi
+if [ ! -e "$_pg_settings" ]; then
+  if [ ! -f "$_pg_defaults" ] || [ -L "$_pg_defaults" ] || [ ! -r "$_pg_defaults" ]; then
+    echo "[$(date '+%m-%d %H:%M:%S')] boot: bundled default config is missing or unsafe" >> "$PG/boot.log"
+    exit 1
   fi
+  _pg_settings_tmp=$(umask 077; mktemp "$PG/settings.conf.init.XXXXXX") || {
+    echo "[$(date '+%m-%d %H:%M:%S')] boot: cannot stage default settings" >> "$PG/boot.log"
+    exit 1
+  }
+  if ! cat "$_pg_defaults" > "$_pg_settings_tmp" ||
+      [ ! -s "$_pg_settings_tmp" ] ||
+      ! chmod 660 "$_pg_settings_tmp"; then
+    rm -f "$_pg_settings_tmp" 2>/dev/null
+    echo "[$(date '+%m-%d %H:%M:%S')] boot: default config staging failed" >> "$PG/boot.log"
+    exit 1
+  fi
+  # Another boot worker may have won initialization. Never replace its file.
+  if [ -e "$_pg_settings" ] || [ -L "$_pg_settings" ]; then
+    rm -f "$_pg_settings_tmp" 2>/dev/null
+  elif ! mv -f "$_pg_settings_tmp" "$_pg_settings"; then
+    rm -f "$_pg_settings_tmp" 2>/dev/null
+    echo "[$(date '+%m-%d %H:%M:%S')] boot: atomic default config publication failed" >> "$PG/boot.log"
+    exit 1
+  fi
+fi
+if [ -L "$_pg_settings" ] || [ ! -f "$_pg_settings" ] || [ ! -s "$_pg_settings" ] || [ ! -r "$_pg_settings" ]; then
+  echo "[$(date '+%m-%d %H:%M:%S')] boot: settings.conf is unavailable or unsafe; refusing runtime apply" >> "$PG/boot.log"
+  exit 1
 fi
 
 if [ -f "$PG/ca-trust-optin" ] && [ -f "$MODDIR/scripts/certmgr.sh" ]; then
