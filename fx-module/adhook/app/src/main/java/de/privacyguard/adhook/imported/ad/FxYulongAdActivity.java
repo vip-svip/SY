@@ -719,11 +719,30 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
  private static boolean isValidDnsRuntimeMode(String value){
   return "load_balance".equals(value)||"parallel".equals(value)||"fastest_addr".equals(value);
  }
+ private static boolean isValidDnsRuntimeDuration(String value){
+  if(value==null)return false;
+  String unit;
+  String number;
+  if(value.endsWith("ms")){unit="ms";number=value.substring(0,value.length()-2);}
+  else if(value.endsWith("s")){unit="s";number=value.substring(0,value.length()-1);}
+  else if(value.endsWith("m")){unit="m";number=value.substring(0,value.length()-1);}
+  else if(value.endsWith("h")){unit="h";number=value.substring(0,value.length()-1);}
+  else return false;
+  if(!number.matches("[0-9]+"))return false;
+  try{
+    java.math.BigInteger amount=new java.math.BigInteger(number);
+    if(amount.signum()<=0)return false;
+    String limit="ms".equals(unit)?"9223372036854"
+        :"s".equals(unit)?"9223372036"
+        :"m".equals(unit)?"153722867":"2562047";
+    return amount.compareTo(new java.math.BigInteger(limit))<=0;
+  }catch(NumberFormatException invalid){return false;}
+ }
  private static boolean isValidDnsRuntimeFastestTimeout(String value){
-  return "500ms".equals(value)||"1s".equals(value)||"2s".equals(value)||"5s".equals(value);
+  return isValidDnsRuntimeDuration(value);
  }
  private static boolean isValidDnsRuntimeUpstreamTimeout(String value){
-  return "3s".equals(value)||"5s".equals(value)||"10s".equals(value)||"15s".equals(value)||"30s".equals(value);
+  return isValidDnsRuntimeDuration(value);
  }
  private void loadDnsRuntimeControls(EditText mode,EditText fastest,EditText upstream,
       EditText cacheSize,Switch cacheEnabled,Switch cacheOptimistic,Switch dnssec,TextView state){
@@ -795,10 +814,10 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
   dnsRuntimeMode.setHint("load_balance / parallel / fastest_addr");
   EditText dnsRuntimeFastest=draftField("dns_runtime_fastest_timeout");
   dnsRuntimeFastest.setSingleLine(true);
-  dnsRuntimeFastest.setHint("500ms / 1s / 2s / 5s");
+  dnsRuntimeFastest.setHint("自定义正整数时长，例如 500ms、3s、2m");
   EditText dnsRuntimeTimeout=draftField("dns_runtime_upstream_timeout");
   dnsRuntimeTimeout.setSingleLine(true);
-  dnsRuntimeTimeout.setHint("3s / 5s / 10s / 15s / 30s");
+  dnsRuntimeTimeout.setHint("自定义正整数时长，例如 5s、45s、2m");
   EditText dnsRuntimeCacheSize=draftField("dns_runtime_cache_size");
   dnsRuntimeCacheSize.setSingleLine(true);
   dnsRuntimeCacheSize.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
@@ -811,7 +830,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
   dnssecEnabled.setText("AdGuard Home 上游启用 DNSSEC 校验");
   TextView dnsRuntimeState=txt("正在读取 AdGuard Home 引擎参数…",12,0xff617080,false);
   card("AdGuard Home 解析策略与性能",
-       "上游策略：load_balance 按健康与响应表现选择；parallel 并发请求全部上游；fastest_addr 按地址响应延迟选择。缓存容量以字节计；乐观缓存可在过期数据刷新期间优先返回旧答案。DNSSEC 会对上游 DNSSEC 响应执行验证。EDNS Client Subnet 保持关闭，避免向上游泄露客户端网段。",
+       "上游策略：load_balance 按健康与响应表现选择；parallel 并发请求全部上游；fastest_addr 按地址响应延迟选择。fastest 与上游请求超时都支持自定义正整数 ms/s/m/h 时长，并遵守运行时 duration 范围。缓存容量以字节计；乐观缓存可在过期数据刷新期间优先返回旧答案。DNSSEC 会对上游 DNSSEC 响应执行验证。EDNS Client Subnet 保持关闭，避免向上游泄露客户端网段。",
        txt("多上游选择策略",12,0xff617080,true),dnsRuntimeMode,
        txt("fastest_addr 探测超时",12,0xff617080,true),dnsRuntimeFastest,
        txt("上游请求超时",12,0xff617080,true),dnsRuntimeTimeout,
