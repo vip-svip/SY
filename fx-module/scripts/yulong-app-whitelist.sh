@@ -291,7 +291,7 @@ mutate_batch_transaction() {
     echo "batch app whitelist output is invalid" >&2
     return 1
   fi
-  if [ ! -L "$_YW_TEMP" ] && [ -f "$CONF" ] && [ ! -L "$CONF" ] \\
+  if [ ! -L "$_YW_TEMP" ] && [ -f "$CONF" ] && [ ! -L "$CONF" ] \
       && chmod 600 "$_YW_TEMP" && mv -f "$_YW_TEMP" "$CONF"; then
     _YW_TEMP=
   else
@@ -311,9 +311,9 @@ mutate_batch_transaction() {
     echo "unable to create batch whitelist rollback file" >&2
     return 11
   }
-  if cat "$_YW_BACKUP" > "$_YW_RESTORE" && chmod 600 "$_YW_RESTORE" \\
-      && [ -f "$CONF" ] && [ ! -L "$CONF" ] \\
-      && [ -f "$_YW_RESTORE" ] && [ ! -L "$_YW_RESTORE" ] \\
+  if cat "$_YW_BACKUP" > "$_YW_RESTORE" && chmod 600 "$_YW_RESTORE" \
+      && [ -f "$CONF" ] && [ ! -L "$CONF" ] \
+      && [ -f "$_YW_RESTORE" ] && [ ! -L "$_YW_RESTORE" ] \
       && mv -f "$_YW_RESTORE" "$CONF"; then
     _YW_RESTORE=
   else
