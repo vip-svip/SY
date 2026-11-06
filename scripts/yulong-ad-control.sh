@@ -797,6 +797,7 @@ m_allow_add(){ sh "$MP/scripts/whitelist.sh" add "$1" "$2"; }
 m_allow_remove(){ sh "$MP/scripts/whitelist.sh" remove "$1"; }
 m_allow_import(){ import_domains allow "$1"; }
 m_block_add(){ write_block "$1" "$2" 1 add; }
+m_block_set(){ old_note=$(pg_list block|awk -F'|' -v d="$1" '$1==d{print $2;exit}'); [ -n "$old_note" ] || return 3; write_block "$1" "$old_note" "$2" set; }
 m_block_remove(){ write_block "$1" "" 0 remove; }
 m_block_import(){ import_domains block "$1"; }
 domain_clear_all() {
@@ -1085,6 +1086,11 @@ case "$cmd" in
   [ "$#" -ge 2 ] && [ "$#" -le 3 ] || exit 2
   d=$(valid_domain "$2") || exit 2; note=$3; [ -n "$note" ] || note="FX 黑名单"; valid_text "$note" || exit 2
   with_lock transaction m_block_add "$d" "$note" ;;
+ block-set)
+  [ "$#" -eq 3 ] || exit 2
+  d=$(valid_domain "$2") || exit 2
+  { [ "$3" = 0 ] || [ "$3" = 1 ]; } || exit 2
+  with_lock transaction m_block_set "$d" "$3" ;;
  block-remove)
   [ "$#" -eq 2 ] || exit 2; d=$(valid_domain "$2") || exit 2
   with_lock transaction m_block_remove "$d" ;;
