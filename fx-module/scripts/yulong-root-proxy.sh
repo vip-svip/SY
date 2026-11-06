@@ -842,8 +842,13 @@ case "$cmd" in
     ;;
   enable|disable)
     [ -f "$CONF" ] || { echo "settings file missing" >&2; exit 21; }
-    if [ "$cmd" = enable ]; then pg_set vpn_external_dns_proxy 1; else pg_set vpn_external_dns_proxy 0; fi
-    sh "$MP/scripts/apply.sh" fast
+    if [ -x "$MP/scripts/native-dns-settings.sh" ]; then
+      if [ "$cmd" = enable ]; then _proxy_value=1; else _proxy_value=0; fi
+      MP="$MP" PG="$PG" sh "$MP/scripts/native-dns-settings.sh" set vpn_external_dns_proxy "$_proxy_value"
+    else
+      if [ "$cmd" = enable ]; then pg_set vpn_external_dns_proxy 1; else pg_set vpn_external_dns_proxy 0; fi
+      sh "$MP/scripts/apply.sh" fast
+    fi
     ;;
   status)
     with_lock _status_locked
