@@ -413,12 +413,15 @@ status() {
     _querylog_header=$(printf '%s\n' "$_querylog_runtime" | sed -n '1p')
     _querylog_size=$(printf '%s\n' "$_querylog_runtime" | sed -n 's/^memory_size=//p')
     _querylog_max=$(printf '%s\n' "$_querylog_runtime" | sed -n 's/^memory_max=//p')
-    case "$_querylog_size:$_querylog_max" in
-      *[!0-9:]*|:|*:) : ;;
-      *) if [ "$_querylog_header" = FXYULONGDNSQUERYLOG1 ]; then
-           _querylog_memory_size=$_querylog_size
-           _querylog_memory_max=$_querylog_max
-         fi ;;
+    case "$_querylog_size" in ''|*[!0-9]*) : ;;
+      *)
+        case "$_querylog_max" in ''|*[!0-9]*) : ;;
+          *) if [ "$_querylog_header" = FXYULONGDNSQUERYLOG1 ]; then
+               _querylog_memory_size=$_querylog_size
+               _querylog_memory_max=$_querylog_max
+             fi ;;
+        esac
+        ;;
     esac
   fi
   _statistics_enabled=unknown
