@@ -769,9 +769,14 @@ dns_profile_transaction() {
   rm -f "$_profile_backup"; echo "DNS profile apply failed; previous settings restored" >&2; return 1
 }
 
+valid_dns_querylog_retention() {
+  case "$1" in *d) _dns_retention_days=\${1%d} ;; *) return 1 ;; esac
+  case "$_dns_retention_days" in ''|*[!0-9]*) return 1 ;; esac
+  case "$_dns_retention_days" in *[1-9]*) return 0 ;; *) return 1 ;; esac
+}
 write_dns_querylog_retention() {
   interval=$1
-  case "$interval" in 1d|3d|7d|30d) : ;; *) return 2 ;; esac
+  valid_dns_querylog_retention "$interval" || return 2
   tmp=$(mktemp "$CONF.yulong-querylog-retention.XXXXXX") || return 1
   _yad_conf_tmp=$tmp
   # Validate the existing section before rewriting it. Never collapse duplicate
@@ -831,10 +836,14 @@ dns_querylog_retention_get() {
     END {
       if (sections>1 || intervals>1 || bad) exit 1
       if (sections==0) { print "7d"; exit }
-      if (intervals==1 && (value=="1d" || value=="3d" || value=="7d" || value=="30d")) print value
+      if (intervals==1) print value
       else exit 1
     }
   ' "$CONF" 2>/dev/null) || {
+    echo "querylog_retention=unknown"
+    return 22
+  }
+  valid_dns_querylog_retention "$value" || {
     echo "querylog_retention=unknown"
     return 22
   }
@@ -1327,17 +1336,25 @@ dns_log_tail() {
     echo FXDNSLOG_DISABLED
     return 0
   fi
-  logfile="$PG/adguardhome/work/data/querylog.json"
+  _dns_log_dir="$PG/adguardhome/work/data"
   [ ! -L "$PG/adguardhome" ] && [ ! -L "$PG/adguardhome/work" ] &&
-    [ ! -L "$PG/adguardhome/work/data" ] && [ ! -L "$logfile" ] || {
+    [ ! -L "$_dns_log_dir" ] || {
       echo "unsafe DNS query-log path" >&2
       return 21
     }
-  if [ -s "$logfile" ] && [ -f "$logfile" ]; then
-    cat "$logfile"
-  else
-    echo FXDNSLOG_EMPTY
-  fi
+  [ -d "$_dns_log_dir" ] || { echo FXDNSLOG_EMPTY; return 0; }
+  _dns_log_found=0
+  for _dns_log_file in "$_dns_log_dir"/querylog.json "$_dns_log_dir"/querylog.json.*; do
+    [ -e "$_dns_log_file" ] || [ -L "$_dns_log_file" ] || continue
+    [ ! -L "$_dns_log_file" ] && [ -f "$_dns_log_file" ] || {
+      echo "refusing to read non-regular or linked DNS query log: $_dns_log_file" >&2
+      return 21
+    }
+    [ -s "$_dns_log_file" ] || continue
+    _dns_log_found=1
+    cat "$_dns_log_file" || return 31
+  done
+  [ "$_dns_log_found" = 1 ] || echo FXDNSLOG_EMPTY
 }
 dns_log_clear() {
   dir="$PG/adguardhome/work/data"

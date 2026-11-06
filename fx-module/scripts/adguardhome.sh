@@ -416,7 +416,7 @@ _render_managed_config() {
     inside && /^interval=/ {
       intervals++
       value=substr($0,10)
-      if (value!="1d" && value!="3d" && value!="7d" && value!="30d") bad=1
+      if (value !~ /^[0-9]+d$/ || value ~ /^0+d$/) bad=1
       next
     }
     inside { bad=1 }

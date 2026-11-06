@@ -28,11 +28,14 @@ reject_symlink_components "$DATA_DIR" || {
   exit 21
 }
 [ -d "$DATA_DIR" ] || { echo FXDNSLOG_EMPTY; exit 0; }
-LOG_FILE="$DATA_DIR/querylog.json"
-[ ! -L "$LOG_FILE" ] || { echo "DNS query log symlink rejected" >&2; exit 21; }
-[ -e "$LOG_FILE" ] || { echo FXDNSLOG_EMPTY; exit 0; }
-[ -f "$LOG_FILE" ] || { echo "DNS query log is not a regular file" >&2; exit 21; }
-[ -s "$LOG_FILE" ] || { echo FXDNSLOG_EMPTY; exit 0; }
+_dns_log_found=0
+for LOG_FILE in "$DATA_DIR"/querylog.json "$DATA_DIR"/querylog.json.*; do
+  [ -e "$LOG_FILE" ] || [ -L "$LOG_FILE" ] || continue
+  [ ! -L "$LOG_FILE" ] || { echo "DNS query log symlink rejected: $LOG_FILE" >&2; exit 21; }
+  [ -f "$LOG_FILE" ] || { echo "DNS query log is not a regular file: $LOG_FILE" >&2; exit 21; }
+  [ -s "$LOG_FILE" ] && _dns_log_found=1
+done
+[ "$_dns_log_found" = 1 ] || { echo FXDNSLOG_EMPTY; exit 0; }
 
 awk '
 function read_json_string(pos,    j,c,esc,hex) {
@@ -141,4 +144,4 @@ END {
   print "queries=" queries
   print "blocked=" blocked
   print "unblocked=" queries-blocked
-}' "$LOG_FILE"
+}' "$DATA_DIR"/querylog.json "$DATA_DIR"/querylog.json.*

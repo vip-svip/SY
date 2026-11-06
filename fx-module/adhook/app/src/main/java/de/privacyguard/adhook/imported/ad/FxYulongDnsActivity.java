@@ -185,7 +185,8 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
             typeFilters.addView(button(rrTypes[i], () -> setTypeFilter(value)),
                     new LinearLayout.LayoutParams(0, -2, 1));
         }
-        card(body, "DNS 记录类型筛选", "按 DNS 查询记录类型精确筛选；可与域名搜索、拦截状态和时间范围叠加，分享时沿用。", typeFilters);
+        card(body, "DNS 记录类型筛选", "支持常用类型快捷筛选，也可输入任意 RR 类型（如 PTR、NS、SOA、SRV、CAA、SVCB 或 TYPE65）；可与其他条件叠加。",
+                typeFilters, button("自定义 DNS 记录类型…", this::promptCustomTypeFilter));
         LinearLayout rcodeFilters = new LinearLayout(this);
         rcodeFilters.setOrientation(LinearLayout.HORIZONTAL);
         String[] rcodeLabels = {"全部", "NOERROR", "NXDOMAIN", "SERVFAIL", "REFUSED", "其他"};
@@ -282,7 +283,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         }
         status.setText("本次解析 " + total + " 条 · 拦截 " + blocked + " 条 · 放行/未拦截 "
                 + Math.max(0, total - blocked) + " 条 · 无法解析/缺少域名 " + malformed
-                + " 条。数据仅来自本地查询日志尾部；若异常数大于 0，请检查本地日志格式。");
+                + " 条。数据来自本机全部保留的活动及轮转查询日志；若异常数大于 0，请检查本地日志格式。");
         render();
     }
 
@@ -338,11 +339,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
     private static String normalizeTypeFilter(String value) {
         if (value == null) return "";
         String normalized = value.trim().toUpperCase(Locale.ROOT);
-        switch (normalized) {
-            case "A": case "AAAA": case "HTTPS": case "TXT": case "MX": case "CNAME":
-                return normalized;
-            default: return "";
-        }
+        return normalized.matches("[A-Z][A-Z0-9-]*") ? normalized : "";
     }
 
     private boolean matchesTypeFilter(Entry item) {
@@ -357,6 +354,30 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         pendingScrollRestore = false;
         render();
         if (scroll != null) scroll.scrollTo(0, 0);
+    }
+
+    private void promptCustomTypeFilter() {
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setHint("例如 PTR、NS、SOA、SRV、CAA、SVCB、TYPE65");
+        if (!typeFilter.isEmpty()) input.setText(typeFilter);
+        fxDialogBuilder().setTitle("自定义 DNS 记录类型")
+                .setMessage("输入 DNS RR 类型名称；留空会清除类型筛选。")
+                .setView(input)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("筛选", (dialog, which) -> {
+                    String supplied = input.getText() == null ? "" : input.getText().toString().trim();
+                    if (supplied.isEmpty()) {
+                        setTypeFilter("");
+                        return;
+                    }
+                    String normalized = normalizeTypeFilter(supplied);
+                    if (normalized.isEmpty()) {
+                        status.setText("DNS 记录类型只能包含英文字母、数字和连字符，并须以字母开头。");
+                        return;
+                    }
+                    setTypeFilter(normalized);
+                }).show();
     }
 
     private static String normalizeRcodeValue(String value) {
