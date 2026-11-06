@@ -1600,12 +1600,12 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
   customServers.setHint("IPv4 / IPv6 / [IPv6]:端口 / https://DoH / tls://DoT / quic://DoQ");
   EditText fallbackServers=draftField("dns_fallback_servers");
   fallbackServers.setSingleLine(false);fallbackServers.setMinLines(2);
-  fallbackServers.setHint("备用 DNS IPv4[:端口]，例如：1.1.1.1:5353,8.8.8.8");
+  fallbackServers.setHint("备用 DNS IPv4[:端口] / IPv6 / [IPv6]:端口");
   EditText globalServers=draftField("dns_global_servers");
   globalServers.setSingleLine(false);globalServers.setMinLines(2);
-  globalServers.setHint("IPv4[:端口]，例如：8.8.8.8:5353,1.1.1.1");
+  globalServers.setHint("IPv4[:端口] / IPv6 / [IPv6]:端口");
   card("自定义/全局/备用 DNS 服务器",
-       "自定义 DNS 支持任意多条上游地址（保留逐条格式与协议校验，不设置应用层条数上限），可混合 IPv4[:端口]、IPv6、[IPv6]:端口、DoH、DoT、DoQ；全局 DNS 和备用 DNS 均支持任意多条 IPv4[:端口]；留空时，启用自定义/全局外部上游会自动以 FX 本地 Unbound 作为故障回退。加密上游的域名引导解析经 FX 本地 Unbound 递归服务完成，不固定依赖公共 DNS；仅在 FX 本地 AdGuard Home 过滤引擎运行时生效；启用“阻止 DoT/QUIC”会阻断对应传输协议。",
+       "自定义 DNS 支持任意多条上游地址（保留逐条格式与协议校验，不设置应用层条数上限），可混合 IPv4[:端口]、IPv6、[IPv6]:端口、DoH、DoT、DoQ；全局 DNS 和备用 DNS 均支持任意多条可路由 IPv4[:端口]、IPv6 和 [IPv6]:端口；留空时，启用自定义/全局外部上游会自动以 FX 本地 Unbound 作为故障回退。加密上游的域名引导解析经 FX 本地 Unbound 递归服务完成，不固定依赖公共 DNS；仅在 FX 本地 AdGuard Home 过滤引擎运行时生效；启用“阻止 DoT/QUIC”会阻断对应传输协议。",
        btn("一次性保存三组 DNS 上游",()->saveDnsServerLists(customServers,globalServers,fallbackServers)),
        txt("自定义 DNS 上游",12,0xff617080,true),customServers,
        btn("保存自定义 DNS",()->saveDnsServerList("custom",customServers)),
@@ -2034,6 +2034,25 @@ private boolean isValidProfileDnsIpv6Port(String value){
   if(tail.isEmpty())return true;
   return tail.matches(":[0-9]{1,5}")&&validProfilePort(value);
 }
+private boolean isValidProfileRoutableDnsIpv6Endpoint(String value){
+  String address=value;
+  if(value==null)return false;
+  if(value.startsWith("[")){
+    int close=value.indexOf(']');
+    if(close<0||!isValidProfileDnsIpv6Port(value))return false;
+    address=value.substring(1,close);
+  }else if(!isValidProfileDnsIpv6(value)){
+    return false;
+  }
+  try{
+    java.net.InetAddress parsed=java.net.InetAddress.getByName(address);
+    return parsed instanceof java.net.Inet6Address
+        &&!parsed.isAnyLocalAddress()
+        &&!parsed.isLoopbackAddress()
+        &&!parsed.isLinkLocalAddress()
+        &&!parsed.isMulticastAddress();
+  }catch(java.net.UnknownHostException invalid){return false;}
+}
 private boolean isValidProfileDnsHost(String host){
   if(host==null||host.isEmpty()||host.length()>253)return false;
   if(host.matches("[0-9.]+"))return isValidProfileIpv4(host);
@@ -2063,6 +2082,7 @@ private boolean isValidProfileDnsCsv(String value,boolean encryptedAllowed){
   for(String entry:entries){
     if(entry.isEmpty()||!seen.add(entry.toLowerCase(java.util.Locale.ROOT)))return false;
     if(isValidProfileIpv4(entry)||isValidProfileDnsIpv4Port(entry))continue;
+    if(isValidProfileRoutableDnsIpv6Endpoint(entry))continue;
     if(!encryptedAllowed)return false;
     if(isValidProfileDnsIpv6(entry)||isValidProfileDnsIpv6Port(entry))continue;
     if(entry.startsWith("tls://")||entry.startsWith("quic://")){
