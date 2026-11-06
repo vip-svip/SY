@@ -117,7 +117,7 @@ public final class EgernScriptYamlImporter {
         if (name == null || name.trim().isEmpty() || name.trim().length() > 512
                 || match == null || match.isEmpty() || match.length() > 2048
                 || scriptUrl == null || !scriptUrl.regionMatches(true, 0, "https://", 0, 8)) return;
-        if (binaryBody || hasEnvironment) return;
+        if (binaryBody || hasEnvironment || (bodyRequired && !"http_response".equals(kind))) return;
 
         Uri uri = Uri.parse(scriptUrl);
         if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null
@@ -127,7 +127,7 @@ public final class EgernScriptYamlImporter {
         String safeName = name.trim().replaceAll("[\\p{Cntrl}]", " ");
         if (safeName.isEmpty() || safeName.length() > 512) return;
         String metadata = type + "\n" + match + "\n" + (bodyRequired ? "1" : "0") + "\n" + safeName;
-        String key = scriptUrl + "\n" + type + "\n" + match;
+        String key = scriptUrl + "\n" + type + "\n" + match + "\n" + (bodyRequired ? "1" : "0");
         if (!seen.add(key)) return;
 
         JSONObject entry = new JSONObject();
