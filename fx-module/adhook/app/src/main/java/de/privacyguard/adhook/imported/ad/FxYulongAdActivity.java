@@ -1059,7 +1059,7 @@ private boolean isValidProfileIpv4(String value){
   if(value==null||!value.matches("[0-9]{1,3}(\\.[0-9]{1,3}){3}")||
       "0.0.0.0".equals(value)||"255.255.255.255".equals(value))return false;
   for(String part:value.split("\\.")){
-    try{if(Integer.parseInt(part)>255)return false;}catch(NumberFormatException e){return false;}
+    try{int octet=Integer.parseInt(part);if(octet>255||(part.length()>1&&part.charAt(0)=='0'))return false;}catch(NumberFormatException e){return false;}
   }
   return true;
 }
