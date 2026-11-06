@@ -1225,6 +1225,8 @@ public final class MainActivity extends ComponentActivity {
                         + " · Unbound：" + nativeDnsStatusLabel("unbound", state.getOrDefault("unbound", "unknown"))
                         + "\nRoot Proxy：" + nativeDnsStatusLabel("root_proxy", state.getOrDefault("root_proxy", "unknown"))
                         + " · DNS 白名单应用：" + state.getOrDefault("rootproxy_whitelist_count", "unknown")
+                        + "\nDNS 订阅源：" + state.getOrDefault("dns_filter_sources_enabled", "unknown")
+                        + "/" + state.getOrDefault("dns_filter_sources_total", "unknown") + " 已启用"
                         + "\nPrivate DNS：" + nativeDnsStatusLabel("private_dns_mode", state.getOrDefault("private_dns_mode", "unknown"))
                         + " · 覆盖范围：" + nativeDnsStatusLabel("dns_filter_coverage", state.getOrDefault("dns_filter_coverage", "unknown"))
                         + "\nVPN 共存裁决：" + nativeDnsStatusLabel("vpn_coexistence_verdict", state.getOrDefault("vpn_coexistence_verdict", "unknown"))
@@ -1254,6 +1256,8 @@ public final class MainActivity extends ComponentActivity {
                         + "\nUnbound：" + nativeDnsStatusLabel("unbound", state.getOrDefault("unbound", "unknown"))
                         + "\nRoot Proxy：" + nativeDnsStatusLabel("root_proxy", state.getOrDefault("root_proxy", "unknown"))
                         + "\nDNS 白名单应用：" + state.getOrDefault("rootproxy_whitelist_count", "unknown")
+                        + "\nDNS 订阅源：" + state.getOrDefault("dns_filter_sources_enabled", "unknown")
+                        + "/" + state.getOrDefault("dns_filter_sources_total", "unknown") + " 已启用"
                         + "\nPrivate DNS 模式：" + nativeDnsStatusLabel("private_dns_mode", state.getOrDefault("private_dns_mode", "unknown"))
                         + "\nDNS 过滤覆盖：" + nativeDnsStatusLabel("dns_filter_coverage", state.getOrDefault("dns_filter_coverage", "unknown"))
                         + "\nVPN 共存裁决：" + nativeDnsStatusLabel("vpn_coexistence_verdict", state.getOrDefault("vpn_coexistence_verdict", "unknown"))
