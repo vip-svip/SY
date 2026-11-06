@@ -775,3 +775,11 @@
 - 修正订阅同步锁持有者 PID、进程启动时间查询、锁释放身份比较、过期锁隔离目录以及临时备份清理路径中的 PID 展开，统一使用 shell 当前进程 PID（`$$`）。
 - 修复后锁 owner 记录与当前同步进程身份能够对应，过期锁目录及本轮备份文件也按真实 PID 命名和清理。
 - 本轮未运行测试、静态检查、构建、CI 或设备验证。
+
+
+## FX DNS 配置快照系统文件导入/导出
+- 代码文件：`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`
+- DNS 配置备份新增 Android 系统文件保存入口，使用 Storage Access Framework 的 `ACTION_CREATE_DOCUMENT`，由用户选择保存位置与文件名；保留原有系统分享入口。
+- DNS 配置恢复新增系统文件选择入口，使用 `ACTION_OPEN_DOCUMENT`；读取内容限制为 48 KiB，并以严格 UTF-8 解码，拒绝超限或非法编码文件。
+- 文件读取只填入现有快照编辑框，不会自动执行恢复；仍须经过既有完整字段校验、二次确认和 Root 后端事务回滚流程。
+- 本轮未运行测试、静态检查、构建、CI 或设备验证。

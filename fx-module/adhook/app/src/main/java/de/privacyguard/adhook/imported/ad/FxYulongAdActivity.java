@@ -66,6 +66,10 @@ public final class FxYulongAdActivity extends de.privacyguard.adhook.FxNativeTab
   private boolean trustedNetworkSyncing;
   private TextView rootProxyStatus;
   private long rootProxyStatusGeneration;
+ private static final int DNS_PROFILE_OPEN_REQUEST=4202;
+ private static final int DNS_PROFILE_SAVE_REQUEST=4203;
+ private EditText dnsProfileImportField;
+ private String pendingDnsProfileExport="";
  private static final int BULK_DRAFT_MAX_CHARS=48*1024;
  private static final int TEXT_DRAFT_MAX_CHARS=4096;
  private Bundle pendingRestoredDrafts;
@@ -689,7 +693,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
   });
  }
  private void renderDns(){
-  EditText dnsProfileImport=draftField("dns_profile_import");dnsProfileImport.setSingleLine(false);dnsProfileImport.setMinLines(5);dnsProfileImport.setHint("粘贴完整 FXYULONGDNSPROFILE1 快照文本");
+  EditText dnsProfileImport=draftField("dns_profile_import");dnsProfileImport.setSingleLine(false);dnsProfileImport.setMinLines(5);dnsProfileImport.setHint("粘贴完整 FXYULONGDNSPROFILE1 快照文本");dnsProfileImportField=dnsProfileImport;
  private void refreshDnsCache(String target,String label){
    fxDialogBuilder().setTitle("刷新"+label+"缓存")
      .setMessage("FX 将仅重启所选的自有 DNS 解析服务并重新应用路由。刷新期间相关 DNS 查询可能短暂重试；不会操作第三方 VPN。若所选引擎未启用，FX 会拒绝操作。是否继续？")
@@ -698,7 +702,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
          .setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
      })).show();
  }
-  card("DNS 配置备份与恢复","快照导入会完整替换 DNS 引擎开关、过滤策略、三组上游、VPN DNS 与拦截响应模式；提交前校验全部字段，失败时恢复原配置。",btn("分享 DNS 配置快照",()->shareDnsProfile()),dnsProfileImport,btn("校验并恢复 DNS 配置快照",()->restoreDnsProfile(dnsProfileImport)));
+  card("DNS 配置备份与恢复","快照导入会完整替换 DNS 引擎开关、过滤策略、三组上游、VPN DNS 与拦截响应模式；提交前校验全部字段，失败时恢复原配置。",btn("分享 DNS 配置快照",()->shareDnsProfile()),btn("保存 DNS 快照到文件",()->saveDnsProfileToFile()),btn("从文件读取 DNS 快照",()->openDnsProfileFile()),dnsProfileImport,btn("校验并恢复 DNS 配置快照",()->restoreDnsProfile(dnsProfileImport)));
   TextView dnsRuntimeState=txt("DNS 运行状态尚未读取。",12,0xff617080,false);
   card("DNS 引擎运行状态","读取 AdGuard Home、Unbound、第三方 VPN Root Proxy、DNS 过滤覆盖范围与 VPN 共存判定。此操作只读取状态，不会更改服务或网络路由。",dnsRuntimeState,btn("刷新 DNS 运行状态",()->loadDnsRuntimeStatus(dnsRuntimeState)));
   card("本地 DNS 引擎",
@@ -830,6 +834,83 @@ private void shareDnsProfile(){
       status.setText("无法打开系统分享面板："+safe(unavailable.getMessage()));
     }
   });
+}
+private void saveDnsProfileToFile(){
+  root("dns-profile-get",r->{
+    if(r.exitCode!=0){status.setText("DNS 配置快照读取失败："+safe(r.output));return;}
+    String raw=r.output==null?"":r.output.trim();
+    if(!raw.startsWith("FXYULONGDNSPROFILE1")){status.setText("DNS 配置快照格式不受支持，未导出。");return;}
+    String payload="# FX Hook DNS profile backup\\n# format: FXYULONGDNSPROFILE1\\n# Restore only through a compatible FX version.\\n"
+        +raw.substring("FXYULONGDNSPROFILE1".length()).trim()+"\\n";
+    if(payload.getBytes(java.nio.charset.StandardCharsets.UTF_8).length>48*1024){
+      status.setText("DNS 配置快照超过 48 KiB，未打开文件选择器。");return;
+    }
+    pendingDnsProfileExport=payload;
+    try{
+      Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);
+      intent.addCategory(Intent.CATEGORY_OPENABLE);
+      intent.setType("text/plain");
+      intent.putExtra(Intent.EXTRA_TITLE,"FX-DNS-profile.txt");
+      startActivityForResult(intent,DNS_PROFILE_SAVE_REQUEST);
+    }catch(RuntimeException unavailable){
+      pendingDnsProfileExport="";
+      status.setText("无法打开系统文件保存器："+safe(unavailable.getMessage()));
+    }
+  });
+}
+private void openDnsProfileFile(){
+  try{
+    Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT);
+    intent.addCategory(Intent.CATEGORY_OPENABLE);
+    intent.setType("text/*");
+    startActivityForResult(intent,DNS_PROFILE_OPEN_REQUEST);
+  }catch(RuntimeException unavailable){
+    status.setText("无法打开系统文件选择器："+safe(unavailable.getMessage()));
+  }
+}
+@Override protected void onActivityResult(int requestCode,int resultCode,Intent data){
+  super.onActivityResult(requestCode,resultCode,data);
+  if(requestCode==DNS_PROFILE_SAVE_REQUEST){
+    String payload=pendingDnsProfileExport;
+    pendingDnsProfileExport="";
+    if(resultCode!=Activity.RESULT_OK||data==null||data.getData()==null){
+      status.setText("已取消 DNS 快照文件保存。");return;
+    }
+    if(payload.isEmpty()){status.setText("DNS 快照导出内容已失效，请重新操作。");return;}
+    try(java.io.OutputStream stream=getContentResolver().openOutputStream(data.getData(),"w")){
+      if(stream==null)throw new java.io.IOException("无法打开目标文件");
+      stream.write(payload.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+      stream.flush();
+      status.setText("DNS 配置快照已保存到所选文件。");
+    }catch(Exception failure){
+      status.setText("DNS 快照文件保存失败："+safe(failure.getMessage()));
+    }
+    return;
+  }
+  if(requestCode==DNS_PROFILE_OPEN_REQUEST){
+    if(resultCode!=Activity.RESULT_OK||data==null||data.getData()==null){
+      status.setText("已取消 DNS 快照文件读取。");return;
+    }
+    try(java.io.InputStream stream=getContentResolver().openInputStream(data.getData())){
+      if(stream==null)throw new java.io.IOException("无法读取所选文件");
+      java.io.ByteArrayOutputStream bytes=new java.io.ByteArrayOutputStream();
+      byte[] buffer=new byte[4096];int count;
+      while((count=stream.read(buffer))!=-1){
+        if(bytes.size()+count>48*1024)throw new java.io.IOException("DNS 快照超过 48 KiB 限制");
+        bytes.write(buffer,0,count);
+      }
+      String content=java.nio.charset.StandardCharsets.UTF_8.newDecoder()
+          .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+          .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+          .decode(java.nio.ByteBuffer.wrap(bytes.toByteArray())).toString();
+      if(dnsProfileImportField==null)throw new java.io.IOException("DNS 配置页面已关闭");
+      dnsProfileImportField.setText(content);
+      dnsProfileImportField.setSelection(dnsProfileImportField.length());
+      status.setText("DNS 快照文件已读取；请先检查内容，再点击“校验并恢复”。");
+    }catch(Exception failure){
+      status.setText("DNS 快照文件读取失败："+safe(failure.getMessage()));
+    }
+  }
 }
 private void restoreDnsProfile(EditText input){
   String supplied=input.getText()==null?"":input.getText().toString();
