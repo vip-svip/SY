@@ -239,6 +239,26 @@ object FxGkdRuleStore {
 
     @JvmStatic
     @Synchronized
+    fun updateRule(
+        context: Context,
+        id: String,
+        selector: String,
+        cooldownMillis: Long
+    ): FxGkdRule? {
+        val expression = selector.trim()
+        if (expression.isEmpty() || expression.length > 512 ||
+            cooldownMillis !in MIN_COOLDOWN_MS..MAX_COOLDOWN_MS ||
+            !FxGkdSelectorEngine.compile(expression).isValid
+        ) return null
+        val rules = getRules(context)
+        val current = rules.firstOrNull { it.id == id } ?: return null
+        val updated = current.copy(selector = expression, cooldownMillis = cooldownMillis)
+        val next = rules.map { if (it.id == id) updated else it }
+        return if (writeRules(context, next)) updated else null
+    }
+
+    @JvmStatic
+    @Synchronized
     fun setRuleEnabled(context: Context, id: String, enabled: Boolean): Boolean {
         val rules = getRules(context)
         if (rules.none { it.id == id }) return false
