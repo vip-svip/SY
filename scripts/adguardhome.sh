@@ -1088,7 +1088,7 @@ _config_contract() {
     }
     /^filtering:[[:space:]]*$/ {filtering=1; next}
     filtering && /^[^[:space:]]/ {
-      if(rewrite_block && rewrite_domain!="" && !rewrite_has_answer) unsafe_rewrites=1
+      if(rewrite_block && rewrite_domain!="" && (!rewrite_has_answer || !rewrite_has_enabled)) unsafe_rewrites=1
       filtering=0
       rewrite_block=0
     }
@@ -1140,18 +1140,20 @@ _config_contract() {
     filtering && $0=="  rewrites: []" {rewrite_sections++; next}
     filtering && $0=="  rewrites:" {rewrite_sections++; rewrite_block=1; next}
     filtering && rewrite_block && /^  [A-Za-z_][A-Za-z0-9_-]*:/ {
-      if(rewrite_domain!="" && !rewrite_has_answer) unsafe_rewrites=1
+      if(rewrite_domain!="" && (!rewrite_has_answer || !rewrite_has_enabled)) unsafe_rewrites=1
       rewrite_block=0
       rewrite_domain=""
       rewrite_has_answer=0
+      rewrite_has_enabled=0
     }
     filtering && rewrite_block && /^    - domain: / {
-      if(rewrite_domain!="" && !rewrite_has_answer) unsafe_rewrites=1
+      if(rewrite_domain!="" && (!rewrite_has_answer || !rewrite_has_enabled)) unsafe_rewrites=1
       value=$0
       sub(/^    - domain: /,"",value)
       sub(/^"/,"",value); sub(/"$/,"",value)
       rewrite_domain=tolower(value)
       rewrite_has_answer=0
+      rewrite_has_enabled=0
       if(!valid_rewrite_domain(rewrite_domain) || rewrite_domains_seen[rewrite_domain]++)
         unsafe_rewrites=1
       rewrite_entries++
@@ -1164,6 +1166,12 @@ _config_contract() {
       if(rewrite_domain=="" || rewrite_has_answer || !valid_rewrite_answer(value))
         unsafe_rewrites=1
       rewrite_has_answer=1
+      next
+    }
+    filtering && rewrite_block && /^      enabled:/ {
+      value=scalar($2)
+      if(rewrite_domain=="" || rewrite_has_enabled || value!="true") unsafe_rewrites=1
+      rewrite_has_enabled=1
       next
     }
     filtering && rewrite_block && /^[[:space:]]*$/ {next}
@@ -1306,7 +1314,7 @@ _config_contract() {
         (runtime_querylog_ignored_enabled=="true" || runtime_querylog_ignored_enabled=="false") &&
         !unsafe_querylog_ignored && !querylog_ignored_sequence &&
         rewrite_sections==1 && !unsafe_rewrites && !rewrite_block &&
-        (rewrite_domain=="" || rewrite_has_answer) &&
+        (rewrite_domain=="" || (rewrite_has_answer && rewrite_has_enabled)) &&
         valid_uint32(runtime_cache_size,0) &&
         valid_uint32(runtime_cache_ttl_min,1) && valid_uint32(runtime_cache_ttl_max,1) &&
         runtime_cache_ttl_min+0<=runtime_cache_ttl_max+0 &&

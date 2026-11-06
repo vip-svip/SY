@@ -2071,7 +2071,7 @@ dns_rewrites_yaml() {
   [ -n "$_rewrite_rows" ] || return 0
   while IFS='|' read -r _rewrite_domain _rewrite_answer; do
     [ -n "$_rewrite_domain" ] || continue
-    printf '    - domain: "%s"\n      answer: "%s"\n' "$_rewrite_domain" "$_rewrite_answer"
+    printf '    - domain: "%s"\n      answer: "%s"\n      enabled: true\n' "$_rewrite_domain" "$_rewrite_answer"
   done <<EOF_REWRITE_ROWS
 $_rewrite_rows
 EOF_REWRITE_ROWS

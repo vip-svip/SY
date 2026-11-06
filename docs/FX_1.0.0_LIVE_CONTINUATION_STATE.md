@@ -1419,3 +1419,12 @@
 - 两份 `FxYulongAdActivity.java` 已在前序并行提交中同步到 DIAG4，本批保留该最新版本，不重复覆盖 UI、字段校验或 SAF 报告导出。
 - 修改：`scripts/yulong-ad-control.sh`、`fx-module/scripts/yulong-ad-control.sh`、两份续接文档。
 - 本批未运行 Shell/Java 测试、静态检查、构建、CI 或 Android 真机验证；本批完成源码协议同步，不代表运行验收。
+
+
+## 2026-11-07 — DNS Rewrite 启用状态显式化
+
+- Root 的 AdGuard Home YAML 生成器为每条 FX 托管 DNS 重写显式输出 `enabled: true`，避免依赖 AdGuard Home 对缺省布尔字段的默认行为。
+- AdGuard Home 运行配置契约逐条要求 rewrite 同时存在唯一有效的 domain、answer 和 enabled=true；缺字段、重复字段、enabled=false 或未知子字段均拒绝发布/报告配置就绪。
+- wildcard 与 A/AAAA 保留型重写同样显式启用；FX 当前编辑模型为整表替换，每条提交规则均启用，删除规则即移除该项。
+- 本批保留并叠加在最新 DNSDIAG4 Root 控制脚本与续接文档上；正式/模块两套 Root/AdGuard renderer 配置同步。
+- 依据 AdGuard Home LegacyRewrite.Enabled 行为与 OpenAPI 可选 enabled 字段定义。按用户要求未运行测试、静态检查、构建、CI 或设备验证；仅完成源码移植。
