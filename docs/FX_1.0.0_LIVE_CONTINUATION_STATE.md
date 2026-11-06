@@ -7138,3 +7138,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 所有路径统一复用 `WifiScanPrivacyPolicy.shouldBlock()`；单包进程及显式按应用开关条件不变，系统或共享包进程仍 fail-open。WifiScanner 不存在时，WifiManager 公共 API 钩子仍独立保留。
 - 应用 Hook 提交：`e2d57586bd23022e25ffceab6bb3b88f5c332d4f`；模块 Hook 提交：`0fdc9c966f9ce881687618588298a42f8d2f5e25`。
 - 按当前要求未运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-06 — Egern/Stash YAML 脚本导入严格映射
+
+- Egern YAML 导入器对 FX 未映射的脚本级字段采取保守跳过，避免把未知脚本能力静默导入成不完整 HTTP Hook（该修改在本轮并行更新时已先出现在应用源码与模块源码）。
+- Stash YAML 导入器对未映射的脚本级选项标记该脚本不支持，不再静默忽略其语义；已同步到 `fx-module/adhook/app/src/main/java/de/privacyguard/adhook/StashScriptYamlImporter.java`。
+- 模块 Stash 导入器同步提交：54c35b150a127d1e32ee070b2cb6e2d7e8505ab0。
+- 本轮继续遵循跳过验证要求，未运行测试、静态检查、构建、CI 或真机验证。
