@@ -7494,3 +7494,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 操作成功后刷新运行时规则缓存、请求无障碍服务重配置并同步总开关和状态展示。未改变逐条规则启停能力。
 - 当前组名作为本地分组键；同名分组规则会一起启停。远程订阅、组级排除表达式仍未实现。
 - 按用户要求未运行测试、静态检查、构建、CI 或真机验证。
+
+
+## 2026-11-06 — GKD 单条规则排除选择器
+
+- 本批代码提交：
+  - `2312f8cb14386b87d625d72c78073fe7de5aee01` — GKD 运行时按排除选择器跳过当前规则。
+- 改动文件：`adhook/app/src/main/java/de/privacyguard/adhook/FxGkdRuleStore.kt`、`adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAutomationActivity.java`、`adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAutomationRuntime.kt`。
+- 新增可选的每规则排除选择器：新增/编辑规则时可填写，沿用 GKD-XA selector 编译器校验，最多 512 字符；运行时在同一份有界本地无障碍节点快照中先检查排除条件，命中即跳过该规则，不影响其他规则。导入/导出保留 `exclude_selector` 字段，旧规则缺省为空，保持兼容。
+- 不新增页面文本日志、截图、网络上传或云端匹配。
+- 验证等级：按用户要求本批未运行测试、静态检查、构建、CI、安装或真机验证；以上均未验证。
+- 下一批：继续补 GKD 规则过滤/选择器条件管理，或切换到 Hook 自定义规则原生编辑页；并行工作线继续避免覆盖其他 AI 正在修改的文件。
