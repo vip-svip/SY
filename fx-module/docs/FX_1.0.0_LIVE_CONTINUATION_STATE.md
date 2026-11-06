@@ -7049,3 +7049,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 两份原生 Ad 页面同步升级 DIAG4 响应头、字段 allowlist、值校验及报告摘要；本地诊断报告的 SAF 文件导出继续复用该协议生成的完整报告。
 - 修改文件：`fx-module/scripts/yulong-ad-control.sh`、两份 `FxYulongAdActivity.java`。
 - 按用户要求未运行 Shell/Java 测试、静态检查、构建、CI 或 Android 真机验证。
+
+## 2026-11-07 — DNS Release-source 构建补丁器升级为完整运行契约门
+
+- `patch_yulong_dns_upstreams.py` 不再仅凭 `FX_YULONG_UPSTREAMS_BEGIN` / `FX_YULONG_DNS_RESPONSE_BEGIN` 标记就允许打包；补丁器现在同时读取已由工作流同步的 Root 控制脚本，要求 DNS Rewrite、动态 A/AAAA/TTL 拦截响应、查询日志排除、聚合统计、缓存运行参数及完整诊断 Root 命令存在。
+- AdGuard Home 源码必须保留动态上游/Fallback/Bootstrap、DNS Rewrite YAML、Root response adapter、查询日志/聚合统计/缓存配置适配、SafeSearch 与 blocked-hosts 契约。任一关键部分缺失时在打包阶段明确拒绝，不再把带旧标记或部分恢复的 Release 源误当成完整 FX DNS 实现。
+- 保留旧模板补丁路径作为向前兼容的迁移处理，但补丁结束后必须通过 FX 1.0.0 完整运行契约；因此旧模板无法单独通过当前成品打包门。
+- 同步 `fx-patches/patch_yulong_dns_upstreams.py` 与 `fx-module/build-tools/patches/patch_yulong_dns_upstreams.py`。
+- 按当前要求未运行 patcher、回归、Shell/Java 静态检查、构建、CI 或 Android 真机验证；仅完成打包链源码更新。

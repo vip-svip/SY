@@ -12,6 +12,37 @@ if not target.is_file():
     raise SystemExit(f"AdGuard Home lifecycle script is missing: {target}")
 
 source = target.read_text(encoding="utf-8")
+
+# The package workflow stages the canonical Root controller before this patcher.
+# Never package a modern renderer with a stale controller or silently retain
+# the pre-FX hard-coded upstream/response template from an older Release ZIP.
+root_control = module / "scripts" / "yulong-ad-control.sh"
+if not root_control.is_file():
+    raise SystemExit(f"FX DNS Root controller is missing: {root_control}")
+root_source = root_control.read_text(encoding="utf-8")
+required_root_contract = (
+    "dns-rewrites-get",
+    "dns-rewrites-set",
+    "dns-rewrites-yaml",
+    "dns-response-get",
+    "dns-response-config-set",
+    "RESPONSE_IPV4",
+    "RESPONSE_IPV6",
+    "RESPONSE_TTL",
+    "DNS_REWRITES",
+    "dns-querylog-runtime-get",
+    "dns-querylog-ignored-get",
+    "dns-statistics-get",
+    "dns-statistics-config-set",
+    "dns-runtime-get",
+    "dns-diagnose",
+)
+missing_root = [item for item in required_root_contract if item not in root_source]
+if missing_root:
+    raise SystemExit(
+        "FX DNS Root controller is stale or incomplete; refusing to package: "
+        + ", ".join(missing_root)
+    )
 if "FX_YULONG_UPSTREAMS_BEGIN" not in source:
     old = """  upstream_dns:
   - 127.0.0.1:5353
@@ -121,5 +152,36 @@ EOF_CFG
         )
     source = source.replace(old_response, new_response, 1)
 
+# Package only the integrated FX renderer. A marker on its own is not proof
+# that the complete runtime adapter survived a Release-source restore.
+required_renderer_contract = (
+    "FX_YULONG_UPSTREAMS_BEGIN",
+    "_build_dns_upstreams",
+    "_fallback_file",
+    "_bootstrap_file",
+    "dns-rewrites-yaml",
+    "filtering:",
+    "rewrites:",
+    "FX_YULONG_DNS_RESPONSE_BEGIN",
+    "dns-response-get",
+    "_dns_response_output=",
+    "_dns_blocking_ipv4=",
+    "_dns_blocking_ipv6=",
+    "_dns_blocked_response_ttl=",
+    "dns-querylog-runtime-get",
+    "dns-querylog-ignored-get",
+    "dns-statistics-get",
+    "dns-runtime-get",
+    "safe_search:",
+    "blocked_hosts:",
+)
+missing_renderer = [item for item in required_renderer_contract if item not in source]
+if missing_renderer:
+    raise SystemExit(
+        "AdGuard Home renderer is still a legacy/partial DNS implementation; "
+        "refusing to package an incomplete FX 1.0.0 DNS stack: "
+        + ", ".join(missing_renderer)
+    )
+
 target.write_text(source, encoding="utf-8")
-print("Patched AdGuard Home custom DNS upstreams and blocking response mode")
+print("Verified and preserved the complete FX DNS runtime contract; no legacy hard-coded DNS downgrade was applied.")
