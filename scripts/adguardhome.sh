@@ -466,7 +466,18 @@ _render_managed_config() {
     inside && /^interval=/ {
       intervals++
       value=substr($0,10)
-      if (value !~ /^[0-9]+d$/ || value ~ /^0+d$/) bad=1
+      if (value ~ /^[0-9]+d$/) {
+        retention_value=substr(value,1,length(value)-1)
+        retention_max=365
+      } else if (value ~ /^[0-9]+h$/) {
+        retention_value=substr(value,1,length(value)-1)
+        retention_max=8760
+      } else {
+        bad=1
+        next
+      }
+      if (retention_value+0<1 || retention_value+0>retention_max ||
+          int(retention_value+0)!=retention_value+0) bad=1
       next
     }
     inside { bad=1 }
