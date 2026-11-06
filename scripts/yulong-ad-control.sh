@@ -528,6 +528,7 @@ dns_config_get() {
   echo "VPN_CN|$(pg_conf vpn 2>/dev/null | sed -n 's/^cn_dns=//p' | head -n1)"
 }
 m_rule_add(){ write_rule "$1" "$2" "$3" add; }
+m_rule_rename(){ old_state=$(pg_list rule|awk -F'|' -v src="$1" '$1==src{print $3;exit}'); [ -n "$old_state" ] || return 3; write_rule "$1" "$2" "$old_state" set; }
 m_rule_set(){ old=$(pg_list rule|awk -F'|' -v src="$1" '$1==src{print $2;exit}'); [ -n "$old" ] || return 3; write_rule "$1" "$old" "$2" set; }
 m_rule_remove(){ write_rule "$1" "" 0 remove; }
 rule_add_many() {
@@ -1044,6 +1045,9 @@ case "$cmd" in
  rule-remove-many)
   [ "$#" -eq 2 ] || { echo "usage: $0 rule-remove-many base64-source-list" >&2; exit 2; }
   with_lock transaction rule_remove_many "$2" ;;
+ rule-rename)
+  [ "$#" -eq 3 ] && valid_source "$2" && valid_text "$3" || exit 2
+  with_lock transaction m_rule_rename "$2" "$3" ;;
  rule-set-many)
   [ "$#" -eq 3 ] || { echo "usage: $0 rule-set-many 0|1 base64-source-list" >&2; exit 2; }
   with_lock transaction rule_set_many "$2" "$3" ;;
