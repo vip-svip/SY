@@ -192,7 +192,7 @@
     read(k){return globalThis.$persistentStore.read(k);},
     write(v,k){return globalThis.$persistentStore.write(v,k);}
   };
-    // FX_EGERN_COMPAT_V2_BEGIN
+      // FX_EGERN_COMPAT_V2_BEGIN
   function _fxEgernHeaders(source) {
     const values=Object.create(null);
     Object.keys(source||{}).forEach(name=>{
@@ -222,13 +222,14 @@
     });
   }
   function _fxEgernMessage(source,isResponse) {
+    // Reuse the original request/response object so mutations are included in $done().
     const message=source&&typeof source==='object'?source:{};
     message.headers=_fxEgernHeaders(message.headers||{});
+    message.text=function(){return Promise.resolve(message.body==null?'':(typeof message.body==='string'?message.body:JSON.stringify(message.body)));};
+    message.json=function(){return Promise.resolve(JSON.parse(message.body==null?'':(typeof message.body==='string'?message.body:JSON.stringify(message.body))));};
     if(isResponse){
       message.status=Number(message.statusCode||message.status||200);
       message.statusCode=message.status;
-      message.text=function(){return Promise.resolve(message.body==null?'':(typeof message.body==='string'?message.body:JSON.stringify(message.body)));};
-      message.json=function(){return Promise.resolve(JSON.parse(message.body==null?'':(typeof message.body==='string'?message.body:JSON.stringify(message.body))));};
     }
     return message;
   }
@@ -271,21 +272,27 @@
   }
   const _fxEgernEnv=(_fxEvent.env&&typeof _fxEvent.env==='object')?_fxEvent.env:{};
   const _fxEgernDevice=(_fxEvent.device&&typeof _fxEvent.device==='object')?_fxEvent.device:{};
-  const _fxEgernRequest=_fxEgernMessage(globalThis.$request,false);
-  const _fxEgernResponse=_fxEgernMessage(globalThis.$response,true);
+  const _fxEgernStage=String(_fxEvent.stage||'').toLowerCase();
+  const _fxEgernHasRequest=['request','response','http-request','http-response'].indexOf(_fxEgernStage)>=0;
+  const _fxEgernHasResponse=['response','http-response'].indexOf(_fxEgernStage)>=0;
+  const _fxEgernRequest=_fxEgernHasRequest?_fxEgernMessage(globalThis.$request,false):undefined;
+  const _fxEgernResponse=_fxEgernHasResponse?_fxEgernMessage(globalThis.$response,true):undefined;
   globalThis.ctx={
     script:Object.assign({},globalThis.$script),
     env:Object.assign({},_fxEgernEnv),
     app:{version:String(globalThis.$environment.version||''),language:String(globalThis.$environment.language||'')},
     device:Object.assign({},_fxEgernDevice),
+    cron:typeof _fxEvent.cron==='string'?_fxEvent.cron:undefined,
+    widgetFamily:typeof _fxEvent.widgetFamily==='string'?_fxEvent.widgetFamily:undefined,
     request:_fxEgernRequest,
     response:_fxEgernResponse,
     http:_fxEgernHttpApi,
     storage:{
-      get(key){return globalThis.$prefs.valueForKey(String(key));},
-      set(key,value){return globalThis.$prefs.setValueForKey(value,String(key));},
-      remove(key){return globalThis.$prefs.removeValueForKey(String(key));},
-      getJSON(key){const value=this.get(key);if(value==null)return null;if(typeof value==='object')return value;try{return JSON.parse(String(value));}catch(_){return null;}}
+      get(key){const value=globalThis.$prefs.valueForKey(String(key));return value==null?null:(typeof value==='string'?value:JSON.stringify(value));},
+      set(key,value){return globalThis.$prefs.setValueForKey(String(value),String(key));},
+      getJSON(key){const value=this.get(key);if(value==null)return null;try{return JSON.parse(value);}catch(_){return null;}},
+      setJSON(key,value){try{return globalThis.$prefs.setValueForKey(JSON.stringify(value),String(key));}catch(_){return false;}},
+      delete(key){return globalThis.$prefs.removeValueForKey(String(key));}
     },
     notify(options){options=options||{};return _fxNotify(options.title||'',options.subtitle||'',options.body||'',options);},
     log(){console.log.apply(console,arguments);}
