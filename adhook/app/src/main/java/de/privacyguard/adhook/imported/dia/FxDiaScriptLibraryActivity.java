@@ -305,6 +305,8 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
             buttons.setOrientation(LinearLayout.HORIZONTAL);
             buttons.addView(button("编辑", () -> openEditor(name, source)),
                     new LinearLayout.LayoutParams(0, -2, 1));
+            buttons.addView(button("复制为草稿", () -> copyAsDraft(name)),
+                    new LinearLayout.LayoutParams(0, -2, 1));
             buttons.addView(button("删除", () -> confirmDelete(name)),
                     new LinearLayout.LayoutParams(0, -2, 1));
             row.addView(buttons);
@@ -489,6 +491,52 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
             editingName = null;
             setStatus("无法打开 JavaScript 编辑器：" + detail(error));
         }
+    }
+
+    private void copyAsDraft(String sourceName) {
+        if (scripts == null || !scripts.has(sourceName)) {
+            setStatus("源脚本已不存在，请刷新脚本库。");
+            return;
+        }
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setHint("新脚本名称");
+        String base = sourceName + " copy";
+        String suggestion = base;
+        int suffix = 2;
+        while (scripts.has(suggestion) && suffix < 1000) {
+            suggestion = base + " " + suffix++;
+        }
+        input.setText(suggestion);
+        input.setSelection(input.getText().length());
+        fxDialogBuilder().setTitle("复制为独立草稿")
+                .setMessage("复制“" + sourceName + "”的源码到一个新名称。原脚本不会被修改；复制内容只保存到本地库，不会自动执行或注入。")
+                .setView(input)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("复制", (dialog, which) -> {
+                    String newName = FxDiaScriptLibraryPolicy.normalizeName(
+                            input.getText() == null ? "" : input.getText().toString());
+                    String error = FxDiaScriptLibraryPolicy.validateName(newName);
+                    if (error != null) {
+                        setStatus(error);
+                        return;
+                    }
+                    submitIo(() -> {
+                        try {
+                            FxDiaScriptLibraryStore.copy(this, sourceName, newName);
+                            JSONObject loaded = FxDiaScriptLibraryStore.read(this);
+                            runOnUiThread(() -> {
+                                if (isFinishing() || isDestroyed()) return;
+                                scripts = loaded;
+                                currentPage = 0;
+                                renderRows();
+                                setStatus("已复制为新草稿：“" + newName + "”。原脚本保持不变，副本未执行。");
+                            });
+                        } catch (Throwable error) {
+                            runOnUiThread(() -> setStatus("复制脚本失败：" + detail(error)));
+                        }
+                    });
+                }).show();
     }
 
     private void confirmDelete(String name) {
