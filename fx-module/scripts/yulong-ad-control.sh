@@ -33,6 +33,8 @@ _yad_rule_add_clean=
 _yad_profile_raw=
 _yad_bundle_raw=
 _yad_bundle_clean=
+_yad_rewrite_raw=
+_yad_rewrite_clean=
 _yad_cleanup() {
   [ -z "$_yad_conf_tmp" ] || rm -f "$_yad_conf_tmp" 2>/dev/null || :
   [ -z "$_yad_transaction_backup" ] || rm -f "$_yad_transaction_backup" 2>/dev/null || :
@@ -54,6 +56,8 @@ _yad_cleanup() {
   [ -z "$_yad_profile_raw" ] || rm -f "$_yad_profile_raw" 2>/dev/null || :
   [ -z "$_yad_bundle_raw" ] || rm -f "$_yad_bundle_raw" 2>/dev/null || :
   [ -z "$_yad_bundle_clean" ] || rm -f "$_yad_bundle_clean" 2>/dev/null || :
+  [ -z "$_yad_rewrite_raw" ] || rm -f "$_yad_rewrite_raw" 2>/dev/null || :
+  [ -z "$_yad_rewrite_clean" ] || rm -f "$_yad_rewrite_clean" 2>/dev/null || :
 }
 trap '_yad_cleanup' 0
 trap '_yad_cleanup; exit 129' HUP
@@ -1146,6 +1150,7 @@ dns_profile_get() {
   _profile_querylog_ignored_enabled=$(printf '%s\n' "$_querylog_ignored_record" | sed -n 's/^QUERYLOG_IGNORED_ENABLED=//p')
   _profile_querylog_ignored=$(printf '%s\n' "$_querylog_ignored_record" | sed -n 's/^QUERYLOG_IGNORED=//p')
   [ -n "$_profile_querylog_ignored_enabled" ] || { echo "DNS query-log ignored-domain flag is unavailable" >&2; return 22; }
+  _profile_dns_rewrites=$(dns_rewrites_values | awk '{if(NR>1)printf ",";printf "%s",$0}') || return $?
   _statistics_record=$(dns_statistics_values) || { echo "DNS statistics settings are unavailable" >&2; return 22; }
   _profile_statistics_enabled=$(printf '%s\n' "$_statistics_record" | sed -n 's/^STATISTICS_ENABLED=//p')
   _profile_statistics_interval=$(printf '%s\n' "$_statistics_record" | sed -n 's/^STATISTICS_INTERVAL=//p')
@@ -1171,6 +1176,7 @@ dns_profile_get() {
   printf 'QUERYLOG_MEMORY_SIZE=%s\n' "$_profile_querylog_memory_size"
   printf 'QUERYLOG_IGNORED_ENABLED=%s\n' "$_profile_querylog_ignored_enabled"
   printf 'QUERYLOG_IGNORED=%s\n' "$_profile_querylog_ignored"
+  printf 'DNS_REWRITES=%s\\n' "$_profile_dns_rewrites"
   printf 'STATISTICS_ENABLED=%s\n' "$_profile_statistics_enabled"
   printf 'STATISTICS_INTERVAL=%s\n' "$_profile_statistics_interval"
   printf 'STATISTICS_IGNORED_ENABLED=%s\n' "$_profile_statistics_ignored_enabled"
@@ -1193,16 +1199,17 @@ dns_profile_restore() {
       if(index($0,"=")<2 || $0 ~ /\r/){bad=1;next}
       key=substr($0,1,index($0,"=")-1)
       value=substr($0,index($0,"=")+1)
-      if(key !~ /^(dns_engine_adguardhome|dns_forward|custom_dns|global_dns|block_quic|block_dot|block_plain_dns|block_ipv6|block_track_domains|vpn_external_dns_proxy|vpn_external_compat|dns_querylog_enabled|CUSTOM_SERVERS|GLOBAL_SERVERS|FALLBACK_SERVERS|VPN_REMOTE|VPN_CN|RESPONSE_MODE|QUERYLOG_RETENTION|QUERYLOG_MEMORY_SIZE|QUERYLOG_IGNORED_ENABLED|QUERYLOG_IGNORED|STATISTICS_ENABLED|STATISTICS_INTERVAL|STATISTICS_IGNORED_ENABLED|STATISTICS_IGNORED|UPSTREAM_MODE|FASTEST_TIMEOUT|UPSTREAM_TIMEOUT|CACHE_SIZE|CACHE_TTL_MIN|CACHE_TTL_MAX|CACHE_OPTIMISTIC_ANSWER_TTL|CACHE_OPTIMISTIC_MAX_AGE|CACHE_ENABLED|CACHE_OPTIMISTIC|ENABLE_DNSSEC|UNBOUND_CACHE_MAX_TTL|UNBOUND_CACHE_MIN_TTL|UNBOUND_SERVE_EXPIRED|UNBOUND_SERVE_EXPIRED_TTL|UNBOUND_SERVE_EXPIRED_REPLY_TTL|UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT|UNBOUND_PREFETCH|UNBOUND_PREFETCH_KEY|UNBOUND_QNAME_MINIMISATION|UNBOUND_MSG_CACHE_SIZE|UNBOUND_RRSET_CACHE_SIZE|UNBOUND_KEY_CACHE_SIZE|UNBOUND_NEG_CACHE_SIZE|UNBOUND_NUM_THREADS)$/)bad=1
+      if(key !~ /^(dns_engine_adguardhome|dns_forward|custom_dns|global_dns|block_quic|block_dot|block_plain_dns|block_ipv6|block_track_domains|vpn_external_dns_proxy|vpn_external_compat|dns_querylog_enabled|CUSTOM_SERVERS|GLOBAL_SERVERS|FALLBACK_SERVERS|VPN_REMOTE|VPN_CN|RESPONSE_MODE|QUERYLOG_RETENTION|QUERYLOG_MEMORY_SIZE|QUERYLOG_IGNORED_ENABLED|QUERYLOG_IGNORED|DNS_REWRITES|STATISTICS_ENABLED|STATISTICS_INTERVAL|STATISTICS_IGNORED_ENABLED|STATISTICS_IGNORED|UPSTREAM_MODE|FASTEST_TIMEOUT|UPSTREAM_TIMEOUT|CACHE_SIZE|CACHE_TTL_MIN|CACHE_TTL_MAX|CACHE_OPTIMISTIC_ANSWER_TTL|CACHE_OPTIMISTIC_MAX_AGE|CACHE_ENABLED|CACHE_OPTIMISTIC|ENABLE_DNSSEC|UNBOUND_CACHE_MAX_TTL|UNBOUND_CACHE_MIN_TTL|UNBOUND_SERVE_EXPIRED|UNBOUND_SERVE_EXPIRED_TTL|UNBOUND_SERVE_EXPIRED_REPLY_TTL|UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT|UNBOUND_PREFETCH|UNBOUND_PREFETCH_KEY|UNBOUND_QNAME_MINIMISATION|UNBOUND_MSG_CACHE_SIZE|UNBOUND_RRSET_CACHE_SIZE|UNBOUND_KEY_CACHE_SIZE|UNBOUND_NEG_CACHE_SIZE|UNBOUND_NUM_THREADS)$/)bad=1
       if(seen[key]++)bad=1
       count++
     }
-    END{if(bad||(count!=18&&count!=19&&count!=26&&count!=30&&count!=38&&count!=39&&count!=43&&count!=44&&count!=46&&count!=48&&count!=49&&count!=51))exit 1}
+    END{if(bad||(count!=18&&count!=19&&count!=26&&count!=30&&count!=38&&count!=39&&count!=43&&count!=44&&count!=46&&count!=48&&count!=49&&count!=51&&count!=52))exit 1}
   ' "$_yad_profile_raw" || { echo "DNS profile has unknown, duplicate, missing, or malformed fields" >&2; return 2; }
   _profile_querylog_retention=7d
   _profile_querylog_memory_size=1000
   _profile_querylog_ignored_enabled=0
   _profile_querylog_ignored=
+  _profile_dns_rewrites=
   _profile_statistics_enabled=0
   _profile_statistics_interval=10d
   _profile_statistics_ignored_enabled=0
@@ -1270,6 +1277,9 @@ dns_profile_restore() {
         ;;
       QUERYLOG_IGNORED)
         _profile_querylog_ignored=$(valid_dns_querylog_domains "$_profile_value") || { echo "invalid DNS query-log ignored-domain list" >&2; return 2; }
+        ;;
+      DNS_REWRITES)
+        _profile_dns_rewrites=$_profile_value
         ;;
       STATISTICS_ENABLED)
         case "$_profile_value" in 0|1) _profile_statistics_enabled=$_profile_value ;; *) echo "invalid DNS statistics enabled flag" >&2; return 2 ;; esac
@@ -1432,6 +1442,8 @@ dns_profile_restore() {
   write_dns_querylog_retention "$_profile_querylog_retention" || return 1
   write_dns_querylog_runtime "$_profile_querylog_memory_size" || return 1
   write_dns_querylog_ignored_settings "$_profile_querylog_ignored_enabled" "$_profile_querylog_ignored" || return 1
+  _profile_dns_rewrites_b64=$(printf '%s' "$_profile_dns_rewrites" | tr ',' '\n' | base64 | tr -d '\n') || return 1
+  dns_rewrites_set_many "$_profile_dns_rewrites_b64" || return 1
   write_dns_statistics_settings "$_profile_statistics_enabled" "$_profile_statistics_interval" "$_profile_statistics_ignored_enabled" "$_profile_statistics_ignored" || return 1
   awk -v min="$_profile_runtime_cache_ttl_min" -v max="$_profile_runtime_cache_ttl_max" 'BEGIN{exit !(min+0<=max+0)}' || { echo "DNS profile cache TTL minimum exceeds maximum" >&2; return 2; }
   write_dns_runtime_settings "$_profile_runtime_mode" "$_profile_runtime_fastest" "$_profile_runtime_timeout" "$_profile_runtime_cache_size" "$_profile_runtime_cache_enabled" "$_profile_runtime_cache_optimistic" "$_profile_runtime_dnssec" "$_profile_runtime_cache_ttl_min" "$_profile_runtime_cache_ttl_max" "$_profile_runtime_optimistic_answer_ttl" "$_profile_runtime_optimistic_max_age" || return 1
@@ -1752,6 +1764,213 @@ write_dns_querylog_ignored_settings() {
 dns_querylog_ignored_config_set() {
   write_dns_querylog_ignored_settings "$1" "$2" || return $?
   printf 'querylog_ignored_enabled=%s\n' "$1"
+}
+valid_dns_rewrite_ipv4() {
+  printf '%s\n' "$1" | awk -F. '
+    NF!=4 {exit 1}
+    {
+      for(i=1;i<=4;i++)
+        if($i!~/^[0-9]+$/ || length($i)>3 || $i+0>255 ||
+           ($i!="0" && $i~/^0/)) exit 1
+    }
+  '
+}
+valid_dns_rewrite_ipv6() {
+  printf '%s\n' "$1" | awk '
+    function valid_ipv6(v,pos,left,right,count,i,n,a,b) {
+      if(v=="" || v !~ /^[0-9A-Fa-f:]+$/ || v~/:::/) return 0
+      pos=index(v,"::")
+      if(pos && index(substr(v,pos+2),"::")) return 0
+      count=0
+      if(pos) {
+        left=substr(v,1,pos-1); right=substr(v,pos+2)
+        if(left!="") {
+          n=split(left,a,":")
+          for(i=1;i<=n;i++) if(a[i]!~/^[0-9A-Fa-f][0-9A-Fa-f]?[0-9A-Fa-f]?[0-9A-Fa-f]?$/) return 0
+          count+=n
+        }
+        if(right!="") {
+          n=split(right,b,":")
+          for(i=1;i<=n;i++) if(b[i]!~/^[0-9A-Fa-f][0-9A-Fa-f]?[0-9A-Fa-f]?[0-9A-Fa-f]?$/) return 0
+          count+=n
+        }
+        return count<8
+      }
+      n=split(v,a,":")
+      if(n!=8) return 0
+      for(i=1;i<=n;i++) if(a[i]!~/^[0-9A-Fa-f][0-9A-Fa-f]?[0-9A-Fa-f]?[0-9A-Fa-f]?$/) return 0
+      return 1
+    }
+    {if(!valid_ipv6($0))exit 1}
+  '
+}
+valid_dns_rewrite_answer() {
+  _rewrite_answer=$1
+  case "$_rewrite_answer" in
+    *[!0-9.]*)
+      case "$_rewrite_answer" in
+        *:*)
+          valid_dns_rewrite_ipv6 "$_rewrite_answer" || return 1
+          printf '%s' "$_rewrite_answer" | tr 'A-F' 'a-f'
+          ;;
+        *)
+          valid_domain "$_rewrite_answer"
+          ;;
+      esac
+      ;;
+    *)
+      valid_dns_rewrite_ipv4 "$_rewrite_answer" || return 1
+      printf '%s' "$_rewrite_answer"
+      ;;
+  esac
+}
+dns_rewrites_values() {
+  awk -F= '
+    function valid_domain(v,n,a,i) {
+      v=tolower(v)
+      if(v=="" || length(v)>253 || v~/\.\./ || v~/^[.]|[.]$/ || v~/[^a-z0-9.-]/) return 0
+      n=split(v,a,".")
+      for(i=1;i<=n;i++)
+        if(length(a[i])<1 || length(a[i])>63 ||
+           a[i]!~/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/) return 0
+      return 1
+    }
+    function valid_ipv4(v,n,a,i) {
+      n=split(v,a,".")
+      if(n!=4)return 0
+      for(i=1;i<=4;i++)
+        if(a[i]!~/^[0-9]+$/ || length(a[i])>3 || a[i]+0>255 ||
+           (a[i]!="0" && a[i]~/^0/)) return 0
+      return 1
+    }
+    function valid_ipv6(v,pos,left,right,count,i,n,a,b) {
+      if(v=="" || v !~ /^[0-9A-Fa-f:]+$/ || v~/:::/) return 0
+      pos=index(v,"::")
+      if(pos && index(substr(v,pos+2),"::")) return 0
+      count=0
+      if(pos) {
+        left=substr(v,1,pos-1); right=substr(v,pos+2)
+        if(left!="") {
+          n=split(left,a,":")
+          for(i=1;i<=n;i++) if(a[i]!~/^[0-9A-Fa-f][0-9A-Fa-f]?[0-9A-Fa-f]?[0-9A-Fa-f]?$/) return 0
+          count+=n
+        }
+        if(right!="") {
+          n=split(right,b,":")
+          for(i=1;i<=n;i++) if(b[i]!~/^[0-9A-Fa-f][0-9A-Fa-f]?[0-9A-Fa-f]?[0-9A-Fa-f]?$/) return 0
+          count+=n
+        }
+        return count<8
+      }
+      n=split(v,a,":")
+      if(n!=8)return 0
+      for(i=1;i<=n;i++) if(a[i]!~/^[0-9A-Fa-f][0-9A-Fa-f]?[0-9A-Fa-f]?[0-9A-Fa-f]?$/) return 0
+      return 1
+    }
+    function valid_answer(v) {
+      if(v~/^[0-9.]+$/) return valid_ipv4(v)
+      if(v~/^[0-9A-Fa-f:]+$/ && index(v,":")) return valid_ipv6(v)
+      return valid_domain(v)
+    }
+    BEGIN {inside=0; sections=0; bad=0}
+    $0=="[conf:yulong_dns_rewrites]" {sections++; if(sections>1)bad=1; inside=1; next}
+    /^\[/ {inside=0}
+    inside && /^[[:space:]]*#/ {next}
+    inside && /^[[:space:]]*$/ {next}
+    inside {
+      if(substr($0,1,8)!="rewrite="){bad=1;next}
+      value=substr($0,9)
+      parts=split(value,p,"|")
+      host=tolower(p[1]); answer=tolower(p[2])
+      if(parts!=2 || !valid_domain(host) || !valid_answer(answer) || seen[host]++){bad=1;next}
+      print host "|" answer
+    }
+    END {if(sections>1 || bad)exit 1}
+  ' "$CONF" 2>/dev/null
+}
+dns_rewrites_get() {
+  echo FXYULONGDNSRW1
+  dns_rewrites_values
+}
+dns_rewrites_yaml() {
+  _rewrite_rows=$(dns_rewrites_values) || {
+    echo "DNS rewrite settings are malformed or ambiguous" >&2
+    return 22
+  }
+  [ -n "$_rewrite_rows" ] || return 0
+  while IFS='|' read -r _rewrite_domain _rewrite_answer; do
+    [ -n "$_rewrite_domain" ] || continue
+    printf '  - domain: "%s"\n    answer: "%s"\n' "$_rewrite_domain" "$_rewrite_answer"
+  done <<EOF_REWRITE_ROWS
+$_rewrite_rows
+EOF_REWRITE_ROWS
+}
+dns_rewrites_set_many() {
+  _rewrite_encoded=$1
+  case "$_rewrite_encoded" in *[!A-Za-z0-9+/=]*) echo "invalid DNS rewrite list encoding" >&2; return 2 ;; esac
+  _yad_rewrite_raw=$(mktemp "$PG/yulong-dns-rewrites.XXXXXX") || return 1
+  _yad_rewrite_clean=$(mktemp "$PG/yulong-dns-rewrites-clean.XXXXXX") || return 1
+  chmod 600 "$_yad_rewrite_raw" "$_yad_rewrite_clean" || return 1
+  (umask 077; printf '%s' "$_rewrite_encoded" | base64 -d > "$_yad_rewrite_raw") || {
+    echo "unable to decode DNS rewrite list" >&2
+    return 2
+  }
+  dns_rewrites_values >/dev/null || {
+    echo "existing DNS rewrite settings are malformed or ambiguous" >&2
+    return 22
+  }
+  _rewrite_count=0
+  while IFS='|' read -r _rewrite_domain _rewrite_answer _rewrite_extra ||
+        [ -n "$_rewrite_domain$_rewrite_answer$_rewrite_extra" ]; do
+    _rewrite_domain=$(printf '%s' "$_rewrite_domain" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    _rewrite_answer=$(printf '%s' "$_rewrite_answer" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    [ -n "$_rewrite_domain$_rewrite_answer$_rewrite_extra" ] || continue
+    [ -z "$_rewrite_extra" ] || { echo "DNS rewrite rows must use domain|answer" >&2; return 2; }
+    _rewrite_domain=$(valid_domain "$_rewrite_domain") || { echo "invalid DNS rewrite source domain" >&2; return 2; }
+    _rewrite_answer=$(valid_dns_rewrite_answer "$_rewrite_answer") || { echo "invalid DNS rewrite answer for $_rewrite_domain" >&2; return 2; }
+    if awk -F'|' -v domain="$_rewrite_domain" '$1==domain{found=1} END{exit !found}' "$_yad_rewrite_clean"; then
+      echo "duplicate DNS rewrite source domain: $_rewrite_domain" >&2
+      return 2
+    fi
+    printf '%s|%s\n' "$_rewrite_domain" "$_rewrite_answer" >> "$_yad_rewrite_clean" || return 1
+    _rewrite_count=$((_rewrite_count + 1))
+  done < "$_yad_rewrite_raw"
+  _rewrite_tmp=$(mktemp "$CONF.yulong-dns-rewrites.XXXXXX") || return 1
+  _yad_conf_tmp=$_rewrite_tmp
+  if ! awk -v rows="$_yad_rewrite_clean" '
+    function emit(row) {
+      while((getline row < rows)>0) print "rewrite=" row
+      close(rows)
+    }
+    $0=="[conf:yulong_dns_rewrites]" {
+      if(seen++)bad=1
+      print
+      emit()
+      inside=1
+      written=1
+      next
+    }
+    /^\[/ {inside=0;print;next}
+    inside {next}
+    {print}
+    END {
+      if(bad)exit 1
+      if(!written){print "";print "[conf:yulong_dns_rewrites]";emit()}
+    }
+  ' "$CONF" > "$_rewrite_tmp"; then
+    rm -f "$_rewrite_tmp"; _yad_conf_tmp=
+    echo "unable to stage DNS rewrite settings" >&2
+    return 1
+  fi
+  if [ -s "$_rewrite_tmp" ] && chmod 600 "$_rewrite_tmp" && mv -f "$_rewrite_tmp" "$CONF"; then
+    _yad_conf_tmp=
+    rm -f "$_yad_rewrite_raw" "$_yad_rewrite_clean"
+    _yad_rewrite_raw=; _yad_rewrite_clean=
+    echo "dns_rewrites=updated count=$_rewrite_count"
+    return 0
+  fi
+  rm -f "$_rewrite_tmp"; _yad_conf_tmp=
+  return 1
 }
 valid_dns_statistics_domains() {
   printf '%s\n' "$1" | awk -F, '
@@ -2663,6 +2882,18 @@ case "$cmd" in
  dns-querylog-ignored-set)
   [ "$#" -eq 3 ] || { echo "usage: $0 dns-querylog-ignored-set 0|1 domain-csv" >&2; exit 2; }
   with_lock transaction dns_querylog_ignored_config_set "$2" "$3"
+  ;;
+ dns-rewrites-get)
+  [ "$#" -eq 1 ] || exit 2
+  dns_rewrites_get
+  ;;
+ dns-rewrites-set)
+  [ "$#" -eq 2 ] || { echo "usage: $0 dns-rewrites-set base64-domain-answer-rows" >&2; exit 2; }
+  with_lock transaction dns_rewrites_set_many "$2"
+  ;;
+ dns-rewrites-yaml)
+  [ "$#" -eq 1 ] || exit 2
+  dns_rewrites_yaml
   ;;
  dns-statistics-get)
   [ "$#" -eq 1 ] || exit 2
