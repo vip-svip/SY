@@ -6984,3 +6984,7 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `schedule`、`generic`、`network` 不会错误转换成 HTTP Hook；带 `env`、`binary_body` 或非默认 timeout / max_size / update_interval 的条目会跳过，因为现有 FX 订阅协议无法无损表达这些字段。只允许 HTTPS 远程源，未把本地路径转换成远程订阅。
 - 修正脚本导入去重键的分隔符为真实换行，保持与 Base64 解码后的订阅元数据字段结构一致。
 - 本轮仅提交源码和说明；按要求未运行测试、静态检查、构建、CI 或真机验证。
+## 2026-11-06 — 脚本订阅同步临时文件并发隔离
+
+- `fx-module/scripts/jsruntime/sync-subs.sh`（`7a92d1d9fbadf0d3887d3dd61fb72f244b85df89`）修复元数据包装临时路径从 `.wrap.$$` 截断为 `.wrap.$` 的问题，恢复按进程 PID 隔离，避免并发订阅同步时覆盖共享临时文件。
+- 按当前推进要求未运行测试、静态检查、构建、CI 或设备验证。
