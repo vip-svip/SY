@@ -2379,6 +2379,7 @@ public final class MainActivity extends ComponentActivity {
         final int maxEntries = Math.min(entries.length(), offset + 512);
         int nextOffset = offset;
         long manifestBytes = 0L;
+        int stagingFailed = 0;
         java.io.File manifest = null;
         try {
             manifest = java.io.File.createTempFile("fx-native-script-batch-", ".list", getCacheDir());
@@ -2386,6 +2387,7 @@ public final class MainActivity extends ComponentActivity {
                 for (int i = offset; i < maxEntries; i++) {
                     JSONObject entry = entries.optJSONObject(i);
                     if (entry == null) {
+                        stagingFailed++;
                         nextOffset = i + 1;
                         continue;
                     }
@@ -2401,7 +2403,9 @@ public final class MainActivity extends ComponentActivity {
                     } else {
                         int sourceBytes = nativeScriptUtf8Bytes(value);
                         if (sourceBytes <= 0 || sourceBytes > 1048576) {
-                            throw new IllegalArgumentException("第 " + (i + 1) + " 项本地 JS 源码为空或超过 1 MiB");
+                            stagingFailed++;
+                            nextOffset = i + 1;
+                            continue;
                         }
                         kind = "SOURCE";
                         storedValue = value;
@@ -2415,7 +2419,9 @@ public final class MainActivity extends ComponentActivity {
                         break;
                     }
                     if (row.length > 7L * 1024L * 1024L) {
-                        throw new IllegalArgumentException("单条脚本导入记录超过批量清单上限");
+                        stagingFailed++;
+                        nextOffset = i + 1;
+                        continue;
                     }
                     output.write(row);
                     manifestBytes += row.length;
@@ -2424,11 +2430,17 @@ public final class MainActivity extends ComponentActivity {
                 output.flush();
                 output.getFD().sync();
             }
-            if (nextOffset <= offset || manifest.length() <= 0) {
-                throw new IllegalStateException("批量导入清单为空");
+            if (nextOffset <= offset) {
+                throw new IllegalStateException("批量导入没有可写入的项目");
+            }
+            if (manifest.length() <= 0) {
+                importNativeScriptBatch(entries, nextOffset, totalAdded,
+                        totalDuplicate, totalFailed + stagingFailed);
+                return;
             }
             final java.io.File staged = manifest;
             final int nextBatchOffset = nextOffset;
+            final int batchStagingFailed = stagingFailed;
             String command = nativeScriptStoreCommand("add-batch", shellQuote(staged.getAbsolutePath()));
             runNativeModuleCommand(command, 120000L, result -> {
                 if (staged.exists() && !staged.delete()) staged.deleteOnExit();
@@ -2447,7 +2459,8 @@ public final class MainActivity extends ComponentActivity {
                     return;
                 }
                 importNativeScriptBatch(entries, nextBatchOffset,
-                        totalAdded + added, totalDuplicate + duplicate, totalFailed + failed);
+                        totalAdded + added, totalDuplicate + duplicate,
+                        totalFailed + failed + batchStagingFailed);
             });
         } catch (Exception error) {
             if (manifest != null && manifest.exists()) manifest.delete();
