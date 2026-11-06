@@ -526,29 +526,70 @@ write_dns_querylog_retention() {
   case "$interval" in 1d|3d|7d|30d) : ;; *) return 2 ;; esac
   tmp=$(mktemp "$CONF.yulong-querylog-retention.XXXXXX") || return 1
   _yad_conf_tmp=$tmp
-  awk -v interval="$interval" '
-    BEGIN{inside=0;seen=0;written=0}
+  # Validate the existing section before rewriting it. Never collapse duplicate
+  # sections/keys or silently discard unknown values during a user mutation.
+  if ! awk '
+    BEGIN { inside=0; sections=0; intervals=0; bad=0 }
     $0=="[conf:yulong_dns_querylog_retention]" {
-      if(inside&&!written){print "interval=" interval;written=1}
-      inside=1;seen=1;print;next
+      sections++
+      if (inside || sections>1) bad=1
+      inside=1
+      next
+    }
+    /^\[/ { inside=0 }
+    inside && /^[[:space:]]*#/ { next }
+    inside && /^[[:space:]]*$/ { next }
+    inside && /^interval=/ { intervals++; next }
+    inside { bad=1 }
+    END { if (sections>1 || intervals>1 || bad) exit 1 }
+  ' "$CONF"; then
+    rm -f "$tmp"; _yad_conf_tmp=
+    echo "existing DNS query-log retention section is ambiguous or malformed" >&2
+    return 22
+  fi
+  if ! awk -v interval="$interval" '
+    BEGIN { inside=0; seen=0; written=0 }
+    $0=="[conf:yulong_dns_querylog_retention]" {
+      inside=1; seen=1; print; next
     }
     /^\[/ {
-      if(inside&&!written){print "interval=" interval;written=1}
-      inside=0;print;next
+      if (inside && !written) { print "interval=" interval; written=1 }
+      inside=0; print; next
     }
-    inside&&/^interval=/ {if(!written)print "interval=" interval;written=1;next}
-    {print}
-    END{
-      if(inside&&!written)print "interval=" interval
-      if(!seen){print "";print "[conf:yulong_dns_querylog_retention]";print "interval=" interval}
+    inside && /^interval=/ {
+      if (!written) print "interval=" interval
+      written=1; next
     }
-  ' "$CONF" > "$tmp" || { rm -f "$tmp"; _yad_conf_tmp=; return 1; }
+    { print }
+    END {
+      if (inside && !written) print "interval=" interval
+      if (!seen) { print ""; print "[conf:yulong_dns_querylog_retention]"; print "interval=" interval }
+    }
+  ' "$CONF" > "$tmp"; then
+    rm -f "$tmp"; _yad_conf_tmp=; return 1
+  fi
   if [ -s "$tmp" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"; then _yad_conf_tmp=; return 0; fi
   rm -f "$tmp"; _yad_conf_tmp=; return 1
 }
 dns_querylog_retention_get() {
-  value=$(awk '$0=="[conf:yulong_dns_querylog_retention]"{inside=1;next} /^\[/{inside=0} inside&&/^interval=/{sub(/^interval=/,"");print;exit}' "$CONF" 2>/dev/null)
-  case "$value" in 1d|3d|7d|30d) ;; *) value=7d ;; esac
+  value=$(awk '
+    BEGIN { inside=0; sections=0; intervals=0; value=""; bad=0 }
+    $0=="[conf:yulong_dns_querylog_retention]" { sections++; inside=1; next }
+    /^\[/ { inside=0 }
+    inside && /^[[:space:]]*#/ { next }
+    inside && /^[[:space:]]*$/ { next }
+    inside && /^interval=/ { intervals++; value=substr($0,10); next }
+    inside { bad=1 }
+    END {
+      if (sections>1 || intervals>1 || bad) exit 1
+      if (sections==0) { print "7d"; exit }
+      if (intervals==1 && (value=="1d" || value=="3d" || value=="7d" || value=="30d")) print value
+      else exit 1
+    }
+  ' "$CONF" 2>/dev/null) || {
+    echo "querylog_retention=unknown"
+    return 22
+  }
   echo "querylog_retention=$value"
 }
 dns_querylog_retention_set() {
