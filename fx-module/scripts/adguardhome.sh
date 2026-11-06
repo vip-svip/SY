@@ -254,6 +254,94 @@ _build_filter_sources() {
   chmod 600 "$_output" 2>/dev/null || return 1
   return 0
 }
+
+# FX_YULONG_UPSTREAMS_BEGIN
+_dns_setting_flag() {
+  _flag_key=$1
+  awk -F= -v key="$_flag_key" '
+    function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
+    /^[[:space:]]*#/ { next }
+    index($0, "=") {
+      line=$0
+      split(line, pair, "=")
+      name=trim(pair[1])
+      if (name==key) {
+        count++
+        value=trim(substr(line, index(line, "=")+1))
+        if (value !~ /^[01]$/) bad=1
+      }
+    }
+    END {
+      if (count==0) { print "0"; exit }
+      if (count!=1 || bad) exit 1
+      print value
+    }
+  ' "$PG/settings.conf"
+}
+_build_dns_upstreams() {
+  _section=$1
+  _mode=$2
+  _output=$3
+  awk -v section="$_section" -v mode="$_mode" '
+    function valid_ipv4(v, n, a, i) {
+      n=split(v,a,".")
+      if(n!=4) return 0
+      for(i=1;i<=4;i++)
+        if(a[i]!~/^[0-9]+$/ || length(a[i])>3 || a[i]+0>255 ||
+           (a[i]!="0" && a[i]~/^0/)) return 0
+      if(v=="0.0.0.0" || v=="255.255.255.255") return 0
+      return 1
+    }
+    function dns_host(v) {
+      return v~/^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/ && v!~/\\.\\./
+    }
+    function valid_hostport(v, n, a) {
+      n=split(v,a,":")
+      if(n==1) return dns_host(a[1])
+      if(n==2) return dns_host(a[1]) && a[2]~/^[0-9]+$/ &&
+        a[2]+0>=1 && a[2]+0<=65535
+      return 0
+    }
+    function valid_endpoint(v, rest, parts, authority) {
+      if(valid_ipv4(v)) return 1
+      if(substr(v,1,8)=="https://") {
+        rest=substr(v,9)
+        split(rest,parts,"/")
+        authority=parts[1]
+        if(!valid_hostport(authority)) return 0
+        return rest~/^[A-Za-z0-9.-]+(:[0-9]+)?(\\/[A-Za-z0-9._~!$&()*+,;=:@%/?#-]*)?$/
+      }
+      if(substr(v,1,6)=="tls://") return valid_hostport(substr(v,7))
+      if(substr(v,1,7)=="quic://") return valid_hostport(substr(v,8))
+      return 0
+    }
+    BEGIN { inside=0; sections=0; count=0; bad=0 }
+    $0=="[conf:" section "]" {
+      sections++
+      if(sections>1 || inside) bad=1
+      inside=1
+      next
+    }
+    /^\\[/ { inside=0 }
+    inside && /^[[:space:]]*#/ { next }
+    inside && /^[[:space:]]*$/ { next }
+    inside {
+      if(NF!=2 || $1!="nameserver") {bad=1; next}
+      server=$2
+      if(mode=="ipv4" ? !valid_ipv4(server) : !valid_endpoint(server)) {
+        bad=1
+        next
+      }
+      normalized=tolower(server)
+      if(seen[normalized]++) {bad=1; next}
+      print "  - \\"" server "\\""
+      count++
+    }
+    END { if(bad || sections!=1 || count<1) exit 1 }
+  ' "$PG/settings.conf" > "$_output"
+}
+# FX_YULONG_UPSTREAMS_END
+
 _render_managed_config() {
   _rules_file=$(_new_private_temp "$STATE/user-rules.XXXXXX") || return 1
   _filters_file=$(_new_private_temp "$STATE/filter-sources.XXXXXX") || {
@@ -264,13 +352,55 @@ _render_managed_config() {
     rm -f "$_rules_file" "$_filters_file" 2>/dev/null || :
     return 1
   }
-  _config_file=$(_new_private_temp "$STATE/AdGuardHome.yaml.tmp.XXXXXX") || {
+  _upstream_file=$(_new_private_temp "$STATE/upstream-dns.XXXXXX") || {
     rm -f "$_rules_file" "$_filters_file" "$_fallback_file" 2>/dev/null || :
     return 1
   }
-  if ! _build_user_rules "$_rules_file" || ! _build_filter_sources "$_filters_file"; then
-    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_config_file" 2>/dev/null || :
+  _bootstrap_file=$(_new_private_temp "$STATE/bootstrap-dns.XXXXXX") || {
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" 2>/dev/null || :
     return 1
+  }
+  _config_file=$(_new_private_temp "$STATE/AdGuardHome.yaml.tmp.XXXXXX") || {
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" 2>/dev/null || :
+    return 1
+  }
+  [ -f "$PG/settings.conf" ] && [ ! -L "$PG/settings.conf" ] && [ -r "$PG/settings.conf" ] || {
+    _log 'settings.conf is missing, unreadable or unsafe; refusing DNS config render'
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
+    return 1
+  }
+  if ! _build_user_rules "$_rules_file" || ! _build_filter_sources "$_filters_file"; then
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
+    return 1
+  fi
+  _custom_dns_enabled=$(_dns_setting_flag custom_dns) || {
+    _log 'custom DNS enable flag is duplicated or malformed'
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
+    return 1
+  }
+  _global_dns_enabled=$(_dns_setting_flag global_dns) || {
+    _log 'global DNS enable flag is duplicated or malformed'
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
+    return 1
+  }
+  if [ "$_global_dns_enabled" = 1 ]; then
+    _build_dns_upstreams global_dns ipv4 "$_upstream_file" || {
+      _log 'global DNS is enabled but its complete upstream list is invalid'
+      rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
+      return 1
+    }
+  elif [ "$_custom_dns_enabled" = 1 ]; then
+    _build_dns_upstreams custom_dns any "$_upstream_file" || {
+      _log 'custom DNS is enabled but its complete upstream list is invalid'
+      rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
+      return 1
+    }
+  else
+    printf '  - 127.0.0.1:5353\n' > "$_upstream_file" || return 1
+  fi
+  : > "$_bootstrap_file" || return 1
+  if grep -Eq 'https://|tls://|quic://' "$_upstream_file"; then
+    printf '  - 223.5.5.5\n  - 1.1.1.1\n' > "$_bootstrap_file" || return 1
   fi
   _querylog_interval=$(awk '
     BEGIN { inside=0; sections=0; intervals=0; value=""; bad=0 }
@@ -363,11 +493,31 @@ _render_managed_config() {
     _log 'saved fallback DNS list is invalid; refusing to render AdGuard config'
     return 1
   fi
-  if ! awk -v querylog_interval="$_querylog_interval" -v dns_response_mode="$_dns_response_mode" -v rules_file="$_rules_file" -v filters_file="$_filters_file" -v fallback_file="$_fallback_file" '
+  if ! awk -v querylog_interval="$_querylog_interval" -v dns_response_mode="$_dns_response_mode" -v rules_file="$_rules_file" -v filters_file="$_filters_file" -v fallback_file="$_fallback_file" -v upstream_file="$_upstream_file" -v bootstrap_file="$_bootstrap_file" '
     /^querylog:[[:space:]]*$/ {in_querylog=1; print; next}
     in_querylog && /^[^[:space:]]/ {in_querylog=0}
     in_querylog && /^  interval:/ {print "  interval: " querylog_interval; next}
-    /^  blocking_mode:/ {print "  blocking_mode: " dns_response_mode; next}
+    # FX_YULONG_DNS_RESPONSE_BEGIN
+    /^  blocking_mode:/ {
+      print "  blocking_mode: " dns_response_mode
+      if (dns_response_mode=="custom_ip") {
+        print "  blocking_ipv4: \"0.0.0.0\""
+        print "  blocking_ipv6: \"::\""
+      }
+      next
+    }
+    /^  upstream_dns:[[:space:]]*$/ {
+      print
+      while ((getline upstream < upstream_file) > 0) print upstream
+      close(upstream_file)
+      if ((getline bootstrap < bootstrap_file) > 0) {
+        print "  bootstrap_dns:"
+        print bootstrap
+        while ((getline bootstrap < bootstrap_file) > 0) print bootstrap
+      }
+      close(bootstrap_file)
+      next
+    }
     /^  fallback_dns:[[:space:]]*\[\][[:space:]]*$/ {
       if ((getline fallback < fallback_file) > 0) {
         print "  fallback_dns:"
@@ -403,11 +553,11 @@ _render_managed_config() {
     {print}
     END {if (!found_rules) exit 2}
   ' "$TEMPLATE" > "$_config_file"; then
-    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_config_file" 2>/dev/null || :
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
     _log 'unable to compose AdGuard Home config with managed subscriptions and DNS rules'
     return 1
   fi
-  rm -f "$_rules_file" "$_filters_file" "$_fallback_file" 2>/dev/null || :
+  rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" 2>/dev/null || :
   chmod 600 "$_config_file" 2>/dev/null || {
     rm -f "$_config_file" 2>/dev/null || :
     return 1
@@ -431,10 +581,43 @@ _install_config() {
 }
 
 _config_contract() {
+  # The DNS listener/admin interface remain loopback-only. Upstream lists may
+  # be the local recursive Unbound listener or a validated FX custom/global list.
+  awk '
+    function valid_ipv4(v, n, a, i) {
+      n=split(v,a,".")
+      if(n!=4) return 0
+      for(i=1;i<=4;i++)
+        if(a[i]!~/^[0-9]+$/ || length(a[i])>3 || a[i]+0>255 ||
+           (a[i]!="0" && a[i]~/^0/)) return 0
+      if(v=="0.0.0.0" || v=="255.255.255.255") return 0
+      return 1
+    }
+    function dns_host(v) {
+      return v~/^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/ && v!~/\.\./
+    }
+    function valid_hostport(v, n, a) {
+      n=split(v,a,":")
+      if(n==1) return dns_host(a[1])
+      if(n==2) return dns_host(a[1]) && a[2]~/^[0-9]+$/ &&
+        a[2]+0>=1 && a[2]+0<=65535
+      return 0
+    }
+    function valid_endpoint(v, rest, parts, authority) {
+      if(valid_ipv4(v)) return 1
+      if(substr(v,1,8)=="https://") {
+        rest=substr(v,9); split(rest,parts,"/"); authority=parts[1]
+        if(!valid_hostport(authority)) return 0
+        return rest~/^[A-Za-z0-9.-]+(:[0-9]+)?(\/[A-Za-z0-9._~!_config_contract() {
   # AdGuard must remain a loopback-only DNS filter. Its sole upstream is the
   # local recursive Unbound listener; never allow a saved config to introduce
   # a public resolver or expose the DNS/admin listeners on LAN interfaces.
-  awk '
+  awk '()*+,;=:@%/?#-]*)?$/
+      }
+      if(substr(v,1,6)=="tls://") return valid_hostport(substr(v,7))
+      if(substr(v,1,7)=="quic://") return valid_hostport(substr(v,8))
+      return 0
+    }
     /^http:$/ {http=1; next}
     http && /^[^[:space:]]/ {http=0}
     http && /^  address:/ {
@@ -451,9 +634,27 @@ _config_contract() {
     dns && /^  upstream_dns:/ {upstream=1; next}
     dns && upstream && /^  [A-Za-z_][A-Za-z0-9_-]*:/ {upstream=0}
     dns && upstream && /^  - / {
+      server=$2
+      sub(/^"/,"",server); sub(/"$/,"",server)
       upstream_count++
-      if ($2=="127.0.0.1:5353") local_upstream=1
-      else unsafe_upstream=1
+      if (server=="127.0.0.1:5353") {
+        local_upstream=1
+        local_count++
+      } else if (!valid_endpoint(server)) {
+        unsafe_upstream=1
+      }
+      if (upstream_seen[tolower(server)]++) unsafe_upstream=1
+    }
+    dns && /^  bootstrap_dns:/ {bootstrap=1; next}
+    dns && bootstrap && /^  [A-Za-z_][A-Za-z0-9_-]*:/ {bootstrap=0}
+    dns && bootstrap && /^  - / {
+      server=$2
+      sub(/^"/,"",server); sub(/"$/,"",server)
+      bootstrap_count++
+      if (!valid_ipv4(server) || bootstrap_seen[server]++) unsafe_bootstrap=1
+      first=split(server,octets,".")
+      if(octets[1]+0==0 || octets[1]+0==127 || octets[1]+0>=224 ||
+         (octets[1]+0==169 && octets[2]+0==254)) unsafe_bootstrap=1
     }
     dns && /^  fallback_dns:/ {
       fallback=1
@@ -478,8 +679,9 @@ _config_contract() {
     END {
       exit (http_loopback && dns_port=="53" &&
         hosts["127.0.0.1"] && hosts["::1"] && bind_count==2 &&
-        upstream_count==1 && local_upstream && !unsafe_upstream &&
-        !unsafe_fallback) ? 0 : 1
+        upstream_count>=1 && !unsafe_upstream &&
+        (!local_upstream || (local_count==1 && upstream_count==1)) &&
+        !unsafe_bootstrap && !unsafe_fallback) ? 0 : 1
     }
   ' "$CFG" || {
     _log 'AdGuard config violates FX loopback/listener/local-Unbound policy'

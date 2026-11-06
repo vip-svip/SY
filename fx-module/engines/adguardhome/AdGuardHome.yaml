@@ -32,6 +32,7 @@ dns:
 filtering:
   protection_enabled: true
   filtering_enabled: true
+  blocking_mode: nxdomain
   blocked_response_ttl: 10
   safe_fs_patterns: []
   rewrites: []

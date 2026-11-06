@@ -1,5 +1,17 @@
 
 
+### FX AdGuard Home 上游设置实际接入运行渲染（2026-11-07）
+
+- 文件：\`fx-module/scripts/adguardhome.sh\`、\`fx-module/engines/adguardhome/AdGuardHome.yaml\`、\`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java\`。
+- 将已保存的 DNS 上游配置接入 AdGuard Home 实际运行 YAML：全局 DNS 开关开启时优先读取 \`[conf:global_dns]\`；否则自定义 DNS 开启时读取 \`[conf:custom_dns]\`；两者关闭时继续使用本地 Unbound \`127.0.0.1:5353\`。
+- 上游列表按完整 section 读取；重复 section、重复 endpoint、额外字段、无效 IPv4、非法 DoH/DoT/DoQ URL/端口均失败关闭，不生成部分上游列表。保留不限定数量的完整名单。
+- 配置加密上游时动态加入 bootstrap DNS；显式备用 IPv4 列表仍作为 AdGuard fallback。AdGuard 运行契约改为接受通过严格校验的显式外部上游，同时继续强制 DNS 监听与管理接口仅绑定 loopback，且禁止本地 Unbound 与外部 upstream 混用。
+- DNS 拦截响应模式模板补入 \`blocking_mode\`，\`custom_ip\` 模式动态输出 IPv4/IPv6 空地址。
+- UI 文案同步明确全局 DNS 优先级与本地 Unbound 默认路径。
+- 按用户要求未执行测试、静态检查、构建、CI 或设备验证。
+
+
+
 ### FX DNS/域名名单导出容量与换行协议修复（2026-11-07）
 
 - 代码提交：`08c3cbd77d883c7396399b8494cc3d06d2edebeb`。
