@@ -27,7 +27,11 @@ dns:
   fallback_dns: []
   cache_enabled: true
   cache_size: 4194304
+  cache_ttl_min: 0
+  cache_ttl_max: 0
   cache_optimistic: false
+  cache_optimistic_answer_ttl: 30s
+  cache_optimistic_max_age: 12h
   enable_dnssec: true
   upstream_mode: load_balance
   fastest_timeout: 1s
