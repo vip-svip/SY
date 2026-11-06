@@ -697,6 +697,46 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
       saveDnsQueryLogRetention(value);
     }).show();
  }
+ private static boolean isValidDnsQueryLogMemorySize(String value){
+  return value!=null&&value.matches("[0-9]+");
+ }
+ private void chooseDnsQueryLogMemorySize(){
+  root("dns-querylog-runtime-get",current->{
+    if(current.exitCode!=0){status.setText("读取查询日志缓冲设置失败："+safe(current.output));return;}
+    String currentSize="1000",maximum="10000";
+    for(String line:(current.output==null?"":current.output).split("\\r?\\n")){
+      if(line.startsWith("memory_size="))currentSize=line.substring("memory_size=".length()).trim();
+      else if(line.startsWith("memory_max="))maximum=line.substring("memory_max=".length()).trim();
+    }
+    EditText input=new EditText(this);
+    input.setSingleLine(true);
+    input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+    input.setHint("0 表示每条记录立即写盘；设备安全上限 "+maximum);
+    input.setText(currentSize);
+    fxDialogBuilder().setTitle("DNS 查询日志内存刷盘批量")
+      .setMessage("达到指定记录数后，AdGuard Home 会把缓冲记录写入本地文件。0 等效于 1 条立即写盘；较大批量可减少写入频率，但日志页看到新记录的延迟会增加。设备上限按物理内存动态计算。")
+      .setView(input)
+      .setNegativeButton("取消",null)
+      .setPositiveButton("保存",(dialog,which)->{
+        String value=input.getText()==null?"":input.getText().toString().trim();
+        if(!isValidDnsQueryLogMemorySize(value)){
+          status.setText("缓冲批量必须为非负整数，未修改。");return;
+        }
+        try{
+          java.math.BigInteger amount=new java.math.BigInteger(value);
+          if(amount.compareTo(new java.math.BigInteger(maximum))>0){
+            status.setText("缓冲批量超过本机内存安全范围（"+maximum+"），未修改。");return;
+          }
+        }catch(NumberFormatException invalid){
+          status.setText("缓冲批量格式无效，未修改。");return;
+        }
+        root("dns-querylog-runtime-set "+q(value),result->{
+          if(result.exitCode==0)status.setText("DNS 查询日志内存刷盘批量已更新为 "+value+"。0 表示每条记录立即写盘。");
+          else fxDialogBuilder().setTitle("缓冲批量未更新").setMessage(safe(result.output)).setPositiveButton("关闭",null).show();
+        });
+      }).show();
+  });
+ }
  private void chooseDnsQueryLogRetention(){
   final String[] values={"1d","3d","7d","30d"};
   final String[] labels={"保留 1 天","保留 3 天","保留 7 天","保留 30 天","自定义时长…"};
@@ -1184,6 +1224,7 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
   card("DNS 查询日志","默认关闭。启用后仅在本机保存查询记录；可单独设置日志保留期限，不会上传查询记录。",
        dnsSwitch("启用本地 DNS 查询日志","dns_querylog_enabled"),
        btn("设置日志保留期限",()->chooseDnsQueryLogRetention()),
+       btn("设置日志内存刷盘批量",()->chooseDnsQueryLogMemorySize()),
        btn("查看 DNS 查询日志",()->startActivity(new Intent(this,FxYulongDnsActivity.class))));
   card("DNS 缓存管理","可分别刷新 FX 自有 AdGuard Home 或 Unbound，也可同时刷新两者。所选解析服务会短暂重启；第三方 VPN 和它的规则不会被停止。",
        btn("刷新 AdGuard Home 缓存",()->refreshDnsCache("adguardhome","AdGuard Home")),
@@ -1313,7 +1354,7 @@ private void restoreDnsProfile(EditText input){
   String[] allowed={"dns_engine_adguardhome","dns_forward","custom_dns","global_dns",
       "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
       "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled",
-      "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE","QUERYLOG_RETENTION",
+      "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE","QUERYLOG_RETENTION","QUERYLOG_MEMORY_SIZE",
       "UPSTREAM_MODE","FASTEST_TIMEOUT","UPSTREAM_TIMEOUT","CACHE_SIZE","CACHE_ENABLED","CACHE_OPTIMISTIC","ENABLE_DNSSEC",
       "CACHE_TTL_MIN","CACHE_TTL_MAX","CACHE_OPTIMISTIC_ANSWER_TTL","CACHE_OPTIMISTIC_MAX_AGE",
       "UNBOUND_CACHE_MAX_TTL","UNBOUND_CACHE_MIN_TTL","UNBOUND_SERVE_EXPIRED","UNBOUND_SERVE_EXPIRED_TTL",
@@ -1331,11 +1372,12 @@ private void restoreDnsProfile(EditText input){
     }
     preview.put(key,line.substring(split+1));
   }
-  if(preview.size()!=allowed.length&&preview.size()!=39&&preview.size()!=38&&preview.size()!=30&&preview.size()!=26&&preview.size()!=19&&preview.size()!=18){
+  if(preview.size()!=allowed.length&&preview.size()!=43&&preview.size()!=39&&preview.size()!=38&&preview.size()!=30&&preview.size()!=26&&preview.size()!=19&&preview.size()!=18){
     status.setText("快照字段不完整（"+preview.size()+"/"+allowed.length+"），未提交。");return;
   }
   for(String key:allowed)if(!preview.containsKey(key)){
     if("QUERYLOG_RETENTION".equals(key))preview.put(key,"7d");
+    else if("QUERYLOG_MEMORY_SIZE".equals(key))preview.put(key,"1000");
     else if("UPSTREAM_MODE".equals(key))preview.put(key,"load_balance");
     else if("FASTEST_TIMEOUT".equals(key))preview.put(key,"1s");
     else if("UPSTREAM_TIMEOUT".equals(key))preview.put(key,"10s");
@@ -1382,6 +1424,9 @@ private void restoreDnsProfile(EditText input){
   String querylogRetention=preview.get("QUERYLOG_RETENTION");
   if(!isValidDnsQueryLogRetention(querylogRetention)){
     status.setText("快照 DNS 查询日志保留期限非法；未提交。");return;
+  }
+  if(!isValidDnsQueryLogMemorySize(preview.get("QUERYLOG_MEMORY_SIZE"))){
+    status.setText("快照 DNS 查询日志缓冲批量非法；未提交。");return;
   }
   if(!isValidDnsRuntimeMode(preview.get("UPSTREAM_MODE"))
       ||!isValidDnsRuntimeFastestTimeout(preview.get("FASTEST_TIMEOUT"))
@@ -1441,7 +1486,8 @@ private void restoreDnsProfile(EditText input){
       +"全局上游："+countDnsEndpoints(preview.get("GLOBAL_SERVERS"))+" 条；"
       +"备用上游："+countDnsEndpoints(preview.get("FALLBACK_SERVERS"))+" 条。\\n"
       +"VPN 远端 DNS："+preview.get("VPN_REMOTE")+"；国内 DNS："+preview.get("VPN_CN")+"。\\n"
-      +"拦截响应模式："+preview.get("RESPONSE_MODE")+"；查询日志保留："+querylogRetention+"。\\n"
+      +"拦截响应模式："+preview.get("RESPONSE_MODE")+"；查询日志保留："+querylogRetention
+      +"；内存刷盘批量："+preview.get("QUERYLOG_MEMORY_SIZE")+"（0 表示逐条写盘）。\\n"
       +"上游策略："+preview.get("UPSTREAM_MODE")+"；fastest 超时："+preview.get("FASTEST_TIMEOUT")+"；上游超时："+preview.get("UPSTREAM_TIMEOUT")+"。\\n"
       +"DNS 缓存："+preview.get("CACHE_SIZE")+" 字节；缓存 TTL："+preview.get("CACHE_TTL_MIN")+"~"+preview.get("CACHE_TTL_MAX")+" 秒；乐观缓存："+preview.get("CACHE_OPTIMISTIC")+"（答复 TTL "+preview.get("CACHE_OPTIMISTIC_ANSWER_TTL")+"，最大年龄 "+preview.get("CACHE_OPTIMISTIC_MAX_AGE")+"）；DNSSEC："+preview.get("ENABLE_DNSSEC")+"。\\n"
       +"Unbound 缓存 TTL："+preview.get("UNBOUND_CACHE_MIN_TTL")+"~"+preview.get("UNBOUND_CACHE_MAX_TTL")+" 秒；消息/RRset/Key/否定缓存池："+preview.get("UNBOUND_MSG_CACHE_SIZE")+"/"+preview.get("UNBOUND_RRSET_CACHE_SIZE")+"/"+preview.get("UNBOUND_KEY_CACHE_SIZE")+"/"+preview.get("UNBOUND_NEG_CACHE_SIZE")+"；serve-expired："+preview.get("UNBOUND_SERVE_EXPIRED")+"（最大年龄 "+preview.get("UNBOUND_SERVE_EXPIRED_TTL")+" 秒、答复 TTL "+preview.get("UNBOUND_SERVE_EXPIRED_REPLY_TTL")+" 秒、客户端等待 "+preview.get("UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT")+" 毫秒）；预取："+preview.get("UNBOUND_PREFETCH")+"；DNSSEC 密钥预取："+preview.get("UNBOUND_PREFETCH_KEY")+"；QNAME minimisation："+preview.get("UNBOUND_QNAME_MINIMISATION")+"。\\n\\n"
@@ -1466,7 +1512,7 @@ private void restoreDnsProfile(EditText input){
     String[] labels={"dns_engine_adguardhome","dns_forward","custom_dns","global_dns",
       "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
       "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled",
-      "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE","QUERYLOG_RETENTION",
+      "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE","QUERYLOG_RETENTION","QUERYLOG_MEMORY_SIZE",
       "UPSTREAM_MODE","FASTEST_TIMEOUT","UPSTREAM_TIMEOUT","CACHE_SIZE","CACHE_ENABLED","CACHE_OPTIMISTIC","ENABLE_DNSSEC",
       "CACHE_TTL_MIN","CACHE_TTL_MAX","CACHE_OPTIMISTIC_ANSWER_TTL","CACHE_OPTIMISTIC_MAX_AGE",
       "UNBOUND_CACHE_MAX_TTL","UNBOUND_CACHE_MIN_TTL","UNBOUND_SERVE_EXPIRED","UNBOUND_SERVE_EXPIRED_TTL",
@@ -1485,7 +1531,7 @@ private void restoreDnsProfile(EditText input){
       .setMessage(summary+"\\n\\n"+changeText)
       .setNegativeButton("取消",null)
       .setPositiveButton("继续恢复",(d,w)->fxDialogBuilder().setTitle("确认完整替换 DNS 配置")
-        .setMessage("将完整替换当前 DNS 引擎开关、过滤策略、全部上游服务器、VPN DNS、拦截响应模式、日志保留期限、上游选择/超时、AdGuard Home 缓存容量/TTL/乐观缓存策略、DNSSEC，以及 Unbound 缓存 TTL、消息/RRset/DNSSEC Key/否定响应四类缓存池、serve-expired、域名预取、DNSSEC 密钥预取和 QNAME minimisation。后端会再次校验全部字段；恢复应用失败会回滚原配置。不会修改 VPN 节点或其他 FX 模块设置。")
+        .setMessage("将完整替换当前 DNS 引擎开关、过滤策略、全部上游服务器、VPN DNS、拦截响应模式、日志保留期限/内存刷盘批量、上游选择/超时、AdGuard Home 缓存容量/TTL/乐观缓存策略、DNSSEC，以及 Unbound 缓存 TTL、消息/RRset/DNSSEC Key/否定响应四类缓存池、serve-expired、域名预取、DNSSEC 密钥预取和 QNAME minimisation。后端会再次校验全部字段；恢复应用失败会回滚原配置。不会修改 VPN 节点或其他 FX 模块设置。")
         .setNegativeButton("取消",null)
         .setPositiveButton("恢复",(dialog,which)->root("dns-profile-restore "+encoded,r->{
           if(r.exitCode==0){status.setText("DNS 配置快照已恢复并应用。");input.setText("");load();}
