@@ -116,21 +116,127 @@ _check_files() {
   }
   _hash "$BIN" "$BIN.sha256"
 }
-_install_config() {
-  _safe_file_or_absent "$CFG" || { _log 'AdGuard Home config path is unsafe'; return 1; }
-  if [ -f "$CFG" ]; then
-    return 0
-  fi
-  _tmp=$(_new_private_temp "$STATE/AdGuardHome.yaml.tmp.XXXXXX") || {
-    _log 'unable to create private AdGuard Home config temp'; return 1;
+_build_user_rules() {
+  _output=$1
+  [ -f "$PG/settings.conf" ] && [ ! -L "$PG/settings.conf" ] && [ -r "$PG/settings.conf" ] || {
+    _log 'settings.conf is missing or unsafe; refusing to render DNS rules'
+    return 1
   }
-  if ! cat "$TEMPLATE" > "$_tmp" || ! chmod 600 "$_tmp" || ! mv -f "$_tmp" "$CFG"; then
-    rm -f "$_tmp" 2>/dev/null || :
-    _log 'unable to publish initial AdGuard Home config'
+  : > "$_output" || return 1
+  # Preserve the fixed product rules shipped with the trusted runtime template.
+  awk '
+    /^user_rules:[[:space:]]*$/ {inside=1; next}
+    inside && /^[^[:space:]]/ {exit}
+    inside && /^  - / {print}
+  ' "$TEMPLATE" >> "$_output" || return 1
+
+  # Only the dedicated [list:rule] subscription entry enables Yulong's bundled
+  # ad-domain data. It never reads the protected [list:fx] anti-fraud section.
+  _yulong_enabled=$(awk -F'|' '
+    /^\[list:rule\][[:space:]]*$/ {section="rule"; next}
+    /^\[/ {section=""; next}
+    section=="rule" && $1=="builtin://Yulong_AdBlock.txt" && $3=="1" {enabled=1}
+    END {print enabled+0}
+  ' "$PG/settings.conf" 2>/dev/null)
+  _yulong_file=""
+  if [ "$_yulong_enabled" = "1" ]; then
+    _yulong_file="$PG/rulefiles-user/Yulong_AdBlock.txt"
+    if ! _safe_file_or_absent "$_yulong_file" || [ ! -r "$_yulong_file" ]; then
+      _yulong_file="$MODDIR/rulefiles/Yulong_AdBlock.txt"
+    fi
+    if ! _safe_file_or_absent "$_yulong_file" || [ ! -r "$_yulong_file" ]; then
+      _yulong_file=""
+      _log 'Yulong ad-domain source is enabled but its rule file is unavailable; continuing with other DNS rules'
+    fi
+  fi
+  if [ -n "$_yulong_file" ]; then
+    awk '
+      /^[[:space:]]*#/ || NF < 2 {next}
+      $1 != "0.0.0.0" && $1 != "127.0.0.1" {next}
+      {
+        d=tolower($2)
+        if (d ~ /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/ && d !~ /\.\./)
+          print "  - \"||" d "^\""
+      }
+    ' "$_yulong_file" >> "$_output" || return 1
+  fi
+
+  # User allow/block lists are translated to AdGuard syntax. Strict domain
+  # validation happens again here so corrupted settings cannot inject YAML.
+  awk -F'|' '
+    function valid(d) {
+      return d ~ /^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/
+    }
+    $0=="[list:domain]" {section="domain"; next}
+    $0=="[list:block]" {section="block"; next}
+    /^\[/ {section=""; next}
+    section=="domain" && valid($1) && (NF<3 || $3=="1") {
+      print "  - \"@@||" tolower($1) "^\""
+    }
+    section=="block" && valid($1) && (NF<3 || $3=="1") {
+      print "  - \"||" tolower($1) "^\""
+    }
+  ' "$PG/settings.conf" >> "$_output" || return 1
+
+  _unique=$(_new_private_temp "$STATE/user-rules.unique.XXXXXX") || return 1
+  if ! awk '!seen[$0]++' "$_output" > "$_unique" || ! cat "$_unique" > "$_output"; then
+    rm -f "$_unique" 2>/dev/null || :
     return 1
   fi
-  _log 'installed loopback-only AdGuard Home config template'
+  rm -f "$_unique" 2>/dev/null || :
+  chmod 600 "$_output" 2>/dev/null || return 1
+  return 0
 }
+_render_managed_config() {
+  _rules_file=$(_new_private_temp "$STATE/user-rules.XXXXXX") || return 1
+  _config_file=$(_new_private_temp "$STATE/AdGuardHome.yaml.tmp.XXXXXX") || {
+    rm -f "$_rules_file" 2>/dev/null || :
+    return 1
+  }
+  if ! _build_user_rules "$_rules_file"; then
+    rm -f "$_rules_file" "$_config_file" 2>/dev/null || :
+    return 1
+  fi
+  if ! awk -v rules_file="$_rules_file" '
+    /^user_rules:[[:space:]]*$/ {
+      print
+      found=1
+      while ((getline rule < rules_file) > 0) print rule
+      close(rules_file)
+      in_rules=1
+      next
+    }
+    in_rules && /^[^[:space:]]/ {in_rules=0}
+    in_rules {next}
+    {print}
+    END {if (!found) exit 2}
+  ' "$TEMPLATE" > "$_config_file"; then
+    rm -f "$_rules_file" "$_config_file" 2>/dev/null || :
+    _log 'unable to compose AdGuard Home config with managed DNS rules'
+    return 1
+  fi
+  rm -f "$_rules_file" 2>/dev/null || :
+  chmod 600 "$_config_file" 2>/dev/null || {
+    rm -f "$_config_file" 2>/dev/null || :
+    return 1
+  }
+  printf '%s\n' "$_config_file"
+}
+_install_config() {
+  _safe_file_or_absent "$CFG" || { _log 'AdGuard Home config path is unsafe'; return 1; }
+  _tmp=$(_render_managed_config) || {
+    _log 'unable to render managed AdGuard Home DNS rules'
+    return 1
+  }
+  if ! mv -f "$_tmp" "$CFG"; then
+    rm -f "$_tmp" 2>/dev/null || :
+    _log 'unable to atomically publish AdGuard Home config'
+    return 1
+  fi
+  chmod 600 "$CFG" 2>/dev/null || return 1
+  _log 'published loopback-only config with current Yulong and managed allow/block DNS rules'
+}
+
 _config_contract() {
   # AdGuard must remain a loopback-only DNS filter. Its sole upstream is the
   # local recursive Unbound listener; never allow a saved config to introduce
