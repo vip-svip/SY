@@ -1189,6 +1189,33 @@ public final class MainActivity extends ComponentActivity {
         }
     }
 
+    private String nativeDnsCoverageLabel(String value) {
+        if ("port53_redirect_active".equals(value)) return "53 端口重定向已接管";
+        if ("opportunistic_private_dns_may_bypass_redirect".equals(value)) return "自动 Private DNS 可能绕过";
+        if ("strict_private_dns_bypasses_redirect".equals(value)) return "严格 Private DNS 旁路";
+        return "未知";
+    }
+
+    private String nativeVpnVerdictLabel(String value) {
+        if ("compatible".equals(value)) return "兼容";
+        if ("incompatible".equals(value)) return "不兼容";
+        return "未知";
+    }
+
+    private String nativeRouteProbeLabel(String value) {
+        if ("passed".equals(value)) return "通过";
+        if ("failed".equals(value)) return "失败";
+        if ("not_applicable".equals(value)) return "不适用";
+        return "不可用";
+    }
+
+    private String nativePrivateDnsLabel(String value) {
+        if ("off".equals(value)) return "关闭";
+        if ("opportunistic".equals(value)) return "自动";
+        if ("hostname".equals(value)) return "严格指定提供商";
+        return "未知";
+    }
+
     private void refreshNativeDnsStatus(TextView target) {
         runNativeModuleCommand("sh \"$MP/scripts/native-dns-settings.sh\" status", 30000L, result -> {
             try {
