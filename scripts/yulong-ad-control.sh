@@ -845,6 +845,12 @@ case "$cmd" in
   [ "$#" -eq 1 ] || exit 2
   dns_profile_get
   ;;
+ dns-native-set-many)
+  [ "$#" -ge 3 ] || { echo "usage: $0 dns-native-set-many KEY 0|1 [KEY 0|1 ...]" >&2; exit 2; }
+  [ -x "$MP/scripts/native-dns-settings.sh" ] || { echo "native DNS dependency manager is missing" >&2; exit 20; }
+  shift
+  MP="$MP" PG="$PG" sh "$MP/scripts/native-dns-settings.sh" set-many "$@"
+  ;;
  dns-runtime-status)
   [ "$#" -eq 1 ] || exit 2
   [ -x "$MP/scripts/native-dns-settings.sh" ] || { echo "native DNS dependency manager is missing" >&2; exit 20; }
