@@ -820,7 +820,7 @@ private void shareDnsProfile(){
     if(r.exitCode!=0){status.setText("DNS 配置快照读取失败："+safe(r.output));return;}
     String raw=r.output==null?"":r.output.trim();
     if(!raw.startsWith("FXYULONGDNSPROFILE1")){status.setText("DNS 配置快照格式不受支持，未生成备份。");return;}
-    String payload="# FX Hook DNS profile backup\\n# format: FXYULONGDNSPROFILE1\\n# Restore only through a compatible FX version.\\n"+raw.substring("FXYULONGDNSPROFILE1".length()).trim()+"\\n";
+    String payload="FXYULONGDNSPROFILE1\n"+raw.substring("FXYULONGDNSPROFILE1".length()).trim()+"\n";
     int bytes=payload.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
     if(bytes>48*1024){status.setText("DNS 配置快照超过 48 KiB，未打开分享面板。");return;}
     try{
@@ -840,8 +840,8 @@ private void saveDnsProfileToFile(){
     if(r.exitCode!=0){status.setText("DNS 配置快照读取失败："+safe(r.output));return;}
     String raw=r.output==null?"":r.output.trim();
     if(!raw.startsWith("FXYULONGDNSPROFILE1")){status.setText("DNS 配置快照格式不受支持，未导出。");return;}
-    String payload="# FX Hook DNS profile backup\\n# format: FXYULONGDNSPROFILE1\\n# Restore only through a compatible FX version.\\n"
-        +raw.substring("FXYULONGDNSPROFILE1".length()).trim()+"\\n";
+    String payload="FXYULONGDNSPROFILE1\n"
+        +raw.substring("FXYULONGDNSPROFILE1".length()).trim()+"\n";
     if(payload.getBytes(java.nio.charset.StandardCharsets.UTF_8).length>48*1024){
       status.setText("DNS 配置快照超过 48 KiB，未打开文件选择器。");return;
     }
