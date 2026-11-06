@@ -1056,6 +1056,32 @@ schedule_get() {
   MP="$MP" PG="$PG" sh "$MP/scripts/yulong-ad-schedule.sh" evaluate >/dev/null 2>&1 || :
   return 35
 }
+dns_log_summary() {
+  if [ "$(pg_get dns_querylog_enabled 0 2>/dev/null)" != "1" ]; then
+    echo FXDNSLOG_DISABLED
+    return 0
+  fi
+  helper="$MP/scripts/yulong-ad-dns-summary.sh"
+  [ -x "$helper" ] || { echo "DNS summary helper is not installed" >&2; return 20; }
+  sh "$helper" "$PG/adguardhome/work/data"
+}
+dns_log_tail() {
+  if [ "$(pg_get dns_querylog_enabled 0 2>/dev/null)" != "1" ]; then
+    echo FXDNSLOG_DISABLED
+    return 0
+  fi
+  logfile="$PG/adguardhome/work/data/querylog.json"
+  [ ! -L "$PG/adguardhome" ] && [ ! -L "$PG/adguardhome/work" ] &&
+    [ ! -L "$PG/adguardhome/work/data" ] && [ ! -L "$logfile" ] || {
+      echo "unsafe DNS query-log path" >&2
+      return 21
+    }
+  if [ -s "$logfile" ] && [ -f "$logfile" ]; then
+    tail -n 500 "$logfile"
+  else
+    echo FXDNSLOG_EMPTY
+  fi
+}
 dns_log_clear() {
   dir="$PG/adguardhome/work/data"
   _safe_rest=${dir#/}
@@ -1125,17 +1151,14 @@ cache_flush() {
   if [ "$forward_enabled" = 1 ]; then
     sh "$MP/scripts/unbound.sh" stop "$MP" "$PG" || u_stop_rc=$?
   fi
-  if [ "$forward_enabled" = 1 ]; then
-    sh "$MP/scripts/unbound.sh" ensure "$MP" "$PG" >> "$PG/boot.log" 2>&1 || u_rc=$?
-  fi
-  if [ "$agh_enabled" = 1 ]; then
-    sh "$MP/scripts/adguardhome.sh" ensure "$MP" "$PG" >> "$PG/boot.log" 2>&1 || a_rc=$?
-  fi
-  sh "$MP/scripts/apply.sh" fast >> "$PG/boot.log" 2>&1 || apply_rc=$?
-  echo "adguardhome_stop_exit=$a_stop_rc"; echo "unbound_stop_exit=$u_stop_rc"
-  echo "unbound_exit=$u_rc"; echo "adguardhome_exit=$a_rc"; echo "apply_exit=$apply_rc"
-  [ "$a_stop_rc" -eq 0 ] && [ "$u_stop_rc" -eq 0 ] \
-    && [ "$u_rc" -eq 0 ] && [ "$a_rc" -eq 0 ] && [ "$apply_rc" -eq 0 ] || {
+    dns-log-summary)
+  [ "$#" -eq 1 ] || exit 2
+  with_lock dns_log_summary
+  ;;
+  dns-log-tail)
+  [ "$#" -eq 1 ] || exit 2
+  with_lock dns_log_tail
+  ;; ] || {
       echo "cache refresh incomplete; FX DNS routing was reconciled on a best-effort basis" >&2
       return 31
     }
