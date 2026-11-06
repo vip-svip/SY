@@ -54,7 +54,6 @@ valid_id(){ case "$1" in ''|*[!a-zA-Z0-9_-]*) return 1 ;; esac; [ "${#1}" -le 48
 valid_bool(){ [ "$1" = 0 ] || [ "$1" = 1 ]; }
 valid_text(){
   [ -n "$1" ] || return 1
-  [ "$(printf '%s' "$1" | wc -c | tr -d ' ')" -le 96 ] || return 1
   case "$1" in *'|'*|*'
 '*|*'
 '*) return 1 ;; esac
@@ -67,7 +66,7 @@ valid_profile_url(){
     builtin://*) printf '%s\n' "$1" | grep -Eq '^builtin://[A-Za-z0-9._-]+$' ;;
     *) return 1 ;;
   esac
-  [ "$(printf '%s' "$1" | wc -c | tr -d ' ')" -le 2048 ]
+  return 0
 }
 encode(){ printf '%s' "$1" | base64 | tr -d '\r\n'; }
 decode(){ printf '%s' "$1" | base64 -d 2>/dev/null; }

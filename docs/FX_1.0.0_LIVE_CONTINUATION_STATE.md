@@ -1324,3 +1324,11 @@
 - 继续兼容带 `FX_YULONG_DNS_RESPONSE_BEGIN` 标记的既有补丁结果；构建补丁器不会因新版 renderer 缺少旧式配置锚点而尝试重新写入固定空地址或 10 秒 TTL。
 - 同步 canonical 与 fx-module 构建 patcher 源码。
 - 本批未运行 patcher、测试、构建、CI 或设备验证；只做源码接线与提交。
+
+
+## 2026-11-07 — ProtectionProfile 名称与 HTTPS 来源长度限制移除
+
+- 移除 `yulong-profiles.sh` 配置档名称 96 字节与 HTTPS 来源 URL 2048 字节的应用层硬上限；配置档 ID 格式、HTTPS/builtin 协议约束、分隔符/换行拒绝、Base64 与配置写入结构保持不变。
+- 自定义 ProtectionProfile 可保留更长名称及完整有效 HTTPS 订阅地址，不再在写入前被人为字节阈值拒绝。
+- 同步 `scripts/yulong-profiles.sh` 与 `fx-module/scripts/yulong-profiles.sh`。
+- 按用户要求未运行测试、静态检查、构建、CI 或设备验证；本轮仅修改和提交源码。
