@@ -1070,7 +1070,7 @@ private void saveVpnDns(String key,EditText input){
    if(unique.size()>2000){status.setText("单次最多恢复 2000 条唯一域名。");return;}
   }
   if(unique.isEmpty()){status.setText("没有可恢复的域名条目。");return;}
-  String payload=String.join("\\n",unique.values());
+  String payload=String.join("\n",unique.values());
   byte[] bytes=payload.getBytes(java.nio.charset.StandardCharsets.UTF_8);
   if(bytes.length>65536){status.setText("合并备份超过 64 KiB，请拆分后导入。");return;}
   String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);
