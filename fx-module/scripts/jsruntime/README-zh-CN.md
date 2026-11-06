@@ -39,7 +39,7 @@
 
 - 脚本中心提供独立的“导入 Egern YAML HTTP 脚本”入口，可选择 `.yaml` / `.yml` 文件；导入器读取顶层 `scriptings:`，迁移 `http_request` 与 `http_response` 项中的 `name`、`match`、`script_url` 和 `disabled`。
 - 只接收 HTTPS 脚本 URL，并将匹配条件写入 FX 的 `FXMETA_B64` 元数据；重复项按脚本 URL、触发阶段和匹配表达式去重，禁用状态保留。
-- `schedule`、`generic`、`network` 不会转换为 HTTP Hook；含 `env`、`body_required` 或 `binary_body` 需求的条目也会跳过，因为 FX 当前没有完整等价的环境注入、Egern 正文专属 API 或二进制正文通道。其它 Egern 私有参数不假定兼容。
+- `schedule`、`generic`、`network` 不会转换为 HTTP Hook；含 `env` 或 `binary_body` 需求的条目会跳过。`body_required: true` 仅对 `http_response` 项映射到 FX 正文需求标记，仍受 FX 现有正文类型与大小限制；请求阶段携带该标记会跳过。其它 Egern 私有参数不假定兼容。
 - 该导入器是明确限定的 HTTP 兼容子集，不是通用 YAML 解析器，也不代表 Egern 全功能运行时。
 
 ## 本地实时钩子脚本示例
