@@ -7276,3 +7276,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - DNS 管理详情不再直接显示 Root Proxy 内部 reason 标识；将 disabled、VPN 路由不可用、出口变化、IPv4/IPv6 规则链异常、DNS 重定向缺失、本地 DNS 探测失败等状态翻译为中文说明，未知原因保留原始标识以便定位。
 - 主 APK 提交：151451564857bdc45312d7c196ba457fe6589800；模块 APK 提交：c41c4d9fd623548f5752d2113393440732b9b630。
 - 按当前推进要求未运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-06 — Root Proxy fail-open 清理结果可见化
+
+- Root Proxy 状态检查在 fail-open 清理成功时增加 `cleanup=complete`；清理失败继续返回 `cleanup=failed`，不将两种结果混为普通“未接管”。
+- 主 APK 与模块 APK 的 DNS 状态协议新增 `rootproxy_cleanup` 字段，并在 DNS 管理详情展示“清理完成 / 清理失败 / 无需清理或尚无记录”。
+- 同步修改：`fx-module/scripts/yulong-root-proxy.sh`、`scripts/native-dns-settings.sh`、`fx-module/scripts/native-dns-settings.sh`、两份 `MainActivity.java`。
+- 代码提交：`b2d79e13f763f8fe2e788374d2cc80bf2613707e`、`39d8c380ba38ed7f7d50322d191bc84a80af8d0f`、`2ca65613d704ed833fad72f970641fea0b25b58c`、`3ce8dac16050ebb50bb3a4df60cf87ce4e24099b`、`105afc8c99d9e6a5a8a4a0b35e9ad68f577a52cc`。
+- 按当前推进要求未运行测试、静态检查、构建、CI 或真机验证。
