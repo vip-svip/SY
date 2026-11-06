@@ -89,6 +89,7 @@ public final class FxDiaMonitorEventParser {
                 case "child": return "子 View";
                 case "name": return "名称";
                 case "keyCode": return "按键码";
+                case "depth": return "深度";
                 default: return key;
             }
         }
@@ -178,6 +179,14 @@ public final class FxDiaMonitorEventParser {
                 return oneOf(key, "name", "class");
             case "KEY":
                 return oneOf(key, "keyCode", "action");
+            case "FRAGMENT":
+                return oneOf(key, "stage", "class", "method");
+            case "STACK":
+                return oneOf(key, "class", "method", "depth");
+            case "RUNTIME":
+                return oneOf(key, "class", "method", "args", "elapsedMs", "exception");
+            case "MEMORY":
+                return oneOf(key, "stage", "inputBytes", "outputBytes");
             default:
                 return false;
         }
@@ -191,7 +200,7 @@ public final class FxDiaMonitorEventParser {
     private static boolean isSafeValue(String key, String value) {
         if (value == null || value.isEmpty()) return false;
         if (oneOf(key, "status", "elapsedMs", "bodyBytes", "args", "firstStringLength",
-                "inputBytes", "outputBytes", "timeoutMs", "requestCode", "id", "keyCode")) {
+                "inputBytes", "outputBytes", "timeoutMs", "requestCode", "id", "keyCode", "depth")) {
             return NUMBER.matcher(value).matches();
         }
         // Host/endpoint fields are authorities only: no scheme, user-info, path,
