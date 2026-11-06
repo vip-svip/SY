@@ -84,10 +84,10 @@ case "$ACTION" in
     done
     printf '%s\n' "$$" > "$LOCK/pid"
     ROWS="$PG/jsruntime/native-script-rows.$$"
-    VALUE_FILE="$PG/jsruntime/native-script-value.$"
-    VALUE_B64_FILE="$PG/jsruntime/native-script-value64.$"
-    NOTE_FILE="$PG/jsruntime/native-script-note.$"
-    TMP="$CONF.native.tmp.$"
+    VALUE_FILE="$PG/jsruntime/native-script-value.$$"
+    VALUE_B64_FILE="$PG/jsruntime/native-script-value64.$$"
+    NOTE_FILE="$PG/jsruntime/native-script-note.$$"
+    TMP="$CONF.native.tmp.$$"
     BACKUP="$CONF.native.bak.$$"
     cleanup() {
       rm -f "$ROWS" "$VALUE_FILE" "$VALUE_B64_FILE" "$NOTE_FILE" "$TMP" "$BACKUP"
