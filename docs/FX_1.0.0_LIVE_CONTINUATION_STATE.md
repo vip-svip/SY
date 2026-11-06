@@ -6914,3 +6914,8 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 模块源码同步提交：Parser 32b0b314fa8780e899c85537f8963602a2851c51、Serializer 7d22e87c1d949e8f13c3db8ed473e4560dcee66f、策略 4b146474a814113c55ba425951e682b636afc2ba、Hook cb27f5a32727a3cfa0a08b8bf10d693a547a1499、设置页 a5f5b7af523161960d5f66150e9ec9097402c0e0。
 - 后续注册路径加固提交：应用 Hook 00b2f2fe7a7553ab332f823dc4ac595f886f4fad；模块 Hook e35b54b167c524c1d0fdfd4acdd4142ea200a36d。
 - 固定 FX 1.0.0；本批按要求未运行测试、静态检查、构建、CI 或真机验证。当前为源码完成状态，不代表传感器 API 在所有 OEM 设备上的行为已验证。
+
+## 2026-11-06 Surge/Loon 脚本模块迁移
+
+- Native Script 文件导入新增 Surge/Loon 常见 `[Script]` 模块格式识别：迁移 HTTPS `script-path` 且声明 `http-request` / `http-response`、`pattern` 的条目，转为 FX `FXMETA_B64` 触发元数据并写入统一脚本列表；任务/定时脚本、相对路径和不支持的条目不自动执行。
+- 导入实现同步到主 APK 源码与 fx-module APK 源码；未执行测试、检查、构建、CI 或真机验证。
