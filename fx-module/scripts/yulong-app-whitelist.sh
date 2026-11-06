@@ -229,6 +229,11 @@ mutate_batch_transaction() {
       echo "invalid package name in batch whitelist request" >&2
       return 2
     }
+    if grep -F -x -q "$pkg" "$_YW_PACKAGES"; then
+      rm -f "$_YW_PACKAGES"; _YW_PACKAGES=
+      echo "duplicate package in batch whitelist request: $pkg" >&2
+      return 2
+    fi
     printf '%s\n' "$pkg" >> "$_YW_PACKAGES" || {
       rm -f "$_YW_PACKAGES"; _YW_PACKAGES=
       return 1
