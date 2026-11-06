@@ -318,6 +318,17 @@ dns_config_set_many() {
   else m_dns_servers yulong_dns_fallback "$_many_fallback" || return 1; fi
   echo "dns_servers=updated custom=$_many_custom global=$_many_global fallback=$_many_fallback"
 }
+dns_security_profile_set() {
+  _security_mode=$1; _security_enabled=$2
+  case "$_security_mode" in nxdomain|refused|custom_ip) ;; *) echo "invalid DNS response mode" >&2; return 2 ;; esac
+  case "$_security_enabled" in 0|1) ;; *) echo "DNS security profile flag must be 0 or 1" >&2; return 2 ;; esac
+  m_dns_response "$_security_mode" &&
+    dns_filter_policy_set "$_security_enabled" "$_security_enabled" "$_security_enabled" "$_security_enabled" "$_security_enabled" || {
+      echo "unable to apply complete DNS security profile" >&2
+      return 1
+    }
+  echo "dns_security_profile=updated response=$_security_mode filters=$_security_enabled"
+}
 dns_filter_policy_set() {
   _policy_quic=$1; _policy_dot=$2; _policy_plain=$3; _policy_ipv6=$4; _policy_track=$5
   for _policy_value in "$_policy_quic" "$_policy_dot" "$_policy_plain" "$_policy_ipv6" "$_policy_track"; do
@@ -866,6 +877,10 @@ case "$cmd" in
       with_lock transaction m_dns "$2" "$3"
       ;;
   esac ;;
+ dns-security-profile-set)
+  [ "$#" -eq 3 ] || { echo "usage: $0 dns-security-profile-set nxdomain|refused|custom_ip 0|1" >&2; exit 2; }
+  with_lock transaction dns_security_profile_set "$2" "$3"
+  ;;
  dns-filter-policy-set)
   [ "$#" -eq 6 ] || { echo "usage: $0 dns-filter-policy-set QUIC DOT PLAIN_DNS IPV6 TRACKING" >&2; exit 2; }
   with_lock transaction dns_filter_policy_set "$2" "$3" "$4" "$5" "$6"
