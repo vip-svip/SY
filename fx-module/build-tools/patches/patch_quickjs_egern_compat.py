@@ -12,7 +12,7 @@ RUNNER_END_V1 = "# FX_EGERN_SCRIPT_ENTRY_V1_END"
 RUNNER_BEGIN_V2 = "# FX_EGERN_SCRIPT_ENTRY_V2_BEGIN"
 RUNNER_END_V2 = "# FX_EGERN_SCRIPT_ENTRY_V2_END"
 
-HOST_BLOCK = r"""  // FX_EGERN_COMPAT_V2_BEGIN
+HOST_BLOCK = r"""// FX_EGERN_COMPAT_V2_BEGIN
   function _fxEgernHeaders(source) {
     const values=Object.create(null);
     Object.keys(source||{}).forEach(name=>{
@@ -113,8 +113,24 @@ HOST_BLOCK = r"""  // FX_EGERN_COMPAT_V2_BEGIN
     }
     return {};
   }
+  function _fxReadEgernScriptName() {
+    const scriptPath=String(scriptArgs[0]||'');
+    if(!scriptPath) return '';
+    const source=_fxRead(scriptPath,'');
+    const prefix='// FX-SCRIPT-NAME: ';
+    const lines=source.split(/\\r?\\n/);
+    for(let i=0;i<lines.length&&i<16;i++){
+      if(lines[i].indexOf(prefix)!==0) continue;
+      const name=lines[i].slice(prefix.length).replace(/[\\x00-\\x1f\\x7f]/g,' ').trim();
+      return name.length<=512?name:name.slice(0,512);
+    }
+    return '';
+  }
   const _fxEgernEventEnv=(_fxEvent.env&&typeof _fxEvent.env==='object')?_fxEvent.env:{};
   const _fxEgernEnv=Object.assign({},_fxReadEgernScriptEnv(),_fxEgernEventEnv);
+  const _fxEgernScriptName=_fxReadEgernScriptName();
+  const _fxEgernScript=Object.assign({},globalThis.$script);
+  if(_fxEgernScriptName) _fxEgernScript.name=_fxEgernScriptName;
   const _fxEgernDevice=(_fxEvent.device&&typeof _fxEvent.device==='object')?_fxEvent.device:{};
   const _fxEgernStage=String(_fxEvent.stage||'').toLowerCase();
   const _fxEgernHasRequest=['request','response','http-request','http-response'].indexOf(_fxEgernStage)>=0;
@@ -122,7 +138,7 @@ HOST_BLOCK = r"""  // FX_EGERN_COMPAT_V2_BEGIN
   const _fxEgernRequest=_fxEgernHasRequest?_fxEgernMessage(globalThis.$request,false):undefined;
   const _fxEgernResponse=_fxEgernHasResponse?_fxEgernMessage(globalThis.$response,true):undefined;
   globalThis.ctx={
-    script:Object.assign({},globalThis.$script),
+    script:_fxEgernScript,
     env:Object.assign({},_fxEgernEnv),
     app:{version:String(globalThis.$environment.version||''),language:String(globalThis.$environment.language||'')},
     device:Object.assign({},_fxEgernDevice),
@@ -142,8 +158,7 @@ HOST_BLOCK = r"""  // FX_EGERN_COMPAT_V2_BEGIN
     log(){console.log.apply(console,arguments);}
   };
   globalThis.__fxEgernFail=function(error){if(!_fxDone)_fxSaveResult(false,error);};
-  // FX_EGERN_COMPAT_V2_END
-"""
+  // FX_EGERN_COMPAT_V2_END"""
 RUNNER_BLOCK = r"""# FX_EGERN_SCRIPT_ENTRY_V2_BEGIN
 EXEC_SCRIPT=$SCRIPT
 EGERN_SCRIPT="$STATE/egern-$$.js"
@@ -181,7 +196,7 @@ README_SECTION = """## Egern 脚本兼容入口（扩展子集）
 
 HTTP 支持 GET、POST、PUT、PATCH、DELETE、HEAD、OPTIONS，以及 fetch/request 入口；响应提供 status、headers、text()、json()。Headers 大小写不敏感并支持 get、getAll、has、set、append、delete、entries 和迭代。存储支持 get、set、getJSON、setJSON 和 delete。
 
-环境、设备、cron 和 widget 字段只透传事件实际提供的值。通知写入 FX 脚本日志，不会调用 Android 通知栏。当前仍是兼容子集：不支持 ESM import、流与二进制正文 API、SSH、lookupIP、压缩、ctx.respond()、ctx.abort()、重定向控制、代理策略或 Egern 专属网络服务；HTTP 底层同步执行，仅提供 Promise 兼容层。
+FX-SCRIPT-NAME 会映射到 ctx.script.name；FX-SCRIPT-ENV-JSON 会合并到 ctx.env，事件本身提供的环境字段优先。请求/响应与其他设备信息只透传事件实际提供的值。通知写入 FX 脚本日志，不会调用 Android 通知栏。当前仍是兼容子集：不支持 ESM import、流与二进制正文 API、SSH、lookupIP、压缩、ctx.respond()、ctx.abort()、重定向控制、代理策略或 Egern 专属网络服务；HTTP 底层同步执行，仅提供 Promise 兼容层。
 """
 def replace_marked(source: str, begin: str, end: str, block: str,
                    old_begin: str = "", old_end: str = "") -> str:
