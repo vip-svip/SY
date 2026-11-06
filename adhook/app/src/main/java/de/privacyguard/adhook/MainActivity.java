@@ -2372,6 +2372,7 @@ public final class MainActivity extends ComponentActivity {
     private void importNativeScriptModuleConfig(String payload) {
         try {
             JSONArray entries = new JSONArray();
+            java.util.Set<String> importedKeys = new java.util.HashSet<>();
             boolean inScript = false;
             String[] lines = (payload == null ? "" : payload).split("\\r?\\n");
             for (int i = 0; i < lines.length; i++) {
@@ -2391,16 +2392,23 @@ public final class MainActivity extends ComponentActivity {
                 String pattern = scriptModuleOption(options, "pattern");
                 if (!scriptPath.regionMatches(true, 0, "https://", 0, 8)
                         || pattern.isEmpty() || name.isEmpty()) continue;
-                String normalizedType;
-                if ("http-request".equals(type)) normalizedType = "request";
-                else if ("http-response".equals(type)) normalizedType = "response";
-                else if ("http-request, http-response".equals(type)
-                        || "http-response, http-request".equals(type)) normalizedType = "both";
-                else continue;
+                // Treat trigger lists as sets: Surge/Loon variants commonly omit
+                // spaces after commas, and order is not semantically significant.
+                boolean requestTrigger = false;
+                boolean responseTrigger = false;
+                for (String trigger : type.replaceAll("\\s+", "").split("[,;]")) {
+                    if ("http-request".equals(trigger)) requestTrigger = true;
+                    else if ("http-response".equals(trigger)) responseTrigger = true;
+                }
+                String normalizedType = requestTrigger && responseTrigger ? "both"
+                        : requestTrigger ? "request" : responseTrigger ? "response" : "";
+                if (normalizedType.isEmpty()) continue;
                 if (pattern.length() > 2048 || name.length() > 512) continue;
                 String metadata = normalizedType + "\\n" + pattern;
                 String encoded = "FXMETA_B64:" + Base64.encodeToString(
                         metadata.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
+                String duplicateKey = scriptPath + "\\n" + metadata;
+                if (!importedKeys.add(duplicateKey)) continue;
                 JSONObject entry = new JSONObject();
                 entry.put("value", scriptPath);
                 entry.put("name", encoded);
@@ -2449,33 +2457,74 @@ public final class MainActivity extends ComponentActivity {
                 }
                 if (name.length() > 512) throw new IllegalArgumentException("第 " + (i + 1) + " 项名称超过 512 字符");
             }
-            importNativeScriptEntry(entries, 0, 0, 0);
+            runNativeModuleCommand(nativeScriptStoreCommand("list"), 30000L, current -> {
+                if (current.exitCode != 0) {
+                    Toast.makeText(this, "读取现有脚本列表失败，未执行导入：" + current.output.trim(),
+                            Toast.LENGTH_LONG).show();
+                    return;
+                }
+                try {
+                    String[] rows = current.output.split("\\\\r?\\n");
+                    if (rows.length == 0 || !"FXSCRIPT1".equals(rows[0].trim())) {
+                        throw new IllegalStateException("脚本列表协议不匹配，已取消导入");
+                    }
+                    java.util.Set<String> known = new java.util.HashSet<>();
+                    for (int rowIndex = 1; rowIndex < rows.length; rowIndex++) {
+                        if (rows[rowIndex].trim().isEmpty()) continue;
+                        String[] fields = rows[rowIndex].split("\\|", -1);
+                        if (fields.length != 3) continue;
+                        String currentValue = decodeNativeScriptValue(fields[0]);
+                        String currentName = decodeNativeScriptArgument(fields[1]);
+                        known.add(nativeScriptImportKey(currentValue, currentName));
+                    }
+                    importNativeScriptEntry(entries, 0, 0, 0, 0, known);
+                } catch (Exception error) {
+                    Toast.makeText(this, "无法读取现有脚本列表，未执行导入：" + error.getMessage(),
+                            Toast.LENGTH_LONG).show();
+                }
+            });
         } catch (Exception error) {
             Toast.makeText(this, "脚本配置导入失败：" + error.getMessage(), Toast.LENGTH_LONG).show();
         }
     }
 
-    private void importNativeScriptEntry(JSONArray entries, int index, int imported, int failed) {
+    private static String nativeScriptImportKey(String value, String name) {
+        return nativeScriptSha256((value == null ? "" : value) + "\\n"
+                + (name == null ? "" : name.trim()));
+    }
+
+    private void importNativeScriptEntry(JSONArray entries, int index, int imported,
+                                         int failed, int skipped,
+                                         java.util.Set<String> known) {
         if (index >= entries.length()) {
-            Toast.makeText(this, "脚本配置导入结束：成功 " + imported + " 项，失败 " + failed + " 项",
+            Toast.makeText(this, "脚本配置导入结束：新增 " + imported + " 项，失败 " + failed
+                            + " 项，重复跳过 " + skipped + " 项",
                     Toast.LENGTH_LONG).show();
             if (nativeScriptRows != null && nativeScriptStatus != null) {
                 refreshNativeScriptList(nativeScriptRows, nativeScriptStatus);
             }
-            syncNativeScriptRuntime();
+            if (imported > 0) syncNativeScriptRuntime();
             return;
         }
         JSONObject entry = entries.optJSONObject(index);
         if (entry == null) {
-            importNativeScriptEntry(entries, index + 1, imported, failed + 1);
+            importNativeScriptEntry(entries, index + 1, imported, failed + 1, skipped, known);
             return;
         }
         String value = entry.optString("value", "");
-        String name = entry.optString("name", "");
+        String name = entry.optString("name", "").trim();
         String enabled = entry.optBoolean("enabled", true) ? "1" : "0";
-        storeNativeScriptValue(value, name, enabled, (ok, detail) ->
-                importNativeScriptEntry(entries, index + 1,
-                        imported + (ok ? 1 : 0), failed + (ok ? 0 : 1)));
+        String key = nativeScriptImportKey(value, name);
+        if (known.contains(key)) {
+            importNativeScriptEntry(entries, index + 1, imported, failed, skipped + 1, known);
+            return;
+        }
+        known.add(key);
+        storeNativeScriptValue(value, name, enabled, (ok, detail) -> {
+            if (!ok) known.remove(key);
+            importNativeScriptEntry(entries, index + 1,
+                    imported + (ok ? 1 : 0), failed + (ok ? 0 : 1), skipped, known);
+        });
     }
 
     private void clearPendingNativeScriptExport() {
@@ -5120,7 +5169,7 @@ public final class MainActivity extends ComponentActivity {
                     }
                     String header = count > 0 ? new String(prefix, 0, count, StandardCharsets.UTF_8) : "";
                     isJson = header.contains("FX-SCRIPT-LIST");
-                    isModuleConfig = header.contains("[Script]") || header.contains("[script]");
+                    isModuleConfig = header.toLowerCase(Locale.ROOT).contains("[script]");
                 }
                 if (isModuleConfig && !isJson) {
                     try (InputStream input = new java.io.FileInputStream(staged);
