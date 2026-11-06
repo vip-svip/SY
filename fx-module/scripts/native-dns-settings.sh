@@ -331,6 +331,13 @@ mutate_many() {
   rm -f "$_backup"; echo "DNS batch apply failed; previous settings restored" >&2; return 1
 }
 
+reconcile_locked() {
+  sh "$MP/scripts/apply.sh" full || {
+    echo "DNS runtime reconciliation failed" >&2
+    return 1
+  }
+  status
+}
 with_lock() {
   _tries=0
   while ! mkdir "$LOCK" 2>/dev/null; do
@@ -366,11 +373,7 @@ case "$cmd" in
     ;;
   reconcile)
     [ "$#" -eq 1 ] || { echo "usage: $0 reconcile" >&2; exit 2; }
-    sh "$MP/scripts/apply.sh" full || {
-      echo "DNS runtime reconciliation failed" >&2
-      exit 1
-    }
-    status
+    with_lock reconcile_locked
     ;;
   set)
     [ "$#" -eq 3 ] || { echo "usage: $0 set KEY 0|1" >&2; exit 2; }
