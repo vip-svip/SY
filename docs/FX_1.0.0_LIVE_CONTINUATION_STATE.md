@@ -1192,3 +1192,11 @@
 - 同步模块与普通源码的内存 getter 顺序、UI 换行转义及 DNS 服务器 IPv4 端口说明，减少打包后行为偏差。
 - 主要提交：`1eb7b4021b9c900ae89087053783965e7005f3d3`、`46af65512053fa9ed3ec7b432bc39f66cdaa3874`、`7e00ce77fb3abf8c08f44c6f6b9cf3b064d0d316`、`8304362a0e8b46fe147a2c721fbd7eab2c9f571b`、`0b7f592840c6bee633012c96bcf86b8544e2bd3c`、`e1199db3e6a84036d682966047fee479dfbb5baf`、`e0179e3218a322ae61ac4eed221449d78577c7ce`、`227b660e46c91b10268f6920d2ad3ab1061a8acd`。
 - 已回读普通源码与模块打包源码：统计响应协议、统计 YAML 注入、统计设置 UI、快照字段、动态内存上限均存在；未运行测试、静态检查、Gradle/APK 构建、CI 或 Android 真机验证。
+## 2026-11-07 — Unbound CPU worker 参数贯通
+
+- 将 Unbound worker 线程数从固定运行配置改为 FX 可配置项。Root 后端读取、写入和快照恢复 `UNBOUND_NUM_THREADS`；设置值必须为正整数，且不得超过设备当前在线 CPU 核心数。
+- `fx-module/scripts/unbound.sh` 在渲染最终 `unbound.conf` 时读取 Root 配置，校验线程数和当前在线核心数，并将实际数值写入 `num-threads`；不再固定写为 1。
+- 原生 Ad 设置页新增 Unbound worker 线程输入，读取/保存命令已接通；DNS 配置快照新增该字段，旧快照缺少时采用 1 线程默认值。
+- 同步普通 APK 源码与 `fx-module/` APK 源码；同步模块 Root 控制脚本与 Unbound 生命周期脚本。并保留并行协作者已完成的 CPU 上限状态读回字段。
+- 相关源码提交：模块 Root `1894abb7a97b53c88c965890328494ee1f298b75`；Unbound 最终配置 `9a44cbef3c2a10c14194ea4396781f4bdb3c4356`；原生 APK 源码 `26b21880683be90a572bed8e9a862111431b1bf6`、`c9ff73e864c48b3085ff4785a6388edd047ca9d7`；CPU 上限读回协作提交 `5fbfa5282ea0c6bee633012c96bcf86b8544e2bd3c`、`5978db35fb85`。
+- 本阶段按用户要求未运行测试、静态检查、构建、CI 或 Android 真机验证；已完成 GitHub 源码写入与内容回读，不代表实际设备验收。
