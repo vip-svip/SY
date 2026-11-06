@@ -1938,6 +1938,7 @@ public final class MainActivity extends ComponentActivity {
         section("Android 系统隐私面板");
         addNativeActionCard("查看系统隐私信息中心", "打开 Android 系统隐私信息中心，查看近期摄像头、麦克风和位置信息访问记录。此处展示系统记录，不替代 FX 按应用 Hook 策略。", "打开系统面板", this::openAndroidPrivacyDashboard);
         addNativeActionCard("通知读取授权", "管理允许哪些应用读取通知内容。FX 的通知监听策略只有在系统授予通知访问权限后才能工作。", "打开通知授权", () -> openAndroidSettingsPage(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS, "通知使用权设置"));
+        addNativeActionCard("FX 通知显示权限", "管理 Android 是否允许 FX 自身发送通知。此权限与读取其他应用通知的通知使用权完全独立。", "打开通知显示设置", this::openAppNotificationSettings);
         addNativeActionCard("应用使用情况访问", "管理应用使用情况访问权限；此权限独立于通知读取授权，也不会自动授予 Root 或 Hook 权限。", "打开使用情况授权", () -> openAndroidSettingsPage(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS, "使用情况访问设置"));
         addNativeActionCard("悬浮窗显示权限", "管理 FX 是否可以在其他应用上层显示内容；此系统权限不等于无障碍或 Hook 授权。", "打开悬浮窗设置", this::openOverlayPermissionSettings);
         addNativeActionCard("电池优化例外", "查看并管理 FX 是否被系统电池优化限制。豁免可能增加后台耗电，请按实际需要设置。", "打开电池优化设置", () -> openAndroidSettingsPage(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS, "电池优化设置"));
@@ -1996,6 +1997,29 @@ public final class MainActivity extends ComponentActivity {
         Object value = json.opt(key);
         if (!(value instanceof Boolean)) return "状态格式未知";
         return ((Boolean) value) ? "已启用" : "未启用";
+    }
+
+    private void openAppNotificationSettings() {
+        Intent intent = new Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+        intent.putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, getPackageName());
+        if (intent.resolveActivity(getPackageManager()) == null) {
+            intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    android.net.Uri.parse("package:" + getPackageName()));
+        }
+        try {
+            startActivity(intent);
+        } catch (RuntimeException error) {
+            FxNativeSkin.builder(this).setTitle("无法打开 FX 通知设置")
+                    .setMessage(error.getMessage() == null ? "系统拒绝打开通知设置页面。" : error.getMessage())
+                    .setPositiveButton("关闭", null).show();
+        }
+    }
+
+    private String appNotificationStatus() {
+        android.app.NotificationManager manager = (android.app.NotificationManager)
+                getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager == null) return "状态不可用";
+        return manager.areNotificationsEnabled() ? "允许显示" : "已禁止显示";
     }
 
     private String notificationAccessStatus() {
@@ -2071,6 +2095,7 @@ public final class MainActivity extends ComponentActivity {
                         + " · LSPosed：" + json.optString("lsposed_status", json.optString("lsposed", "unknown"))
                         + "\nAccessibility：" + accessibilityStatus
                         + "\n通知读取授权：" + notificationAccessStatus()
+                        + " · FX 通知显示：" + appNotificationStatus()
                         + " · 使用情况访问：" + usageAccessStatus()
                         + " · 悬浮窗：" + overlayPermissionStatus()
                         + " · 电池优化：" + batteryOptimizationStatus()
