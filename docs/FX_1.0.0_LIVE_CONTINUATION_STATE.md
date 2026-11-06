@@ -6904,3 +6904,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - SensorManager 枚举拦截扩展到 `TYPE_ALL` 和动态传感器列表；仅过滤用户明确启用类别的已知公开传感器类型。未知或厂商私有类型保留可见，异常时 fail-open。
 - Egern 兼容层扩展事件上下文、Request/Response 阶段对象、HTTP 方法与 Headers 多值访问、JSON 存储和删除接口；构建补丁同步携带该实现。未宣称支持 ESM、流/二进制正文、SSH、`ctx.respond()` / `ctx.abort()` 等未实现接口。
 - 本轮按要求未运行测试、静态检查、构建、CI 或真机验证；以上功能状态仅表示源码已提交/合入，不代表运行时已验证。
+
+## 2026-11-06 — 传感器列表与注册双路径隐私处理
+
+- 在 SensorPrivacyPolicy.java 增加统一的传感器枚举策略判断，明确现有六种基础传感器和新增四种分组；Android TYPE_ALL 不再绕过按类型拦截。公开类型按类别识别，厂商私有/未知类型仍 fail-open。
+- AdVisibilityHook.java 除按类型处理 getSensorList / getDefaultSensor 外，扩展到 getDynamicSensorList；对 TYPE_ALL 返回列表逐个读取 Sensor.getType() 并只过滤用户启用的类别。
+- 在 registerListener 拦截中增加传感器类型判断：应用即使已持有缓存的 Sensor 对象，命中已启用隐私组时仍拒绝注册；采样频率限制继续保留独立逻辑。共享包进程、受保护包和读取类型异常时维持放行。
+- 应用源码提交：Parser 97764983bc8ba1521b8e2f8553e6f3f042b59def、Serializer aa6b6c938e74bfa80625d1cd1dcab4fbe11d276a、策略 e858efac1f6daf9a5b03ba7a939059a747e111f4、Hook 47fd9620d1e5eb1a9d40adb2d902e96c9b5ca364、设置页 301a3f48cbaf20321d579a945d96e23fe052c476。
+- 模块源码同步提交：Parser 32b0b314fa8780e899c85537f8963602a2851c51、Serializer 7d22e87c1d949e8f13c3db8ed473e4560dcee66f、策略 4b146474a814113c55ba425951e682b636afc2ba、Hook cb27f5a32727a3cfa0a08b8bf10d693a547a1499、设置页 a5f5b7af523161960d5f66150e9ec9097402c0e0。
+- 后续注册路径加固提交：应用 Hook 00b2f2fe7a7553ab332f823dc4ac595f886f4fad；模块 Hook e35b54b167c524c1d0fdfd4acdd4142ea200a36d。
+- 固定 FX 1.0.0；本批按要求未运行测试、静态检查、构建、CI 或真机验证。当前为源码完成状态，不代表传感器 API 在所有 OEM 设备上的行为已验证。
