@@ -563,6 +563,28 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
     btn("复制原版 Tasker 停用 Action",()->copyAutomationAction("app.pwhs.blockads.TASKER_STOP")));
 }
  private void renderRules(){EditText url=draftField("rule_url");url.setSingleLine(true);url.setHint("https://… 或 builtin://…");EditText name=draftField("rule_name");name.setSingleLine(true);name.setHint("列表名称");card("添加过滤列表","仅允许 HTTPS 订阅及 FX 本地资源。",url,name,btn("添加并应用",()->{String u=url.getText().toString().trim(),n=name.getText().toString().trim();if(!u.isEmpty()&&!n.isEmpty())apply("rule-add "+q(u)+" "+q(n)+" 1","规则添加");}));search=draftField("rule_search");search.setSingleLine(true);search.setHint("搜索过滤列表");card("搜索","输入来源或列表名称",search);search.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int st,int c,int a){}public void onTextChanged(CharSequence s,int st,int be,int co){bind();}public void afterTextChanged(Editable e){}});entries=new LinearLayout(this);entries.setOrientation(1);body.addView(entries);}
+ private void chooseDnsQueryLogRetention(){
+  final String[] values={"1d","3d","7d","30d"};
+  final String[] labels={"保留 1 天","保留 3 天","保留 7 天","保留 30 天"};
+  root("dns-querylog-retention-get",current->{
+    String selectedValue="7d";
+    if(current.exitCode==0&&current.output!=null)
+      for(String line:current.output.split("\\r?\\n"))
+        if(line.startsWith("querylog_retention="))selectedValue=line.substring("querylog_retention=".length()).trim();
+    int selected=2;
+    for(int i=0;i<values.length;i++)if(values[i].equals(selectedValue))selected=i;
+    final int initial=selected;
+    new AlertDialog.Builder(this).setTitle("DNS 查询日志保留期限")
+      .setSingleChoiceItems(labels,initial,(dialog,which)->{
+        dialog.dismiss();
+        root("dns-querylog-retention-set "+values[which],result->{
+          if(result.exitCode==0)status.setText("DNS 查询日志保留期限已更新为 "+values[which]+"；AdGuard Home 将按新期限轮转日志。");
+          else fxDialogBuilder().setTitle("保留期限未更新").setMessage(safe(result.output)).setPositiveButton("关闭",null).show();
+        });
+      }).setNegativeButton("取消",null).show();
+  });
+ }
+
  private void renderDns(){
   card("本地 DNS 引擎",
        "启用时使用 FX 自有 AdGuard Home 过滤服务；关闭后按 FX 当前安全 DNS 回退配置处理。",
@@ -649,8 +671,9 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
        btn("保存远端 DNS",()->saveVpnDns("remote_dns",remoteDns)),
        txt("国内直连 DNS",12,0xff617080,true),cnDns,
        btn("保存国内直连 DNS",()->saveVpnDns("cn_dns",cnDns)));
-  card("DNS 查询日志","默认关闭。仅本机保存最近 7 天 DNS 查询记录，不会上传查询记录。",
+  card("DNS 查询日志","默认关闭。仅本机保存查询记录；可单独设置日志保留期限，不会上传查询记录。",
        dnsSwitch("启用本地 DNS 查询日志","dns_querylog_enabled"),
+       btn("设置日志保留期限",()->chooseDnsQueryLogRetention()),
        btn("查看 DNS 查询日志",()->startActivity(new Intent(this,FxYulongDnsActivity.class))));
   card("DNS 缓存管理","刷新 FX 自己的 AdGuard Home / Unbound 缓存会短暂重启本地解析服务；第三方 VPN 和它的规则不会被停止。",
        btn("刷新本地 DNS 缓存",()->fxDialogBuilder().setTitle("刷新本地 DNS 缓存")
