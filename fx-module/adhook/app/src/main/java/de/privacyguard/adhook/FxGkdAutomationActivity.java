@@ -14,6 +14,8 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
+import android.widget.Spinner;
+import android.widget.ArrayAdapter;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -27,6 +29,10 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
     private LinearLayout body;
     private TextView serviceState;
     private Switch masterSwitch;
+    private String selectedGroupFilter = "全部分组";
+    private String selectedStatusFilter = "全部状态";
+    private String selectedTextFilter = "";
+    private final java.util.Set<String> selectedRuleIds = new java.util.LinkedHashSet<>();
 
     private int dp(float value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
@@ -63,8 +69,8 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
 
         TextView intro = text(
-                "已接入 GKD-XA v1.4.8 原生 selector/parser、限额 Accessibility 节点快照、本地规则匹配与 Click 执行。\n" +
-                "尚未接入：上游订阅源、规则组/排除项、AI 服务商、触发历史、云同步与上游备份格式。", 0xff66727e, 13);
+                "已接入 GKD-XA v1.4.8 selector/parser、本地规则组、排除选择器、单击/长按、冷却与本地导入导出。\n" +
+                "当前规则仅在本机运行；上游订阅源、AI 服务商、云同步和上游备份格式仍未接入。", 0xff66727e, 13);
         card(intro);
 
         TextView privacy = text(
@@ -164,7 +170,11 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
             if (input == null) throw new java.io.IOException("无法读取所选文件");
             byte[] buffer = new byte[8192];
             int count;
+            final int maximumBytes = 1024 * 1024;
             while ((count = input.read(buffer)) != -1) {
+                if (output.size() > maximumBytes - count) {
+                    throw new java.io.IOException("规则文件超过 1 MiB 限制，已停止读取。");
+                }
                 output.write(buffer, 0, count);
             }
             String json = new String(output.toByteArray(), java.nio.charset.StandardCharsets.UTF_8);
@@ -260,6 +270,24 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
         selectorInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
         form.addView(selectorInput);
 
+        Spinner actionInput = new Spinner(this);
+        actionInput.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item,
+                new String[]{"单击", "长按"}));
+        form.addView(actionInput);
+
+        EditText excludeInput = new EditText(this);
+        excludeInput.setHint("排除选择器（可选；命中时整条规则跳过）");
+        excludeInput.setSingleLine(false);
+        excludeInput.setMinLines(1);
+        excludeInput.setMaxLines(3);
+        excludeInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        form.addView(excludeInput);
+
+        EditText groupInput = new EditText(this);
+        groupInput.setSingleLine(true);
+        groupInput.setHint("规则组（最多 40 字，默认：默认）");
+        form.addView(groupInput);
+
         EditText cooldownInput = new EditText(this);
         cooldownInput.setSingleLine(true);
         cooldownInput.setHint("规则冷却秒数（1–60，默认 3）");
@@ -297,8 +325,16 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
                         Toast.makeText(this, "选择器无效：" + compiled.getError(), Toast.LENGTH_LONG).show();
                         return;
                     }
+                    String excludeSelector = excludeInput.getText().toString().trim();
+                    if (!excludeSelector.isEmpty() && !FxGkdSelectorEngine.compile(excludeSelector).isValid()) {
+                        Toast.makeText(this, "排除选择器无效：" +
+                                FxGkdSelectorEngine.compile(excludeSelector).getError(), Toast.LENGTH_LONG).show();
+                        return;
+                    }
                     FxGkdRule saved = FxGkdRuleStore.addRule(
-                            this, pkg, selector, cooldownSeconds * 1000L);
+                            this, pkg, selector, cooldownSeconds * 1000L,
+                            actionInput.getSelectedItemPosition() == 1 ? "long_click" : "click",
+                            groupInput.getText().toString(), excludeSelector);
                     if (saved == null) {
                         Toast.makeText(this, "保存失败：请检查规则格式或本地存储是否可写。", Toast.LENGTH_LONG).show();
                         return;
@@ -370,6 +406,117 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
                 Toast.LENGTH_SHORT).show();
     }
 
+    private void showEditRuleDialog(FxGkdRule rule) {
+        LinearLayout form = new LinearLayout(this);
+        form.setOrientation(LinearLayout.VERTICAL);
+        form.setPadding(dp(20), dp(8), dp(20), dp(4));
+
+        EditText selectorInput = new EditText(this);
+        selectorInput.setHint("GKD 选择器");
+        selectorInput.setSingleLine(false);
+        selectorInput.setMinLines(2);
+        selectorInput.setMaxLines(4);
+        selectorInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        selectorInput.setText(rule.getSelector());
+        form.addView(selectorInput);
+
+        Spinner actionInput = new Spinner(this);
+        actionInput.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item,
+                new String[]{"单击", "长按"}));
+        actionInput.setSelection("long_click".equals(rule.getAction()) ? 1 : 0);
+        form.addView(actionInput);
+
+        EditText excludeInput = new EditText(this);
+        excludeInput.setHint("排除选择器（可选；命中时整条规则跳过）");
+        excludeInput.setSingleLine(false);
+        excludeInput.setMinLines(1);
+        excludeInput.setMaxLines(3);
+        excludeInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        excludeInput.setText(rule.getExcludeSelector());
+        form.addView(excludeInput);
+
+        EditText groupInput = new EditText(this);
+        groupInput.setSingleLine(true);
+        groupInput.setHint("规则组（最多 40 字）");
+        groupInput.setText(rule.getGroup());
+        form.addView(groupInput);
+
+        EditText cooldownInput = new EditText(this);
+        cooldownInput.setSingleLine(true);
+        cooldownInput.setInputType(InputType.TYPE_CLASS_NUMBER);
+        cooldownInput.setHint("规则冷却秒数（1–60）");
+        cooldownInput.setText(String.valueOf(rule.getCooldownMillis() / 1000L));
+        form.addView(cooldownInput);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("编辑 GKD 规则")
+                .setView(form)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("保存修改", null)
+                .create();
+        dialog.setOnShowListener(ignored ->
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+                    long seconds;
+                    try {
+                        seconds = Long.parseLong(cooldownInput.getText().toString().trim());
+                    } catch (NumberFormatException invalid) {
+                        Toast.makeText(this, "冷却秒数无效。", Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    if (seconds < 1L || seconds > 60L) {
+                        Toast.makeText(this, "冷却秒数必须在 1 到 60 秒之间。", Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    String selector = selectorInput.getText().toString().trim();
+                    FxGkdSelectorCompilation compiled = FxGkdSelectorEngine.compile(selector);
+                    if (!compiled.isValid()) {
+                        Toast.makeText(this, "选择器无效：" + compiled.getError(), Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    String excludeSelector = excludeInput.getText().toString().trim();
+                    if (!excludeSelector.isEmpty() && !FxGkdSelectorEngine.compile(excludeSelector).isValid()) {
+                        Toast.makeText(this, "排除选择器无效：" +
+                                FxGkdSelectorEngine.compile(excludeSelector).getError(), Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    FxGkdRule updated = FxGkdRuleStore.updateRule(
+                            this, rule.getId(), selector, seconds * 1000L,
+                            actionInput.getSelectedItemPosition() == 1 ? "long_click" : "click",
+                            groupInput.getText().toString(), excludeSelector);
+                    if (updated == null) {
+                        Toast.makeText(this, "保存失败，原规则保持不变。", Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    FxGkdAutomationRuntime.invalidateRules();
+                    FxAccessibilityService.requestReconfigure(this);
+                    renderRules();
+                    dialog.dismiss();
+                    Toast.makeText(this, "GKD 规则已更新。", Toast.LENGTH_SHORT).show();
+                }));
+        dialog.show();
+    }
+
+    private void moveRule(FxGkdRule rule, int direction) {
+        if (!FxGkdRuleStore.moveRule(this, rule.getId(), direction)) {
+            Toast.makeText(this, direction < 0 ? "规则已在最前面或调整失败。" : "规则已在最后面或调整失败。", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        FxGkdAutomationRuntime.invalidateRules();
+        renderRules();
+    }
+
+    private void setGroupEnabled(String group, boolean enabled) {
+        if (!FxGkdRuleStore.setGroupEnabled(this, group, enabled)) {
+            Toast.makeText(this, "规则组状态保存失败。", Toast.LENGTH_LONG).show();
+            return;
+        }
+        FxGkdAutomationRuntime.invalidateRules();
+        syncMasterSwitch();
+        FxAccessibilityService.requestReconfigure(this);
+        renderRules();
+        updateServiceState();
+    }
+
     private void updateRuleEnabled(FxGkdRule rule, Switch control, boolean enabled) {
         if (!FxGkdRuleStore.setRuleEnabled(this, rule.getId(), enabled)) {
             control.setOnCheckedChangeListener(null);
@@ -398,23 +545,142 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
         // Keep the two notice cards, service status, permission button,
         // master switch, add-rule and import/export controls stay in place.
         while (body.getChildCount() > 7) body.removeViewAt(7);
-        TextView section = text("本地规则（仅保存在本机）", 0xff17212b, 16);
+        List<FxGkdRule> rules = FxGkdRuleStore.getRules(this);
+        TextView section = text("本地规则（仅保存在本机） · " + rules.size() + " 条", 0xff17212b, 16);
         section.setTypeface(null, android.graphics.Typeface.BOLD);
         body.addView(section);
 
-        List<FxGkdRule> rules = FxGkdRuleStore.getRules(this);
+        LinearLayout batchActions = new LinearLayout(this);
+        batchActions.setOrientation(LinearLayout.HORIZONTAL);
+        batchActions.setPadding(dp(12), dp(2), dp(12), dp(4));
+        batchActions.addView(action("全选当前筛选", () -> {
+            selectedRuleIds.clear();
+            for (FxGkdRule item : rules) {
+                if (isRuleVisible(item)) selectedRuleIds.add(item.getId());
+            }
+            renderRules();
+        }), new LinearLayout.LayoutParams(0, -2, 1));
+        batchActions.addView(action("清空选择", () -> {
+            selectedRuleIds.clear();
+            renderRules();
+        }), new LinearLayout.LayoutParams(0, -2, 1));
+        batchActions.addView(action("启用所选", () -> applyBatchEnabled(true)),
+                new LinearLayout.LayoutParams(0, -2, 1));
+        batchActions.addView(action("关闭所选", () -> applyBatchEnabled(false)),
+                new LinearLayout.LayoutParams(0, -2, 1));
+        body.addView(batchActions);
+        LinearLayout destructiveActions = new LinearLayout(this);
+        destructiveActions.setOrientation(LinearLayout.HORIZONTAL);
+        destructiveActions.setPadding(dp(12), 0, dp(12), dp(4));
+        destructiveActions.addView(action("删除所选（" + selectedRuleIds.size() + "）", this::confirmBatchDelete),
+                new LinearLayout.LayoutParams(0, -2, 1));
+        destructiveActions.addView(action("整理重复规则", this::confirmDuplicateCleanup),
+                new LinearLayout.LayoutParams(0, -2, 1));
+        body.addView(destructiveActions);
+
         if (rules.isEmpty()) {
             body.addView(text("还没有规则。添加目标应用包名和上游 GKD 选择器后，规则才会参与匹配。", 0xff66727e, 13));
             return;
         }
 
+        java.util.TreeSet<String> groupNames = new java.util.TreeSet<>();
+        for (FxGkdRule item : rules) groupNames.add(item.getGroup());
+        java.util.ArrayList<String> groupOptions = new java.util.ArrayList<>();
+        groupOptions.add("全部分组");
+        groupOptions.addAll(groupNames);
+        if (!groupOptions.contains(selectedGroupFilter)) selectedGroupFilter = "全部分组";
+
+        LinearLayout filters = new LinearLayout(this);
+        filters.setOrientation(LinearLayout.HORIZONTAL);
+        filters.setPadding(dp(12), dp(2), dp(12), dp(6));
+        Spinner groupFilter = new Spinner(this);
+        groupFilter.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, groupOptions));
+        groupFilter.setSelection(groupOptions.indexOf(selectedGroupFilter));
+        filters.addView(groupFilter, new LinearLayout.LayoutParams(0, -2, 1));
+
+        String[] statusOptions = new String[]{"全部状态", "仅启用", "仅关闭"};
+        Spinner statusFilter = new Spinner(this);
+        statusFilter.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, statusOptions));
+        int statusIndex = java.util.Arrays.asList(statusOptions).indexOf(selectedStatusFilter);
+        statusFilter.setSelection(statusIndex < 0 ? 0 : statusIndex);
+        filters.addView(statusFilter, new LinearLayout.LayoutParams(0, -2, 1));
+        body.addView(filters);
+        if (!"全部分组".equals(selectedGroupFilter)) {
+            body.addView(action("重命名当前分组", this::renameSelectedGroup));
+        }
+
+        LinearLayout searchRow = new LinearLayout(this);
+        searchRow.setOrientation(LinearLayout.HORIZONTAL);
+        searchRow.setPadding(dp(12), dp(0), dp(12), dp(6));
+        EditText searchInput = new EditText(this);
+        searchInput.setSingleLine(true);
+        searchInput.setTextSize(14);
+        searchInput.setHint("筛选包名、选择器、排除条件或分组");
+        searchInput.setText(selectedTextFilter);
+        searchRow.addView(searchInput, new LinearLayout.LayoutParams(0, -2, 1));
+        searchRow.addView(action("应用筛选", () -> {
+            selectedTextFilter = searchInput.getText().toString().trim();
+            renderRules();
+        }));
+        searchRow.addView(action("清除", () -> {
+            selectedTextFilter = "";
+            renderRules();
+        }));
+        body.addView(searchRow);
+
+        android.widget.AdapterView.OnItemSelectedListener filterListener =
+                new android.widget.AdapterView.OnItemSelectedListener() {
+                    @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view,
+                                                         int position, long id) {
+                        String group = groupFilter.getSelectedItem().toString();
+                        String status = statusFilter.getSelectedItem().toString();
+                        if (!group.equals(selectedGroupFilter) || !status.equals(selectedStatusFilter)) {
+                            selectedGroupFilter = group;
+                            selectedStatusFilter = status;
+                            renderRules();
+                        }
+                    }
+                    @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+                };
+        groupFilter.setOnItemSelectedListener(filterListener);
+        statusFilter.setOnItemSelectedListener(filterListener);
+
+        int shown = 0;
         for (FxGkdRule rule : rules) {
+            if (!"全部分组".equals(selectedGroupFilter) && !selectedGroupFilter.equals(rule.getGroup())) continue;
+            if ("仅启用".equals(selectedStatusFilter) && !rule.getEnabled()) continue;
+            if ("仅关闭".equals(selectedStatusFilter) && rule.getEnabled()) continue;
+            if (!matchesTextFilter(rule, selectedTextFilter)) continue;
+            shown++;
+        }
+        TextView count = text("当前筛选显示 " + shown + " / " + rules.size() + " 条规则", 0xff66727e, 12);
+        body.addView(count);
+        if (shown == 0) {
+            body.addView(text("当前筛选条件下没有规则。可切换分组或启用状态筛选。", 0xff66727e, 13));
+            return;
+        }
+
+        for (FxGkdRule rule : rules) {
+            if (!"全部分组".equals(selectedGroupFilter) && !selectedGroupFilter.equals(rule.getGroup())) continue;
+            if ("仅启用".equals(selectedStatusFilter) && !rule.getEnabled()) continue;
+            if ("仅关闭".equals(selectedStatusFilter) && rule.getEnabled()) continue;
+            if (!matchesTextFilter(rule, selectedTextFilter)) continue;
             LinearLayout row = new LinearLayout(this);
             row.setOrientation(LinearLayout.VERTICAL);
             row.setPadding(dp(14), dp(8), dp(14), dp(8));
             row.setBackgroundColor(0xfff0f3f7);
-            TextView label = text(rule.getPackageName() + "\n" + rule.getSelector()
-                    + "\n动作：点击 · 冷却：" + (rule.getCooldownMillis() / 1000L) + " 秒",
+            Switch selected = new Switch(this);
+            selected.setText("选择此规则");
+            selected.setChecked(selectedRuleIds.contains(rule.getId()));
+            selected.setOnCheckedChangeListener((button, checked) -> {
+                if (checked) selectedRuleIds.add(rule.getId());
+                else selectedRuleIds.remove(rule.getId());
+            });
+            row.addView(selected);
+            TextView label = text("规则组：" + rule.getGroup() + "\n" + rule.getPackageName() + "\n" + rule.getSelector()
+                    + (rule.getExcludeSelector().isEmpty() ? "" : "\n排除：" + rule.getExcludeSelector())
+                    + "\n动作：" + ("long_click".equals(rule.getAction()) ? "长按" : "单击")
+                    + " · 冷却：" + (rule.getCooldownMillis() / 1000L) + " 秒",
                     0xff17212b, 13);
             row.addView(label);
 
@@ -426,6 +692,37 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
             enabled.setOnCheckedChangeListener((button, checked) ->
                     updateRuleEnabled(rule, (Switch) button, checked));
             actions.addView(enabled, new LinearLayout.LayoutParams(0, -2, 1));
+            actions.addView(action("启用本组", () -> setGroupEnabled(rule.getGroup(), true)));
+            actions.addView(action("关闭本组", () -> setGroupEnabled(rule.getGroup(), false)));
+            actions.addView(action("上移", () -> moveRule(rule, -1)));
+            actions.addView(action("下移", () -> moveRule(rule, 1)));
+            actions.addView(action("编辑", () -> showEditRuleDialog(rule)));
+            actions.addView(action("复制为草稿", () -> {
+                FxGkdRule duplicate = FxGkdRuleStore.duplicateRule(this, rule.getId());
+                if (duplicate == null) {
+                    Toast.makeText(this, "复制失败：规则不存在、存储不可写或已达到 500 条上限。", Toast.LENGTH_LONG).show();
+                    return;
+                }
+                selectedRuleIds.clear();
+                FxGkdAutomationRuntime.invalidateRules();
+                renderRules();
+                Toast.makeText(this, "已复制为关闭状态的草稿，请检查后手动启用。", Toast.LENGTH_LONG).show();
+            }));
+            actions.addView(action("复制规则 JSON", () -> {
+                String json = FxGkdRuleStore.exportRuleJson(this, rule.getId());
+                if (json == null) {
+                    Toast.makeText(this, "规则已不存在，无法导出。", Toast.LENGTH_LONG).show();
+                    return;
+                }
+                android.content.ClipboardManager clipboard =
+                        (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                if (clipboard == null) {
+                    Toast.makeText(this, "系统剪贴板不可用。", Toast.LENGTH_LONG).show();
+                    return;
+                }
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("FX GKD Rule JSON", json));
+                Toast.makeText(this, "单条规则 JSON 已复制；可粘贴到支持 FX-GKD-LOCAL-RULES 格式的文件中。", Toast.LENGTH_LONG).show();
+            }));
             actions.addView(action("删除", () -> new AlertDialog.Builder(this)
                     .setMessage("删除这条本地 GKD 规则？")
                     .setNegativeButton("取消", null)
@@ -445,5 +742,126 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
             params.setMargins(dp(12), dp(4), dp(12), dp(5));
             body.addView(row, params);
         }
+    }
+
+    private void renameSelectedGroup() {
+        final String oldName = selectedGroupFilter;
+        if (oldName == null || oldName.trim().isEmpty() || "全部分组".equals(oldName)) return;
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setText(oldName);
+        input.setSelection(input.getText().length());
+        input.setHint("新分组名称（最多 40 字）");
+        new AlertDialog.Builder(this)
+                .setTitle("重命名 GKD 规则组")
+                .setMessage("将当前分组内全部规则统一改名；规则顺序、选择器、动作、冷却时间及启用状态均保持不变。若目标名称已存在，将合并到同名分组。")
+                .setView(input)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("保存", (dialog, which) -> {
+                    String newName = input.getText() == null ? "" : input.getText().toString().trim();
+                    if (newName.isEmpty() || newName.length() > 40 || newName.contains("\\n") || newName.contains("\\r")) {
+                        Toast.makeText(this, "分组名称不能为空，且最多 40 字。", Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    int changed = FxGkdRuleStore.renameGroup(this, oldName, newName);
+                    if (changed < 0) {
+                        Toast.makeText(this, "分组重命名失败，原规则保持不变。", Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    if (changed == 0) {
+                        Toast.makeText(this, "名称未变化，或当前分组已不存在。", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    selectedGroupFilter = newName;
+                    selectedRuleIds.clear();
+                    FxGkdAutomationRuntime.invalidateRules();
+                    FxAccessibilityService.requestReconfigure(this);
+                    renderRules();
+                    updateServiceState();
+                    Toast.makeText(this, "已重命名 " + changed + " 条规则。", Toast.LENGTH_SHORT).show();
+                }).show();
+    }
+
+    private boolean isRuleVisible(FxGkdRule rule) {
+        if (!"全部分组".equals(selectedGroupFilter) && !selectedGroupFilter.equals(rule.getGroup())) return false;
+        if ("仅启用".equals(selectedStatusFilter) && !rule.getEnabled()) return false;
+        if ("仅关闭".equals(selectedStatusFilter) && rule.getEnabled()) return false;
+        return matchesTextFilter(rule, selectedTextFilter);
+    }
+
+    private void applyBatchEnabled(boolean enabled) {
+        int changed = FxGkdRuleStore.setRulesEnabled(this,
+                new java.util.HashSet<>(selectedRuleIds), enabled);
+        if (changed < 0) {
+            Toast.makeText(this, "批量状态保存失败，原规则保持不变。", Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (changed == 0) {
+            Toast.makeText(this, "请先选择规则。", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        selectedRuleIds.clear();
+        FxGkdAutomationRuntime.invalidateRules();
+        syncMasterSwitch();
+        FxAccessibilityService.requestReconfigure(this);
+        renderRules();
+        updateServiceState();
+        Toast.makeText(this, "已更新 " + changed + " 条规则。", Toast.LENGTH_SHORT).show();
+    }
+
+    private void confirmBatchDelete() {
+        if (selectedRuleIds.isEmpty()) {
+            Toast.makeText(this, "请先选择要删除的规则。", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("批量删除规则")
+                .setMessage("确定删除已选择的 " + selectedRuleIds.size() + " 条规则？此操作不可撤销。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("删除", (dialog, which) -> {
+                    int removed = FxGkdRuleStore.removeRules(this,
+                            new java.util.HashSet<>(selectedRuleIds));
+                    if (removed < 0) {
+                        Toast.makeText(this, "批量删除失败，原规则保持不变。", Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    selectedRuleIds.clear();
+                    FxGkdAutomationRuntime.invalidateRules();
+                    syncMasterSwitch();
+                    FxAccessibilityService.requestReconfigure(this);
+                    renderRules();
+                    updateServiceState();
+                    Toast.makeText(this, "已删除 " + removed + " 条规则。", Toast.LENGTH_SHORT).show();
+                }).show();
+    }
+
+    private void confirmDuplicateCleanup() {
+        new AlertDialog.Builder(this)
+                .setTitle("整理重复规则")
+                .setMessage("按目标包名 + 主选择器识别重复项，保留列表中最靠前的一条；其余重复项将被删除。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("整理", (dialog, which) -> {
+                    int removed = FxGkdRuleStore.removeDuplicateRules(this);
+                    if (removed < 0) {
+                        Toast.makeText(this, "重复规则整理失败，原规则保持不变。", Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    selectedRuleIds.clear();
+                    FxGkdAutomationRuntime.invalidateRules();
+                    syncMasterSwitch();
+                    FxAccessibilityService.requestReconfigure(this);
+                    renderRules();
+                    updateServiceState();
+                    Toast.makeText(this, "已整理，删除重复规则 " + removed + " 条。", Toast.LENGTH_SHORT).show();
+                }).show();
+    }
+
+    private boolean matchesTextFilter(FxGkdRule rule, String query) {
+        if (query == null || query.trim().isEmpty()) return true;
+        String needle = query.trim().toLowerCase(java.util.Locale.ROOT);
+        return rule.getPackageName().toLowerCase(java.util.Locale.ROOT).contains(needle)
+                || rule.getSelector().toLowerCase(java.util.Locale.ROOT).contains(needle)
+                || rule.getExcludeSelector().toLowerCase(java.util.Locale.ROOT).contains(needle)
+                || rule.getGroup().toLowerCase(java.util.Locale.ROOT).contains(needle);
     }
 }
