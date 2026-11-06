@@ -7031,3 +7031,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 兼容性：配置仍使用 `rewrite=domain|answer` / `DNS_REWRITES` 原有字段协议；普通旧规则无需迁移，快照版本及字段数量不变。
 - 同步正式与模块源码：两份 `yulong-ad-control.sh`、两份 `adguardhome.sh`、两份 `FxYulongAdActivity.java`。
 - 按用户要求未运行测试、静态检查、构建、CI 或设备验证；本批为源码移植，不代表运行验收。
+
+
+## 2026-11-07 — 本地 DNS 健康探测扩展为双栈 UDP/TCP 四路验证
+
+- scripts/localdns-probe.c 新增显式 udp/tcp 传输参数。默认保持 udp 以兼容旧调用；tcp 模式直接通过非阻塞连接、单调时钟 deadline、DNS 两字节长度前缀完成完整 TCP 查询/答复，并复用相同的 transaction ID、QR/opcode/RD/RA/TC/question/RCODE 校验。UDP 响应被截断时仍自动回退 TCP。
+- Unbound 健康探测分别检查 127.0.0.1:5353 的 UDP 与 TCP；AdGuard Home 对 127.0.0.1:53 和 [::1]:53 分别检查 UDP 与 TCP；Root Proxy 在挂接双栈 OUTPUT 重定向前，对两个 loopback 地址的 UDP/TCP 四条路径逐条确认。
+- Root Proxy 改用与 Unbound/AdGuard 共用的 FX 本地 DNS 报文探测器，不再依赖 nslookup 文本输出中的 Name/Address 格式判断 DNS 健康；探测器仍只允许 numeric loopback endpoint，NXDOMAIN 仍是合法 DNS 答复。
+- 同步正式 C 源、模块 C 源、两份 Host 回归夹具、Unbound/AdGuard/Root Proxy 运行脚本；构建工作流会从正式 C 源重新编译 ARM64 probe 并生成 SHA-256 sidecar。
+- 按当前要求未执行 C/Python/Shell 回归、静态检查、Android 构建、CI 或设备验证；仅提交源码与未执行回归用例。

@@ -22,6 +22,7 @@ CONF=${CONF:-$PG/settings.conf}
 ACTIVE="$PG/yulong-root-proxy-active"
 ACTIVE_META="$PG/yulong-root-proxy-active.meta"
 EGRESS="$PG/unbound-vpn-egress-ip"
+PROBE="$MP/engines/unbound/fx-dns-probe"
 LOCK="$PG/yulong-root-proxy.lock"
 LOG="$PG/yulong-root-proxy.log"
 _RPROXY_TEMP=
@@ -118,26 +119,13 @@ _valid_ipv4() {
 }
 _local_dns_probe_endpoint() {
   _server="$1"
-  _probe_output=$(timeout 5 nslookup example.com "$_server" 2>&1) || return 1
-  # Ignore the resolver's own Server/Address header and require an answer
-  # address associated with the queried name.
-  _probe_answers=$(printf '%s\n' "$_probe_output" | awk '
-    tolower($0) ~ /^[[:space:]]*name:[[:space:]]*example[.]com([.]?)([[:space:]]|$)/ {
-      answer=1; next
-    }
-    answer && tolower($0) ~ /^[[:space:]]*address([[:space:]]+[0-9]+)?:[[:space:]]*[0-9]+([.][0-9]+){3}([[:space:]]|$)/ {
-      print $NF
-    }
-  ')
-  for _probe_ip in $_probe_answers; do
-    _valid_ipv4 "$_probe_ip" && return 0
-  done
-  return 1
+  [ -f "$PROBE" ] && [ -x "$PROBE" ] && [ ! -L "$PROBE" ] || return 1
+  "$PROBE" "$_server" 53 5 udp >> "$LOG" 2>&1 || return 1
+  "$PROBE" "$_server" 53 5 tcp >> "$LOG" 2>&1
 }
 _local_dns_probe() {
-  command -v nslookup >/dev/null 2>&1 && command -v timeout >/dev/null 2>&1 || return 1
-  # Both families are redirected to loopback by Root Proxy; validate both
-  # listeners before attaching either OUTPUT chain.
+  # Require both loopback families to answer over UDP and TCP before either
+  # FX-owned OUTPUT redirect chain is attached.
   _local_dns_probe_endpoint 127.0.0.1 || return 1
   _local_dns_probe_endpoint ::1 || return 1
 }

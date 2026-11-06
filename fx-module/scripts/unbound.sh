@@ -470,7 +470,8 @@ _maybe_refresh_anchor() {
   return 0
 }
 _probe() {
-  "$PROBE" 127.0.0.1 5353 5 >> "$LOG" 2>&1
+  "$PROBE" 127.0.0.1 5353 5 udp >> "$LOG" 2>&1 || return 1
+  "$PROBE" 127.0.0.1 5353 5 tcp >> "$LOG" 2>&1
 }
 _stop() {
   _safe_file_or_absent "$PIDFILE" || { _log 'refusing to stop through an unsafe PID marker'; return 1; }

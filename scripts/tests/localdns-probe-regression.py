@@ -58,6 +58,50 @@ def alter_question_count(packet):
     packet[4:6] = struct.pack("!H", 2)
 
 
+def run_tcp_case(binary, flags=0x8180, expect=0, mutate=None):
+    srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    srv.bind(("127.0.0.1", 0))
+    srv.listen(1)
+    srv.settimeout(3)
+    port = srv.getsockname()[1]
+
+    def serve():
+        conn = None
+        try:
+            conn, _ = srv.accept()
+            conn.settimeout(3)
+            prefix = conn.recv(2)
+            assert len(prefix) == 2, "TCP DNS length prefix missing"
+            size = struct.unpack("!H", prefix)[0]
+            packet = bytearray()
+            while len(packet) < size:
+                chunk = conn.recv(size - len(packet))
+                assert chunk, "TCP DNS query ended early"
+                packet.extend(chunk)
+            packet[2:4] = struct.pack("!H", flags)
+            packet[6:12] = b"\0" * 6
+            if mutate:
+                mutate(packet)
+            conn.sendall(struct.pack("!H", len(packet)) + packet)
+        finally:
+            if conn is not None:
+                conn.close()
+            srv.close()
+
+    thread = threading.Thread(target=serve, daemon=True)
+    thread.start()
+    result = subprocess.run(
+        [binary, "127.0.0.1", str(port), "2", "tcp"],
+        capture_output=True, text=True, timeout=4,
+    )
+    thread.join(timeout=3)
+    assert not thread.is_alive(), "TCP DNS fixture server did not terminate"
+    assert result.returncode == expect, (
+        result.returncode, result.stdout, result.stderr, expect
+    )
+    return result
+
 def main():
     with tempfile.TemporaryDirectory(prefix="fx-dns-probe-") as tmp:
         binary = os.path.join(tmp, "probe")
@@ -85,6 +129,13 @@ def main():
         assert run_case(binary, mutate=alter_question_count, expect=73).returncode == 73
         assert run_case(binary, truncate=10, expect=72).returncode == 72
 
+        # Explicit TCP-only probes must work without any UDP exchange.
+        assert "transport=tcp" in run_tcp_case(binary).stdout
+        assert "PASS" in run_tcp_case(binary, 0x8183).stdout
+        assert run_tcp_case(binary, 0x8100, 74).returncode == 74
+        assert run_tcp_case(binary, 0x8181, 75).returncode == 75
+        assert run_tcp_case(binary, mutate=flip_transaction_id, expect=73).returncode == 73
+
         # A syntactically valid response without recursion availability is not
         # sufficient for the local recursive resolver health contract.
         assert run_case(binary, 0x8100, 74).returncode == 74
@@ -101,6 +152,7 @@ def main():
             ["127.0.0.1", "65536"],
             ["127.0.0.1", "5353", "0"],
             ["127.0.0.1", "5353", "1", "extra"],
+            ["127.0.0.1", "5353", "1", "sctp"],
         ):
             p = subprocess.run(
                 [binary] + args, capture_output=True, text=True, timeout=2
@@ -108,9 +160,9 @@ def main():
             assert p.returncode == 64, (args, p.returncode, p.stderr)
 
     print(
-        "PASS: loopback restriction, strict CLI parsing, valid/NXDOMAIN, "
-        "transaction/question matching, malformed/truncated replies, "
-        "recursion availability and upstream error RCODE checks"
+        "PASS: loopback restriction, strict CLI parsing, explicit UDP/TCP "
+        "transports, valid/NXDOMAIN, transaction/question matching, "
+        "malformed/truncated replies, recursion availability and RCODE checks"
     )
 
 

@@ -109,13 +109,15 @@ static int retry_tcp(const struct sockaddr *server,socklen_t server_len,
 }
 int main(int argc,char **argv) {
     const char *ip=argc>1?argv[1]:"127.0.0.1";
+    const char *transport=argc>4?argv[4]:"udp";
     long port=5353,timeout=5;
     struct sockaddr_storage server; socklen_t server_len=0; struct timeval tv; struct timespec ts;
     unsigned char query[512]={0},reply[4096]; uint16_t id,flags,rcode,qdcount;
     size_t n=12; int fd; char label[64];
-    if(argc>4 || (argc>2 && parse_long_arg(argv[2],1,65535,&port)!=0) ||
-       (argc>3 && parse_long_arg(argv[3],1,10,&timeout)!=0)) {
-        fputs("invalid DNS probe arguments (port 1..65535, timeout 1..10 seconds)\n",stderr); return 64;
+    if(argc>5 || (argc>2 && parse_long_arg(argv[2],1,65535,&port)!=0) ||
+       (argc>3 && parse_long_arg(argv[3],1,10,&timeout)!=0) ||
+       (argc>4 && strcmp(transport,"udp")!=0 && strcmp(transport,"tcp")!=0)) {
+        fputs("invalid DNS probe arguments (port 1..65535, timeout 1..10 seconds, transport udp|tcp)\n",stderr); return 64;
     }
     memset(&server,0,sizeof(server));
     if(inet_pton(AF_INET,ip,&((struct sockaddr_in *)&server)->sin_addr)==1) {
@@ -146,20 +148,31 @@ int main(int argc,char **argv) {
         fputs("failed to encode health query\n",stderr); return 65;
     }
     query[n++]=0; put16(query+n,1u); n+=2; put16(query+n,1u); n+=2;
-    fd=socket(server.ss_family,SOCK_DGRAM,0); if(fd<0) { perror("socket"); return 70; }
-    if(setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&tv,sizeof(tv))!=0 ||
-       setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&tv,sizeof(tv))!=0) {
-        perror("DNS probe socket timeout"); close(fd); return 70;
-    }
-    if(connect(fd,(struct sockaddr *)&server,server_len)!=0) { perror("connect"); close(fd); return 70; }
-    if(send(fd,query,n,0)!=(ssize_t)n) { perror("send"); close(fd); return 71; }
-    ssize_t udp_got=recv(fd,reply,sizeof(reply),0);
-    if(udp_got<0) { perror("recv"); close(fd); return 72; } close(fd);
-    if(udp_got<12) { fputs("DNS response shorter than header\\n",stderr); return 72; }
-    flags=(uint16_t)(((uint16_t)reply[2]<<8)|reply[3]);
-    size_t got=(size_t)udp_got;
-    if((flags&0x0200u)!=0 && retry_tcp((struct sockaddr *)&server,server_len,query,n,reply,sizeof(reply),&tv,&got)!=0) {
-        fputs("truncated UDP DNS response and TCP retry failed\\n",stderr); return 72;
+    size_t got=0;
+    const char *used_transport=transport;
+    if(strcmp(transport,"tcp")==0) {
+        if(retry_tcp((struct sockaddr *)&server,server_len,query,n,reply,sizeof(reply),&tv,&got)!=0) {
+            fputs("TCP DNS probe failed\\n",stderr); return 72;
+        }
+    } else {
+        fd=socket(server.ss_family,SOCK_DGRAM,0); if(fd<0) { perror("socket"); return 70; }
+        if(setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&tv,sizeof(tv))!=0 ||
+           setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&tv,sizeof(tv))!=0) {
+            perror("DNS probe socket timeout"); close(fd); return 70;
+        }
+        if(connect(fd,(struct sockaddr *)&server,server_len)!=0) { perror("connect"); close(fd); return 70; }
+        if(send(fd,query,n,0)!=(ssize_t)n) { perror("send"); close(fd); return 71; }
+        ssize_t udp_got=recv(fd,reply,sizeof(reply),0);
+        if(udp_got<0) { perror("recv"); close(fd); return 72; } close(fd);
+        if(udp_got<12) { fputs("DNS response shorter than header\\n",stderr); return 72; }
+        flags=(uint16_t)(((uint16_t)reply[2]<<8)|reply[3]);
+        got=(size_t)udp_got;
+        if((flags&0x0200u)!=0) {
+            if(retry_tcp((struct sockaddr *)&server,server_len,query,n,reply,sizeof(reply),&tv,&got)!=0) {
+                fputs("truncated UDP DNS response and TCP retry failed\\n",stderr); return 72;
+            }
+            used_transport="udp+tcp-fallback";
+        }
     }
     if(got<n) { fputs("DNS response shorter than echoed question\\n",stderr); return 72; }
     uint16_t response_id=(uint16_t)(((uint16_t)reply[0]<<8)|reply[1]);
@@ -172,5 +185,5 @@ int main(int argc,char **argv) {
     }
     if((flags&0x0080u)==0) { fputs("DNS response did not advertise recursive availability\n",stderr); return 74; }
     if(rcode!=0 && rcode!=3) { fprintf(stderr,"DNS resolver returned error RCODE=%u\n",(unsigned)rcode); return 75; }
-    printf("PASS rcode=%u bytes=%ld port=%ld\n",(unsigned)rcode,(long)got,port); return 0;
+    printf("PASS rcode=%u bytes=%ld port=%ld transport=%s\n",(unsigned)rcode,(long)got,port,used_transport); return 0;
 }
