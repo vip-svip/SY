@@ -79,6 +79,7 @@ status() {
   _root=unavailable
   _whitelist_count=unknown
   _root_reason=unknown
+  _root_cleanup=not_required
   _root_interface=unknown
   _root_vpn_uid=unknown
   _root_egress_ipv4=unknown
@@ -123,6 +124,8 @@ status() {
       case "$_count" in ''|*[!0-9]*) : ;; *) _whitelist_count=$_count ;; esac
       _reason=$(printf '%s\n' "$_root_output" | sed -n 's/^reason=//p' | head -1)
       case "$_reason" in ''|*[!A-Za-z0-9_.:-]*) : ;; *) _root_reason=$_reason ;; esac
+      _cleanup=$(printf '%s\n' "$_root_output" | sed -n 's/^cleanup=//p' | head -1)
+      case "$_cleanup" in complete|failed) _root_cleanup=$_cleanup ;; esac
       _iface=$(printf '%s\n' "$_root_output" | sed -n 's/^interface=//p' | head -1)
       case "$_iface" in ''|*[!A-Za-z0-9_.:-]*) : ;; *) _root_interface=$_iface ;; esac
       _uid=$(printf '%s\n' "$_root_output" | sed -n 's/^vpn_uid=//p' | head -1)
@@ -174,6 +177,7 @@ status() {
   printf 'rootproxy_redirects|%s\n' "$_root_redirects"
   printf 'rootproxy_dns_probe|%s\n' "$_root_dns_probe"
   printf 'rootproxy_reason|%s\n' "$_root_reason"
+  printf 'rootproxy_cleanup|%s\n' "$_root_cleanup"
   printf 'rootproxy_whitelist_count|%s\n' "$_whitelist_count"
   printf 'dns_filter_sources_total|%s\n' "$_filter_total"
   printf 'dns_filter_sources_enabled|%s\n' "$_filter_enabled"
