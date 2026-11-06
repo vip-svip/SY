@@ -1,5 +1,15 @@
 
 
+### FX DNS 查询日志开关接入 AdGuard Home 持久化日志（2026-11-07）
+
+- 文件：\`fx-module/scripts/adguardhome.sh\`。
+- 将 \`dns_querylog_enabled\` 配置开关接入 AdGuard Home 的 \`querylog.enabled\` 与 \`querylog.file_enabled\`；关闭时不启用文件日志，开启时同时启用查询日志和本机文件持久化。
+- 保留用户配置的查询日志轮转期限，并继续沿用本地日志读取器读取当前及轮转文件的完整记录。
+- 保留 AdGuard Home 的内存批量写盘阈值作为写入缓冲策略；该阈值不是日志总条数上限或历史记录保留数量上限。
+- 按用户要求未执行测试、静态检查、构建、CI 或设备验证。
+
+
+
 ### FX DNS 与 Hosts/Ad 名单页面同步至 APK 实际构建源码（2026-11-07）
 
 - 文件：`adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`、`adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongDnsActivity.java`。

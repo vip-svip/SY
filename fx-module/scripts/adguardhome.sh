@@ -402,6 +402,11 @@ _render_managed_config() {
   if grep -Eq 'https://|tls://|quic://' "$_upstream_file"; then
     printf '  - 223.5.5.5\n  - 1.1.1.1\n' > "$_bootstrap_file" || return 1
   fi
+  _dns_querylog_enabled=$(_dns_setting_flag dns_querylog_enabled) || {
+    _log 'DNS query-log enable flag is duplicated or malformed'
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
+    return 1
+  }
   _querylog_interval=$(awk '
     BEGIN { inside=0; sections=0; intervals=0; value=""; bad=0 }
     $0=="[conf:yulong_dns_querylog_retention]" {
@@ -428,7 +433,7 @@ _render_managed_config() {
     }
   ' "$PG/settings.conf" 2>/dev/null) || {
     _log 'saved DNS query-log retention setting is ambiguous or invalid; refusing to render AdGuard config'
-    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_config_file" 2>/dev/null || :
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
     return 1
   }
   _dns_response_mode=$(awk '
@@ -457,7 +462,7 @@ _render_managed_config() {
     }
   ' "$PG/settings.conf" 2>/dev/null) || {
     _log 'saved DNS blocking response mode is ambiguous or invalid; refusing to render AdGuard config'
-    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_config_file" 2>/dev/null || :
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
     return 1
   }
   if ! awk '
@@ -489,13 +494,21 @@ _render_managed_config() {
     }
     END {if(bad) exit 1}
   ' "$PG/settings.conf" > "$_fallback_file"; then
-    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_config_file" 2>/dev/null || :
+    rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
     _log 'saved fallback DNS list is invalid; refusing to render AdGuard config'
     return 1
   fi
-  if ! awk -v querylog_interval="$_querylog_interval" -v dns_response_mode="$_dns_response_mode" -v rules_file="$_rules_file" -v filters_file="$_filters_file" -v fallback_file="$_fallback_file" -v upstream_file="$_upstream_file" -v bootstrap_file="$_bootstrap_file" '
+  if ! awk -v querylog_interval="$_querylog_interval" -v querylog_enabled="$_dns_querylog_enabled" -v dns_response_mode="$_dns_response_mode" -v rules_file="$_rules_file" -v filters_file="$_filters_file" -v fallback_file="$_fallback_file" -v upstream_file="$_upstream_file" -v bootstrap_file="$_bootstrap_file" '
     /^querylog:[[:space:]]*$/ {in_querylog=1; print; next}
     in_querylog && /^[^[:space:]]/ {in_querylog=0}
+    in_querylog && /^  enabled:/ {
+      print "  enabled: " (querylog_enabled=="1" ? "true" : "false")
+      next
+    }
+    in_querylog && /^  file_enabled:/ {
+      print "  file_enabled: " (querylog_enabled=="1" ? "true" : "false")
+      next
+    }
     in_querylog && /^  interval:/ {print "  interval: " querylog_interval; next}
     # FX_YULONG_DNS_RESPONSE_BEGIN
     /^  blocking_mode:/ {
