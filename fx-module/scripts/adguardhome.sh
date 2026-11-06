@@ -192,9 +192,14 @@ _build_filter_sources() {
   _output=$1
   [ -f "$PG/settings.conf" ] && [ ! -L "$PG/settings.conf" ] && [ -r "$PG/settings.conf" ] || return 1
   awk -F'|' '
-    function valid_url(u) {
-      return length(u)<=2048 &&
-        u ~ /^https?:\/\/[A-Za-z0-9._~:\/?#@!$&()*+,;=%-]+$/
+    function valid_url(u, i, ch, allowed) {
+      if (length(u)>2048 || (index(u,"http://")!=1 && index(u,"https://")!=1)) return 0
+      allowed="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._~:/?#@!$&\047()*+,;=%-"
+      for (i=1; i<=length(u); i++) {
+        ch=substr(u,i,1)
+        if (!index(allowed,ch)) return 0
+      }
+      return 1
     }
     $0=="[list:rule]" {section="rule"; next}
     /^\[/ {section=""; next}
@@ -208,22 +213,20 @@ _build_filter_sources() {
       sub(/^[[:space:]]+/,"",name)
       sub(/[[:space:]]+$/,"",name)
       if (name=="") name=url
-      # Stable URL-derived IDs survive subscription reordering. Resolve the
-      # extremely unlikely hash collision deterministically within this render.
+      # Stable URL-derived IDs survive subscription reordering. Resolve rare
+      # hash collisions deterministically within this render.
+      alphabet="0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._~:/?#@!$&() *+,;=%"
       id=0
-      for (i=1; i<=length(url); i++) id=(id*131+index("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._~:/?#@!      id=100000+next_id++
-      print "  - enabled: " ($3=="1" ? "true" : "false")
-      print "    url: \"" url "\""
-      print "    name: \"" name "\""
-      print "    id: " id()*+,;=%",substr(url,i,1)))%2000000000
-      id++
-      while (used_id[id]++) id=(id%2000000000)+1
+      for (i=1; i<=length(url); i++)
+        id=(id*131+index(alphabet,substr(url,i,1)))%2147483000
+      id=id+1
+      while (used_id[id]++) id=(id%2147483000)+1
       print "  - enabled: " ($3=="1" ? "true" : "false")
       print "    url: \"" url "\""
       print "    name: \"" name "\""
       print "    id: " id
     }
-  ' "$PG/settings.conf" > "$_output"
+  ' "$PG/settings.conf" > "$_output" || return 1
   chmod 600 "$_output" 2>/dev/null || return 1
   return 0
 }
@@ -339,7 +342,7 @@ _current_config_hash() {
   case "$_digest" in
     *[!a-f0-9]*|'') return 1 ;;
   esac
-  [ "\${#_digest}" -eq 64 ] || return 1
+  [ "${#_digest}" -eq 64 ] || return 1
   printf '%s\n' "$_digest"
 }
 _publish_config_hash() {
