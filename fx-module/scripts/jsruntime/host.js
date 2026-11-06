@@ -100,7 +100,7 @@
       const values=Array.isArray(headers[k])?headers[k]:[headers[k]];
       for(const rawValue of values){
         const v=String(rawValue);
-        if(/[\r\n]/.test(k+v)||/^(host|content-length|transfer-encoding)$/i.test(k)) throw new Error('unsafe HTTP header: '+k);
+        if(!/^[!#$%&'*+.^_\x60|~0-9A-Za-z-]+$/.test(k)||/[\r\n]/.test(v)||/^(host|content-length|transfer-encoding)$/i.test(k)) throw new Error('unsafe HTTP header: '+k);
         headerLines.push(k+': '+v);
       }
     }
