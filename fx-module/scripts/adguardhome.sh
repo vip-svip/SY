@@ -188,20 +188,61 @@ _build_user_rules() {
   chmod 600 "$_output" 2>/dev/null || return 1
   return 0
 }
+_build_filter_sources() {
+  _output=$1
+  [ -f "$PG/settings.conf" ] && [ ! -L "$PG/settings.conf" ] && [ -r "$PG/settings.conf" ] || return 1
+  awk -F'|' '
+    function valid_url(u) {
+      return length(u)<=2048 &&
+        u ~ /^https?:\/\/[A-Za-z0-9._~:\/?#@!$&()*+,;=%-]+$/
+    }
+    $0=="[list:rule]" {section="rule"; next}
+    /^\[/ {section=""; next}
+    section=="rule" && valid_url($1) && ($3=="0" || $3=="1") && !seen[$1]++ {
+      url=$1
+      name=$2
+      gsub(/["\\]/," ",name)
+      gsub(/[\r\t]/," ",name)
+      if (name=="") name=url
+      id=100000+next_id++
+      print "  - enabled: " ($3=="1" ? "true" : "false")
+      print "    url: \"" url "\""
+      print "    name: \"" name "\""
+      print "    id: " id
+    }
+  ' "$PG/settings.conf" > "$_output"
+  chmod 600 "$_output" 2>/dev/null || return 1
+  return 0
+}
 _render_managed_config() {
   _rules_file=$(_new_private_temp "$STATE/user-rules.XXXXXX") || return 1
-  _config_file=$(_new_private_temp "$STATE/AdGuardHome.yaml.tmp.XXXXXX") || {
+  _filters_file=$(_new_private_temp "$STATE/filter-sources.XXXXXX") || {
     rm -f "$_rules_file" 2>/dev/null || :
     return 1
   }
-  if ! _build_user_rules "$_rules_file"; then
-    rm -f "$_rules_file" "$_config_file" 2>/dev/null || :
+  _config_file=$(_new_private_temp "$STATE/AdGuardHome.yaml.tmp.XXXXXX") || {
+    rm -f "$_rules_file" "$_filters_file" 2>/dev/null || :
+    return 1
+  }
+  if ! _build_user_rules "$_rules_file" || ! _build_filter_sources "$_filters_file"; then
+    rm -f "$_rules_file" "$_filters_file" "$_config_file" 2>/dev/null || :
     return 1
   fi
-  if ! awk -v rules_file="$_rules_file" '
+  if ! awk -v rules_file="$_rules_file" -v filters_file="$_filters_file" '
+    /^filters:[[:space:]]*\[\][[:space:]]*$/ {
+      if ((getline filter < filters_file) > 0) {
+        print "filters:"
+        print filter
+        while ((getline filter < filters_file) > 0) print filter
+      } else {
+        print "filters: []"
+      }
+      close(filters_file)
+      next
+    }
     /^user_rules:[[:space:]]*$/ {
       print
-      found=1
+      found_rules=1
       while ((getline rule < rules_file) > 0) print rule
       close(rules_file)
       in_rules=1
@@ -210,13 +251,13 @@ _render_managed_config() {
     in_rules && /^[^[:space:]]/ {in_rules=0}
     in_rules {next}
     {print}
-    END {if (!found) exit 2}
+    END {if (!found_rules) exit 2}
   ' "$TEMPLATE" > "$_config_file"; then
-    rm -f "$_rules_file" "$_config_file" 2>/dev/null || :
-    _log 'unable to compose AdGuard Home config with managed DNS rules'
+    rm -f "$_rules_file" "$_filters_file" "$_config_file" 2>/dev/null || :
+    _log 'unable to compose AdGuard Home config with managed subscriptions and DNS rules'
     return 1
   fi
-  rm -f "$_rules_file" 2>/dev/null || :
+  rm -f "$_rules_file" "$_filters_file" 2>/dev/null || :
   chmod 600 "$_config_file" 2>/dev/null || {
     rm -f "$_config_file" 2>/dev/null || :
     return 1
