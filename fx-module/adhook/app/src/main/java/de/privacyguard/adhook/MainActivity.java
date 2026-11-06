@@ -2313,7 +2313,7 @@ public final class MainActivity extends ComponentActivity {
             boolean inScriptings=false;
             String kind="",name="",match="",scriptUrl="";
             boolean disabled=false,bodyRequired=false,binaryBody=false,envValid=true,unsupportedLimits=false;
-            int envIndent=-1;
+            int envIndent=-1,envEntryIndent=-1;
             JSONObject env=new JSONObject();
             String[] lines=(payload==null?"":payload).split("\\r?\\n");
             for(String sourceLine:lines) {
@@ -2332,6 +2332,8 @@ public final class MainActivity extends ComponentActivity {
                 if(!inScriptings)continue;
                 if(envIndent>=0) {
                     if(indent>envIndent) {
+                        if(envEntryIndent<0) envEntryIndent=indent;
+                        else if(indent!=envEntryIndent) { envValid=false; continue; }
                         int envColon=line.indexOf(':');
                         if(envColon<=0){envValid=false;continue;}
                         String envKey=line.substring(0,envColon).trim();
@@ -2346,6 +2348,7 @@ public final class MainActivity extends ComponentActivity {
                         continue;
                     }
                     envIndent=-1;
+                    envEntryIndent=-1;
                 }
                 java.util.regex.Matcher item=java.util.regex.Pattern
                         .compile("^-\\s*(http_request|http_response|schedule|generic|network)\\s*:\\s*$")
@@ -2355,7 +2358,7 @@ public final class MainActivity extends ComponentActivity {
                             disabled,bodyRequired,binaryBody,env,envValid,unsupportedLimits);
                     kind=item.group(1);name="";match="";scriptUrl="";
                     disabled=false;bodyRequired=false;binaryBody=false;envValid=true;unsupportedLimits=false;
-                    env=new JSONObject();envIndent=-1;
+                    env=new JSONObject();envIndent=-1;envEntryIndent=-1;
                     continue;
                 }
                 if(kind.isEmpty())continue;
@@ -2373,8 +2376,10 @@ public final class MainActivity extends ComponentActivity {
                     case "env":
                         if(rawValue.isEmpty()) {
                             envIndent=indent;
+                            envEntryIndent=-1;
                         } else if("{}".equals(rawValue)||"{ }".equals(rawValue)) {
                             envIndent=-1;
+                            envEntryIndent=-1;
                         } else if(rawValue.startsWith("{")) {
                             try {
                                 JSONObject inline=new JSONObject(rawValue);
