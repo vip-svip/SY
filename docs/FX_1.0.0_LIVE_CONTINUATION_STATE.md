@@ -7034,3 +7034,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `MainActivity.java` 对纯 HTTPS 的 FX JSON、Surge/Loon、Quantumult X 与 Egern 转换结果改走批量导入；每批 512 条，直接接收模块的新增/重复/失败计数，避免每条订阅都单独读取、锁定和重写配置。含本地 JS 的混合清单继续走原有文件暂存与逐项导入。应用提交 `c30220e7ae3d5a18d1c519dd945cfb619622843d`；模块提交 `2399036532ae71dc2b164828d3e7bb7458796e01`。
 - 修复存储层临时文件 PID 后缀恢复：构建源 `af6d69556e8c41810090b9b17c9613434de9b238`、模块副本 `8d8a92b6ee3dfb358ba7ba374038ecce17727d8f`。此前的替换操作曾吞掉部分 `$$`，已恢复为进程隔离名称。
 - 固定 FX 1.0.0；按当前要求未运行 Shell/Java 检查、回归测试、Gradle/NDK 构建、CI 或真机验证。
+
+## 2026-11-06 — Root Proxy 白名单批量处理与包事件合并
+
+- Ad 页面 DNS 白名单清理命令修正为正常 shell 引号。提交：774ae0d530239ff1e8b50a59383e4100f49c0a88。
+- 应用与模块两份 `FxYulongFirewallPackageReceiver.java` 增加包生命周期触发的 DNS 白名单清理。提交：250af62c32c26c7bb8abd67212f13b2ab1c0cc11、fa111bdcabfbee7d0d0fc7ca84825bf67f0f6f6f。
+- Root Proxy `whitelist-prune` 改为一次 PackageManager 快照、一次 AWK 筛选和一次 settings.conf 原子替换，避免按每个卸载包重复写配置。提交：f10cf2541ee0d9ff8d4563814b3e4c29148244d3。
+- Root Proxy 白名单 UID 解析改为单次 PackageManager 数据遍历并按 UID 去重；同时保留快照有效性和显式非法 UID fail-open。提交：49f5a502e73cb3c3460415535cdd6d6b291e4863。
+- 新增 `package-event` 命令，将白名单 prune 与活动路由 reconcile 合并在同一 Root Proxy 锁内；两份 PackageReceiver 改为调用此单一入口。提交：31e22faf5ff4dbe49e7a0675d7dd0871361cc5f5、5094bbc82b9f8349429e388f380e617247a67909、8b4b45e8fd2932d4798eb89280d4c350bc742953。
+- 本批按要求未运行测试、静态检查、构建、CI 或真机验证。
