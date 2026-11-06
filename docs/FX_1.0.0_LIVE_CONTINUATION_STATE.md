@@ -8205,3 +8205,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 文件：`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/FxHookObservationLogsActivity.java`。
 - 将主应用已有的“导出当前筛选日志”能力同步到 FX 模块源码：通过系统文档创建器选择目标文件，以 UTF-8 导出当前搜索筛选命中的记录；空结果不创建导出内容，导出长度受 64 KiB 上限约束。保留原有包名精确过滤、Root 命令参数转义、后台读取与界面状态处理。
 - 本次只同步已存在的原生页面能力，不新增独立入口。按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证。
+
+
+### FX 模块原生 UI 增加 DNS 服务配置重新协调入口（2026-11-07）
+
+- 提交：`5b50cccd54e2404c2b2da9fed8891a7fa1c22432`。
+- 文件：`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`。
+- 在本地 DNS 引擎操作区增加“重新应用 DNS 服务配置”入口，并移植主应用已有的二次确认、调用 `scripts/native-dns-settings.sh reconcile`、成功刷新设置页以及失败重试/关闭提示逻辑。
+- 已确认模块脚本 `fx-module/scripts/native-dns-settings.sh` 存在 `reconcile` 命令入口；本次未执行该命令或设备操作。按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证。
