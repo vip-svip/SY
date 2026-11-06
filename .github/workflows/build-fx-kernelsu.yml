@@ -212,6 +212,7 @@ jobs:
           install -m 0644 .github/dns/AdGuardHome-FX-runtime-v1.0.0.yaml "$destination/AdGuardHome.yaml"
           (cd "$destination" && sha256sum AdGuardHome > BINARY-SHA256SUMS)
           install -D -m 0755 scripts/adguardhome.sh fx-module/scripts/adguardhome.sh
+          install -D -m 0755 scripts/yulong-vpn-control.sh fx-module/scripts/yulong-vpn-control.sh
           echo "Staged checksum-pinned AdGuard Home v0.107.79 Android ARM64 runtime and FX loopback/Unbound configuration."
       - name: Decode and integrate Yulong 7.0.1 built-in DNS/Hosts rules
         shell: bash
