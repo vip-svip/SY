@@ -250,15 +250,19 @@ case "$ACTION" in
             printf 'FXSRC_B64:' >> "$ROWS"
             base64 < "$VALUE_FILE" | tr -d '\n' >> "$ROWS"
             printf '|%s|%s\n' "$note" "$enabled" >> "$ROWS"
-            ;;
-        esac
+              if ! base64 < "$VALUE_FILE" | tr -d '
+' >> "$ROWS"; then
+              printf '|%s|%s
+' "$note" "$enabled" >> "$ROWS" || {
         ;;
       update)
         [ "$#" -eq 3 ] || { echo "ERROR update expects index value64 note64"; exit 64; }
         index=$1; case "$index" in ''|*[!0-9]*|0) echo "ERROR invalid index"; exit 64 ;; esac
         value=$(decode_b64 "$2") || { echo "ERROR invalid value encoding"; exit 64; }
         note=$(decode_b64 "$3") || { echo "ERROR invalid note encoding"; exit 64; }
-        [ -n "$value" ] && [ "${#note}" -le 4096 ] || { echo "ERROR invalid script value or name"; exit 65; }
+              note_length=$(printf '%s' "$note" | wc -c | tr -d ' ')
+              case "$note_length" in ''|*[!0-9]*) note_length=4097 ;; esac
+              [ "$note_length" -le 4096 ] || { batch_failed=$((batch_failed+1)); continue; }
         value=$(encode_script_value "$value") || { echo "ERROR only HTTPS URLs or local JS source are supported"; exit 65; }; note=$(sanitize_field "$note")
         [ -n "$note" ] || note=$(printf '%s' "$value" | cut -c1-80)
         printf '%s' "$value" > "$VALUE_FILE"; printf '%s' "$note" > "$NOTE_FILE"
