@@ -89,6 +89,7 @@ status() {
   _root_interface=unknown
   _root_vpn_uid=unknown
   _root_egress_ipv4=unknown
+  _root_activated_at=unknown
   _root_redirects=unknown
   _root_dns_probe=unavailable
   if [ -f "$CONF" ] && [ ! -L "$CONF" ] && [ -r "$CONF" ]; then
@@ -136,6 +137,8 @@ status() {
       case "$_uid" in ''|*[!0-9]*) : ;; *) _root_vpn_uid=$_uid ;; esac
       _egress=$(printf '%s\n' "$_root_output" | sed -n 's/^egress_ipv4=//p' | head -1)
       case "$_egress" in ''|*[!0-9.]*) : ;; *) _root_egress_ipv4=$_egress ;; esac
+      _activated=$(printf '%s\n' "$_root_output" | sed -n 's/^activated_at=//p' | head -1)
+      case "$_activated" in ''|*[!0-9]*) : ;; *) _root_activated_at=$_activated ;; esac
       _redirects=$(printf '%s\n' "$_root_output" | sed -n 's/^redirects=//p' | head -1)
       case "$_redirects" in attached|detached) _root_redirects=$_redirects ;; esac
       _probe=$(printf '%s\n' "$_root_output" | sed -n 's/^dns_probe=//p' | head -1)
@@ -181,6 +184,7 @@ status() {
   printf 'rootproxy_interface|%s\n' "$_root_interface"
   printf 'rootproxy_vpn_uid|%s\n' "$_root_vpn_uid"
   printf 'rootproxy_egress_ipv4|%s\n' "$_root_egress_ipv4"
+  printf 'rootproxy_activated_at|%s\n' "$_root_activated_at"
   printf 'rootproxy_redirects|%s\n' "$_root_redirects"
   printf 'rootproxy_dns_probe|%s\n' "$_root_dns_probe"
   printf 'rootproxy_whitelist_count|%s\n' "$_whitelist_count"
