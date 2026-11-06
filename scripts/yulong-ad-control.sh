@@ -724,7 +724,7 @@ dns_profile_restore() {
   if [ "$_profile_compat" != 1 ]; then _profile_proxy=0; fi
   if [ "$_profile_proxy" = 1 ]; then _profile_forward=1; _profile_agh=1; _profile_compat=1; fi
   [ -x "$MP/scripts/native-dns-settings.sh" ] || { echo "native DNS dependency manager is missing" >&2; return 20; }
-  MP="$MP" PG="$PG" sh "$MP/scripts/native-dns-settings.sh" set-many \
+  MP="$MP" PG="$PG" sh "$MP/scripts/native-dns-settings.sh" set-many-deferred \
     dns_engine_adguardhome "$_profile_agh" \
     dns_forward "$_profile_forward" \
     vpn_external_compat "$_profile_compat" \

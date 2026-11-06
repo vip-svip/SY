@@ -330,7 +330,9 @@ mutate() {
   echo "DNS apply failed; previous settings restored" >&2
   return 1
 }
-mutate_many() {
+mutate_many_common() {
+  _apply_runtime=$1
+  shift
   [ "$#" -ge 2 ] && [ "$#" -le 8 ] && [ $(($# % 2)) -eq 0 ] || {
     echo "usage: set-many KEY 0|1 [KEY 0|1 ...]" >&2; return 2;
   }
@@ -366,6 +368,11 @@ mutate_many() {
     fi
     rm -f "$_backup"; return "$_rc"
   fi
+  if [ "$_apply_runtime" = 0 ]; then
+    rm -f "$_backup"
+    printf 'saved=1 applied=deferred dns_engine_adguardhome=%s dns_forward=%s vpn_external_compat=%s vpn_external_dns_proxy=%s\n' "$_want_agh" "$_want_forward" "$_want_compat" "$_want_proxy"
+    return 0
+  fi
   if sh "$MP/scripts/apply.sh" full; then
     rm -f "$_backup"
     printf 'saved=1 applied=1 dns_engine_adguardhome=%s dns_forward=%s vpn_external_compat=%s vpn_external_dns_proxy=%s\n' "$_want_agh" "$_want_forward" "$_want_compat" "$_want_proxy"
@@ -378,6 +385,9 @@ mutate_many() {
   sh "$MP/scripts/apply.sh" full >/dev/null 2>&1 || echo "previous DNS settings restored; runtime reconcile failed" >&2
   rm -f "$_backup"; echo "DNS batch apply failed; previous settings restored" >&2; return 1
 }
+
+mutate_many() { mutate_many_common 1 "$@"; }
+mutate_many_deferred() { mutate_many_common 0 "$@"; }
 
 reconcile_locked() {
   sh "$MP/scripts/apply.sh" full || {
@@ -486,8 +496,13 @@ case "$cmd" in
     shift
     with_lock mutate_many "$@"
     ;;
+  set-many-deferred)
+    [ "$#" -ge 3 ] || { echo "usage: $0 set-many-deferred KEY 0|1 [KEY 0|1 ...]" >&2; exit 2; }
+    shift
+    with_lock mutate_many_deferred "$@"
+    ;;
   *)
-    echo "usage: $0 status|reconcile|set KEY 0|1|set-many KEY 0|1 ..." >&2
+    echo "usage: $0 status|reconcile|set KEY 0|1|set-many KEY 0|1 ...|set-many-deferred KEY 0|1 ..." >&2
     exit 2
     ;;
 esac
