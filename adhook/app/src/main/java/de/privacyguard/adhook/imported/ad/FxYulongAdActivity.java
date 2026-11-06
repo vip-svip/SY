@@ -1186,7 +1186,7 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
 
   private void renderDns(){
   EditText dnsProfileImport=draftField("dns_profile_import");dnsProfileImport.setSingleLine(false);dnsProfileImport.setMinLines(5);dnsProfileImport.setHint("粘贴完整 FXYULONGDNSPROFILE1 快照文本");dnsProfileImportField=dnsProfileImport;
-  card("DNS 配置备份与恢复","快照导入会完整替换 DNS 引擎开关、过滤策略、三组上游、VPN DNS、拦截响应模式、查询日志保留期限、多上游策略与超时、缓存容量/模式及 DNSSEC；兼容旧版快照并为新增字段补齐默认值，提交前由 Root 后端再次校验，应用失败时回滚原配置。",btn("分享 DNS 配置快照",()->shareDnsProfile()),btn("保存 DNS 快照到文件",()->saveDnsProfileToFile()),btn("从文件读取 DNS 快照",()->openDnsProfileFile()),dnsProfileImport,btn("校验并恢复 DNS 配置快照",()->restoreDnsProfile(dnsProfileImport)));
+  card("DNS 配置备份与恢复","快照导入会完整替换 DNS 引擎开关、过滤策略、三组上游、VPN DNS、拦截响应模式、查询日志保留期限/内存批量/逐条日志排除域名、多上游策略与超时、缓存容量/模式及 DNSSEC；兼容旧版快照并为新增字段补齐默认值，提交前由 Root 后端再次校验，应用失败时回滚原配置。",btn("分享 DNS 配置快照",()->shareDnsProfile()),btn("保存 DNS 快照到文件",()->saveDnsProfileToFile()),btn("从文件读取 DNS 快照",()->openDnsProfileFile()),dnsProfileImport,btn("校验并恢复 DNS 配置快照",()->restoreDnsProfile(dnsProfileImport)));
   TextView dnsRuntimeState=txt("DNS 运行状态尚未读取。",12,0xff617080,false);
   card("DNS 引擎运行状态","读取 AdGuard Home、Unbound、第三方 VPN Root Proxy、DNS 过滤覆盖范围与 VPN 共存判定。此操作只读取状态，不会更改服务或网络路由。",dnsRuntimeState,
        btn("刷新 DNS 运行状态",()->loadDnsRuntimeStatus(dnsRuntimeState)),
@@ -1612,7 +1612,7 @@ private void restoreDnsProfile(EditText input){
   String[] allowed={"dns_engine_adguardhome","dns_forward","custom_dns","global_dns",
       "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
       "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled",
-      "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE","QUERYLOG_RETENTION","QUERYLOG_MEMORY_SIZE","STATISTICS_ENABLED","STATISTICS_INTERVAL","STATISTICS_IGNORED_ENABLED","STATISTICS_IGNORED",
+      "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE","QUERYLOG_RETENTION","QUERYLOG_MEMORY_SIZE","QUERYLOG_IGNORED_ENABLED","QUERYLOG_IGNORED","STATISTICS_ENABLED","STATISTICS_INTERVAL","STATISTICS_IGNORED_ENABLED","STATISTICS_IGNORED",
       "UPSTREAM_MODE","FASTEST_TIMEOUT","UPSTREAM_TIMEOUT","CACHE_SIZE","CACHE_ENABLED","CACHE_OPTIMISTIC","ENABLE_DNSSEC",
       "CACHE_TTL_MIN","CACHE_TTL_MAX","CACHE_OPTIMISTIC_ANSWER_TTL","CACHE_OPTIMISTIC_MAX_AGE",
       "UNBOUND_CACHE_MAX_TTL","UNBOUND_CACHE_MIN_TTL","UNBOUND_SERVE_EXPIRED","UNBOUND_SERVE_EXPIRED_TTL",
@@ -1630,12 +1630,14 @@ private void restoreDnsProfile(EditText input){
     }
     preview.put(key,line.substring(split+1));
   }
-  if(preview.size()!=allowed.length&&preview.size()!=48&&preview.size()!=46&&preview.size()!=44&&preview.size()!=43&&preview.size()!=39&&preview.size()!=38&&preview.size()!=30&&preview.size()!=26&&preview.size()!=19&&preview.size()!=18){
+  if(preview.size()!=allowed.length&&preview.size()!=49&&preview.size()!=48&&preview.size()!=46&&preview.size()!=44&&preview.size()!=43&&preview.size()!=39&&preview.size()!=38&&preview.size()!=30&&preview.size()!=26&&preview.size()!=19&&preview.size()!=18){
     status.setText("快照字段不完整（"+preview.size()+"/"+allowed.length+"），未提交。");return;
   }
   for(String key:allowed)if(!preview.containsKey(key)){
     if("QUERYLOG_RETENTION".equals(key))preview.put(key,"7d");
     else if("QUERYLOG_MEMORY_SIZE".equals(key))preview.put(key,"1000");
+    else if("QUERYLOG_IGNORED_ENABLED".equals(key))preview.put(key,"0");
+    else if("QUERYLOG_IGNORED".equals(key))preview.put(key,"");
     else if("STATISTICS_ENABLED".equals(key))preview.put(key,"0");
     else if("STATISTICS_INTERVAL".equals(key))preview.put(key,"10d");
     else if("STATISTICS_IGNORED_ENABLED".equals(key))preview.put(key,"0");
@@ -1669,7 +1671,7 @@ private void restoreDnsProfile(EditText input){
   }
   for(String key:new String[]{"dns_engine_adguardhome","dns_forward","custom_dns","global_dns",
       "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
-      "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled","STATISTICS_ENABLED","STATISTICS_IGNORED_ENABLED"}){
+      "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled","QUERYLOG_IGNORED_ENABLED","STATISTICS_ENABLED","STATISTICS_IGNORED_ENABLED"}){
     String value=preview.get(key);
     if(!"0".equals(value)&&!"1".equals(value)){
       status.setText("快照开关值非法："+key+"；未提交。");return;
@@ -1693,6 +1695,13 @@ private void restoreDnsProfile(EditText input){
   }
   if(!isValidDnsQueryLogRetention(preview.get("STATISTICS_INTERVAL"))){
     status.setText("快照 DNS 聚合统计周期非法；未提交。");return;
+  }
+  try{
+    preview.put("QUERYLOG_IGNORED",
+        normalizeDnsStatisticsDomains(preview.get("QUERYLOG_IGNORED"),true));
+  }catch(IllegalArgumentException invalid){
+    status.setText("快照逐条日志排除域名列表非法："+invalid.getMessage()+"；未提交。");
+    return;
   }
   try{
     preview.put("STATISTICS_IGNORED",
@@ -1757,15 +1766,16 @@ private void restoreDnsProfile(EditText input){
   for(String key:new String[]{"CACHE_ENABLED","CACHE_OPTIMISTIC","ENABLE_DNSSEC"})if("1".equals(preview.get(key)))enabled++;
   for(String key:new String[]{"UNBOUND_SERVE_EXPIRED","UNBOUND_PREFETCH","UNBOUND_PREFETCH_KEY","UNBOUND_QNAME_MINIMISATION"})
     if("1".equals(preview.get(key)))enabled++;
+  if("1".equals(preview.get("QUERYLOG_IGNORED_ENABLED")))enabled++;
   if("1".equals(preview.get("STATISTICS_ENABLED")))enabled++;
   if("1".equals(preview.get("STATISTICS_IGNORED_ENABLED")))enabled++;
-  String summary="快照包含 "+allowed.length+" 项字段、21 个开关（启用 "+enabled+" 项）。\\n"
+  String summary="快照包含 "+allowed.length+" 项字段、22 个开关（启用 "+enabled+" 项）。\\n"
       +"自定义上游："+countDnsEndpoints(preview.get("CUSTOM_SERVERS"))+" 条；"
       +"全局上游："+countDnsEndpoints(preview.get("GLOBAL_SERVERS"))+" 条；"
       +"备用上游："+countDnsEndpoints(preview.get("FALLBACK_SERVERS"))+" 条。\\n"
       +"VPN 远端 DNS："+preview.get("VPN_REMOTE")+"；国内 DNS："+preview.get("VPN_CN")+"。\\n"
       +"拦截响应模式："+preview.get("RESPONSE_MODE")+"；查询日志保留："+querylogRetention
-      +"；内存刷盘批量："+preview.get("QUERYLOG_MEMORY_SIZE")+"（0 表示逐条写盘）；聚合统计："+preview.get("STATISTICS_ENABLED")+"，周期 "+preview.get("STATISTICS_INTERVAL")+"；排除域名："+preview.get("STATISTICS_IGNORED_ENABLED")+"（"+(preview.get("STATISTICS_IGNORED").isEmpty()?0:preview.get("STATISTICS_IGNORED").split(",").length)+" 个）。\\n"
+      +"；内存刷盘批量："+preview.get("QUERYLOG_MEMORY_SIZE")+"（0 表示逐条写盘）；逐条日志排除："+preview.get("QUERYLOG_IGNORED_ENABLED")+"（"+(preview.get("QUERYLOG_IGNORED").isEmpty()?0:preview.get("QUERYLOG_IGNORED").split(",").length)+" 个）；聚合统计："+preview.get("STATISTICS_ENABLED")+"，周期 "+preview.get("STATISTICS_INTERVAL")+"；统计排除："+preview.get("STATISTICS_IGNORED_ENABLED")+"（"+(preview.get("STATISTICS_IGNORED").isEmpty()?0:preview.get("STATISTICS_IGNORED").split(",").length)+" 个）。\\n"
       +"上游策略："+preview.get("UPSTREAM_MODE")+"；fastest 超时："+preview.get("FASTEST_TIMEOUT")+"；上游超时："+preview.get("UPSTREAM_TIMEOUT")+"。\\n"
       +"DNS 缓存："+preview.get("CACHE_SIZE")+" 字节；缓存 TTL："+preview.get("CACHE_TTL_MIN")+"~"+preview.get("CACHE_TTL_MAX")+" 秒；乐观缓存："+preview.get("CACHE_OPTIMISTIC")+"（答复 TTL "+preview.get("CACHE_OPTIMISTIC_ANSWER_TTL")+"，最大年龄 "+preview.get("CACHE_OPTIMISTIC_MAX_AGE")+"）；DNSSEC："+preview.get("ENABLE_DNSSEC")+"。\\n"
       +"Unbound 工作线程："+preview.get("UNBOUND_NUM_THREADS")+"（设备在线核心数由 Root 恢复时再次校验）；缓存 TTL："+preview.get("UNBOUND_CACHE_MIN_TTL")+"~"+preview.get("UNBOUND_CACHE_MAX_TTL")+" 秒；消息/RRset/Key/否定缓存池："+preview.get("UNBOUND_MSG_CACHE_SIZE")+"/"+preview.get("UNBOUND_RRSET_CACHE_SIZE")+"/"+preview.get("UNBOUND_KEY_CACHE_SIZE")+"/"+preview.get("UNBOUND_NEG_CACHE_SIZE")+"；serve-expired："+preview.get("UNBOUND_SERVE_EXPIRED")+"（最大年龄 "+preview.get("UNBOUND_SERVE_EXPIRED_TTL")+" 秒、答复 TTL "+preview.get("UNBOUND_SERVE_EXPIRED_REPLY_TTL")+" 秒、客户端等待 "+preview.get("UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT")+" 毫秒）；预取："+preview.get("UNBOUND_PREFETCH")+"；DNSSEC 密钥预取："+preview.get("UNBOUND_PREFETCH_KEY")+"；QNAME minimisation："+preview.get("UNBOUND_QNAME_MINIMISATION")+"。\\n\\n"
@@ -1790,7 +1800,7 @@ private void restoreDnsProfile(EditText input){
     String[] labels={"dns_engine_adguardhome","dns_forward","custom_dns","global_dns",
       "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
       "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled",
-      "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE","QUERYLOG_RETENTION","QUERYLOG_MEMORY_SIZE","STATISTICS_ENABLED","STATISTICS_INTERVAL","STATISTICS_IGNORED_ENABLED","STATISTICS_IGNORED",
+      "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE","QUERYLOG_RETENTION","QUERYLOG_MEMORY_SIZE","QUERYLOG_IGNORED_ENABLED","QUERYLOG_IGNORED","STATISTICS_ENABLED","STATISTICS_INTERVAL","STATISTICS_IGNORED_ENABLED","STATISTICS_IGNORED",
       "UPSTREAM_MODE","FASTEST_TIMEOUT","UPSTREAM_TIMEOUT","CACHE_SIZE","CACHE_ENABLED","CACHE_OPTIMISTIC","ENABLE_DNSSEC",
       "CACHE_TTL_MIN","CACHE_TTL_MAX","CACHE_OPTIMISTIC_ANSWER_TTL","CACHE_OPTIMISTIC_MAX_AGE",
       "UNBOUND_CACHE_MAX_TTL","UNBOUND_CACHE_MIN_TTL","UNBOUND_SERVE_EXPIRED","UNBOUND_SERVE_EXPIRED_TTL",
@@ -1809,7 +1819,7 @@ private void restoreDnsProfile(EditText input){
       .setMessage(summary+"\\n\\n"+changeText)
       .setNegativeButton("取消",null)
       .setPositiveButton("继续恢复",(d,w)->fxDialogBuilder().setTitle("确认完整替换 DNS 配置")
-        .setMessage("将完整替换当前 DNS 引擎开关、过滤策略、全部上游服务器、VPN DNS、拦截响应模式、日志保留期限/内存刷盘批量、DNS 聚合统计开关/周期/排除域名、上游选择/超时、AdGuard Home 缓存容量/TTL/乐观缓存策略、DNSSEC，以及 Unbound 缓存 TTL、消息/RRset/DNSSEC Key/否定响应四类缓存池、serve-expired、域名预取、DNSSEC 密钥预取和 QNAME minimisation。后端会再次校验全部字段；恢复应用失败会回滚原配置。不会修改 VPN 节点或其他 FX 模块设置。")
+        .setMessage("将完整替换当前 DNS 引擎开关、过滤策略、全部上游服务器、VPN DNS、拦截响应模式、日志保留期限/内存刷盘批量/逐条日志排除域名、DNS 聚合统计开关/周期/排除域名、上游选择/超时、AdGuard Home 缓存容量/TTL/乐观缓存策略、DNSSEC，以及 Unbound 缓存 TTL、消息/RRset/DNSSEC Key/否定响应四类缓存池、serve-expired、域名预取、DNSSEC 密钥预取和 QNAME minimisation。后端会再次校验全部字段；恢复应用失败会回滚原配置。不会修改 VPN 节点或其他 FX 模块设置。")
         .setNegativeButton("取消",null)
         .setPositiveButton("恢复",(dialog,which)->root("dns-profile-restore "+encoded,r->{
           if(r.exitCode==0){status.setText("DNS 配置快照已恢复并应用。");input.setText("");load();}
