@@ -1012,7 +1012,8 @@ unbound_runtime_values() {
 }
 unbound_runtime_get() {
   echo FXYULONGUNBOUND1
-  unbound_runtime_values
+  unbound_runtime_values || return $?
+  printf 'UNBOUND_THREADS_MAX=%s\n' "$(unbound_online_cpu_count)"
 }
 write_unbound_runtime_settings() {
   _ub_cache_max_ttl=$1
