@@ -1086,6 +1086,7 @@ public final class MainActivity extends ComponentActivity {
         LinearLayout dnsActions = new LinearLayout(this);
         dnsActions.setOrientation(LinearLayout.VERTICAL);
         dnsActions.addView(nativeAction("DNS 引擎与 VPN DNS 设置", this::showNativeDnsSettingsDialog));
+        dnsActions.addView(nativeAction("应用 DNS 白名单", this::showRootProxyDnsWhitelistDialog));
         dnsActions.addView(nativeAction("刷新本地 DNS 缓存", () ->
                 runNativeModuleCommand("sh \\"$MP/scripts/yulong-ad-control.sh\\" cache-flush", 180000L, result -> {
                     String message = result.output == null ? "" : result.output.trim();
@@ -1198,6 +1199,129 @@ public final class MainActivity extends ComponentActivity {
                         .setPositiveButton("重试", (dialog, which) -> setNativeDnsSetting(key, enabled, label))
                         .setNegativeButton("关闭", null).show();
             }
+        });
+    }
+
+    private void showRootProxyDnsWhitelistDialog() {
+        String command = "MP=\"$MP\" PG=/data/adb/privacyguard sh "
+                + "\"$MP/scripts/yulong-root-proxy.sh\" whitelist-list";
+        runNativeModuleCommand(command, 30000L, result -> {
+            if (result.exitCode != 0) {
+                FxNativeSkin.builder(this).setTitle("DNS 白名单读取失败")
+                        .setMessage(result.output == null ? "Root Proxy 白名单不可用。" : result.output.trim())
+                        .setPositiveButton("重试", (d, w) -> showRootProxyDnsWhitelistDialog())
+                        .setNegativeButton("关闭", null).show();
+                return;
+            }
+            String[] lines = (result.output == null ? "" : result.output.trim()).split("\\r?\\n");
+            if (lines.length == 0 || !"FXYRPWHITELIST1".equals(lines[0])) {
+                FxNativeSkin.builder(this).setTitle("DNS 白名单读取失败")
+                        .setMessage("设备端白名单响应格式错误。")
+                        .setPositiveButton("重试", (d, w) -> showRootProxyDnsWhitelistDialog())
+                        .setNegativeButton("关闭", null).show();
+                return;
+            }
+            final java.util.Set<String> selectedPackages = new java.util.HashSet<>();
+            for (int i = 1; i < lines.length; i++) {
+                String line = lines[i];
+                if (line.startsWith("PACKAGE|")) {
+                    String pkg = line.substring("PACKAGE|".length()).trim();
+                    if (pkg.matches("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+")) selectedPackages.add(pkg);
+                }
+            }
+            TextView loading = new TextView(this);
+            loading.setText("正在读取已安装应用…");
+            loading.setPadding(dp(18), dp(18), dp(18), dp(18));
+            AlertDialog loadingDialog = FxNativeSkin.builder(this).setTitle("应用 DNS 白名单")
+                    .setView(loading).setNegativeButton("关闭", null).show();
+            Thread loader = new Thread(() -> {
+                List<ApplicationInfo> installed = new ArrayList<>();
+                Map<String, String> labels = new HashMap<>();
+                String failure = null;
+                try {
+                    PackageManager pm = getPackageManager();
+                    for (ApplicationInfo info : pm.getInstalledApplications(PackageManager.GET_META_DATA)) {
+                        if (Thread.currentThread().isInterrupted()) return;
+                        if (info == null || info.packageName == null || info.packageName.equals(getPackageName())
+                                || info.packageName.equals("android")) continue;
+                        installed.add(info);
+                        try {
+                            CharSequence label = pm.getApplicationLabel(info);
+                            labels.put(info.packageName, label == null ? info.packageName : label.toString());
+                        } catch (RuntimeException unavailable) {
+                            labels.put(info.packageName, info.packageName);
+                        }
+                    }
+                    Collections.sort(installed, (a, b) -> labels.getOrDefault(a.packageName, a.packageName)
+                            .compareToIgnoreCase(labels.getOrDefault(b.packageName, b.packageName)));
+                } catch (RuntimeException error) {
+                    failure = error.getClass().getSimpleName() + ": " + error.getMessage();
+                }
+                final String loadFailure = failure;
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed() || !loadingDialog.isShowing()) return;
+                    loadingDialog.dismiss();
+                    if (loadFailure != null) {
+                        FxNativeSkin.builder(this).setTitle("应用列表读取失败")
+                                .setMessage(loadFailure)
+                                .setPositiveButton("重试", (d, w) -> showRootProxyDnsWhitelistDialog())
+                                .setNegativeButton("关闭", null).show();
+                        return;
+                    }
+                    List<String> packages = new ArrayList<>();
+                    List<String> names = new ArrayList<>();
+                    for (ApplicationInfo info : installed) {
+                        packages.add(info.packageName);
+                        names.add(labels.getOrDefault(info.packageName, info.packageName)
+                                + "\\n" + info.packageName);
+                    }
+                    // Keep stale selections visible so removed/uninstalled apps can be cleared.
+                    for (String pkg : selectedPackages) {
+                        if (!packages.contains(pkg)) {
+                            packages.add(pkg);
+                            names.add("未安装应用\\n" + pkg);
+                        }
+                    }
+                    boolean[] checked = new boolean[packages.size()];
+                    for (int i = 0; i < packages.size(); i++) checked[i] = selectedPackages.contains(packages.get(i));
+                    final AlertDialog[] whitelistDialog = new AlertDialog[1];
+                    whitelistDialog[0] = new AlertDialog.Builder(this)
+                            .setTitle("应用 DNS 白名单")
+                            .setMultiChoiceItems(names.toArray(new String[0]), checked, (dialog, which, enabled) -> {
+                                String pkg = packages.get(which);
+                                android.widget.ListView listView = ((AlertDialog) dialog).getListView();
+                                for (int n = 0; n < listView.getChildCount(); n++) {
+                                    View row = listView.getChildAt(n);
+                                    if (row != null) row.setEnabled(false);
+                                }
+                                String update = "MP=\"$MP\" PG=/data/adb/privacyguard sh "
+                                        + "\"$MP/scripts/yulong-root-proxy.sh\" whitelist-set "
+                                        + shellQuote(pkg) + " " + (enabled ? "1" : "0");
+                                runNativeModuleCommand(update, 120000L, apply -> {
+                                    if (apply.exitCode == 0) {
+                                        if (enabled) selectedPackages.add(pkg); else selectedPackages.remove(pkg);
+                                        Toast.makeText(this, (enabled ? "已加入 DNS 白名单：" : "已移出 DNS 白名单：") + pkg,
+                                                Toast.LENGTH_SHORT).show();
+                                    } else {
+                                        listView.setItemChecked(which, !enabled);
+                                        Toast.makeText(this, "白名单更新未完成：" +
+                                                (apply.output == null ? "unknown" : apply.output.trim()),
+                                                Toast.LENGTH_LONG).show();
+                                    }
+                                    for (int n = 0; n < listView.getChildCount(); n++) {
+                                        View row = listView.getChildAt(n);
+                                        if (row != null) row.setEnabled(true);
+                                    }
+                                });
+                            })
+                            .setPositiveButton("完成", null)
+                            .setNegativeButton("关闭", null)
+                            .create();
+                    FxNativeSkin.showDialog(this, whitelistDialog[0]);
+                });
+            }, "FxRootProxyDnsWhitelistApps");
+            loader.setDaemon(true);
+            loader.start();
         });
     }
 
