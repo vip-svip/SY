@@ -1,5 +1,14 @@
 
 
+### FX Unbound 健康探测器 TCP 截断回退同步到编译源码（2026-11-07）
+
+- 文件：`scripts/localdns-probe.c`。
+- 将模块目录中较新的本地 DNS 探测器同步到 Unbound Android ARM64 构建实际使用的根目录源码。
+- 探测器在 UDP DNS 响应带 TC（截断）标志时，会在同一超时期限内改用 TCP 重试；同时设置发送/接收超时，避免 UDP 发送阻塞没有超时约束。
+- 保留 IPv4 loopback 目标限制、请求 ID/问题区匹配、递归可用标志和 RCODE 检查；不会把探测目标扩展到任意公网地址。
+- 此改动会改变 Unbound 探测器构建输入；本轮未重编译 `fx-dns-probe`，也未运行测试、静态检查、构建、CI 或设备验证。旧二进制在重新构建前仍保留旧探测行为。
+
+
 ### FX DNS 主上游清空与快照恢复状态一致性（2026-11-07）
 
 - 文件：`fx-module/scripts/yulong-ad-control.sh`、`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
