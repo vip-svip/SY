@@ -1161,7 +1161,11 @@ public final class MainActivity extends ComponentActivity {
                         + " · Unbound：" + state.getOrDefault("unbound", "unknown")
                         + "\nRoot Proxy：" + state.getOrDefault("root_proxy", "unknown")
                         + " · DNS 白名单应用：" + state.getOrDefault("rootproxy_whitelist_count", "unknown")
-                        + " · DNS 链路就绪：" + ("1".equals(state.get("dns_stack_ready")) ? "是" : "否"));
+                        + "\nPrivate DNS：" + state.getOrDefault("private_dns_mode", "unknown")
+                        + " · 覆盖范围：" + state.getOrDefault("dns_filter_coverage", "unknown")
+                        + "\nVPN 共存裁决：" + state.getOrDefault("vpn_coexistence_verdict", "unknown")
+                        + " · 路由探测：" + state.getOrDefault("vpn_route_probe", "unavailable")
+                        + "\nDNS 链路就绪：" + ("1".equals(state.get("dns_stack_ready")) ? "是" : "否"));
             } catch (Exception error) {
                 target.setText("DNS 状态暂不可用：" + (error.getMessage() == null ? "unknown" : error.getMessage()));
             }
@@ -1186,6 +1190,10 @@ public final class MainActivity extends ComponentActivity {
                         + "\nUnbound：" + state.getOrDefault("unbound", "unknown")
                         + "\nRoot Proxy：" + state.getOrDefault("root_proxy", "unknown")
                         + "\nDNS 白名单应用：" + state.getOrDefault("rootproxy_whitelist_count", "unknown")
+                        + "\nPrivate DNS 模式：" + state.getOrDefault("private_dns_mode", "unknown")
+                        + "\nDNS 过滤覆盖：" + state.getOrDefault("dns_filter_coverage", "unknown")
+                        + "\nVPN 共存裁决：" + state.getOrDefault("vpn_coexistence_verdict", "unknown")
+                        + "\n路由探测：" + state.getOrDefault("vpn_route_probe", "unavailable")
                         + "\nDNS 链路就绪：" + ("1".equals(state.get("dns_stack_ready")) ? "是" : "否")
                         + "\n\nRoot Proxy 只在第三方 VPN 所有者、出口路由和 DNS 引擎条件满足时接管 DNS，不会创建第二个 Android VPN。";
                 FxNativeSkin.builder(this).setTitle("DNS 引擎管理").setMessage(detail)
