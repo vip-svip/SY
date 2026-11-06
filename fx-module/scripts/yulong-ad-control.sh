@@ -23,6 +23,16 @@ _yad_control_lock=
 _yad_cache_lock=
 _yad_import_raw=
 _yad_import_clean=
+_yad_remove_raw=
+_yad_set_raw=
+_yad_set_clean=
+_yad_rule_raw=
+_yad_rule_clean=
+_yad_rule_add_raw=
+_yad_rule_add_clean=
+_yad_profile_raw=
+_yad_bundle_raw=
+_yad_bundle_clean=
 _yad_cleanup() {
   [ -z "$_yad_conf_tmp" ] || rm -f "$_yad_conf_tmp" 2>/dev/null || :
   [ -z "$_yad_transaction_backup" ] || rm -f "$_yad_transaction_backup" 2>/dev/null || :
@@ -34,6 +44,16 @@ _yad_cleanup() {
   [ -z "$_yad_cache_lock" ] || rmdir "$_yad_cache_lock" 2>/dev/null || :
   [ -z "$_yad_import_raw" ] || rm -f "$_yad_import_raw" 2>/dev/null || :
   [ -z "$_yad_import_clean" ] || rm -f "$_yad_import_clean" 2>/dev/null || :
+  [ -z "$_yad_remove_raw" ] || rm -f "$_yad_remove_raw" 2>/dev/null || :
+  [ -z "$_yad_set_raw" ] || rm -f "$_yad_set_raw" 2>/dev/null || :
+  [ -z "$_yad_set_clean" ] || rm -f "$_yad_set_clean" 2>/dev/null || :
+  [ -z "$_yad_rule_raw" ] || rm -f "$_yad_rule_raw" 2>/dev/null || :
+  [ -z "$_yad_rule_clean" ] || rm -f "$_yad_rule_clean" 2>/dev/null || :
+  [ -z "$_yad_rule_add_raw" ] || rm -f "$_yad_rule_add_raw" 2>/dev/null || :
+  [ -z "$_yad_rule_add_clean" ] || rm -f "$_yad_rule_add_clean" 2>/dev/null || :
+  [ -z "$_yad_profile_raw" ] || rm -f "$_yad_profile_raw" 2>/dev/null || :
+  [ -z "$_yad_bundle_raw" ] || rm -f "$_yad_bundle_raw" 2>/dev/null || :
+  [ -z "$_yad_bundle_clean" ] || rm -f "$_yad_bundle_clean" 2>/dev/null || :
 }
 trap '_yad_cleanup' 0
 trap '_yad_cleanup; exit 129' HUP
@@ -187,8 +207,7 @@ valid_dns_csv() {
       if(n!=4) return 0
       for(j=1;j<=4;j++) if(a[j]==""||a[j]!~/^[0-9]+$/||length(a[j])>3||a[j]+0>255) return 0
       if(v=="0.0.0.0"||v=="255.255.255.255") return 0
-      return 1
-    }
+      return 1    }
     function dns_host(v) {
       return v~/^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/ && v!~/\.\./
     }
@@ -288,6 +307,53 @@ write_dns_response() {
   return 1
 }
 m_dns_response() { write_dns_response "$1"; }
+dns_config_set_many() {
+  _many_custom=$(normalize_dns_csv "$1")
+  _many_global=$(normalize_dns_csv "$2")
+  _many_fallback=$(normalize_dns_csv "$3")
+  if [ "$_many_custom" != "-" ]; then
+    valid_dns_csv "$_many_custom" || { echo "custom DNS accepts 1..3 IPv4, https:// DoH, tls:// DoT, or quic:// DoQ endpoints" >&2; return 2; }
+  fi
+  if [ "$_many_global" != "-" ]; then
+    valid_ipv4_dns_csv "$_many_global" || { echo "global DNS requires 1..3 IPv4 literals" >&2; return 2; }
+  fi
+  if [ "$_many_fallback" != "-" ]; then
+    valid_ipv4_dns_csv "$_many_fallback" || { echo "fallback DNS requires 1..3 IPv4 literals" >&2; return 2; }
+  fi
+  if [ "$_many_custom" = "-" ]; then m_dns_section_clear custom_dns || return 1
+  else m_dns_servers custom_dns "$_many_custom" || return 1; fi
+  if [ "$_many_global" = "-" ]; then m_dns_section_clear global_dns || return 1
+  else m_dns_servers global_dns "$_many_global" || return 1; fi
+  if [ "$_many_fallback" = "-" ]; then m_dns_section_clear yulong_dns_fallback || return 1
+  else m_dns_servers yulong_dns_fallback "$_many_fallback" || return 1; fi
+  echo "dns_servers=updated custom=$_many_custom global=$_many_global fallback=$_many_fallback"
+}
+dns_security_profile_set() {
+  _security_mode=$1; _security_enabled=$2
+  case "$_security_mode" in nxdomain|refused|custom_ip) ;; *) echo "invalid DNS response mode" >&2; return 2 ;; esac
+  case "$_security_enabled" in 0|1) ;; *) echo "DNS security profile flag must be 0 or 1" >&2; return 2 ;; esac
+  m_dns_response "$_security_mode" &&
+    dns_filter_policy_set "$_security_enabled" "$_security_enabled" "$_security_enabled" "$_security_enabled" "$_security_enabled" || {
+      echo "unable to apply complete DNS security profile" >&2
+      return 1
+    }
+  echo "dns_security_profile=updated response=$_security_mode filters=$_security_enabled"
+}
+dns_filter_policy_set() {
+  _policy_quic=$1; _policy_dot=$2; _policy_plain=$3; _policy_ipv6=$4; _policy_track=$5
+  for _policy_value in "$_policy_quic" "$_policy_dot" "$_policy_plain" "$_policy_ipv6" "$_policy_track"; do
+    case "$_policy_value" in 0|1) : ;; *) echo "DNS filter policy values must be 0 or 1" >&2; return 2 ;; esac
+  done
+  m_dns block_quic "$_policy_quic" &&
+    m_dns block_dot "$_policy_dot" &&
+    m_dns block_plain_dns "$_policy_plain" &&
+    m_dns block_ipv6 "$_policy_ipv6" &&
+    m_dns block_track_domains "$_policy_track" || {
+      echo "unable to apply complete DNS filter policy" >&2
+      return 1
+    }
+  echo "policy=updated quic=$_policy_quic dot=$_policy_dot plain_dns=$_policy_plain ipv6=$_policy_ipv6 tracking=$_policy_track"
+}
 
 write_vpn_dns() {
   key=$1; value=$2; tmp=$(mktemp "$CONF.yulong-vpn-dns.XXXXXX") || return 1
@@ -309,6 +375,152 @@ write_vpn_dns() {
 }
 m_dns_servers() { write_dns_section "$1" "$2"; }
 m_vpn_dns() { write_vpn_dns "$1" "$2"; }
+dns_vpn_set_many() {
+  _vpn_remote=$1; _vpn_cn=$2
+  valid_ipv4 "$_vpn_remote" || { echo "VPN remote DNS must be an IPv4 literal" >&2; return 2; }
+  valid_ipv4 "$_vpn_cn" || { echo "VPN China DNS must be an IPv4 literal" >&2; return 2; }
+  m_vpn_dns remote_dns "$_vpn_remote" &&
+    m_vpn_dns cn_dns "$_vpn_cn" || {
+      echo "unable to update both VPN DNS values" >&2
+      return 1
+    }
+  echo "vpn_dns=updated remote_dns=$_vpn_remote cn_dns=$_vpn_cn"
+}
+m_vpn_dns_reset() { write_vpn_dns remote_dns 1.1.1.1 && write_vpn_dns cn_dns 223.5.5.5; }
+dns_profile_get() {
+  echo FXYULONGDNSPROFILE1
+  for key in dns_engine_adguardhome dns_forward custom_dns global_dns block_quic block_dot block_plain_dns block_ipv6 block_track_domains vpn_external_dns_proxy vpn_external_compat dns_querylog_enabled; do
+    printf '%s=%s\n' "$key" "$(pg_get "$key" 0)"
+  done
+  for pair in custom_dns:CUSTOM global_dns:GLOBAL yulong_dns_fallback:FALLBACK; do
+    section=${pair%%:*}; label=${pair#*:}
+    value=$(pg_conf "$section" 2>/dev/null | awk '/^[[:space:]]*nameserver[[:space:]]+/{if(n++)printf ",";printf "%s",$2}')
+    printf '%s_SERVERS=%s\n' "$label" "$value"
+  done
+  printf 'VPN_REMOTE=%s\n' "$(pg_conf vpn 2>/dev/null | sed -n 's/^remote_dns=//p' | head -n1)"
+  printf 'VPN_CN=%s\n' "$(pg_conf vpn 2>/dev/null | sed -n 's/^cn_dns=//p' | head -n1)"
+  mode=$(awk -F= '$0=="[conf:yulong_dns_response]"{inside=1;next} /^\[/{inside=0} inside&&$1=="mode"{v=$2} END{print v}' "$CONF" 2>/dev/null)
+  case "$mode" in nxdomain|refused|custom_ip) ;; *) mode=nxdomain ;; esac
+  printf 'RESPONSE_MODE=%s\n' "$mode"
+}
+
+dns_profile_restore() {
+  _profile_encoded=$1
+  case "$_profile_encoded" in ''|*[!A-Za-z0-9+/=]*) echo "invalid DNS profile encoding" >&2; return 2 ;; esac
+  [ "${#_profile_encoded}" -le 87384 ] || { echo "DNS profile exceeds 64 KiB" >&2; return 2; }
+  _yad_profile_raw=$(mktemp "$PG/yulong-dns-profile.XXXXXX") || return 1
+  chmod 600 "$_yad_profile_raw" || return 1
+  (umask 077; printf '%s' "$_profile_encoded" | base64 -d > "$_yad_profile_raw") || { echo "unable to decode DNS profile" >&2; return 2; }
+  _profile_bytes=$(wc -c < "$_yad_profile_raw" | tr -d ' ')
+  [ "$_profile_bytes" -le 65536 ] || { echo "DNS profile exceeds 64 KiB" >&2; return 2; }
+  [ "$(sed -n '1p' "$_yad_profile_raw")" = FXYULONGDNSPROFILE1 ] || { echo "unsupported DNS profile version" >&2; return 2; }
+  awk '
+    NR==1 {if($0!="FXYULONGDNSPROFILE1")bad=1;next}
+    {
+      if(index($0,"=")<2 || $0 ~ /\r/){bad=1;next}
+      key=substr($0,1,index($0,"=")-1)
+      value=substr($0,index($0,"=")+1)
+      if(key !~ /^(dns_engine_adguardhome|dns_forward|custom_dns|global_dns|block_quic|block_dot|block_plain_dns|block_ipv6|block_track_domains|vpn_external_dns_proxy|vpn_external_compat|dns_querylog_enabled|CUSTOM_SERVERS|GLOBAL_SERVERS|FALLBACK_SERVERS|VPN_REMOTE|VPN_CN|RESPONSE_MODE)$/)bad=1
+      if(seen[key]++)bad=1
+      count++
+    }
+    END{if(bad||count!=18)exit 1}
+  ' "$_yad_profile_raw" || { echo "DNS profile has unknown, duplicate, missing, or malformed fields" >&2; return 2; }
+  _profile_seen='|'
+  while IFS= read -r _profile_line || [ -n "$_profile_line" ]; do
+    [ "$_profile_line" = FXYULONGDNSPROFILE1 ] && continue
+    _profile_key=${_profile_line%%=*}; _profile_value=${_profile_line#*=}
+    case "$_profile_key" in
+      dns_engine_adguardhome|dns_forward|custom_dns|global_dns|block_quic|block_dot|block_plain_dns|block_ipv6|block_track_domains|vpn_external_dns_proxy|vpn_external_compat|dns_querylog_enabled)
+        case "$_profile_value" in 0|1) : ;; *) echo "invalid DNS flag: $_profile_key" >&2; return 2 ;; esac
+        ;;
+      CUSTOM_SERVERS)
+        _profile_custom=$_profile_value
+        [ -z "$_profile_custom" ] || valid_dns_csv "$_profile_custom" || { echo "invalid custom DNS servers" >&2; return 2; }
+        ;;
+      GLOBAL_SERVERS)
+        _profile_global=$_profile_value
+        [ -z "$_profile_global" ] || valid_ipv4_dns_csv "$_profile_global" || { echo "invalid global DNS servers" >&2; return 2; }
+        ;;
+      FALLBACK_SERVERS)
+        _profile_fallback=$_profile_value
+        [ -z "$_profile_fallback" ] || valid_ipv4_dns_csv "$_profile_fallback" || { echo "invalid fallback DNS servers" >&2; return 2; }
+        ;;
+      VPN_REMOTE|VPN_CN)
+        valid_ipv4 "$_profile_value" || { echo "invalid VPN DNS address: $_profile_key" >&2; return 2; }
+        ;;
+      RESPONSE_MODE)
+        case "$_profile_value" in nxdomain|refused|custom_ip) : ;; *) echo "invalid DNS response mode" >&2; return 2 ;; esac
+        ;;
+    esac
+    case "$_profile_key" in
+      dns_engine_adguardhome) _profile_agh=$_profile_value ;;
+      dns_forward) _profile_forward=$_profile_value ;;
+      custom_dns) _profile_custom_enabled=$_profile_value ;;
+      global_dns) _profile_global_enabled=$_profile_value ;;
+      block_quic) _profile_quic=$_profile_value ;;
+      block_dot) _profile_dot=$_profile_value ;;
+      block_plain_dns) _profile_plain=$_profile_value ;;
+      block_ipv6) _profile_ipv6=$_profile_value ;;
+      block_track_domains) _profile_track=$_profile_value ;;
+      vpn_external_dns_proxy) _profile_proxy=$_profile_value ;;
+      vpn_external_compat) _profile_compat=$_profile_value ;;
+      dns_querylog_enabled) _profile_querylog=$_profile_value ;;
+      VPN_REMOTE) _profile_remote=$_profile_value ;;
+      VPN_CN) _profile_cn=$_profile_value ;;
+      RESPONSE_MODE) _profile_mode=$_profile_value ;;
+    esac
+  done < "$_yad_profile_raw"
+  # Preserve the native DNS dependency invariants before touching the live config.
+  if [ "$_profile_forward" != 1 ]; then _profile_agh=0; _profile_proxy=0; fi
+  if [ "$_profile_agh" != 1 ]; then _profile_proxy=0; fi
+  if [ "$_profile_compat" != 1 ]; then _profile_proxy=0; fi
+  if [ "$_profile_proxy" = 1 ]; then _profile_forward=1; _profile_agh=1; _profile_compat=1; fi
+  [ -x "$MP/scripts/native-dns-settings.sh" ] || { echo "native DNS dependency manager is missing" >&2; return 20; }
+  MP="$MP" PG="$PG" sh "$MP/scripts/native-dns-settings.sh" set-many \
+    dns_engine_adguardhome "$_profile_agh" \
+    dns_forward "$_profile_forward" \
+    vpn_external_compat "$_profile_compat" \
+    vpn_external_dns_proxy "$_profile_proxy" || return 1
+  pg_set custom_dns "$_profile_custom_enabled" &&
+    pg_set global_dns "$_profile_global_enabled" &&
+    pg_set block_quic "$_profile_quic" &&
+    pg_set block_dot "$_profile_dot" &&
+    pg_set block_plain_dns "$_profile_plain" &&
+    pg_set block_ipv6 "$_profile_ipv6" &&
+    pg_set block_track_domains "$_profile_track" &&
+    pg_set dns_querylog_enabled "$_profile_querylog" || return 1
+  if [ -n "$_profile_custom" ]; then m_dns_servers custom_dns "$_profile_custom" || return 1
+  else m_dns_section_clear custom_dns || return 1; fi
+  if [ -n "$_profile_global" ]; then m_dns_servers global_dns "$_profile_global" || return 1
+  else m_dns_section_clear global_dns || return 1; fi
+  if [ -n "$_profile_fallback" ]; then m_dns_servers yulong_dns_fallback "$_profile_fallback" || return 1
+  else m_dns_section_clear yulong_dns_fallback || return 1; fi
+  m_vpn_dns remote_dns "$_profile_remote" &&
+    m_vpn_dns cn_dns "$_profile_cn" &&
+    m_dns_response "$_profile_mode" || return 1
+  printf 'dns_profile=restored native_agh=%s native_forward=%s native_compat=%s native_proxy=%s\n' "$_profile_agh" "$_profile_forward" "$_profile_compat" "$_profile_proxy"
+}
+dns_profile_transaction() {
+  _profile_backup=$(umask 077; mktemp "$CONF.dns-profile-rollback.XXXXXX") || return 1
+  if ! cp -p "$CONF" "$_profile_backup" || ! chmod 600 "$_profile_backup"; then rm -f "$_profile_backup"; return 1; fi
+  if ! dns_profile_restore "$1"; then
+    _profile_restore=$(umask 077; mktemp "$CONF.dns-profile-restore.XXXXXX") || { echo "DNS profile mutation failed; backup retained at $_profile_backup" >&2; return 11; }
+    if ! cp -p "$_profile_backup" "$_profile_restore" || ! chmod 600 "$_profile_restore" || ! mv -f "$_profile_restore" "$CONF"; then
+      rm -f "$_profile_restore" 2>/dev/null || :; echo "DNS profile rollback failed; backup retained at $_profile_backup" >&2; return 11
+    fi
+    sh "$MP/scripts/apply.sh" full >/dev/null 2>&1 || echo "previous DNS profile restored; runtime reconcile failed" >&2
+    rm -f "$_profile_backup"; return 1
+  fi
+  if sh "$MP/scripts/apply.sh" full; then rm -f "$_profile_backup"; return 0; fi
+  _profile_restore=$(umask 077; mktemp "$CONF.dns-profile-restore.XXXXXX") || { echo "DNS profile apply failed; backup retained at $_profile_backup" >&2; return 11; }
+  if ! cp -p "$_profile_backup" "$_profile_restore" || ! chmod 600 "$_profile_restore" || ! mv -f "$_profile_restore" "$CONF"; then
+    rm -f "$_profile_restore" 2>/dev/null || :; echo "DNS profile apply rollback failed; backup retained at $_profile_backup" >&2; return 11
+  fi
+  sh "$MP/scripts/apply.sh" full >/dev/null 2>&1 || echo "previous DNS profile restored; runtime reconcile failed" >&2
+  rm -f "$_profile_backup"; echo "DNS profile apply failed; previous settings restored" >&2; return 1
+}
+
 write_dns_querylog_retention() {
   interval=$1
   case "$interval" in 1d|3d|7d|30d) : ;; *) return 2 ;; esac
@@ -354,8 +566,102 @@ dns_config_get() {
   echo "VPN_CN|$(pg_conf vpn 2>/dev/null | sed -n 's/^cn_dns=//p' | head -n1)"
 }
 m_rule_add(){ write_rule "$1" "$2" "$3" add; }
+m_rule_rename(){ old_state=$(pg_list rule|awk -F'|' -v src="$1" '$1==src{print $3;exit}'); [ -n "$old_state" ] || return 3; write_rule "$1" "$2" "$old_state" set; }
 m_rule_set(){ old=$(pg_list rule|awk -F'|' -v src="$1" '$1==src{print $2;exit}'); [ -n "$old" ] || return 3; write_rule "$1" "$old" "$2" set; }
 m_rule_remove(){ write_rule "$1" "" 0 remove; }
+rule_add_many() {
+  _add_encoded="$1"
+  case "$_add_encoded" in ''|*[!A-Za-z0-9+/=]*) echo "invalid base64 rule import" >&2; return 2 ;; esac
+  [ "${#_add_encoded}" -le 87384 ] || { echo "rule import exceeds 64 KiB" >&2; return 2; }
+  _add_raw=$(mktemp "$PG/yulong-rule-add.XXXXXX") || return 1
+  _yad_rule_add_raw=$_add_raw
+  _add_clean=$(mktemp "$PG/yulong-rule-add-clean.XXXXXX") || return 1
+  _yad_rule_add_clean=$_add_clean
+  chmod 600 "$_add_raw" "$_add_clean" || return 1
+  (umask 077; printf '%s' "$_add_encoded" | base64 -d > "$_add_raw") || { echo "unable to decode rule import" >&2; return 2; }
+  _add_bytes=$(wc -c < "$_add_raw" | tr -d ' ')
+  [ "$_add_bytes" -le 65536 ] || { echo "rule import exceeds 64 KiB" >&2; return 2; }
+  _add_count=0
+  while IFS='|' read -r _add_source _add_title _add_extra || [ -n "$_add_source$_add_title$_add_extra" ]; do
+    [ -n "$_add_source" ] || continue
+    [ -z "$_add_extra" ] || { echo "invalid rule row: use source|name" >&2; return 2; }
+    valid_source "$_add_source" || { echo "invalid rule source" >&2; return 2; }
+    valid_text "$_add_title" || { echo "invalid rule name" >&2; return 2; }
+    if grep -F -x -q "$_add_source" "$_add_clean" || pg_list rule | awk -F'|' -v src="$_add_source" '$1==src{found=1} END{exit !found}'; then
+      echo "duplicate or already configured rule source: $_add_source" >&2; return 2
+    fi
+    printf '%s|%s\n' "$_add_source" "$_add_title" >> "$_add_clean" || return 1
+    _add_count=$((_add_count + 1))
+    [ "$_add_count" -le 2000 ] || { echo "rule import is limited to 2000 sources" >&2; return 2; }
+  done < "$_add_raw"
+  [ "$_add_count" -gt 0 ] || { echo "no rule sources to import" >&2; return 2; }
+  while IFS='|' read -r _add_source _add_title; do
+    write_rule "$_add_source" "$_add_title" 1 add || { echo "failed to add rule source: $_add_source" >&2; return 1; }
+  done < "$_add_clean"
+  echo "added=$_add_count"
+}
+rule_remove_many() {
+  _remove_encoded="$1"
+  case "$_remove_encoded" in ''|*[!A-Za-z0-9+/=]*) echo "invalid base64 rule source list" >&2; return 2 ;; esac
+  [ "${#_remove_encoded}" -le 87384 ] || { echo "rule source list exceeds 64 KiB" >&2; return 2; }
+  _remove_raw=$(mktemp "$PG/yulong-rule-remove.XXXXXX") || return 1
+  _yad_rule_remove_raw=$_remove_raw
+  _remove_clean=$(mktemp "$PG/yulong-rule-remove-clean.XXXXXX") || return 1
+  _yad_rule_remove_clean=$_remove_clean
+  chmod 600 "$_remove_raw" "$_remove_clean" || return 1
+  (umask 077; printf '%s' "$_remove_encoded" | base64 -d > "$_remove_raw") || { echo "unable to decode rule source list" >&2; return 2; }
+  _remove_bytes=$(wc -c < "$_remove_raw" | tr -d ' ')
+  [ "$_remove_bytes" -le 65536 ] || { echo "rule source list exceeds 64 KiB" >&2; return 2; }
+  _remove_count=0
+  while IFS= read -r _remove_source || [ -n "$_remove_source" ]; do
+    [ -n "$_remove_source" ] || continue
+    valid_source "$_remove_source" || { echo "invalid rule source in batch" >&2; return 2; }
+    if ! grep -F -x -q "$_remove_source" "$_remove_clean"; then
+      printf '%s\n' "$_remove_source" >> "$_remove_clean" || return 1
+      _remove_count=$((_remove_count + 1))
+      [ "$_remove_count" -le 2000 ] || { echo "rule batch is limited to 2000 sources" >&2; return 2; }
+    fi
+  done < "$_remove_raw"
+  [ "$_remove_count" -gt 0 ] || { echo "no rule sources to remove" >&2; return 2; }
+  while IFS= read -r _remove_source; do
+    pg_list rule | awk -F'|' -v src="$_remove_source" '$1==src{found=1} END{exit !found}' || {
+      echo "rule source is not configured: $_remove_source" >&2
+      return 3
+    }
+  done < "$_remove_clean"
+  while IFS= read -r _remove_source; do
+    m_rule_remove "$_remove_source" || { echo "failed to remove rule source: $_remove_source" >&2; return 1; }
+  done < "$_remove_clean"
+  echo "removed=$_remove_count"
+}
+rule_set_many() {
+  _rule_state="$1"; _rule_encoded="$2"
+  [ "$_rule_state" = 0 ] || [ "$_rule_state" = 1 ] || return 2
+  case "$_rule_encoded" in ''|*[!A-Za-z0-9+/=]*) echo "invalid base64 rule source list" >&2; return 2 ;; esac
+  [ "${#_rule_encoded}" -le 87384 ] || { echo "rule source list exceeds 64 KiB" >&2; return 2; }
+  _rule_raw=$(mktemp "$PG/yulong-rule-set.XXXXXX") || return 1
+  _yad_rule_raw=$_rule_raw
+  _rule_clean=$(mktemp "$PG/yulong-rule-set-clean.XXXXXX") || return 1
+  _yad_rule_clean=$_rule_clean
+  chmod 600 "$_rule_raw" "$_rule_clean" || return 1
+  (umask 077; printf '%s' "$_rule_encoded" | base64 -d > "$_rule_raw") || { echo "unable to decode rule source list" >&2; return 2; }
+  _rule_bytes=$(wc -c < "$_rule_raw" | tr -d ' ')
+  [ "$_rule_bytes" -le 65536 ] || { echo "rule source list exceeds 64 KiB" >&2; return 2; }
+  _rule_count=0
+  while IFS= read -r _rule_source || [ -n "$_rule_source" ]; do
+    [ -n "$_rule_source" ] || continue
+    valid_source "$_rule_source" || { echo "invalid rule source in batch" >&2; return 2; }
+    if ! grep -F -x -q "$_rule_source" "$_rule_clean"; then      printf '%s\n' "$_rule_source" >> "$_rule_clean" || return 1
+      _rule_count=$((_rule_count + 1))
+      [ "$_rule_count" -le 2000 ] || { echo "rule batch is limited to 2000 sources" >&2; return 2; }
+    fi
+  done < "$_rule_raw"
+  [ "$_rule_count" -gt 0 ] || { echo "no rule sources to update" >&2; return 2; }
+  while IFS= read -r _rule_source; do
+    m_rule_set "$_rule_source" "$_rule_state" || { echo "failed to update rule source: $_rule_source" >&2; return 1; }
+  done < "$_rule_clean"
+  echo "updated=$_rule_count state=$_rule_state"
+}
 import_domains() {
   _import_kind="$1"
   _import_encoded="$2"
@@ -450,12 +756,186 @@ import_domains() {
   rm -f "$_import_raw" "$_import_clean" 2>/dev/null || :
   echo "imported=$_import_count"
 }
-m_allow_add(){ sh "$MP/scripts/whitelist.sh" add "$1" "$2"; }
-m_allow_remove(){ sh "$MP/scripts/whitelist.sh" remove "$1"; }
+import_domain_bundle() {
+  _bundle_encoded="$1"
+  case "$_bundle_encoded" in ''|*[!A-Za-z0-9+/=]*) echo "invalid domain bundle encoding" >&2; return 2 ;; esac
+  [ "${#_bundle_encoded}" -le 87384 ] || { echo "domain bundle exceeds 64 KiB" >&2; return 2; }
+  _yad_bundle_raw=$(mktemp "$PG/yulong-domain-bundle.XXXXXX") || return 1
+  _yad_bundle_clean=$(mktemp "$PG/yulong-domain-bundle-clean.XXXXXX") || return 1
+  chmod 600 "$_yad_bundle_raw" "$_yad_bundle_clean" || return 1
+  (umask 077; printf '%s' "$_bundle_encoded" | base64 -d > "$_yad_bundle_raw") || { echo "unable to decode domain bundle" >&2; return 2; }
+  _bundle_bytes=$(wc -c < "$_yad_bundle_raw" | tr -d ' ')
+  [ "$_bundle_bytes" -le 65536 ] || { echo "domain bundle exceeds 64 KiB" >&2; return 2; }
+  _bundle_count=0
+  while IFS='|' read -r _bundle_kind _bundle_domain _bundle_note _bundle_extra || [ -n "$_bundle_kind$_bundle_domain$_bundle_note$_bundle_extra" ]; do
+    case "$_bundle_kind" in ''|'#'*) continue ;; allow|block) : ;; *) echo "invalid domain bundle kind" >&2; return 2 ;; esac
+    [ -z "$_bundle_extra" ] || { echo "invalid domain bundle row: use allow|domain|note or block|domain|note" >&2; return 2; }
+    _bundle_domain=$(printf '%s' "$_bundle_domain" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    _bundle_note=$(printf '%s' "$_bundle_note" | tr -d '\r')
+    _bundle_domain=$(valid_domain "$_bundle_domain") || { echo "invalid domain in bundle" >&2; return 2; }
+    if [ -z "$_bundle_note" ]; then
+      if [ "$_bundle_kind" = allow ]; then _bundle_note="FX 导入白名单"; else _bundle_note="FX 导入黑名单"; fi
+    fi
+    valid_text "$_bundle_note" || { echo "invalid note for domain: $_bundle_domain" >&2; return 2; }
+    if awk -F'|' -v k="$_bundle_kind" -v d="$_bundle_domain" '$1==k && $2==d{found=1} END{exit !found}' "$_yad_bundle_clean"; then continue; fi
+    printf '%s|%s|%s\n' "$_bundle_kind" "$_bundle_domain" "$_bundle_note" >> "$_yad_bundle_clean" || return 1
+    _bundle_count=$((_bundle_count + 1))
+    [ "$_bundle_count" -le 2000 ] || { echo "domain bundle is limited to 2000 unique rows" >&2; return 2; }
+  done < "$_yad_bundle_raw"
+  [ "$_bundle_count" -gt 0 ] || { echo "no domains to import" >&2; return 2; }
+  while IFS='|' read -r _bundle_kind _bundle_domain _bundle_note; do
+    if [ "$_bundle_kind" = allow ]; then
+      sh "$MP/scripts/whitelist.sh" add "$_bundle_domain" "$_bundle_note" || { echo "failed to import allow domain: $_bundle_domain" >&2; return 1; }
+    else
+      write_block "$_bundle_domain" "$_bundle_note" 1 add || { echo "failed to import block domain: $_bundle_domain" >&2; return 1; }
+    fi
+  done < "$_yad_bundle_clean"
+  echo "imported=$_bundle_count"
+}
+remove_domains() {
+  _remove_kind="$1"
+  _remove_encoded="$2"
+  case "$_remove_kind" in allow|block) ;; *) return 2 ;; esac
+  case "$_remove_encoded" in ''|*[!A-Za-z0-9+/=]*) echo "invalid base64 domain removal" >&2; return 2 ;; esac
+  [ "${#_remove_encoded}" -le 87384 ] || { echo "domain removal exceeds 64 KiB" >&2; return 2; }
+  _remove_raw=$(mktemp "$PG/yulong-domain-remove.XXXXXX") || return 1
+  _yad_remove_raw=$_remove_raw
+  chmod 600 "$_remove_raw" || return 1
+  (umask 077; printf '%s' "$_remove_encoded" | base64 -d > "$_remove_raw") || {
+    rm -f "$_remove_raw"; _yad_remove_raw=; echo "unable to decode domain removal" >&2; return 2;
+  }
+  _remove_bytes=$(wc -c < "$_remove_raw" | tr -d ' ')
+  [ "$_remove_bytes" -le 65536 ] || { echo "domain removal exceeds 64 KiB" >&2; return 2; }
+  _remove_clean=$(mktemp "$PG/yulong-domain-remove-clean.XXXXXX") || return 1
+  chmod 600 "$_remove_clean" || { rm -f "$_remove_clean"; return 1; }
+  _remove_count=0
+  while IFS= read -r _remove_line || [ -n "$_remove_line" ]; do
+    _remove_line=$(printf '%s' "$_remove_line" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    [ -n "$_remove_line" ] || continue
+    _remove_domain=$(valid_domain "$_remove_line") || {
+      rm -f "$_remove_clean"; echo "invalid domain in removal list" >&2; return 2;
+    }
+    printf '%s\n' "$_remove_domain" >> "$_remove_clean" || { rm -f "$_remove_clean"; return 1; }
+    _remove_count=$((_remove_count + 1))
+    [ "$_remove_count" -le 2000 ] || { rm -f "$_remove_clean"; echo "domain removal is limited to 2000 rows" >&2; return 2; }
+  done < "$_remove_raw"
+  [ "$_remove_count" -gt 0 ] || { rm -f "$_remove_clean"; echo "no domains to remove" >&2; return 2; }
+  while IFS= read -r _remove_domain; do
+    if [ "$_remove_kind" = allow ]; then
+      sh "$MP/scripts/whitelist.sh" remove "$_remove_domain" || { rm -f "$_remove_clean"; echo "failed to remove allow domain" >&2; return 1; }
+    else
+      write_block "$_remove_domain" "" 0 remove || { rm -f "$_remove_clean"; echo "failed to remove block domain" >&2; return 1; }
+    fi
+  done < "$_remove_clean"
+  rm -f "$_remove_clean" "$_remove_raw"
+  _yad_remove_raw=
+  echo "removed=$_remove_count"
+}
+write_allow() {
+  domain=$1; note=$2; state=$3; mode=$4
+  tmp=$(mktemp "$CONF.yulong-allow.XXXXXX") || return 1
+  _yad_conf_tmp=$tmp
+  awk -F'|' -v OFS='|' -v domain="$domain" -v note="$note" -v state="$state" -v mode="$mode" '
+    BEGIN{inside=0;found=0;done=0}
+    $0=="[list:domain]"{inside=1;found=1;print;next}
+    /^\\[/{if(inside&&mode=="add"&&!done){print domain,note,state;done=1}inside=0;print;next}
+    inside&&$0!~/^[[:space:]]*#/&&tolower($1)==domain{if(mode=="remove")next;if(!done){print domain,note,state;done=1}next}
+    {print}
+    END{if(inside&&mode=="add"&&!done){print domain,note,state;done=1}if(!found&&mode=="add"){print "";print "[list:domain]";print domain,note,state}if(!done&&mode=="set")exit 3}
+  ' "$CONF" > "$tmp" || { rm -f "$tmp"; _yad_conf_tmp=; return 1; }
+  if [ -s "$tmp" ] && chmod 600 "$tmp" && mv -f "$tmp" "$CONF"; then _yad_conf_tmp=; return 0; fi
+  rm -f "$tmp"; _yad_conf_tmp=; return 1
+}
+m_allow_add(){ write_allow "$1" "$2" 1 add; }
+m_allow_remove(){ write_allow "$1" "" 0 remove; }
+m_allow_set(){ old_note=$(pg_list domain|awk -F'|' -v d="$1" '$1==d{print $2;exit}'); [ -n "$old_note" ] || return 3; write_allow "$1" "$old_note" "$2" set; }
+m_allow_note(){ old_state=$(pg_list domain|awk -F"|" -v d="$1" '$1==d{print $3;exit}'); [ -n "$old_state" ] || return 3; write_allow "$1" "$2" "$old_state" set; }
+m_allow_note_clear(){ old_state=$(pg_list domain|awk -F"|" -v d="$1" '$1==d{print $3;exit}'); [ -n "$old_state" ] || return 3; write_allow "$1" "" "$old_state" set; }
 m_allow_import(){ import_domains allow "$1"; }
+allow_set_many() {
+  _allow_enabled=$1; _allow_encoded=$2
+  case "$_allow_enabled" in 0|1) : ;; *) echo "whitelist state must be 0 or 1" >&2; return 2 ;; esac
+  case "$_allow_encoded" in ''|*[!A-Za-z0-9+/=]*) echo "invalid base64 whitelist state list" >&2; return 2 ;; esac
+  [ "${#_allow_encoded}" -le 87384 ] || { echo "whitelist state list exceeds 64 KiB" >&2; return 2; }
+  _yad_set_raw=$(mktemp "$PG/yulong-allow-set.XXXXXX") || return 1
+  _yad_set_clean=$(mktemp "$PG/yulong-allow-set-clean.XXXXXX") || return 1
+  chmod 600 "$_yad_set_raw" "$_yad_set_clean" || return 1
+  (umask 077; printf '%s' "$_allow_encoded" | base64 -d > "$_yad_set_raw") || { echo "unable to decode whitelist state list" >&2; return 2; }
+  _allow_bytes=$(wc -c < "$_yad_set_raw" | tr -d ' ')
+  [ "$_allow_bytes" -le 65536 ] || { echo "whitelist state list exceeds 64 KiB" >&2; return 2; }
+  _allow_count=0
+  while IFS= read -r _allow_line || [ -n "$_allow_line" ]; do
+    _allow_line=$(printf '%s' "$_allow_line" | tr -d '\\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    [ -n "$_allow_line" ] || continue
+    _allow_domain=$(valid_domain "$_allow_line") || { echo "invalid domain in whitelist state list" >&2; return 2; }
+    if ! pg_list domain | awk -F'|' -v d="$_allow_domain" '$1==d{found=1} END{exit !found}'; then
+      echo "whitelist domain no longer exists: $_allow_domain" >&2; return 3
+    fi
+    if ! grep -Fxq "$_allow_domain" "$_yad_set_clean"; then
+      printf '%s\\n' "$_allow_domain" >> "$_yad_set_clean" || return 1
+      _allow_count=$((_allow_count + 1))
+      [ "$_allow_count" -le 2000 ] || { echo "whitelist state list is limited to 2000 rows" >&2; return 2; }
+    fi
+  done < "$_yad_set_raw"
+  [ "$_allow_count" -gt 0 ] || { echo "no whitelist domains to update" >&2; return 2; }
+  while IFS= read -r _allow_domain; do
+    m_allow_set "$_allow_domain" "$_allow_enabled" || { echo "failed to update whitelist domain: $_allow_domain" >&2; return 1; }
+  done < "$_yad_set_clean"
+  rm -f "$_yad_set_raw" "$_yad_set_clean"; _yad_set_raw=; _yad_set_clean=
+  echo "updated=$_allow_count enabled=$_allow_enabled"
+}
+m_block_note(){ old_state=$(pg_list block|awk -F"|" -v d="$1" '$1==d{print $3;exit}'); [ -n "$old_state" ] || return 3; write_block "$1" "$2" "$old_state" set; }
+m_block_note_clear(){ old_state=$(pg_list block|awk -F"|" -v d="$1" '$1==d{print $3;exit}'); [ -n "$old_state" ] || return 3; write_block "$1" "" "$old_state" set; }
 m_block_add(){ write_block "$1" "$2" 1 add; }
+m_block_set(){ old_note=$(pg_list block|awk -F'|' -v d="$1" '$1==d{print $2;exit}'); [ -n "$old_note" ] || return 3; write_block "$1" "$old_note" "$2" set; }
+block_set_many() {
+  _set_enabled=$1
+  _set_encoded=$2
+  case "$_set_enabled" in 0|1) : ;; *) echo "blacklist state must be 0 or 1" >&2; return 2 ;; esac
+  case "$_set_encoded" in ''|*[!A-Za-z0-9+/=]*) echo "invalid base64 blacklist state list" >&2; return 2 ;; esac
+  [ "${#_set_encoded}" -le 87384 ] || { echo "blacklist state list exceeds 64 KiB" >&2; return 2; }
+  _yad_set_raw=$(mktemp "$PG/yulong-block-set.XXXXXX") || return 1
+  _yad_set_clean=$(mktemp "$PG/yulong-block-set-clean.XXXXXX") || return 1
+  chmod 600 "$_yad_set_raw" "$_yad_set_clean" || return 1
+  (umask 077; printf '%s' "$_set_encoded" | base64 -d > "$_yad_set_raw") || { echo "unable to decode blacklist state list" >&2; return 2; }
+  _set_bytes=$(wc -c < "$_yad_set_raw" | tr -d ' ')
+  [ "$_set_bytes" -le 65536 ] || { echo "blacklist state list exceeds 64 KiB" >&2; return 2; }
+  _set_count=0
+  while IFS= read -r _set_line || [ -n "$_set_line" ]; do
+    _set_line=$(printf '%s' "$_set_line" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    [ -n "$_set_line" ] || continue
+    _set_domain=$(valid_domain "$_set_line") || { echo "invalid domain in blacklist state list" >&2; return 2; }
+    if ! printf '%s\\n' "$(pg_list block)" | awk -F'|' -v d="$_set_domain" '$1==d{found=1} END{exit !found}'; then
+      echo "blacklist domain no longer exists: $_set_domain" >&2
+      return 3
+    fi
+    if ! grep -Fxq "$_set_domain" "$_yad_set_clean"; then
+      printf '%s\n' "$_set_domain" >> "$_yad_set_clean" || return 1
+      _set_count=$((_set_count + 1))
+      [ "$_set_count" -le 2000 ] || { echo "blacklist state list is limited to 2000 rows" >&2; return 2; }
+    fi
+  done < "$_yad_set_raw"
+  [ "$_set_count" -gt 0 ] || { echo "no blacklist domains to update" >&2; return 2; }
+  while IFS= read -r _set_domain; do
+    m_block_set "$_set_domain" "$_set_enabled" || { echo "failed to update blacklist domain: $_set_domain" >&2; return 1; }
+  done < "$_yad_set_clean"
+  rm -f "$_yad_set_raw" "$_yad_set_clean"
+  _yad_set_raw=; _yad_set_clean=
+  echo "updated=$_set_count enabled=$_set_enabled"
+}
 m_block_remove(){ write_block "$1" "" 0 remove; }
 m_block_import(){ import_domains block "$1"; }
+domain_clear_all() {
+  _clear_kind=$1
+  case "$_clear_kind" in allow|block) ;; *) return 2 ;; esac
+  _clear_domains=$(pg_list "$_clear_kind" 2>/dev/null | awk -F'|' 'NF && $1!="" {print $1}')
+  [ -n "$_clear_domains" ] || { echo "${_clear_kind}_domains=already_empty"; return 0; }
+  _clear_encoded=$(printf '%s\n' "$_clear_domains" | base64 | tr -d '\n') || return 1
+  remove_domains "$_clear_kind" "$_clear_encoded"
+}
+m_allow_remove_many(){ remove_domains allow "$1"; }
+m_block_remove_many(){ remove_domains block "$1"; }
+m_block_remove_many(){ remove_domains block "$1"; }
 valid_time() {
   printf '%s\n' "$1" | awk -F: 'NF==2 && $1~/^[0-9][0-9]$/ && $2~/^[0-9][0-9]$/ && $1+0<=23 && $2+0<=59 {ok=1} END{exit !ok}'
 }
@@ -503,8 +983,7 @@ schedule_get() {
     fi
   fi
   echo "watcher=$watcher"
-}
-schedule_set() {
+}schedule_set() {
   enabled=$1; start=$2; end=$3; days=$4
   { [ "$enabled" = 0 ] || [ "$enabled" = 1 ]; } || return 2
   valid_time "$start" && valid_time "$end" && valid_days "$days" || {
@@ -578,11 +1057,20 @@ schedule_set() {
   return 35
 }
 cache_flush() {
+  target=${1:-all}
+  case "$target" in all|adguardhome|unbound) ;; *) echo "cache target must be all, adguardhome, or unbound" >&2; return 2 ;; esac
   lock="$PG/yulong-cache-flush.lock"
   if ! mkdir "$lock" 2>/dev/null; then echo "DNS cache refresh is already running" >&2; return 30; fi
   _yad_cache_lock=$lock
   agh_enabled=$(pg_get dns_engine_adguardhome 1 2>/dev/null)
   forward_enabled=$(pg_get dns_forward 1 2>/dev/null)
+  if [ "$target" = adguardhome ]; then
+    [ "$agh_enabled" = 1 ] || { echo "AdGuard Home is not enabled in FX; no cache was changed" >&2; return 33; }
+    forward_enabled=0
+  elif [ "$target" = unbound ]; then
+    [ "$forward_enabled" = 1 ] || { echo "Unbound is not enabled in FX; no cache was changed" >&2; return 33; }
+    agh_enabled=0
+  fi
   if [ "$agh_enabled" != 1 ] && [ "$forward_enabled" != 1 ]; then
     echo "dns-engine-disabled"
     return 0
@@ -596,8 +1084,7 @@ cache_flush() {
     return 32
   fi
   a_stop_rc=0; u_stop_rc=0; u_rc=0; a_rc=0; apply_rc=0
-  # Restart only the resolver engines that are actually enabled in FX config.
-  # Failed stops, ensures or route re-apply must never emit the success marker.
+  # Restart only the selected FX-owned resolver engines; never touch third-party VPNs.
   if [ "$agh_enabled" = 1 ]; then
     sh "$MP/scripts/adguardhome.sh" stop "$MP" "$PG" || a_stop_rc=$?
   fi
@@ -618,7 +1105,7 @@ cache_flush() {
       echo "cache refresh incomplete; FX DNS routing was reconciled on a best-effort basis" >&2
       return 31
     }
-  echo "cache=flushed"
+  echo "cache=flushed target=$target"
 }
 cmd="${1:-list}"
 case "$cmd" in
@@ -681,6 +1168,21 @@ case "$cmd" in
  rule-remove)
   [ "$#" -eq 2 ] && valid_source "$2" || exit 2
   with_lock transaction m_rule_remove "$2" ;;
+ rule-remove-many)
+  [ "$#" -eq 2 ] || { echo "usage: $0 rule-remove-many base64-source-list" >&2; exit 2; }
+  with_lock transaction rule_remove_many "$2" ;;
+ rule-rename)
+  [ "$#" -eq 3 ] && valid_source "$2" && valid_text "$3" || exit 2
+  with_lock transaction m_rule_rename "$2" "$3" ;;
+ rule-set-many)
+  [ "$#" -eq 3 ] || { echo "usage: $0 rule-set-many 0|1 base64-source-list" >&2; exit 2; }
+  with_lock transaction rule_set_many "$2" "$3" ;;
+ rule-add-many)
+  [ "$#" -eq 2 ] || { echo "usage: $0 rule-add-many base64-source-name-list" >&2; exit 2; }
+  with_lock transaction rule_add_many "$2" ;;
+ domain-import-bundle)
+  [ "$#" -eq 2 ] || { echo "usage: $0 domain-import-bundle base64-export" >&2; exit 2; }
+  with_lock transaction import_domain_bundle "$2" ;;
  allow-add)
   [ "$#" -ge 2 ] && [ "$#" -le 3 ] || exit 2
   d=$(valid_domain "$2") || exit 2; note=$3; [ -n "$note" ] || note="FX 白名单"; valid_text "$note" || exit 2
@@ -688,16 +1190,59 @@ case "$cmd" in
  allow-remove)
   [ "$#" -eq 2 ] || exit 2; d=$(valid_domain "$2") || exit 2
   with_lock transaction m_allow_remove "$d" ;;
+ allow-note-clear)
+  [ "$#" -eq 2 ] || exit 2
+  d=$(valid_domain "$2") || exit 2
+  with_lock transaction m_allow_note_clear "$d" ;;
+ allow-note)
+  [ "$#" -eq 3 ] || exit 2
+  d=$(valid_domain "$2") || exit 2; valid_text "$3" || exit 2
+  with_lock transaction m_allow_note "$d" "$3" ;;
+ allow-set)
+  [ "$#" -eq 3 ] || exit 2
+  d=$(valid_domain "$2") || exit 2
+  { [ "$3" = 0 ] || [ "$3" = 1 ]; } || exit 2
+  with_lock transaction m_allow_set "$d" "$3" ;;
+ allow-set-many)
+  [ "$#" -eq 3 ] || { echo "usage: $0 allow-set-many 0|1 base64-domain-list" >&2; exit 2; }
+  with_lock transaction allow_set_many "$2" "$3" ;;
  allow-import)
   [ "$#" -eq 2 ] || { echo "usage: $0 allow-import base64-domain-list" >&2; exit 2; }
   with_lock transaction m_allow_import "$2" ;;
+ allow-clear-all)
+  [ "$#" -eq 1 ] || exit 2
+  with_lock transaction domain_clear_all allow ;;
+ block-clear-all)
+  [ "$#" -eq 1 ] || exit 2
+  with_lock transaction domain_clear_all block ;;
+ allow-remove-many)
+  [ "$#" -eq 2 ] || { echo "usage: $0 allow-remove-many base64-domain-list" >&2; exit 2; }
+  with_lock transaction m_allow_remove_many "$2" ;;
  block-import)
   [ "$#" -eq 2 ] || { echo "usage: $0 block-import base64-domain-list" >&2; exit 2; }
   with_lock transaction m_block_import "$2" ;;
+ block-remove-many)  [ "$#" -eq 2 ] || { echo "usage: $0 block-remove-many base64-domain-list" >&2; exit 2; }
+  with_lock transaction m_block_remove_many "$2" ;;
  block-add)
   [ "$#" -ge 2 ] && [ "$#" -le 3 ] || exit 2
   d=$(valid_domain "$2") || exit 2; note=$3; [ -n "$note" ] || note="FX 黑名单"; valid_text "$note" || exit 2
   with_lock transaction m_block_add "$d" "$note" ;;
+ block-note-clear)
+  [ "$#" -eq 2 ] || exit 2
+  d=$(valid_domain "$2") || exit 2
+  with_lock transaction m_block_note_clear "$d" ;;
+ block-note)
+  [ "$#" -eq 3 ] || exit 2
+  d=$(valid_domain "$2") || exit 2; valid_text "$3" || exit 2
+  with_lock transaction m_block_note "$d" "$3" ;;
+ block-set)
+  [ "$#" -eq 3 ] || exit 2
+  d=$(valid_domain "$2") || exit 2
+  { [ "$3" = 0 ] || [ "$3" = 1 ]; } || exit 2
+  with_lock transaction m_block_set "$d" "$3" ;;
+ block-set-many)
+  [ "$#" -eq 3 ] || { echo "usage: $0 block-set-many 0|1 base64-domain-list" >&2; exit 2; }
+  with_lock transaction block_set_many "$2" "$3" ;;
  block-remove)
   [ "$#" -eq 2 ] || exit 2; d=$(valid_domain "$2") || exit 2
   with_lock transaction m_block_remove "$d" ;;
@@ -717,6 +1262,18 @@ case "$cmd" in
       with_lock transaction m_dns "$2" "$3"
       ;;
   esac ;;
+ dns-security-profile-set)
+  [ "$#" -eq 3 ] || { echo "usage: $0 dns-security-profile-set nxdomain|refused|custom_ip 0|1" >&2; exit 2; }
+  with_lock transaction dns_security_profile_set "$2" "$3"
+  ;;
+ dns-filter-policy-set)
+  [ "$#" -eq 6 ] || { echo "usage: $0 dns-filter-policy-set QUIC DOT PLAIN_DNS IPV6 TRACKING" >&2; exit 2; }
+  with_lock transaction dns_filter_policy_set "$2" "$3" "$4" "$5" "$6"
+  ;;
+ dns-config-set-many)
+  [ "$#" -eq 4 ] || { echo "usage: $0 dns-config-set-many CUSTOM GLOBAL FALLBACK (use - to clear)" >&2; exit 2; }
+  with_lock transaction dns_config_set_many "$2" "$3" "$4"
+  ;;
  dns-config-get)
   dns_config_get
   ;;
@@ -727,6 +1284,21 @@ case "$cmd" in
  dns-querylog-retention-set)
   [ "$#" -eq 2 ] || exit 2
   with_lock transaction dns_querylog_retention_set "$2"
+  ;;
+ dns-profile-get)
+  [ "$#" -eq 1 ] || exit 2
+  dns_profile_get
+  ;;
+ dns-native-set-many)
+  [ "$#" -ge 3 ] || { echo "usage: $0 dns-native-set-many KEY 0|1 [KEY 0|1 ...]" >&2; exit 2; }
+  [ -x "$MP/scripts/native-dns-settings.sh" ] || { echo "native DNS dependency manager is missing" >&2; exit 20; }
+  shift
+  MP="$MP" PG="$PG" sh "$MP/scripts/native-dns-settings.sh" set-many "$@"
+  ;;
+ dns-runtime-status)
+  [ "$#" -eq 1 ] || exit 2
+  [ -x "$MP/scripts/native-dns-settings.sh" ] || { echo "native DNS dependency manager is missing" >&2; exit 20; }
+  MP="$MP" PG="$PG" sh "$MP/scripts/native-dns-settings.sh" status
   ;;
  dns-config-set)
   [ "$#" -eq 3 ] || { echo "usage: $0 dns-config-set custom|global|fallback server[,server...]" >&2; exit 2; }
@@ -763,8 +1335,9 @@ case "$cmd" in
   ;;
 
  dns-config-clear)
-  [ "$#" -eq 2 ] && [ "$2" = fallback ] || { echo "usage: $0 dns-config-clear fallback" >&2; exit 2; }
-  with_lock transaction m_dns_section_clear yulong_dns_fallback
+  [ "$#" -eq 2 ] || { echo "usage: $0 dns-config-clear custom|global|fallback" >&2; exit 2; }
+  case "$2" in custom) section=custom_dns ;; global) section=global_dns ;; fallback) section=yulong_dns_fallback ;; *) exit 2 ;; esac
+  with_lock transaction m_dns_section_clear "$section"
   ;;
 
  dns-vpn-set)
@@ -772,6 +1345,14 @@ case "$cmd" in
   case "$2" in remote_dns|cn_dns) ;; *) exit 2 ;; esac
   valid_ipv4 "$3" || { echo "VPN DNS must be an IPv4 literal" >&2; exit 2; }
   with_lock transaction m_vpn_dns "$2" "$3"
+  ;;
+ dns-vpn-set-many)
+  [ "$#" -eq 3 ] || { echo "usage: $0 dns-vpn-set-many REMOTE_IPV4 CN_IPV4" >&2; exit 2; }
+  with_lock transaction dns_vpn_set_many "$2" "$3"
+  ;;
+ dns-vpn-reset)
+  [ "$#" -eq 1 ] || exit 2
+  with_lock transaction m_vpn_dns_reset
   ;;
  schedule-get)
   schedule_get
