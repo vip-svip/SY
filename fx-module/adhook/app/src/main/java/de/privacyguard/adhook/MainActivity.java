@@ -8894,6 +8894,67 @@ public final class MainActivity extends ComponentActivity {
             customHookRuleScrollY = Math.max(0, nativeScroll.getScrollY());
     }
 
+    private void bulkUpdateCustomHookRules(boolean enable, boolean targetDebuggable) {
+        if (selectedPackage == null) return;
+        captureCustomHookRuleFilters();
+        String selectedGroup = customHookRuleGroupFilter == null
+                ? "" : customHookRuleGroupFilter.trim();
+        String needle = customHookRuleSearchQuery == null ? ""
+                : customHookRuleSearchQuery.trim().toLowerCase(java.util.Locale.ROOT);
+        android.content.SharedPreferences preferences = getPreferences(0);
+        android.content.SharedPreferences.Editor editor = preferences.edit();
+        int changed = 0;
+        int skipped = 0;
+        for (int slot : getCustomRuleSlots(selectedPackage)) {
+            String ruleKey = selectedPackage + ":dev_rule_" + slot;
+            String value = preferences.getString(ruleKey, null);
+            if (value == null) continue;
+            String[] fields = value.split("\\|", -1);
+            if (fields.length != 4 && fields.length != 5) { skipped++; continue; }
+            String group = preferences.getString(
+                    selectedPackage + ":dev_rule_group_" + slot, "默认");
+            group = validCustomRuleGroupName(group) ? group.trim() : "默认";
+            if (!selectedGroup.isEmpty() && !selectedGroup.equals(group)) continue;
+            String baseAction = preferences.getString(
+                    selectedPackage + ":dev_rule_base_" + slot,
+                    "OFF".equalsIgnoreCase(fields[2]) ? "OBSERVE" : fields[2]);
+            String searchable = fields[0] + " " + fields[1] + " " + baseAction
+                    + " " + group + " " + fields[3]
+                    + (fields.length == 5 ? " " + fields[4] : "");
+            if (!needle.isEmpty()
+                    && !searchable.toLowerCase(java.util.Locale.ROOT).contains(needle)) continue;
+            String validation = fields[0] + "|" + fields[1] + "|" + baseAction
+                    + "|" + fields[3] + (fields.length == 5 ? "|" + fields[4] : "");
+            if (DeveloperHookRule.parse(validation, selectedPackage) == null) {
+                skipped++;
+                continue;
+            }
+            if (enable && !targetDebuggable && !"OBSERVE".equalsIgnoreCase(baseAction)) {
+                skipped++;
+                continue;
+            }
+            String nextState = enable ? baseAction : "OFF";
+            editor.putString(ruleKey, fields[0] + "|" + fields[1] + "|" + nextState
+                    + "|" + fields[3] + (fields.length == 5 ? "|" + fields[4] : ""));
+            editor.putString(selectedPackage + ":dev_rule_base_" + slot, baseAction);
+            changed++;
+        }
+        if (changed == 0) {
+            Toast.makeText(this, "当前筛选没有可批量修改的有效规则。", Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (!editor.commit()) {
+            Toast.makeText(this, "批量修改保存失败，规则状态未确认变更。", Toast.LENGTH_LONG).show();
+            return;
+        }
+        Toast.makeText(this, (enable ? "已批量启用 " : "已批量暂停 ")
+                + changed + " 条规则" + (skipped > 0 ? "，跳过 " + skipped + " 条" : "")
+                + "；保存后仍需发布配置。", Toast.LENGTH_LONG).show();
+        ApplicationInfo target = findApp(selectedPackage);
+        if (target != null) showCustomHookRulesPage(target,
+                (target.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0);
+    }
+
     private void renderCustomRules(boolean targetDebuggable) {
         java.util.LinkedHashSet<String> groups = getCustomRuleGroups();
         java.util.List<String> options = new java.util.ArrayList<>();
@@ -8929,6 +8990,19 @@ public final class MainActivity extends ComponentActivity {
             groupFilter.setSelection(0);
         });
         filterGroup.addView(clearFilters, new LinearLayout.LayoutParams(-1, -2));
+
+        LinearLayout bulkActions = new LinearLayout(this);
+        Button enableFiltered = new Button(this);
+        enableFiltered.setAllCaps(false);
+        enableFiltered.setText("批量启用当前筛选");
+        enableFiltered.setOnClickListener(v -> bulkUpdateCustomHookRules(true, targetDebuggable));
+        Button disableFiltered = new Button(this);
+        disableFiltered.setAllCaps(false);
+        disableFiltered.setText("批量暂停当前筛选");
+        disableFiltered.setOnClickListener(v -> bulkUpdateCustomHookRules(false, targetDebuggable));
+        bulkActions.addView(enableFiltered, new LinearLayout.LayoutParams(0, -2, 1));
+        bulkActions.addView(disableFiltered, new LinearLayout.LayoutParams(0, -2, 1));
+        filterGroup.addView(bulkActions);
 
         TextView summary = new TextView(this);
         summary.setTextColor(0xff617080);
