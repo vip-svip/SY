@@ -110,7 +110,8 @@
     // The Go MITM stage has a 30-second aggregate deadline. Keep one HTTP call below
     // the per-script execution deadline so the bridge does not advertise a timeout
     // that the runner will kill first.
-    const timeout=Math.max(1,Math.min(20,Number(options.timeout||globalThis.$httpClient.timeout||10)));
+    const requestedTimeout=Number(options.timeout||globalThis.$httpClient.timeout||10);
+    const timeout=Number.isFinite(requestedTimeout)&&requestedTimeout>0?Math.max(1,Math.min(20,requestedTimeout)):10;
     const rc=_fxOS.exec([_fxHttp,url,method,tmp+'.body',tmp+'.response',tmp+'.headers',String(Math.floor(timeout))]);
     const statusText=_fxRead(tmp+'.headers.status','').trim();
     const rawHeaders=_fxRead(tmp+'.response.headers','');
