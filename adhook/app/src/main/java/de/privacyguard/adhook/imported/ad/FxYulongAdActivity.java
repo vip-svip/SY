@@ -1099,7 +1099,7 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
   dnsCacheOptimistic.setText("缓存过期时先返回旧答案并后台刷新");
   Switch dnssecEnabled=new Switch(this);
   dnssecEnabled.setText("AdGuard Home 上游启用 DNSSEC 校验");
-  TextView dnsRuntimeState=txt("正在读取 AdGuard Home 引擎参数…",12,0xff617080,false);
+  TextView adguardRuntimeState=txt("正在读取 AdGuard Home 引擎参数…",12,0xff617080,false);
   card("AdGuard Home 解析策略与性能",
        "上游策略：load_balance 按健康与响应表现选择；parallel 并发请求全部上游；fastest_addr 按地址响应延迟选择。fastest 与上游请求超时都支持自定义正整数 ms/s/m/h 时长，并遵守运行时 duration 范围。缓存容量以字节计；乐观缓存可在过期数据刷新期间优先返回旧答案。DNSSEC 会对上游 DNSSEC 响应执行验证。EDNS Client Subnet 保持关闭，避免向上游泄露客户端网段。",
        txt("多上游选择策略",12,0xff617080,true),dnsRuntimeMode,
@@ -1133,14 +1133,14 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
              +(dnsCacheOptimistic.isChecked()?"1":"0")+" "+(dnssecEnabled.isChecked()?"1":"0")+" "
              +q(cacheMin)+" "+q(cacheMax)+" "+q(optimisticAnswer)+" "+q(optimisticMaxAge);
          root(command,result->{
-           if(result.exitCode==0){dnsRuntimeState.setText("AdGuard Home 引擎参数已保存并应用。");load();}
+           if(result.exitCode==0){adguardRuntimeState.setText("AdGuard Home 引擎参数已保存并应用。");load();}
            else fxDialogBuilder().setTitle("DNS 引擎参数未应用").setMessage(safe(result.output)).setPositiveButton("关闭",null).show();
          });
        }),
-       dnsRuntimeState);
+       adguardRuntimeState);
   loadDnsRuntimeControls(dnsRuntimeMode,dnsRuntimeFastest,dnsRuntimeTimeout,dnsRuntimeCacheSize,
       dnsRuntimeCacheTtlMin,dnsRuntimeCacheTtlMax,dnsRuntimeOptimisticAnswerTtl,dnsRuntimeOptimisticMaxAge,
-      dnsCacheEnabled,dnsCacheOptimistic,dnssecEnabled,dnsRuntimeState);
+      dnsCacheEnabled,dnsCacheOptimistic,dnssecEnabled,adguardRuntimeState);
 
   EditText unboundCacheMaxTtl=draftField("unbound_cache_max_ttl");
   unboundCacheMaxTtl.setSingleLine(true);
