@@ -1048,6 +1048,8 @@ private void saveVpnDns(String key,EditText input){
       domainSearch,
       btn("批量移除筛选命中的白名单",()->removeFilteredDomains("ALLOW")),
       btn("批量移除筛选命中的黑名单",()->removeFilteredDomains("BLOCK")),
+      btn("启用筛选命中的白名单",()->setFilteredAllows(true)),
+      btn("停用筛选命中的白名单",()->setFilteredAllows(false)),
       btn("启用筛选命中的黑名单",()->setFilteredBlocks(true)),
       btn("停用筛选命中的黑名单",()->setFilteredBlocks(false)));
   entries=new LinearLayout(this); entries.setOrientation(1); body.addView(entries);
@@ -1078,6 +1080,25 @@ private void saveVpnDns(String key,EditText input){
   removeDomains("ALLOW".equals(kind)?"allow":"block",values);
  }
 
+ private void setFilteredAllows(boolean enabled){
+  String filter=domainSearch==null||domainSearch.getText()==null?"":domainSearch.getText().toString().trim().toLowerCase(Locale.ROOT);
+  List<String> selected=new ArrayList<>();
+  for(Row row:rows("ALLOW")){
+   if(filter.isEmpty()||(row.value+" "+row.title).toLowerCase(Locale.ROOT).contains(filter))selected.add(row.value);
+  }
+  if(selected.isEmpty()){status.setText("当前筛选条件下没有匹配的白名单条目。");return;}
+  if(selected.size()>2000){status.setText("单次最多批量切换 2000 条白名单，请缩小筛选范围。");return;}
+  String payload=String.join("\\n",selected);
+  byte[] bytes=payload.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+  if(bytes.length>65536){status.setText("批量状态数据超过 64 KiB，请缩小筛选范围。");return;}
+  String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);
+  String action=enabled?"启用":"停用";
+  fxDialogBuilder().setTitle(action+"筛选命中的白名单")
+      .setMessage("将"+action+"当前筛选命中的 "+selected.size()+" 条白名单域名。记录及备注会保留；后端会再次确认条目仍存在，并在单次 FX 配置事务中统一应用，失败会回滚。")
+      .setNegativeButton("取消",null)
+      .setPositiveButton(action,(dialog,which)->apply("allow-set-many "+(enabled?"1":"0")+" "+q(encoded),"批量白名单状态"))
+      .show();
+ }
  private void setFilteredBlocks(boolean enabled){
   String filter=domainSearch==null||domainSearch.getText()==null?"":domainSearch.getText().toString().trim().toLowerCase(Locale.ROOT);
   List<String> selected=new ArrayList<>();
@@ -1350,7 +1371,7 @@ private Boolean adMaster(){
    }
   }
 private String dnsValue(String key){for(String line:snapshot.split("\\r?\\n")){String[] p=line.split("\\|",-1);if(p.length==3&&p[0].equals("DNS")&&p[1].equals(key))return p[2];}return "0";}
- private void domainRow(Row e,boolean allow){LinearLayout r=new LinearLayout(this);r.setTag("fx-list-row");r.setOrientation(1);r.setPadding(dp(8),dp(5),dp(8),dp(5));TextView domain=txt((allow?"白名单 · ":"黑名单 · ")+e.value,13,0xff17212b,true);domain.setTag("fx-list-title");r.addView(domain);TextView source=txt(e.title,10,0xff718091,false);source.setTag("fx-list-subtitle");r.addView(source);if(!allow){Switch enabled=new Switch(this);enabled.setTag("fx-switch-row");enabled.setText("启用此黑名单域名");enabled.setChecked(e.enabled);enabled.setOnCheckedChangeListener((button,on)->apply("block-set "+q(e.value)+" "+(on?"1":"0"),"黑名单状态"));r.addView(enabled);}r.addView(btn("移除",()->apply((allow?"allow-remove ":"block-remove ")+q(e.value),"名单移除")));entries.addView(r);}
+ private void domainRow(Row e,boolean allow){LinearLayout r=new LinearLayout(this);r.setTag("fx-list-row");r.setOrientation(1);r.setPadding(dp(8),dp(5),dp(8),dp(5));TextView domain=txt((allow?"白名单 · ":"黑名单 · ")+e.value,13,0xff17212b,true);domain.setTag("fx-list-title");r.addView(domain);TextView source=txt(e.title,10,0xff718091,false);source.setTag("fx-list-subtitle");r.addView(source);Switch enabled=new Switch(this);enabled.setTag("fx-switch-row");enabled.setText(allow?"启用此白名单域名":"启用此黑名单域名");enabled.setChecked(e.enabled);enabled.setOnCheckedChangeListener((button,on)->apply((allow?"allow-set ":"block-set ")+q(e.value)+" "+(on?"1":"0"),allow?"白名单状态":"黑名单状态"));r.addView(enabled);r.addView(btn("移除",()->apply((allow?"allow-remove ":"block-remove ")+q(e.value),"名单移除")));entries.addView(r);}
  @Override protected void onDestroy(){pageGeneration++;trustedNetworkGeneration++;trustedNetworkStatus=null;rootProxyStatusGeneration++;rootProxyStatus=null;proxyWhitelistGeneration++;worker.shutdownNow();super.onDestroy();}
  private void profileRoot(String args,java.util.function.Consumer<RootAccess.Result> cb){
   final long requestGeneration=pageGeneration;
