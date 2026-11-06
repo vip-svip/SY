@@ -693,6 +693,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
        btn("保存远端 DNS",()->saveVpnDns("remote_dns",remoteDns)),
        txt("国内直连 DNS",12,0xff617080,true),cnDns,
        btn("保存国内直连 DNS",()->saveVpnDns("cn_dns",cnDns)),
+       btn("一次性保存两组 VPN DNS",()->saveVpnDnsPair(remoteDns,cnDns)),
        btn("恢复 VPN DNS 默认值",()->fxDialogBuilder().setTitle("恢复 VPN DNS 默认值")
          .setMessage("将远端 DNS 恢复为 1.1.1.1，国内直连 DNS 恢复为 223.5.5.5。两项在同一配置事务中写入，失败时回滚。是否继续？")
          .setNegativeButton("取消",null).setPositiveButton("恢复",(d,w)->root("dns-vpn-reset",r->{
@@ -832,6 +833,21 @@ private void saveDnsServerList(String kind,EditText input){
     if(r.exitCode==0){status.setText(("custom".equals(kind)?"自定义 DNS":("fallback".equals(kind)?"备用 DNS":"全局 DNS"))+" 已保存并应用。");load();}
     else fxDialogBuilder().setTitle("DNS 地址未应用").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
   });
+}
+private void saveVpnDnsPair(EditText remote,EditText cn){
+  String remoteValue=remote.getText()==null?"":remote.getText().toString().trim();
+  String cnValue=cn.getText()==null?"":cn.getText().toString().trim();
+  if(remoteValue.isEmpty()||cnValue.isEmpty()){
+    fxDialogBuilder().setTitle("VPN DNS 地址不完整").setMessage("远端 DNS 与国内直连 DNS 都必须填写 IPv4 地址；未提交任何更改。").setPositiveButton("关闭",null).show();
+    return;
+  }
+  fxDialogBuilder().setTitle("一次性保存两组 VPN DNS")
+      .setMessage("先同时校验远端 DNS 与国内直连 DNS，再在同一配置事务中写入并应用；任一项无效或写入失败都不会保留部分修改。是否继续？")
+      .setNegativeButton("取消",null)
+      .setPositiveButton("保存",(dialog,which)->root("dns-vpn-set-many "+q(remoteValue)+" "+q(cnValue),r->{
+        if(r.exitCode==0){status.setText("远端 DNS 与国内直连 DNS 已在同一事务中保存并应用。");load();}
+        else fxDialogBuilder().setTitle("VPN DNS 未更新").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
+      })).show();
 }
 private void saveVpnDns(String key,EditText input){
   String value=input.getText()==null?"":input.getText().toString().trim();
