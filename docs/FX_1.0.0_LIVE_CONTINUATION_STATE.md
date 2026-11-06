@@ -1210,3 +1210,10 @@
 - 相关实现提交：后端同步 `26b21880683b` / `c9ff73e864c4`；普通与模块 UI/快照 `2ba7e94a9252d33f4eb74445d6ca52e768f315b0` / `19933b8729f6c6376c0a2ea11cd56bf21e84333f`。
 - 同步纳入并保留近期 DNS 统计排除域名后端/UI与 `statistics.ignored` 渲染；同时已移除快照固定字段数量门槛，使用字段白名单、去重、必需字段及旧字段默认值来判断格式。
 - 本批未运行测试、静态检查、Gradle/APK 构建、CI 或 Android 真机验证；GitHub 文件回读确认两套 Java 源码一致，后端和 AdGuard renderer 对应文件均包含上述字段。
+## 2026-11-07 — DNS 两类排除列表状态可观测性
+
+- 逐条查询日志排除域名与聚合统计排除域名仍是两套独立配置：分别控制 AdGuard Home `querylog.ignored_enabled`/`querylog.ignored` 和 `statistics.ignored_enabled`/`statistics.ignored`，不会改变 DNS 拦截/放行。
+- `scripts/native-dns-settings.sh` 与 `fx-module/scripts/native-dns-settings.sh` 的 DNS 状态响应新增四项字段：逐条日志排除开关/域名数量、聚合统计排除开关/域名数量。响应只返回开关与数量，不返回域名明细，避免在状态面扩大域名信息暴露。
+- canonical 与模块原生 Ad 页面同步加入四项状态字段白名单与展示；两套 `native-dns-settings.sh` 与两套 `FxYulongAdActivity.java` 回读内容一致。
+- 提交：状态后端 `64ee78ee099c5d0f37cd904602212c3ac005b6be` / `128fa5a813d788940cdbfef02a818ab603399a0d`；响应行结束符修正 `c9b5e64d88a31185f59c034488133d8f54aa5580` / `f1e394f2850042973afea78248abb971ab69d389`；原生状态页 `ce5ffad75e85eea9b86f02d0d7a4a8de4e5b0e45` / `020b8fe88f1ad66edc4010af367ef2c380bdcd3a`。
+- 本批只进行了 GitHub 源码回读，未运行测试、静态检查、Gradle/APK 构建、CI 或 Android 真机验证。
