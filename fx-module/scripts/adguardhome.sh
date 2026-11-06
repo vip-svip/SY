@@ -1046,10 +1046,10 @@ _config_contract() {
       rewrite_domain=""
       rewrite_has_answer=0
     }
-    filtering && rewrite_block && /^  - domain: / {
+    filtering && rewrite_block && /^    - domain: / {
       if(rewrite_domain!="" && !rewrite_has_answer) unsafe_rewrites=1
       value=$0
-      sub(/^  - domain: /,"",value)
+      sub(/^    - domain: /,"",value)
       sub(/^"/,"",value); sub(/"$/,"",value)
       rewrite_domain=tolower(value)
       rewrite_has_answer=0
@@ -1058,9 +1058,9 @@ _config_contract() {
       rewrite_entries++
       next
     }
-    filtering && rewrite_block && /^    answer: / {
+    filtering && rewrite_block && /^      answer: / {
       value=$0
-      sub(/^    answer: /,"",value)
+      sub(/^      answer: /,"",value)
       sub(/^"/,"",value); sub(/"$/,"",value)
       if(rewrite_domain=="" || rewrite_has_answer || !valid_rewrite_answer(value))
         unsafe_rewrites=1
