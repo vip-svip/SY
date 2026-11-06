@@ -208,7 +208,16 @@ _build_filter_sources() {
       sub(/^[[:space:]]+/,"",name)
       sub(/[[:space:]]+$/,"",name)
       if (name=="") name=url
-      id=100000+next_id++
+      # Stable URL-derived IDs survive subscription reordering. Resolve the
+      # extremely unlikely hash collision deterministically within this render.
+      id=0
+      for (i=1; i<=length(url); i++) id=(id*131+index("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._~:/?#@!      id=100000+next_id++
+      print "  - enabled: " ($3=="1" ? "true" : "false")
+      print "    url: \"" url "\""
+      print "    name: \"" name "\""
+      print "    id: " id()*+,;=%",substr(url,i,1)))%2000000000
+      id++
+      while (used_id[id]++) id=(id%2000000000)+1
       print "  - enabled: " ($3=="1" ? "true" : "false")
       print "    url: \"" url "\""
       print "    name: \"" name "\""
