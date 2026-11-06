@@ -104,30 +104,28 @@ public final class FxAccessibilityService extends AccessibilityService {
 
     private void enqueueGkdScan(String eventPackage) {
         if (gkdServiceDestroyed) return;
-        String startPackage = gkdPendingScan.request(eventPackage);
-        if (startPackage != null) startGkdScan(startPackage);
+        FxGkdPendingPackageScan.Request request = gkdPendingScan.request(eventPackage);
+        if (request != null) startGkdScan(request);
     }
 
     // Coalesce only the package name. Acquire a fresh active-window root on the
     // main looper when a pending package is selected for scanning.
-    private void startGkdScan(String eventPackage) {
-        if (gkdInterrupted || !FxGkdRuleStore.isEnabled(this)) {
+    private void startGkdScan(FxGkdPendingPackageScan.Request request) {
+        if (!gkdPendingScan.isActive(request.getGeneration())) return;
+        if (gkdInterrupted || !FxGkdRuleStore.isEnabled(this) || gkdServiceDestroyed) {
             gkdPendingScan.clear();
             return;
         }
-        if (gkdServiceDestroyed) {
-            gkdPendingScan.clear();
-            return;
-        }
+        String eventPackage = request.getPackageName();
         AccessibilityNodeInfo root;
         try {
             root = getRootInActiveWindow();
         } catch (RuntimeException unavailable) {
-            completeGkdScan();
+            completeGkdScan(request.getGeneration());
             return;
         }
         if (root == null) {
-            completeGkdScan();
+            completeGkdScan(request.getGeneration());
             return;
         }
         CharSequence rootPackage;
@@ -135,34 +133,38 @@ public final class FxAccessibilityService extends AccessibilityService {
             rootPackage = root.getPackageName();
         } catch (RuntimeException staleNode) {
             recycleQuietly(root);
-            completeGkdScan();
+            completeGkdScan(request.getGeneration());
             return;
         }
         if (rootPackage == null || !eventPackage.contentEquals(rootPackage)) {
             recycleQuietly(root);
-            completeGkdScan();
+            completeGkdScan(request.getGeneration());
             return;
         }
         try {
             gkdExecutor.execute(() -> {
                 try {
-                    FxGkdAutomationRuntime.process(this, eventPackage, root);
+                    if (gkdPendingScan.isActive(request.getGeneration())) {
+                        FxGkdAutomationRuntime.process(this, eventPackage, root);
+                    } else {
+                        recycleQuietly(root);
+                    }
                 } catch (RuntimeException failure) {
                     recycleQuietly(root);
                 } finally {
-                    completeGkdScan();
+                    completeGkdScan(request.getGeneration());
                 }
             });
         } catch (RejectedExecutionException stopped) {
             recycleQuietly(root);
-            completeGkdScan();
+            completeGkdScan(request.getGeneration());
         }
     }
 
-    private void completeGkdScan() {
-        String nextPackage = gkdPendingScan.complete();
-        if (nextPackage == null) return;
-        if (!gkdMainHandler.post(() -> startGkdScan(nextPackage))) {
+    private void completeGkdScan(long generation) {
+        FxGkdPendingPackageScan.Request next = gkdPendingScan.complete(generation);
+        if (next == null) return;
+        if (!gkdMainHandler.post(() -> startGkdScan(next))) {
             gkdPendingScan.clear();
         }
     }
