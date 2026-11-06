@@ -237,8 +237,50 @@ valid_dns_csv() {
     END{exit bad}
   '
 }
+validate_existing_dns_section() {
+  section=$1
+  existing=$(awk -v section="$section" '
+    BEGIN { inside=0; sections=0; count=0; bad=0 }
+    $0=="[conf:" section "]" {
+      sections++
+      if (inside || sections>1) bad=1
+      inside=1
+      next
+    }
+    /^\[/ { inside=0 }
+    inside && /^[[:space:]]*#/ { next }
+    inside && /^[[:space:]]*$/ { next }
+    inside && /^nameserver[[:space:]]+/ {
+      value=$0
+      sub(/^nameserver[[:space:]]+/, "", value)
+      if (value=="" || value ~ /[[:space:]]/) bad=1
+      if (seen[value]++) bad=1
+      if (count++) printf ","
+      printf "%s", value
+      next
+    }
+    inside { bad=1 }
+    END {
+      if (sections>1 || bad || count>3) exit 1
+    }
+  ' "$CONF") || {
+    echo "existing DNS section [$section] is ambiguous or malformed" >&2
+    return 22
+  }
+  case "$section" in
+    custom_dns) [ -z "$existing" ] || valid_dns_csv "$existing" ;;
+    global_dns|yulong_dns_fallback) [ -z "$existing" ] || valid_ipv4_dns_csv "$existing" ;;
+    *) return 2 ;;
+  esac || {
+    echo "existing DNS section [$section] contains invalid or unsupported endpoints" >&2
+    return 22
+  }
+}
 write_dns_section() {
-  section=$1; servers=$2; tmp=$(mktemp "$CONF.yulong-dns.XXXXXX") || return 1
+  section=$1; servers=$2
+  case "$section" in custom_dns|global_dns|yulong_dns_fallback) : ;; *) return 2 ;; esac
+  validate_existing_dns_section "$section" || return $?
+  tmp=$(mktemp "$CONF.yulong-dns.XXXXXX") || return 1
   _yad_conf_tmp=$tmp
   awk -v section="$section" -v servers="$servers" '
     function emit(    n,a,i) {n=split(servers,a,",");for(i=1;i<=n;i++)print "nameserver " a[i]}
