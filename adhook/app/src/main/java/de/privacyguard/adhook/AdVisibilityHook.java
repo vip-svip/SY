@@ -1564,6 +1564,61 @@ private boolean targetDeveloperOptIn(String packageName) {
      * alter notification-listener access; it only returns a denied/disabled view
      * to the explicitly opted-in single-package target process.
      */
+    private int installNotificationPostAppOpsHooks() {
+        int installed = 0;
+        try {
+            Class<?> appOps = Class.forName("android.app.AppOpsManager", false, null);
+            int postNotificationCode = Integer.MIN_VALUE;
+            try {
+                java.lang.reflect.Field opField = appOps.getDeclaredField("OP_POST_NOTIFICATION");
+                opField.setAccessible(true);
+                postNotificationCode = opField.getInt(null);
+            } catch (Throwable ignored) {
+                // String OPSTR_POST_NOTIFICATION remains the portable path.
+            }
+            final int opCode = postNotificationCode;
+            final String opName = "android:post_notification";
+            final int ignoredMode = 1; // AppOpsManager.MODE_IGNORED
+            Set<String> queryNames = new HashSet<>(Arrays.asList(
+                    "checkOp", "checkOpNoThrow", "unsafeCheckOp", "unsafeCheckOpNoThrow"));
+            for (final Method method : appOps.getDeclaredMethods()) {
+                Class<?>[] params = method.getParameterTypes();
+                if (!queryNames.contains(method.getName())
+                        || method.getReturnType() != int.class
+                        || (params.length != 3 && params.length != 4)
+                        || (params[0] != String.class && params[0] != int.class)
+                        || params[1] != int.class || params[2] != String.class
+                        || (params.length == 4 && params[3] != String.class)) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> {
+                                Object[] args = chain.getArgs().toArray();
+                                if (args.length < 3 || !(args[1] instanceof Integer)
+                                        || !(args[2] instanceof String)) return chain.proceed();
+                                int uid = ((Integer) args[1]).intValue();
+                                String packageName = (String) args[2];
+                                boolean postNotificationOp = args[0] instanceof String
+                                        ? opName.equals(args[0])
+                                        : args[0] instanceof Integer && opCode != Integer.MIN_VALUE
+                                                && ((Integer) args[0]).intValue() == opCode;
+                                if (postNotificationOp && uid == android.os.Process.myUid()
+                                        && shouldHidePostNotificationsPermission(opName, packageName)) {
+                                    return Integer.valueOf(ignoredMode);
+                                }
+                                return chain.proceed();
+                            });
+                    installed++;
+                } catch (Throwable error) {
+                    logFx(Log.DEBUG, "notification AppOps query hook unavailable: "
+                            + method.toGenericString());
+                }
+            }
+        } catch (Throwable error) {
+            logFx(Log.DEBUG, "AppOpsManager notification query API unavailable");
+        }
+        return installed;
+    }
+
     private synchronized boolean installNotificationPermissionPrivacyHooks(final String pkg) {
         if (notificationPermissionHooksInstalled) return true;
         int installed = 0;
@@ -1681,6 +1736,7 @@ private boolean targetDeveloperOptIn(String packageName) {
             }
         }
 
+        installed += installNotificationPostAppOpsHooks();
         notificationPermissionHooksInstalled = installed > 0;
         logFx(installed > 0 ? Log.INFO : Log.WARN,
                 "opt-in notification permission query hooks installed=" + installed
