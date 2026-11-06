@@ -8189,3 +8189,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 将此前已移植到 `fx-module/adhook` 的 Kotlin 声明式精确签名解析同步到统一 FX Hook 主应用源码：支持 `fun ` 声明、命名参数、可空类型、可空基础类型装箱及 `Array<T>` 精确组件描述符。
 - 保留 Java、Frida overload 与 DEX/JVM descriptor 解析路径；拒绝默认参数表达式及无法精确确定 ABI 的输入。
 - 本次修复主应用源码与模块镜像之间的功能漂移；按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证。
+
+
+### GKD 规则管理与运行时能力同步到 FX 模块源码（2026-11-07）
+
+- 规则存储层提交：`cb466b47f3a85f396c9ca91dae5d3d53f3373348`，文件 `fx-module/adhook/app/src/main/java/de/privacyguard/adhook/FxGkdRuleStore.kt`。同步统一主应用中更完整的本地规则存储与迁移实现，包含规则组重命名/合并、导入结果统计及规则数据管理能力。
+- 自动化运行时提交：`cdafa627b7272439182e9a2d6d138deadd8d379a`，文件 `fx-module/adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAutomationRuntime.kt`。同步主应用的 GKD 规则执行实现及动作/冷却处理。
+- 原生 UI 提交：`2826c2c4acd3be4a7dc600233aefa1f65b417e83`，文件 `fx-module/adhook/app/src/main/java/de/privacyguard/adhook/FxGkdAutomationActivity.java`。同步分组、状态/文本筛选、批量管理、导入导出及分组重命名等完整页面能力。
+- 本轮是将统一主应用中已存在的较完整 GKD 功能回灌到 FX 模块源码，避免模块打包源码落后于主应用；未新建第二套入口。按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证。
