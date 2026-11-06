@@ -1,5 +1,5 @@
 /*
- * FX local recursive DNS health probe. The endpoint is restricted to IPv4 loopback.
+ * FX local DNS health probe. Endpoints are restricted to IPv4/IPv6 loopback.
  * NXDOMAIN is a valid DNS answer; malformed, truncated, mismatched or non-recursive
  * replies are failures.
  */
@@ -69,11 +69,12 @@ static int transfer_all(int fd,unsigned char *buf,size_t len,int sending,
     }
     return 0;
 }
-static int retry_tcp(const struct sockaddr_in *server,const unsigned char *query,size_t query_len,
+static int retry_tcp(const struct sockaddr *server,socklen_t server_len,
+                     const unsigned char *query,size_t query_len,
                      unsigned char *reply,size_t reply_cap,const struct timeval *timeout,size_t *reply_len) {
     unsigned char prefix[2],frame[514];
     uint16_t length;
-    int fd=socket(AF_INET,SOCK_STREAM,0),flags,connect_rc,so_error=0;
+    int fd=socket(server->sa_family,SOCK_STREAM,0),flags,connect_rc,so_error=0;
     socklen_t so_error_len=sizeof(so_error);
     struct timespec deadline;
     int wait_ms;
@@ -85,7 +86,7 @@ static int retry_tcp(const struct sockaddr_in *server,const unsigned char *query
     if(deadline.tv_nsec>=1000000000L) { deadline.tv_sec++; deadline.tv_nsec-=1000000000L; }
     flags=fcntl(fd,F_GETFL,0);
     if(flags<0 || fcntl(fd,F_SETFL,flags|O_NONBLOCK)!=0) { close(fd); return -1; }
-    connect_rc=connect(fd,(const struct sockaddr *)server,sizeof(*server));
+    connect_rc=connect(fd,server,server_len);
     if(connect_rc!=0 && errno!=EINPROGRESS) { close(fd); return -1; }
     if(connect_rc!=0) {
         wait_ms=remaining_ms(&deadline);
@@ -108,17 +109,32 @@ static int retry_tcp(const struct sockaddr_in *server,const unsigned char *query
 int main(int argc,char **argv) {
     const char *ip=argc>1?argv[1]:"127.0.0.1";
     long port=5353,timeout=5;
-    struct sockaddr_in server; struct timeval tv; struct timespec ts;
+    struct sockaddr_storage server; socklen_t server_len=0; struct timeval tv; struct timespec ts;
     unsigned char query[512]={0},reply[4096]; uint16_t id,flags,rcode,qdcount;
     size_t n=12; int fd; char label[64];
     if(argc>4 || (argc>2 && parse_long_arg(argv[2],1,65535,&port)!=0) ||
        (argc>3 && parse_long_arg(argv[3],1,10,&timeout)!=0)) {
         fputs("invalid DNS probe arguments (port 1..65535, timeout 1..10 seconds)\n",stderr); return 64;
     }
-    memset(&server,0,sizeof(server)); server.sin_family=AF_INET; server.sin_port=htons((uint16_t)port);
-    if(inet_pton(AF_INET,ip,&server.sin_addr)!=1 ||
-       (ntohl(server.sin_addr.s_addr)&0xff000000u)!=0x7f000000u) {
-        fputs("DNS probe endpoint must be an IPv4 loopback address (127.0.0.0/8)\n",stderr); return 64;
+    memset(&server,0,sizeof(server));
+    if(inet_pton(AF_INET,ip,&((struct sockaddr_in *)&server)->sin_addr)==1) {
+        struct sockaddr_in *v4=(struct sockaddr_in *)&server;
+        v4->sin_family=AF_INET;
+        v4->sin_port=htons((uint16_t)port);
+        if((ntohl(v4->sin_addr.s_addr)&0xff000000u)!=0x7f000000u) {
+            fputs("DNS probe IPv4 endpoint must be loopback (127.0.0.0/8)\n",stderr); return 64;
+        }
+        server_len=sizeof(*v4);
+    } else if(inet_pton(AF_INET6,ip,&((struct sockaddr_in6 *)&server)->sin6_addr)==1) {
+        struct sockaddr_in6 *v6=(struct sockaddr_in6 *)&server;
+        v6->sin6_family=AF_INET6;
+        v6->sin6_port=htons((uint16_t)port);
+        if(!IN6_IS_ADDR_LOOPBACK(&v6->sin6_addr)) {
+            fputs("DNS probe IPv6 endpoint must be ::1\n",stderr); return 64;
+        }
+        server_len=sizeof(*v6);
+    } else {
+        fputs("DNS probe endpoint must be a numeric IPv4 or IPv6 loopback address\n",stderr); return 64;
     }
     tv.tv_sec=timeout; tv.tv_usec=0;
     if(clock_gettime(CLOCK_MONOTONIC,&ts)!=0) { ts.tv_sec=time(NULL); ts.tv_nsec=(long)getpid()*7919L; }
@@ -129,19 +145,19 @@ int main(int argc,char **argv) {
         fputs("failed to encode health query\n",stderr); return 65;
     }
     query[n++]=0; put16(query+n,1u); n+=2; put16(query+n,1u); n+=2;
-    fd=socket(AF_INET,SOCK_DGRAM,0); if(fd<0) { perror("socket"); return 70; }
+    fd=socket(server.ss_family,SOCK_DGRAM,0); if(fd<0) { perror("socket"); return 70; }
     if(setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&tv,sizeof(tv))!=0 ||
        setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&tv,sizeof(tv))!=0) {
         perror("DNS probe socket timeout"); close(fd); return 70;
     }
-    if(connect(fd,(struct sockaddr *)&server,sizeof(server))!=0) { perror("connect"); close(fd); return 70; }
+    if(connect(fd,(struct sockaddr *)&server,server_len)!=0) { perror("connect"); close(fd); return 70; }
     if(send(fd,query,n,0)!=(ssize_t)n) { perror("send"); close(fd); return 71; }
     ssize_t udp_got=recv(fd,reply,sizeof(reply),0);
     if(udp_got<0) { perror("recv"); close(fd); return 72; } close(fd);
     if(udp_got<12) { fputs("DNS response shorter than header\\n",stderr); return 72; }
     flags=(uint16_t)(((uint16_t)reply[2]<<8)|reply[3]);
     size_t got=(size_t)udp_got;
-    if((flags&0x0200u)!=0 && retry_tcp(&server,query,n,reply,sizeof(reply),&tv,&got)!=0) {
+    if((flags&0x0200u)!=0 && retry_tcp((struct sockaddr *)&server,server_len,query,n,reply,sizeof(reply),&tv,&got)!=0) {
         fputs("truncated UDP DNS response and TCP retry failed\\n",stderr); return 72;
     }
     if(got<n) { fputs("DNS response shorter than echoed question\\n",stderr); return 72; }
