@@ -605,6 +605,9 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
         statusFilter.setSelection(statusIndex < 0 ? 0 : statusIndex);
         filters.addView(statusFilter, new LinearLayout.LayoutParams(0, -2, 1));
         body.addView(filters);
+        if (!"全部分组".equals(selectedGroupFilter)) {
+            body.addView(action("重命名当前分组", this::renameSelectedGroup));
+        }
 
         LinearLayout searchRow = new LinearLayout(this);
         searchRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -739,6 +742,44 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
             params.setMargins(dp(12), dp(4), dp(12), dp(5));
             body.addView(row, params);
         }
+    }
+
+    private void renameSelectedGroup() {
+        final String oldName = selectedGroupFilter;
+        if (oldName == null || oldName.trim().isEmpty() || "全部分组".equals(oldName)) return;
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setText(oldName);
+        input.setSelection(input.getText().length());
+        input.setHint("新分组名称（最多 40 字）");
+        new AlertDialog.Builder(this)
+                .setTitle("重命名 GKD 规则组")
+                .setMessage("将当前分组内全部规则统一改名；规则顺序、选择器、动作、冷却时间及启用状态均保持不变。若目标名称已存在，将合并到同名分组。")
+                .setView(input)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("保存", (dialog, which) -> {
+                    String newName = input.getText() == null ? "" : input.getText().toString().trim();
+                    if (newName.isEmpty() || newName.length() > 40 || newName.contains("\\n") || newName.contains("\\r")) {
+                        Toast.makeText(this, "分组名称不能为空，且最多 40 字。", Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    int changed = FxGkdRuleStore.renameGroup(this, oldName, newName);
+                    if (changed < 0) {
+                        Toast.makeText(this, "分组重命名失败，原规则保持不变。", Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    if (changed == 0) {
+                        Toast.makeText(this, "名称未变化，或当前分组已不存在。", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    selectedGroupFilter = newName;
+                    selectedRuleIds.clear();
+                    FxGkdAutomationRuntime.invalidateRules();
+                    FxAccessibilityService.requestReconfigure(this);
+                    renderRules();
+                    updateServiceState();
+                    Toast.makeText(this, "已重命名 " + changed + " 条规则。", Toast.LENGTH_SHORT).show();
+                }).show();
     }
 
     private boolean isRuleVisible(FxGkdRule rule) {
