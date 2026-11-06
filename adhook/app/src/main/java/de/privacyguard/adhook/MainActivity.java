@@ -1152,19 +1152,56 @@ public final class MainActivity extends ComponentActivity {
         });
     }
 
+    private String nativeDnsStatusLabel(String key, String value) {
+        if (value == null) value = "unknown";
+        switch (key) {
+            case "adguardhome":
+            case "unbound":
+                if ("ready".equals(value)) return "运行中";
+                if ("running-unhealthy".equals(value)) return "运行异常";
+                if ("stopped".equals(value)) return "已停止";
+                return "不可用";
+            case "root_proxy":
+                if ("active".equals(value)) return "已接管";
+                if ("inactive".equals(value)) return "未接管";
+                return "状态未知";
+            case "private_dns_mode":
+                if ("off".equals(value)) return "关闭";
+                if ("opportunistic".equals(value)) return "自动/机会模式";
+                if ("hostname".equals(value)) return "严格指定提供商";
+                return "未知";
+            case "dns_filter_coverage":
+                if ("port53_redirect_active".equals(value)) return "53 端口已重定向";
+                if ("opportunistic_private_dns_may_bypass_redirect".equals(value)) return "自动 Private DNS 可能旁路";
+                if ("strict_private_dns_bypasses_redirect".equals(value)) return "严格 Private DNS 旁路";
+                return "未知";
+            case "vpn_coexistence_verdict":
+                if ("compatible".equals(value)) return "兼容";
+                if ("incompatible".equals(value)) return "不兼容";
+                return "未知";
+            case "vpn_route_probe":
+                if ("passed".equals(value)) return "通过";
+                if ("failed".equals(value)) return "失败";
+                if ("not_applicable".equals(value)) return "不适用";
+                return "不可用";
+            default:
+                return value;
+        }
+    }
+
     private void refreshNativeDnsStatus(TextView target) {
         runNativeModuleCommand("sh \"$MP/scripts/native-dns-settings.sh\" status", 30000L, result -> {
             try {
                 if (result.exitCode != 0) throw new IllegalStateException(result.output);
                 java.util.Map<String, String> state = parseNativeDnsState(result.output);
-                target.setText("AdGuard Home：" + state.getOrDefault("adguardhome", "unknown")
-                        + " · Unbound：" + state.getOrDefault("unbound", "unknown")
-                        + "\nRoot Proxy：" + state.getOrDefault("root_proxy", "unknown")
+                target.setText("AdGuard Home：" + nativeDnsStatusLabel("adguardhome", state.getOrDefault("adguardhome", "unknown"))
+                        + " · Unbound：" + nativeDnsStatusLabel("unbound", state.getOrDefault("unbound", "unknown"))
+                        + "\nRoot Proxy：" + nativeDnsStatusLabel("root_proxy", state.getOrDefault("root_proxy", "unknown"))
                         + " · DNS 白名单应用：" + state.getOrDefault("rootproxy_whitelist_count", "unknown")
-                        + "\nPrivate DNS：" + state.getOrDefault("private_dns_mode", "unknown")
-                        + " · 覆盖范围：" + state.getOrDefault("dns_filter_coverage", "unknown")
-                        + "\nVPN 共存裁决：" + state.getOrDefault("vpn_coexistence_verdict", "unknown")
-                        + " · 路由探测：" + state.getOrDefault("vpn_route_probe", "unavailable")
+                        + "\nPrivate DNS：" + nativeDnsStatusLabel("private_dns_mode", state.getOrDefault("private_dns_mode", "unknown"))
+                        + " · 覆盖范围：" + nativeDnsStatusLabel("dns_filter_coverage", state.getOrDefault("dns_filter_coverage", "unknown"))
+                        + "\nVPN 共存裁决：" + nativeDnsStatusLabel("vpn_coexistence_verdict", state.getOrDefault("vpn_coexistence_verdict", "unknown"))
+                        + " · 路由探测：" + nativeDnsStatusLabel("vpn_route_probe", state.getOrDefault("vpn_route_probe", "unavailable"))
                         + "\nDNS 链路就绪：" + ("1".equals(state.get("dns_stack_ready")) ? "是" : "否"));
             } catch (Exception error) {
                 target.setText("DNS 状态暂不可用：" + (error.getMessage() == null ? "unknown" : error.getMessage()));
@@ -1186,14 +1223,14 @@ public final class MainActivity extends ComponentActivity {
                     boolean enabled = "1".equals(state.get(keys[i]));
                     items[i] = names[i] + (enabled ? "（当前开启，点击关闭）" : "（当前关闭，点击开启）");
                 }
-                String detail = "AdGuard Home：" + state.getOrDefault("adguardhome", "unknown")
-                        + "\nUnbound：" + state.getOrDefault("unbound", "unknown")
-                        + "\nRoot Proxy：" + state.getOrDefault("root_proxy", "unknown")
+                String detail = "AdGuard Home：" + nativeDnsStatusLabel("adguardhome", state.getOrDefault("adguardhome", "unknown"))
+                        + "\nUnbound：" + nativeDnsStatusLabel("unbound", state.getOrDefault("unbound", "unknown"))
+                        + "\nRoot Proxy：" + nativeDnsStatusLabel("root_proxy", state.getOrDefault("root_proxy", "unknown"))
                         + "\nDNS 白名单应用：" + state.getOrDefault("rootproxy_whitelist_count", "unknown")
-                        + "\nPrivate DNS 模式：" + state.getOrDefault("private_dns_mode", "unknown")
-                        + "\nDNS 过滤覆盖：" + state.getOrDefault("dns_filter_coverage", "unknown")
-                        + "\nVPN 共存裁决：" + state.getOrDefault("vpn_coexistence_verdict", "unknown")
-                        + "\n路由探测：" + state.getOrDefault("vpn_route_probe", "unavailable")
+                        + "\nPrivate DNS 模式：" + nativeDnsStatusLabel("private_dns_mode", state.getOrDefault("private_dns_mode", "unknown"))
+                        + "\nDNS 过滤覆盖：" + nativeDnsStatusLabel("dns_filter_coverage", state.getOrDefault("dns_filter_coverage", "unknown"))
+                        + "\nVPN 共存裁决：" + nativeDnsStatusLabel("vpn_coexistence_verdict", state.getOrDefault("vpn_coexistence_verdict", "unknown"))
+                        + "\n路由探测：" + nativeDnsStatusLabel("vpn_route_probe", state.getOrDefault("vpn_route_probe", "unavailable"))
                         + "\nDNS 链路就绪：" + ("1".equals(state.get("dns_stack_ready")) ? "是" : "否")
                         + "\n\nRoot Proxy 只在第三方 VPN 所有者、出口路由和 DNS 引擎条件满足时接管 DNS，不会创建第二个 Android VPN。";
                 FxNativeSkin.builder(this).setTitle("DNS 引擎管理").setMessage(detail)
