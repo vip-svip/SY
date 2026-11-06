@@ -8154,3 +8154,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - 空配置生成空列表；非法地址或超过数量限制时拒绝生成配置，避免把未校验文本写入 YAML。
   - 保持 `upstream_dns` 唯一指向本机 Unbound `127.0.0.1:5353`；备用 DNS 仅作为 AdGuard Home 上游失效时的 fallback，不替换本地递归主链。
 - 按用户要求未运行测试、静态检查、构建、CI、安装或设备验证；本批运行行为尚未验收。
+
+
+### AdGuard Home 备用 DNS 配置契约加固（2026-11-07）
+
+- 模块脚本提交：`cd1deebc11e48ed594e7f13df6f1858ba604889f`，文件 `fx-module/scripts/adguardhome.sh`。
+- 规范脚本同步提交：`5e62b2d7c0b29ecf35a84b8b0022ac4c42cde3ba`，文件 `scripts/adguardhome.sh`。
+- `_config_contract()` 除原有 loopback 监听与唯一 Unbound 主上游约束外，新增对 `fallback_dns` 的运行配置校验：只允许 IPv4 字面量、拒绝非单播/格式错误地址和重复项，最多 3 项；空列表允许。
+- 本批仅更新实现与续接记录，未运行测试、静态检查、构建、CI、安装或设备验证。
