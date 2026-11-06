@@ -604,7 +604,16 @@ m_allow_import(){ import_domains allow "$1"; }
 m_block_add(){ write_block "$1" "$2" 1 add; }
 m_block_remove(){ write_block "$1" "" 0 remove; }
 m_block_import(){ import_domains block "$1"; }
+domain_clear_all() {
+  _clear_kind=$1
+  case "$_clear_kind" in allow|block) ;; *) return 2 ;; esac
+  _clear_domains=$(pg_list "$_clear_kind" 2>/dev/null | awk -F'|' 'NF && $1!="" {print $1}')
+  [ -n "$_clear_domains" ] || { echo "${_clear_kind}_domains=already_empty"; return 0; }
+  _clear_encoded=$(printf '%s\n' "$_clear_domains" | base64 | tr -d '\n') || return 1
+  remove_domains "$_clear_kind" "$_clear_encoded"
+}
 m_allow_remove_many(){ remove_domains allow "$1"; }
+m_block_remove_many(){ remove_domains block "$1"; }
 m_block_remove_many(){ remove_domains block "$1"; }
 valid_time() {
   printf '%s\n' "$1" | awk -F: 'NF==2 && $1~/^[0-9][0-9]$/ && $2~/^[0-9][0-9]$/ && $1+0<=23 && $2+0<=59 {ok=1} END{exit !ok}'
@@ -846,6 +855,12 @@ case "$cmd" in
  allow-import)
   [ "$#" -eq 2 ] || { echo "usage: $0 allow-import base64-domain-list" >&2; exit 2; }
   with_lock transaction m_allow_import "$2" ;;
+ allow-clear-all)
+  [ "$#" -eq 1 ] || exit 2
+  with_lock transaction domain_clear_all allow ;;
+ block-clear-all)
+  [ "$#" -eq 1 ] || exit 2
+  with_lock transaction domain_clear_all block ;;
  allow-remove-many)
   [ "$#" -eq 2 ] || { echo "usage: $0 allow-remove-many base64-domain-list" >&2; exit 2; }
   with_lock transaction m_allow_remove_many "$2" ;;
