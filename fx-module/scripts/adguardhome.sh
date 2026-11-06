@@ -560,12 +560,20 @@ _render_managed_config() {
     return 1
     ;;
   esac
-  case "$_statistics_interval" in ''|*[!0-9hd]*)
-    _log 'local DNS statistics interval is malformed'
+  if ! awk -v interval="$_statistics_interval" '
+    BEGIN {
+      if (interval !~ /^[0-9]+[hd]$/) exit 1
+      unit=substr(interval,length(interval),1)
+      amount=substr(interval,1,length(interval)-1)
+      maximum=(unit=="h" ? 8760 : 365)
+      if (amount !~ /^[0-9]+$/ || amount+0<1 || amount+0>maximum ||
+          int(amount+0)!=amount+0) exit 1
+    }
+  '; then
+    _log 'local DNS statistics interval is outside the supported 1h..8760h / 1d..365d range'
     rm -f "$_rules_file" "$_filters_file" "$_fallback_file" "$_upstream_file" "$_bootstrap_file" "$_config_file" 2>/dev/null || :
     return 1
-    ;;
-  esac
+  fi
   _dns_response_mode=$(awk '
     BEGIN { inside=0; sections=0; modes=0; value=""; bad=0 }
     $0=="[conf:yulong_dns_response]" {
