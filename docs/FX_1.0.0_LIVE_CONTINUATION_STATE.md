@@ -7940,3 +7940,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - UI 提交：`724f90ede817e3d1db317af23114e2dfba895ddf`，文件 `adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
   - DNS 缓存卡新增 AdGuard Home、Unbound、全部本地 DNS 三个独立刷新入口；每项均有影响说明与二次确认，并展示后端执行结果。
 - 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证；本批功能尚未验收。
+
+
+## 2026-11-06 — DNS 查询日志页增加按引擎定向缓存刷新
+
+- UI 提交：`44658c50541333feb419a0f30abec8cb1adff73a`，文件 `adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongDnsActivity.java`。
+  - DNS 查询日志页的缓存维护卡新增 AdGuard Home、Unbound、全部本地 DNS 三个独立刷新入口，与 Ad 设置页保持一致。
+  - 命令白名单仅允许 `cache-flush adguardhome|unbound|all` 三种定向参数及原有无参数兼容入口；每项均显示服务影响说明，后端拒绝未启用引擎时展示明确结果。
+  - 不改变查询日志清理、筛选、分页或分享行为，不操作第三方 VPN 与 Android 系统 DNS 缓存。
+- 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证；本批尚未验收。
