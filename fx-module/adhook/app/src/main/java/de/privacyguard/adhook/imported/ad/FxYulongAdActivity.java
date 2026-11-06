@@ -703,18 +703,45 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
  private void chooseDnsQueryLogMemorySize(){
   root("dns-querylog-runtime-get",current->{
     if(current.exitCode!=0){status.setText("读取查询日志缓冲设置失败："+safe(current.output));return;}
-    String currentSize="1000",maximum="10000";
-    for(String line:(current.output==null?"":current.output).split("\\r?\\n")){
-      if(line.startsWith("memory_size="))currentSize=line.substring("memory_size=".length()).trim();
-      else if(line.startsWith("memory_max="))maximum=line.substring("memory_max=".length()).trim();
+    String raw=current.output==null?"":current.output.trim();
+    String[] lines=raw.split("\\r?\\n");
+    if(lines.length<3||!"FXYULONGDNSQUERYLOG1".equals(lines[0].trim())){
+      status.setText("查询日志缓冲响应格式错误，拒绝使用默认上限。");
+      return;
     }
+    java.util.Map<String,String> values=new java.util.HashMap<>();
+    for(int i=1;i<lines.length;i++){
+      String line=lines[i].trim();if(line.isEmpty())continue;
+      int split=line.indexOf('=');
+      if(split<=0||split==line.length()-1){
+        status.setText("查询日志缓冲响应字段格式错误。");return;
+      }
+      String key=line.substring(0,split);
+      if(!"memory_size".equals(key)&&!"memory_max".equals(key)){
+        status.setText("查询日志缓冲响应包含未知字段："+key);return;
+      }
+      if(values.put(key,line.substring(split+1))!=null){
+        status.setText("查询日志缓冲响应包含重复字段："+key);return;
+      }
+    }
+    String currentSize=values.get("memory_size"),maximum=values.get("memory_max");
+    if(!isValidDnsQueryLogMemorySize(currentSize)||!isValidDnsQueryLogMemorySize(maximum)){
+      status.setText("设备内存上限或当前缓冲值不可用；未应用固定回退值。");
+      return;
+    }
+    java.math.BigInteger maximumValue=new java.math.BigInteger(maximum);
+    java.math.BigInteger currentValue=new java.math.BigInteger(currentSize);
     EditText input=new EditText(this);
     input.setSingleLine(true);
     input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
-    input.setHint("0 表示每条记录立即写盘；设备安全上限 "+maximum);
+    input.setHint("0 表示每条记录立即写盘；本机动态上限 "+maximum);
     input.setText(currentSize);
+    String detail="达到指定记录数后，AdGuard Home 会把缓冲记录写入本地文件。0 表示每条记录立即写盘；较大批量可减少写入频率，但日志页看到新记录的延迟会增加。当前设备动态上限："+maximum+"。";
+    if(currentValue.compareTo(maximumValue)>0){
+      detail+="\\n当前保存值已超过本次读取的设备上限；请调低后保存。";
+    }
     fxDialogBuilder().setTitle("DNS 查询日志内存刷盘批量")
-      .setMessage("达到指定记录数后，AdGuard Home 会把缓冲记录写入本地文件。0 等效于 1 条立即写盘；较大批量可减少写入频率，但日志页看到新记录的延迟会增加。设备上限按物理内存动态计算。")
+      .setMessage(detail)
       .setView(input)
       .setNegativeButton("取消",null)
       .setPositiveButton("保存",(dialog,which)->{
@@ -724,7 +751,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
         }
         try{
           java.math.BigInteger amount=new java.math.BigInteger(value);
-          if(amount.compareTo(new java.math.BigInteger(maximum))>0){
+          if(amount.compareTo(maximumValue)>0){
             status.setText("缓冲批量超过本机内存安全范围（"+maximum+"），未修改。");return;
           }
         }catch(NumberFormatException invalid){
@@ -733,6 +760,77 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
         root("dns-querylog-runtime-set "+q(value),result->{
           if(result.exitCode==0)status.setText("DNS 查询日志内存刷盘批量已更新为 "+value+"。0 表示每条记录立即写盘。");
           else fxDialogBuilder().setTitle("缓冲批量未更新").setMessage(safe(result.output)).setPositiveButton("关闭",null).show();
+        });
+      }).show();
+  });
+ }
+ private void chooseDnsStatisticsSettings(){
+  root("dns-statistics-get",current->{
+    if(current.exitCode!=0){
+      status.setText("读取本地 DNS 聚合统计设置失败："+safe(current.output));return;
+    }
+    String raw=current.output==null?"":current.output.trim();
+    String[] lines=raw.split("\\r?\\n");
+    if(lines.length<3||!"FXYULONGDNSSTAT1".equals(lines[0].trim())){
+      status.setText("DNS 聚合统计响应格式错误，未修改配置。");return;
+    }
+    java.util.Map<String,String> values=new java.util.HashMap<>();
+    for(int i=1;i<lines.length;i++){
+      String line=lines[i].trim();if(line.isEmpty())continue;
+      int split=line.indexOf('=');
+      if(split<=0||split==line.length()-1){
+        status.setText("DNS 聚合统计响应字段格式错误。");return;
+      }
+      String key=line.substring(0,split);
+      if(!"STATISTICS_ENABLED".equals(key)&&!"STATISTICS_INTERVAL".equals(key)){
+        status.setText("DNS 聚合统计响应包含未知字段："+key);return;
+      }
+      if(values.put(key,line.substring(split+1))!=null){
+        status.setText("DNS 聚合统计响应包含重复字段："+key);return;
+      }
+    }
+    String enabledValue=values.get("STATISTICS_ENABLED");
+    String intervalValue=values.get("STATISTICS_INTERVAL");
+    if(!"0".equals(enabledValue)&&!"1".equals(enabledValue)){
+      status.setText("DNS 聚合统计开关值非法。");return;
+    }
+    if(!isValidDnsQueryLogRetention(intervalValue)){
+      status.setText("DNS 聚合统计周期不可用或超出 AdGuard Home 支持范围。");return;
+    }
+    android.widget.Switch enabled=new android.widget.Switch(this);
+    enabled.setText("在本机启用 DNS 聚合统计数据库");
+    enabled.setChecked("1".equals(enabledValue));
+    EditText interval=new EditText(this);
+    interval.setSingleLine(true);
+    interval.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+        |android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+    interval.setHint("例如 24h、7d、30d");
+    interval.setText(intervalValue);
+    LinearLayout form=new LinearLayout(this);
+    form.setOrientation(LinearLayout.VERTICAL);
+    form.addView(enabled);
+    form.addView(txt("统计周期（1h–8760h 或 1d–365d）",12,0xff617080,false));
+    form.addView(interval);
+    fxDialogBuilder().setTitle("DNS 聚合统计数据库")
+      .setMessage("此设置独立于逐条查询日志。开启后，AdGuard Home 在本机保存聚合统计并按指定周期轮转；关闭后停止新增聚合统计。统计数据不会上传。")
+      .setView(form)
+      .setNegativeButton("取消",null)
+      .setPositiveButton("保存",(dialog,which)->{
+        String duration=interval.getText()==null?""
+            :interval.getText().toString().trim().toLowerCase(java.util.Locale.ROOT);
+        if(!isValidDnsQueryLogRetention(duration)){
+          status.setText("统计周期须为 1h–8760h 或 1d–365d，未修改配置。");
+          return;
+        }
+        String flag=enabled.isChecked()?"1":"0";
+        root("dns-statistics-set "+flag+" "+q(duration),result->{
+          if(result.exitCode==0){
+            status.setText("本地 DNS 聚合统计已"+(flag.equals("1")?"开启":"关闭")+"；统计周期 "+duration+"。");
+            load();
+          }else{
+            fxDialogBuilder().setTitle("DNS 聚合统计设置未更新")
+              .setMessage(safe(result.output)).setPositiveButton("关闭",null).show();
+          }
         });
       }).show();
   });
@@ -1221,11 +1319,13 @@ private void loadUnboundRuntimeControls(EditText cacheMaxTtl,EditText cacheMinTt
            if(r.exitCode==0){remoteDns.setText("1.1.1.1");cnDns.setText("223.5.5.5");status.setText("VPN DNS 默认值已恢复。");load();}
            else fxDialogBuilder().setTitle("恢复失败").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
          })).show()));
-  card("DNS 查询日志","默认关闭。启用后仅在本机保存查询记录；可单独设置日志保留期限，不会上传查询记录。",
+  card("DNS 查询日志","默认关闭。启用后仅在本机保存逐条查询记录；可独立设置日志轮转周期和内存刷盘批量。",
        dnsSwitch("启用本地 DNS 查询日志","dns_querylog_enabled"),
        btn("设置日志保留期限",()->chooseDnsQueryLogRetention()),
        btn("设置日志内存刷盘批量",()->chooseDnsQueryLogMemorySize()),
        btn("查看 DNS 查询日志",()->startActivity(new Intent(this,FxYulongDnsActivity.class))));
+  card("DNS 聚合统计数据库","与逐条查询日志独立控制。开启后由 AdGuard Home 在本机维护统计数据库，并按设置周期轮转；关闭不会清理已有逐条查询日志。",
+       btn("设置本地 DNS 聚合统计",()->chooseDnsStatisticsSettings()));
   card("DNS 缓存管理","可分别刷新 FX 自有 AdGuard Home 或 Unbound，也可同时刷新两者。所选解析服务会短暂重启；第三方 VPN 和它的规则不会被停止。",
        btn("刷新 AdGuard Home 缓存",()->refreshDnsCache("adguardhome","AdGuard Home")),
        btn("刷新 Unbound 缓存",()->refreshDnsCache("unbound","Unbound")),
@@ -1354,7 +1454,7 @@ private void restoreDnsProfile(EditText input){
   String[] allowed={"dns_engine_adguardhome","dns_forward","custom_dns","global_dns",
       "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
       "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled",
-      "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE","QUERYLOG_RETENTION","QUERYLOG_MEMORY_SIZE",
+      "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE","QUERYLOG_RETENTION","QUERYLOG_MEMORY_SIZE","STATISTICS_ENABLED","STATISTICS_INTERVAL",
       "UPSTREAM_MODE","FASTEST_TIMEOUT","UPSTREAM_TIMEOUT","CACHE_SIZE","CACHE_ENABLED","CACHE_OPTIMISTIC","ENABLE_DNSSEC",
       "CACHE_TTL_MIN","CACHE_TTL_MAX","CACHE_OPTIMISTIC_ANSWER_TTL","CACHE_OPTIMISTIC_MAX_AGE",
       "UNBOUND_CACHE_MAX_TTL","UNBOUND_CACHE_MIN_TTL","UNBOUND_SERVE_EXPIRED","UNBOUND_SERVE_EXPIRED_TTL",
@@ -1372,12 +1472,14 @@ private void restoreDnsProfile(EditText input){
     }
     preview.put(key,line.substring(split+1));
   }
-  if(preview.size()!=allowed.length&&preview.size()!=43&&preview.size()!=39&&preview.size()!=38&&preview.size()!=30&&preview.size()!=26&&preview.size()!=19&&preview.size()!=18){
+  if(preview.size()!=allowed.length&&preview.size()!=44&&preview.size()!=43&&preview.size()!=39&&preview.size()!=38&&preview.size()!=30&&preview.size()!=26&&preview.size()!=19&&preview.size()!=18){
     status.setText("快照字段不完整（"+preview.size()+"/"+allowed.length+"），未提交。");return;
   }
   for(String key:allowed)if(!preview.containsKey(key)){
     if("QUERYLOG_RETENTION".equals(key))preview.put(key,"7d");
     else if("QUERYLOG_MEMORY_SIZE".equals(key))preview.put(key,"1000");
+    else if("STATISTICS_ENABLED".equals(key))preview.put(key,"0");
+    else if("STATISTICS_INTERVAL".equals(key))preview.put(key,"10d");
     else if("UPSTREAM_MODE".equals(key))preview.put(key,"load_balance");
     else if("FASTEST_TIMEOUT".equals(key))preview.put(key,"1s");
     else if("UPSTREAM_TIMEOUT".equals(key))preview.put(key,"10s");
@@ -1406,7 +1508,7 @@ private void restoreDnsProfile(EditText input){
   }
   for(String key:new String[]{"dns_engine_adguardhome","dns_forward","custom_dns","global_dns",
       "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
-      "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled"}){
+      "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled","STATISTICS_ENABLED"}){
     String value=preview.get(key);
     if(!"0".equals(value)&&!"1".equals(value)){
       status.setText("快照开关值非法："+key+"；未提交。");return;
@@ -1427,6 +1529,9 @@ private void restoreDnsProfile(EditText input){
   }
   if(!isValidDnsQueryLogMemorySize(preview.get("QUERYLOG_MEMORY_SIZE"))){
     status.setText("快照 DNS 查询日志缓冲批量非法；未提交。");return;
+  }
+  if(!isValidDnsQueryLogRetention(preview.get("STATISTICS_INTERVAL"))){
+    status.setText("快照 DNS 聚合统计周期非法；未提交。");return;
   }
   if(!isValidDnsRuntimeMode(preview.get("UPSTREAM_MODE"))
       ||!isValidDnsRuntimeFastestTimeout(preview.get("FASTEST_TIMEOUT"))
@@ -1481,13 +1586,14 @@ private void restoreDnsProfile(EditText input){
   for(String key:new String[]{"CACHE_ENABLED","CACHE_OPTIMISTIC","ENABLE_DNSSEC"})if("1".equals(preview.get(key)))enabled++;
   for(String key:new String[]{"UNBOUND_SERVE_EXPIRED","UNBOUND_PREFETCH","UNBOUND_PREFETCH_KEY","UNBOUND_QNAME_MINIMISATION"})
     if("1".equals(preview.get(key)))enabled++;
-  String summary="快照包含 44 项字段、19 个开关（启用 "+enabled+" 项）。\\n"
+  if("1".equals(preview.get("STATISTICS_ENABLED")))enabled++;
+  String summary="快照包含 "+allowed.length+" 项字段、20 个开关（启用 "+enabled+" 项）。\\n"
       +"自定义上游："+countDnsEndpoints(preview.get("CUSTOM_SERVERS"))+" 条；"
       +"全局上游："+countDnsEndpoints(preview.get("GLOBAL_SERVERS"))+" 条；"
       +"备用上游："+countDnsEndpoints(preview.get("FALLBACK_SERVERS"))+" 条。\\n"
       +"VPN 远端 DNS："+preview.get("VPN_REMOTE")+"；国内 DNS："+preview.get("VPN_CN")+"。\\n"
       +"拦截响应模式："+preview.get("RESPONSE_MODE")+"；查询日志保留："+querylogRetention
-      +"；内存刷盘批量："+preview.get("QUERYLOG_MEMORY_SIZE")+"（0 表示逐条写盘）。\\n"
+      +"；内存刷盘批量："+preview.get("QUERYLOG_MEMORY_SIZE")+"（0 表示逐条写盘）；聚合统计："+preview.get("STATISTICS_ENABLED")+"，周期 "+preview.get("STATISTICS_INTERVAL")+"。\\n"
       +"上游策略："+preview.get("UPSTREAM_MODE")+"；fastest 超时："+preview.get("FASTEST_TIMEOUT")+"；上游超时："+preview.get("UPSTREAM_TIMEOUT")+"。\\n"
       +"DNS 缓存："+preview.get("CACHE_SIZE")+" 字节；缓存 TTL："+preview.get("CACHE_TTL_MIN")+"~"+preview.get("CACHE_TTL_MAX")+" 秒；乐观缓存："+preview.get("CACHE_OPTIMISTIC")+"（答复 TTL "+preview.get("CACHE_OPTIMISTIC_ANSWER_TTL")+"，最大年龄 "+preview.get("CACHE_OPTIMISTIC_MAX_AGE")+"）；DNSSEC："+preview.get("ENABLE_DNSSEC")+"。\\n"
       +"Unbound 缓存 TTL："+preview.get("UNBOUND_CACHE_MIN_TTL")+"~"+preview.get("UNBOUND_CACHE_MAX_TTL")+" 秒；消息/RRset/Key/否定缓存池："+preview.get("UNBOUND_MSG_CACHE_SIZE")+"/"+preview.get("UNBOUND_RRSET_CACHE_SIZE")+"/"+preview.get("UNBOUND_KEY_CACHE_SIZE")+"/"+preview.get("UNBOUND_NEG_CACHE_SIZE")+"；serve-expired："+preview.get("UNBOUND_SERVE_EXPIRED")+"（最大年龄 "+preview.get("UNBOUND_SERVE_EXPIRED_TTL")+" 秒、答复 TTL "+preview.get("UNBOUND_SERVE_EXPIRED_REPLY_TTL")+" 秒、客户端等待 "+preview.get("UNBOUND_SERVE_EXPIRED_CLIENT_TIMEOUT")+" 毫秒）；预取："+preview.get("UNBOUND_PREFETCH")+"；DNSSEC 密钥预取："+preview.get("UNBOUND_PREFETCH_KEY")+"；QNAME minimisation："+preview.get("UNBOUND_QNAME_MINIMISATION")+"。\\n\\n"
@@ -1531,7 +1637,7 @@ private void restoreDnsProfile(EditText input){
       .setMessage(summary+"\\n\\n"+changeText)
       .setNegativeButton("取消",null)
       .setPositiveButton("继续恢复",(d,w)->fxDialogBuilder().setTitle("确认完整替换 DNS 配置")
-        .setMessage("将完整替换当前 DNS 引擎开关、过滤策略、全部上游服务器、VPN DNS、拦截响应模式、日志保留期限/内存刷盘批量、上游选择/超时、AdGuard Home 缓存容量/TTL/乐观缓存策略、DNSSEC，以及 Unbound 缓存 TTL、消息/RRset/DNSSEC Key/否定响应四类缓存池、serve-expired、域名预取、DNSSEC 密钥预取和 QNAME minimisation。后端会再次校验全部字段；恢复应用失败会回滚原配置。不会修改 VPN 节点或其他 FX 模块设置。")
+        .setMessage("将完整替换当前 DNS 引擎开关、过滤策略、全部上游服务器、VPN DNS、拦截响应模式、日志保留期限/内存刷盘批量、DNS 聚合统计开关/周期、上游选择/超时、AdGuard Home 缓存容量/TTL/乐观缓存策略、DNSSEC，以及 Unbound 缓存 TTL、消息/RRset/DNSSEC Key/否定响应四类缓存池、serve-expired、域名预取、DNSSEC 密钥预取和 QNAME minimisation。后端会再次校验全部字段；恢复应用失败会回滚原配置。不会修改 VPN 节点或其他 FX 模块设置。")
         .setNegativeButton("取消",null)
         .setPositiveButton("恢复",(dialog,which)->root("dns-profile-restore "+encoded,r->{
           if(r.exitCode==0){status.setText("DNS 配置快照已恢复并应用。");input.setText("");load();}
