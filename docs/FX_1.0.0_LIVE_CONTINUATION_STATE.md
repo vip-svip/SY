@@ -6959,3 +6959,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 文件选择器新增 .qxconf 后缀与 [rewrite_local] 文件头识别。仅处理 HTTPS 脚本动作；普通 URL Rewrite、reject、相对脚本路径及非 HTTPS 地址不会被自动执行。
 - 应用源码提交：eda62bdefa56a9d9a390d83f46a969453e52e9fd；模块 APK 源码提交：4a89075335193b3fc6869bad88773478613f627c；同步器保留请求正文标记提交：14a32e114224be8c22b5317d5fb852942bea21a9。
 - 按当前推进要求未运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-06 — Native Script 导入链路扩展与 Egern YAML 入口
+
+- Surge/Loon `[Script]` 导入器现在把 `type=` 当作触发集合处理：逗号/分号分隔、空格可选、顺序不敏感；`http-request,http-response` 无空格写法会归一为 `both`。同一配置文件中的相同 URL/阶段/匹配规则去重。
+- Native Script JSON/模块导入先读取现有 `FXSCRIPT1` 列表，基于脚本值与备注元数据的 SHA-256 键跳过已存在条目；导入结束摘要区分新增、失败和重复跳过数量。应用源码初始提交 `d83ee410c8c4c71e7bf3a991c90ae52b0803d1b8`，模块 APK 源码初始提交 `1d62602557570831d8f2e4bcbdb195fe50539c0d`；相关 MainActivity 后续仍有并行开发者提交，更新时必须以分支最新文件为准。
+- 新增 Egern `scriptings:` YAML HTTP 子集解析器，识别 `http_request` / `http_response` 的 name、match、script_url、disabled，并生成 FX 统一脚本清单；仅迁移 HTTPS 脚本 URL。定时、generic、network、env、body_required、binary_body 条目不伪装为已支持的 FX HTTP Hook。
+- Egern YAML 导入器初始应用源码提交 `6ff721bfe2ab08c552baf755b7b0f65d4ad8c0d0`、模块源码提交 `13000849caa68b13c026356b43c8e6408ff368cd`；脚本中心专用文件选择器和 2 MiB 文件上限入口提交 `703fb158e79cdbfe374f377fed616576078d7c48`（应用）与 `f4b52cd66004455360fe64122848d96f0aa4184d`（模块）。
+- 运行时说明增加 Egern YAML 支持子集和边界：`fx-module/scripts/jsruntime/README-zh-CN.md` 提交 `5b34ddb3ed25d60ea8ee98671a8b9ad943a74d45`。
+- 四行触发元数据（阶段、URL 匹配、正文标记、显示名称）可能超过旧 512 字符备注上限；将应用端备注容量和模块原生脚本存储备注上限扩展到 4096 字符，同时在导入入口保持显示名称 512 字符限制。应用提交 `ec6e185832ae1740929cf8464a5441827abf0aec` / `038a6f6bc5143d28bf3c8b8fd294172803634dbc`；模块存储脚本副本提交 `305621b5589d79ac91f1ed68d80ec320e04bafe2`、`f12fdbfe1071a3daa8c55e6703399533c990ddd2`、`b07739e9800c6d83a6324f2b1f1eacf3bbe566f5`。
+- 应用/模块列表读取路径使用 CRLF/LF 行分隔，提交 `01dcb58898700c0d05bbd65489db8d779ec5e19e` 与 `4ec4256f9a77a946c5b36e3bd6b13022ca2ddd39`。
+- 固定 FX 1.0.0。本批按要求未运行测试、静态检查、Gradle/NDK 构建、CI 或 Android 真机验证；Egern YAML 与各客户端导入都仅是声明的兼容子集，不代表全量 API 兼容或设备端已验收。
