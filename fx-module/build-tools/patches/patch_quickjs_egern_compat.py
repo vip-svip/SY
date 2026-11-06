@@ -90,7 +90,31 @@ HOST_BLOCK = r"""  // FX_EGERN_COMPAT_V2_BEGIN
   for(const method of ['get','post','put','patch','delete','head','options']){
     _fxEgernHttpApi[method]=function(url,options){return _fxEgernHttp(method,url,options);};
   }
-  const _fxEgernEnv=(_fxEvent.env&&typeof _fxEvent.env==='object')?_fxEvent.env:{};
+  function _fxReadEgernScriptEnv() {
+    const scriptPath=String(scriptArgs[0]||'');
+    if(!scriptPath) return {};
+    const source=_fxRead(scriptPath,'');
+    const prefix='// FX-SCRIPT-ENV-JSON: ';
+    const lines=source.split(/\r?\n/);
+    for(let i=0;i<lines.length&&i<16;i++){
+      if(lines[i].indexOf(prefix)!==0) continue;
+      try {
+        const parsed=JSON.parse(lines[i].slice(prefix.length));
+        if(!parsed||typeof parsed!=='object'||Array.isArray(parsed)) return {};
+        const out=Object.create(null);
+        Object.keys(parsed).forEach(key=>{
+          if(/^[A-Za-z_][A-Za-z0-9_.-]{0,63}$/.test(key)
+              && typeof parsed[key]==='string' && parsed[key].length<=512) out[key]=parsed[key];
+        });
+        return out;
+      } catch(_) {
+        return {};
+      }
+    }
+    return {};
+  }
+  const _fxEgernEventEnv=(_fxEvent.env&&typeof _fxEvent.env==='object')?_fxEvent.env:{};
+  const _fxEgernEnv=Object.assign({},_fxReadEgernScriptEnv(),_fxEgernEventEnv);
   const _fxEgernDevice=(_fxEvent.device&&typeof _fxEvent.device==='object')?_fxEvent.device:{};
   const _fxEgernStage=String(_fxEvent.stage||'').toLowerCase();
   const _fxEgernHasRequest=['request','response','http-request','http-response'].indexOf(_fxEgernStage)>=0;
