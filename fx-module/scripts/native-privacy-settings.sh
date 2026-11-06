@@ -50,12 +50,40 @@ case "${1:-}" in
       [ ! -e "$marker" ] || { echo "settings.conf transaction busy; retry" >&2; exit 75; }
     done
     . "$MP/scripts/util.sh"
-    pg_set "$key" "$value" || { echo "settings.conf write failed" >&2; exit 1; }
+    _backup=$(umask 077; mktemp "$CONF.privacy-rollback.XXXXXX") || {
+      echo "unable to stage privacy settings rollback" >&2; exit 1;
+    }
+    if ! cp -p "$CONF" "$_backup"; then
+      rm -f "$_backup"
+      echo "unable to snapshot privacy settings" >&2
+      exit 1
+    fi
+    if ! pg_set "$key" "$value"; then
+      rm -f "$_backup"
+      echo "settings.conf write failed" >&2
+      exit 1
+    fi
     if sh "$MP/scripts/apply.sh" fast >> "$PG/apply.log" 2>&1; then
-      printf '%s\n' "saved=1 applied=1 key=$key value=$value"
+      rm -f "$_backup"
+      printf '%s\\n' "saved=1 applied=1 key=$key value=$value"
       exit 0
     fi
-    printf '%s\n' "saved=1 applied=0 key=$key value=$value"
+    _restore=$(umask 077; mktemp "$CONF.privacy-restore.XXXXXX") || {
+      echo "privacy settings apply failed; rollback backup retained at $_backup" >&2
+      exit 11
+    }
+    if ! cp -p "$_backup" "$_restore" || ! chmod 600 "$_restore" ||
+        ! mv -f "$_restore" "$CONF"; then
+      rm -f "$_restore" 2>/dev/null || :
+      echo "privacy settings apply failed and rollback could not be published; backup retained at $_backup" >&2
+      exit 11
+    fi
+    rm -f "$_backup"
+    if ! sh "$MP/scripts/apply.sh" fast >> "$PG/apply.log" 2>&1; then
+      echo "previous privacy settings restored; runtime reconcile failed" >&2
+      exit 12
+    fi
+    echo "privacy settings apply failed; previous settings restored" >&2
     exit 10
     ;;
   *)
