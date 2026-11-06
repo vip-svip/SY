@@ -52,6 +52,13 @@
 - `require-body` 映射为 `FX-SCRIPT-REQUIRES-BODY`；正文仍受 FX 未压缩文本类型与 1 MiB 编辑上限约束。Provider `interval` 只接受默认 86400 秒。
 - 非 HTTPS Provider、未知 Provider 选项、非默认 `timeout` / `max-size`、非 `auto` 引擎、非空 `argument` 或 `binary-mode: true` 不会被伪装成可用脚本；这些配置当前无法无损映射到 FX URL Hook。
 - 该导入器仅覆盖 Stash 的 HTTP request/response 子集，不迁移 schedule / DNS / rewrite action，也不是完整 Stash 运行时。
+## Stash HTTP YAML 脚本导入
+
+- 脚本中心可导入 Stash YAML：读取顶层 `http.script` 与 `script-providers`，按 provider 名称解析 `url`，仅迁移 HTTPS request/response 脚本并写入统一 `[list:script]`。
+- 支持 `match`、`type`、`require-body`、`disabled` 与 `argument`；参数会写入 `FX-SCRIPT-ARGUMENT` 并映射到 QuickJS 全局 `$argument` / `$script.argument`。正文需求生成 `FX-SCRIPT-REQUIRES-BODY`。
+- 只接受默认兼容选项：provider `interval=86400`、脚本 `timeout=10`、`max-size=1048576`、`engine=auto`、`binary-mode=false`。本地 provider path、非 HTTPS URL、二进制模式、自定义引擎和非默认资源参数会跳过。
+- Stash 的普通 `url-rewrite`、cron 任务、Python SCRIPT 规则和其他网络策略不会当作 JavaScript HTTP Hook 导入；这不是完整 Stash YAML 解析器。
+
 ## Native Script 混合清单批量导入
 
 - FX JSON、Egern YAML、Surge/Loon 与 Quantumult X 的转换结果统一进入批量导入器；同一个清单允许 HTTPS 订阅 URL 与本地 JavaScript 源码混合，不再因为混入一个本地文件而退回逐项改写配置。
