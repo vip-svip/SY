@@ -2346,10 +2346,18 @@ public final class MainActivity extends ComponentActivity {
     /** Import Egern HTTP request/response scriptings and their bounded flat env map. */
     private void importNativeEgernScriptConfig(String payload) {
         try {
-            JSONObject document = EgernScriptYamlImporter.parse(payload);
+            String lower = (payload == null ? "" : payload).toLowerCase(Locale.ROOT);
+            JSONObject document;
+            if (lower.contains("scriptings:")) {
+                document = EgernScriptYamlImporter.parse(payload);
+            } else if (lower.contains("script-providers:") && lower.contains("http:")) {
+                document = StashScriptYamlImporter.parse(payload);
+            } else {
+                throw new IllegalArgumentException("未识别的脚本 YAML；目前支持 Egern scriptings 与 Stash http.script/script-providers");
+            }
             importNativeScriptDocument(document.toString());
         } catch (Exception error) {
-            Toast.makeText(this, "Egern YAML 导入失败：" + error.getMessage(),
+            Toast.makeText(this, "脚本 YAML 导入失败：" + error.getMessage(),
                     Toast.LENGTH_LONG).show();
         }
     }
@@ -5255,7 +5263,8 @@ public final class MainActivity extends ComponentActivity {
                     String lowerHeader = header.toLowerCase(Locale.ROOT);
                     isModuleConfig = lowerHeader.contains("[script]")
                             || lowerHeader.contains("[rewrite_local]");
-                    isEgernYaml = lowerHeader.contains("scriptings:");
+                    isEgernYaml = lowerHeader.contains("scriptings:")
+                            || (lowerHeader.contains("script-providers:") && lowerHeader.contains("http:"));
                 }
                 if (isEgernYaml && !isJson) {
                     try (InputStream input = new java.io.FileInputStream(staged);
