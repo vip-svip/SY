@@ -736,7 +736,7 @@ _whitelist_prune_locked() {
   _packages=$(_list_whitelist_packages) || return 1
   while IFS= read -r _package; do
     [ -n "$_package" ] || continue
-    if ! printf '%s\n' "$_snapshot" | grep -Fqx "package:$_package" >/dev/null 2>&1; then
+    if ! printf '%s\n' "$_snapshot" | awk -v wanted="package:$_package" '$1==wanted {found=1} END {exit !found}'; then
       _whitelist_set_value "$_package" 0 || return 1
       _removed=$((_removed + 1))
     fi
