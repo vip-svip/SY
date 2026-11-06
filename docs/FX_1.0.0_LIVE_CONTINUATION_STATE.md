@@ -1,5 +1,14 @@
 
 
+### FX DNS 与 Hosts/Ad 名单页面同步至 APK 实际构建源码（2026-11-07）
+
+- 文件：`adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`、`adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongDnsActivity.java`。
+- 将模块目录中较新的 DNS/Hosts/Ad 页面实现同步到 APK 实际构建目录 `adhook/`，避免构建时重新使用旧 UI 源码。
+- 同步包含 Root 命令输出容量提升、DNS 快照查询日志保留字段与旧快照兼容、完整 DNS 日志读取、域名批量分享/导入分隔符修正及 UI 导出限制清理。
+- 列表页面保留分批渲染，完整日志/名单数据不因固定条数而丢弃；仍受设备内存、Java 数组、Intent/Binder 与进程资源的实际平台能力约束。
+- 按用户要求未运行构建、测试、静态检查、CI 或设备验证。
+
+
 ### FX DNS 引擎与配置控制器同步至打包权威源码（2026-11-07）
 
 - 文件：`scripts/adguardhome.sh`、`scripts/yulong-ad-control.sh`。

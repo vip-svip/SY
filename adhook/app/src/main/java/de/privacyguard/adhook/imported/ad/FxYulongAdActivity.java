@@ -66,8 +66,10 @@ public final class FxYulongAdActivity extends de.privacyguard.adhook.FxNativeTab
   private boolean trustedNetworkSyncing;
   private TextView rootProxyStatus;
   private long rootProxyStatusGeneration;
- private static final int BULK_DRAFT_MAX_CHARS=48*1024;
- private static final int TEXT_DRAFT_MAX_CHARS=4096;
+ private static final int DNS_PROFILE_OPEN_REQUEST=4202;
+ private static final int DNS_PROFILE_SAVE_REQUEST=4203;
+ private EditText dnsProfileImportField;
+ private String pendingDnsProfileExport="";
  private Bundle pendingRestoredDrafts;
  private Bundle retainedDrafts=new Bundle();
  private static final class Row {String kind,value,title;boolean enabled;Row(String k,String v,String t,boolean e){kind=k;value=v;title=t;enabled=e;}}
@@ -77,8 +79,6 @@ public final class FxYulongAdActivity extends de.privacyguard.adhook.FxNativeTab
  private EditText draftField(String key){
   EditText field=new EditText(this);
   field.setTag("fx-yulong-ad-draft:"+key);
-  int maxChars=key.endsWith("_bulk")?BULK_DRAFT_MAX_CHARS:TEXT_DRAFT_MAX_CHARS;
-  field.setFilters(new InputFilter[]{new InputFilter.LengthFilter(maxChars)});
   draftFields.put(key,field);
   return field;
  }
@@ -97,7 +97,7 @@ public final class FxYulongAdActivity extends de.privacyguard.adhook.FxNativeTab
   final long requestGeneration=pageGeneration;
   final String requestPage=page;
   Runnable task=()->{
-   RootAccess.Result result=RootAccess.execute(cmd(args),90000L,512*1024);
+   RootAccess.Result result=RootAccess.execute(cmd(args),90000L,Integer.MAX_VALUE);
    runOnUiThread(()->{
     if(isFinishing()||isDestroyed()||requestGeneration!=pageGeneration
        ||!requestPage.equals(page))return;
@@ -135,7 +135,7 @@ public final class FxYulongAdActivity extends de.privacyguard.adhook.FxNativeTab
        return;
       }
      }
-     result=RootAccess.execute(cmd(args),90000L,512*1024);
+     result=RootAccess.execute(cmd(args),90000L,Integer.MAX_VALUE);
     }catch(Throwable failure){
      runOnUiThread(()->{if(!isFinishing()&&!isDestroyed()
         &&requestGeneration==pageGeneration&&requestPage.equals(page))
@@ -567,7 +567,6 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
    if(filter.isEmpty()||(row.value+" "+row.title).toLowerCase(Locale.ROOT).contains(filter))sources.add(row.value);
   }
   if(sources.isEmpty()){status.setText("当前筛选没有可批量更新的过滤列表。");return;}
-  if(sources.size()>2000){status.setText("当前筛选超过 2000 个列表，请缩小筛选范围。");return;}
   StringBuilder lines=new StringBuilder();
   for(String source:sources)lines.append(source).append('\n');
   String encoded=android.util.Base64.encodeToString(lines.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8),android.util.Base64.NO_WRAP);
@@ -591,7 +590,6 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
      .setPositiveButton("保存",(d,w)->{
       String value=name.getText()==null?"":name.getText().toString().trim();
       if(value.isEmpty()){status.setText("过滤列表名称不能为空。");return;}
-      if(value.length()>256){status.setText("过滤列表名称不能超过 256 个字符。");return;}
       apply("rule-rename "+q(rule.value)+" "+q(value),"过滤列表重命名");
      }).show();
   }
@@ -602,7 +600,6 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
     if(filter.isEmpty()||(row.value+" "+row.title).toLowerCase(Locale.ROOT).contains(filter))sources.add(row.value);
    }
    if(sources.isEmpty()){status.setText("当前筛选没有可移除的过滤列表。");return;}
-   if(sources.size()>2000){status.setText("当前筛选超过 2000 个列表，请缩小筛选范围。");return;}
    StringBuilder lines=new StringBuilder();
    for(String source:sources)lines.append(source).append('\n');
    String encoded=android.util.Base64.encodeToString(lines.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8),android.util.Base64.NO_WRAP);
@@ -619,28 +616,22 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
    payload.append("# FX Ad filter subscription export\n")
        .append("# format: source|name\n")
        .append("# importing adds sources enabled by default\n");
-   int included=0,omitted=0;
-   final int maxBytes=64*1024;
+   int included=0;
    for(Row row:configured){
     String source=row.value==null?"":row.value.trim();
     String name=row.title==null?"":row.title.trim();
     if(source.isEmpty())continue;
     String line=source.replace('|',' ').replace('\r',' ').replace('\n',' ')
         +"|"+name.replace('|',' ').replace('\r',' ').replace('\n',' ')+"\n";
-    int used=payload.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
-    int bytes=line.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
-    if(used+bytes>maxBytes){omitted++;continue;}
     payload.append(line);included++;
    }
    if(included==0){status.setText("没有可导出的有效过滤订阅。");return;}
-   if(omitted>0)payload.append("# omitted ").append(omitted).append(" rows at 64 KiB export limit\n");
    try{
     Intent send=new Intent(Intent.ACTION_SEND);send.setType("text/plain");
     send.putExtra(Intent.EXTRA_SUBJECT,"FX Ad 过滤订阅备份");
     send.putExtra(Intent.EXTRA_TEXT,payload.toString());
     startActivity(Intent.createChooser(send,"分享过滤订阅"));
-    status.setText("已准备分享 "+included+" 个过滤订阅"
-        +(omitted>0?"；另有 "+omitted+" 个因 64 KiB 上限省略。":"。"));
+    status.setText("已准备分享 "+included+" 个过滤订阅。");
    }catch(RuntimeException unavailable){status.setText("无法打开系统分享面板："+safe(unavailable.getMessage()));}
   }
   private void importRuleSubscriptions(EditText input){
@@ -652,13 +643,11 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
    if(split<=0||split==row.length()-1||row.indexOf('|',split+1)>=0){status.setText("格式错误：每行使用 HTTPS或builtin来源|列表名称。");return;}
    String source=row.substring(0,split).trim(),name=row.substring(split+1).trim();
    if(parsed.put(source,name)!=null){status.setText("存在重复来源："+source);return;}
-   if(parsed.size()>2000){status.setText("单次最多导入 2000 个过滤列表。");return;}
   }
   if(parsed.isEmpty()){status.setText("没有可导入的过滤列表。");return;}
   StringBuilder normalized=new StringBuilder();
   for(java.util.Map.Entry<String,String> entry:parsed.entrySet())normalized.append(entry.getKey()).append('|').append(entry.getValue()).append('\\n');
   byte[] bytes=normalized.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
-  if(bytes.length>65536){status.setText("导入内容超过 64 KiB，请拆分后导入。");return;}
   String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);
   fxDialogBuilder().setTitle("批量导入过滤列表")
    .setMessage("将新增 "+parsed.size()+" 个过滤订阅，导入条目默认启用。已存在的来源会被拒绝，不会覆盖现有名称或状态。是否继续？")
@@ -667,29 +656,64 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
    .show();
  }
  private void renderRules(){EditText url=draftField("rule_url");url.setSingleLine(true);url.setHint("https://… 或 builtin://…");EditText name=draftField("rule_name");name.setSingleLine(true);name.setHint("列表名称");card("添加过滤列表","仅允许 HTTPS 订阅及 FX 本地资源。",url,name,btn("添加并应用",()->{String u=url.getText().toString().trim(),n=name.getText().toString().trim();if(!u.isEmpty()&&!n.isEmpty())apply("rule-add "+q(u)+" "+q(n)+" 1","规则添加");}));EditText ruleImport=draftField("rule_import_text");ruleImport.setSingleLine(false);ruleImport.setMinLines(4);ruleImport.setHint("每行：HTTPS或builtin来源|列表名称");card("批量导入过滤列表","支持多行来源|名称；空行和 # 注释行忽略。新订阅默认启用，已存在来源不会被覆盖。",ruleImport,btn("批量导入",()->importRuleSubscriptions(ruleImport)),btn("分享全部过滤订阅",()->shareRuleSubscriptions()));search=draftField("rule_search");search.setSingleLine(true);search.setHint("搜索过滤列表");card("搜索","输入来源或列表名称",search,btn("启用当前筛选全部列表",()->setFilteredRules(true)),btn("暂停当前筛选全部列表",()->setFilteredRules(false)),btn("移除当前筛选全部列表",()->removeFilteredRules()));search.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int st,int c,int a){}public void onTextChanged(CharSequence s,int st,int be,int co){bind();}public void afterTextChanged(Editable e){}});entries=new LinearLayout(this);entries.setOrientation(1);body.addView(entries);}
+ private static boolean isValidDnsQueryLogRetention(String value){
+  return value!=null&&value.matches("[0-9]+d")&&!value.matches("0+d");
+ }
+ private void saveDnsQueryLogRetention(String value){
+  root("dns-querylog-retention-set "+q(value),result->{
+    if(result.exitCode==0)status.setText("DNS 查询日志保留期限已更新为 "+value+"；AdGuard Home 将按新期限轮转日志。请留意本地存储空间。");
+    else fxDialogBuilder().setTitle("保留期限未更新").setMessage(safe(result.output)).setPositiveButton("关闭",null).show();
+  });
+ }
+ private void promptDnsQueryLogRetentionDays(String currentValue){
+  EditText days=new EditText(this);
+  days.setSingleLine(true);
+  days.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+  days.setHint("输入正整数天数");
+  String initial=currentValue!=null&&currentValue.endsWith("d")
+      ?currentValue.substring(0,currentValue.length()-1):"7";
+  days.setText(initial.matches("[0-9]+")?initial:"7");
+  fxDialogBuilder().setTitle("自定义 DNS 查询日志保留期限")
+    .setMessage("输入任意正整数天数。保留时间越长，占用本地存储空间越多。")
+    .setView(days)
+    .setNegativeButton("取消",null)
+    .setPositiveButton("保存",(dialog,which)->{
+      String supplied=days.getText()==null?"":days.getText().toString().trim();
+      String value=supplied+"d";
+      if(!isValidDnsQueryLogRetention(value)){
+        status.setText("保留天数必须是大于零的整数，未修改配置。");
+        return;
+      }
+      saveDnsQueryLogRetention(value);
+    }).show();
+ }
  private void chooseDnsQueryLogRetention(){
   final String[] values={"1d","3d","7d","30d"};
-  final String[] labels={"保留 1 天","保留 3 天","保留 7 天","保留 30 天"};
+  final String[] labels={"保留 1 天","保留 3 天","保留 7 天","保留 30 天","自定义天数…"};
   root("dns-querylog-retention-get",current->{
     String selectedValue="7d";
     if(current.exitCode==0&&current.output!=null)
       for(String line:current.output.split("\\r?\\n"))
         if(line.startsWith("querylog_retention="))selectedValue=line.substring("querylog_retention=".length()).trim();
-    int selected=2;
+    int selected=-1;
     for(int i=0;i<values.length;i++)if(values[i].equals(selectedValue))selected=i;
-    final int initial=selected;
+    final String currentRetention=selectedValue;
     new AlertDialog.Builder(this).setTitle("DNS 查询日志保留期限")
-      .setSingleChoiceItems(labels,initial,(dialog,which)->{
+      .setSingleChoiceItems(labels,selected,(dialog,which)->{
         dialog.dismiss();
-        root("dns-querylog-retention-set "+values[which],result->{
-          if(result.exitCode==0)status.setText("DNS 查询日志保留期限已更新为 "+values[which]+"；AdGuard Home 将按新期限轮转日志。");
-          else fxDialogBuilder().setTitle("保留期限未更新").setMessage(safe(result.output)).setPositiveButton("关闭",null).show();
-        });
+        if(which>=values.length){
+          promptDnsQueryLogRetentionDays(currentRetention);
+          return;
+        }
+        saveDnsQueryLogRetention(values[which]);
+      }).setNegativeButton("取消",null).show();
+  });
+ });
       }).setNegativeButton("取消",null).show();
   });
  }
  private void renderDns(){
-  EditText dnsProfileImport=draftField("dns_profile_import");dnsProfileImport.setSingleLine(false);dnsProfileImport.setMinLines(5);dnsProfileImport.setHint("粘贴完整 FXYULONGDNSPROFILE1 快照文本");
+  EditText dnsProfileImport=draftField("dns_profile_import");dnsProfileImport.setSingleLine(false);dnsProfileImport.setMinLines(5);dnsProfileImport.setHint("粘贴完整 FXYULONGDNSPROFILE1 快照文本");dnsProfileImportField=dnsProfileImport;
  private void refreshDnsCache(String target,String label){
    fxDialogBuilder().setTitle("刷新"+label+"缓存")
      .setMessage("FX 将仅重启所选的自有 DNS 解析服务并重新应用路由。刷新期间相关 DNS 查询可能短暂重试；不会操作第三方 VPN。若所选引擎未启用，FX 会拒绝操作。是否继续？")
@@ -698,14 +722,14 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
          .setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
      })).show();
  }
-  card("DNS 配置备份与恢复","快照导入会完整替换 DNS 引擎开关、过滤策略、三组上游、VPN DNS 与拦截响应模式；提交前校验全部字段，失败时恢复原配置。",btn("分享 DNS 配置快照",()->shareDnsProfile()),dnsProfileImport,btn("校验并恢复 DNS 配置快照",()->restoreDnsProfile(dnsProfileImport)));
+  card("DNS 配置备份与恢复","快照导入会完整替换 DNS 引擎开关、过滤策略、三组上游、VPN DNS 与拦截响应模式；提交前校验全部字段，失败时恢复原配置。",btn("分享 DNS 配置快照",()->shareDnsProfile()),btn("保存 DNS 快照到文件",()->saveDnsProfileToFile()),btn("从文件读取 DNS 快照",()->openDnsProfileFile()),dnsProfileImport,btn("校验并恢复 DNS 配置快照",()->restoreDnsProfile(dnsProfileImport)));
   TextView dnsRuntimeState=txt("DNS 运行状态尚未读取。",12,0xff617080,false);
   card("DNS 引擎运行状态","读取 AdGuard Home、Unbound、第三方 VPN Root Proxy、DNS 过滤覆盖范围与 VPN 共存判定。此操作只读取状态，不会更改服务或网络路由。",dnsRuntimeState,btn("刷新 DNS 运行状态",()->loadDnsRuntimeStatus(dnsRuntimeState)));
   card("本地 DNS 引擎",
        "启用时使用 FX 自有 AdGuard Home 过滤服务；关闭后按 FX 当前安全 DNS 回退配置处理。",
        dnsSwitch("启用本地 AdGuard Home","dns_engine_adguardhome"));
   card("本地 DNS 架构",
-       "默认由本地 AdGuard Home 过滤并交给 Unbound 递归解析；不固定使用公共 DNS。只有明确启用自定义 DNS 或全局 DNS 时才会使用下面填写的 IPv4 地址。",
+       "默认由本地 AdGuard Home 过滤并交给 Unbound 递归解析；不固定使用公共 DNS。启用“全局 DNS 替换”时优先使用全局列表；否则启用“自定义 DNS”时使用自定义列表；两项都关闭时恢复本地 Unbound。备用 DNS 仅在主上游失败时用于回退。",
        dnsSwitch("DNS 兜底转发","dns_forward"),
        dnsSwitch("启用自定义 DNS","custom_dns"),
        dnsSwitch("启用全局 DNS 替换","global_dns"),
@@ -769,7 +793,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
   globalServers.setSingleLine(false);globalServers.setMinLines(2);
   globalServers.setHint("例如：8.8.8.8,1.1.1.1");
   card("自定义/全局/备用 DNS 服务器",
-       "自定义 DNS 最多 3 个上游，可混合 IPv4、DoH、DoT、DoQ；备用 DNS 只支持 IPv4。加密上游只在 FX 本地 AdGuard Home 过滤引擎运行时生效；启用“阻止 DoT/QUIC”会阻断对应传输协议。",
+       "自定义 DNS 支持任意多条上游地址（保留逐条格式与协议校验，不设置应用层条数上限），可混合 IPv4、DoH、DoT、DoQ；备用 DNS 只支持 IPv4。加密上游只在 FX 本地 AdGuard Home 过滤引擎运行时生效；启用“阻止 DoT/QUIC”会阻断对应传输协议。",
        btn("一次性保存三组 DNS 上游",()->saveDnsServerLists(customServers,globalServers,fallbackServers)),
        txt("自定义 DNS 上游",12,0xff617080,true),customServers,
        btn("保存自定义 DNS",()->saveDnsServerList("custom",customServers)),
@@ -816,9 +840,8 @@ private void shareDnsProfile(){
     if(r.exitCode!=0){status.setText("DNS 配置快照读取失败："+safe(r.output));return;}
     String raw=r.output==null?"":r.output.trim();
     if(!raw.startsWith("FXYULONGDNSPROFILE1")){status.setText("DNS 配置快照格式不受支持，未生成备份。");return;}
-    String payload="# FX Hook DNS profile backup\\n# format: FXYULONGDNSPROFILE1\\n# Restore only through a compatible FX version.\\n"+raw.substring("FXYULONGDNSPROFILE1".length()).trim()+"\\n";
+    String payload="FXYULONGDNSPROFILE1\n"+raw.substring("FXYULONGDNSPROFILE1".length()).trim()+"\n";
     int bytes=payload.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
-    if(bytes>48*1024){status.setText("DNS 配置快照超过 48 KiB，未打开分享面板。");return;}
     try{
       Intent send=new Intent(Intent.ACTION_SEND);
       send.setType("text/plain");
@@ -830,6 +853,79 @@ private void shareDnsProfile(){
       status.setText("无法打开系统分享面板："+safe(unavailable.getMessage()));
     }
   });
+}
+private void saveDnsProfileToFile(){
+  root("dns-profile-get",r->{
+    if(r.exitCode!=0){status.setText("DNS 配置快照读取失败："+safe(r.output));return;}
+    String raw=r.output==null?"":r.output.trim();
+    if(!raw.startsWith("FXYULONGDNSPROFILE1")){status.setText("DNS 配置快照格式不受支持，未导出。");return;}
+    String payload="FXYULONGDNSPROFILE1\n"
+        +raw.substring("FXYULONGDNSPROFILE1".length()).trim()+"\n";
+    pendingDnsProfileExport=payload;
+    try{
+      Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);
+      intent.addCategory(Intent.CATEGORY_OPENABLE);
+      intent.setType("text/plain");
+      intent.putExtra(Intent.EXTRA_TITLE,"FX-DNS-profile.txt");
+      startActivityForResult(intent,DNS_PROFILE_SAVE_REQUEST);
+    }catch(RuntimeException unavailable){
+      pendingDnsProfileExport="";
+      status.setText("无法打开系统文件保存器："+safe(unavailable.getMessage()));
+    }
+  });
+}
+private void openDnsProfileFile(){
+  try{
+    Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT);
+    intent.addCategory(Intent.CATEGORY_OPENABLE);
+    intent.setType("text/*");
+    startActivityForResult(intent,DNS_PROFILE_OPEN_REQUEST);
+  }catch(RuntimeException unavailable){
+    status.setText("无法打开系统文件选择器："+safe(unavailable.getMessage()));
+  }
+}
+@Override protected void onActivityResult(int requestCode,int resultCode,Intent data){
+  super.onActivityResult(requestCode,resultCode,data);
+  if(requestCode==DNS_PROFILE_SAVE_REQUEST){
+    String payload=pendingDnsProfileExport;
+    pendingDnsProfileExport="";
+    if(resultCode!=Activity.RESULT_OK||data==null||data.getData()==null){
+      status.setText("已取消 DNS 快照文件保存。");return;
+    }
+    if(payload.isEmpty()){status.setText("DNS 快照导出内容已失效，请重新操作。");return;}
+    try(java.io.OutputStream stream=getContentResolver().openOutputStream(data.getData(),"w")){
+      if(stream==null)throw new java.io.IOException("无法打开目标文件");
+      stream.write(payload.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+      stream.flush();
+      status.setText("DNS 配置快照已保存到所选文件。");
+    }catch(Exception failure){
+      status.setText("DNS 快照文件保存失败："+safe(failure.getMessage()));
+    }
+    return;
+  }
+  if(requestCode==DNS_PROFILE_OPEN_REQUEST){
+    if(resultCode!=Activity.RESULT_OK||data==null||data.getData()==null){
+      status.setText("已取消 DNS 快照文件读取。");return;
+    }
+    try(java.io.InputStream stream=getContentResolver().openInputStream(data.getData())){
+      if(stream==null)throw new java.io.IOException("无法读取所选文件");
+      java.io.ByteArrayOutputStream bytes=new java.io.ByteArrayOutputStream();
+      byte[] buffer=new byte[4096];int count;
+      while((count=stream.read(buffer))!=-1){
+        bytes.write(buffer,0,count);
+      }
+      String content=java.nio.charset.StandardCharsets.UTF_8.newDecoder()
+          .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+          .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+          .decode(java.nio.ByteBuffer.wrap(bytes.toByteArray())).toString();
+      if(dnsProfileImportField==null)throw new java.io.IOException("DNS 配置页面已关闭");
+      dnsProfileImportField.setText(content);
+      dnsProfileImportField.setSelection(dnsProfileImportField.length());
+      status.setText("DNS 快照文件已读取；请先检查内容，再点击“校验并恢复”。");
+    }catch(Exception failure){
+      status.setText("DNS 快照文件读取失败："+safe(failure.getMessage()));
+    }
+  }
 }
 private void restoreDnsProfile(EditText input){
   String supplied=input.getText()==null?"":input.getText().toString();
@@ -846,24 +942,192 @@ private void restoreDnsProfile(EditText input){
     status.setText("快照版本头不匹配，未修改配置。");return;
   }
   byte[] bytes=raw.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-  if(bytes.length>48*1024){status.setText("快照超过 48 KiB，未提交。");return;}
+  String[] allowed={"dns_engine_adguardhome","dns_forward","custom_dns","global_dns",
+      "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
+      "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled",
+      "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE","QUERYLOG_RETENTION"};
+  java.util.Set<String> keys=new java.util.HashSet<>(java.util.Arrays.asList(allowed));
+  java.util.Map<String,String> preview=new java.util.LinkedHashMap<>();
+  for(String line:raw.split("\\n")){
+    if("FXYULONGDNSPROFILE1".equals(line))continue;
+    int split=line.indexOf('=');
+    if(split<=0){status.setText("快照字段格式错误，未提交。");return;}
+    String key=line.substring(0,split);
+    if(!keys.contains(key)||preview.containsKey(key)){
+      status.setText("快照包含未知或重复字段："+key+"；未提交。");return;
+    }
+    preview.put(key,line.substring(split+1));
+  }
+  if(preview.size()!=allowed.length&&preview.size()!=allowed.length-1){
+    status.setText("快照字段不完整（"+preview.size()+"/"+allowed.length+"），未提交。");return;
+  }
+  for(String key:allowed)if(!preview.containsKey(key)){
+    if("QUERYLOG_RETENTION".equals(key)){
+      preview.put(key,"7d");
+    }else{
+      status.setText("快照缺少字段："+key+"；未提交。");return;
+    }
+  }
+  for(String key:new String[]{"dns_engine_adguardhome","dns_forward","custom_dns","global_dns",
+      "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
+      "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled"}){
+    String value=preview.get(key);
+    if(!"0".equals(value)&&!"1".equals(value)){
+      status.setText("快照开关值非法："+key+"；未提交。");return;
+    }
+  }
+  for(String key:new String[]{"VPN_REMOTE","VPN_CN"}){
+    if(!isValidProfileIpv4(preview.get(key))){
+      status.setText("快照 VPN DNS 地址不是有效 IPv4："+key+"；未提交。");return;
+    }
+  }
+  String responseMode=preview.get("RESPONSE_MODE");
+  if(!"nxdomain".equals(responseMode)&&!"refused".equals(responseMode)&&!"custom_ip".equals(responseMode)){
+    status.setText("快照拦截响应模式非法；未提交。");return;
+  }
+  String querylogRetention=preview.get("QUERYLOG_RETENTION");
+  if(!isValidDnsQueryLogRetention(querylogRetention)){
+    status.setText("快照 DNS 查询日志保留期限非法；未提交。");return;
+  }
+  for(String key:new String[]{"CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS"}){
+    String value=preview.get(key);
+    boolean encrypted="CUSTOM_SERVERS".equals(key);
+    if(!isValidProfileDnsCsv(value,encrypted)){
+      status.setText("快照 DNS 上游格式非法或存在重复项："+key+"；未提交。");return;
+    }
+  }
+  int enabled=0;
+  for(String key:new String[]{"dns_engine_adguardhome","dns_forward","custom_dns","global_dns",
+      "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
+      "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled"})
+    if("1".equals(preview.get(key)))enabled++;
+  String summary="快照包含 19 项字段、12 个开关（启用 "+enabled+" 项）。\\n"
+      +"自定义上游："+countDnsEndpoints(preview.get("CUSTOM_SERVERS"))+" 条；"
+      +"全局上游："+countDnsEndpoints(preview.get("GLOBAL_SERVERS"))+" 条；"
+      +"备用上游："+countDnsEndpoints(preview.get("FALLBACK_SERVERS"))+" 条。\\n"
+      +"VPN 远端 DNS："+preview.get("VPN_REMOTE")+"；国内 DNS："+preview.get("VPN_CN")+"。\\n"
+      +"拦截响应模式："+preview.get("RESPONSE_MODE")+"；查询日志保留："+querylogRetention+"。\\n\\n"
+      +"这是本地结构预览，不代表端点及配置语义已通过后端校验；继续后仍由 FX Root 后端完整校验。";
   String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);
-  fxDialogBuilder().setTitle("恢复 DNS 配置快照")
-    .setMessage("将完整替换当前 DNS 引擎开关、过滤策略、上游服务器、VPN DNS 与拦截响应模式。所有字段会先校验；恢复应用失败会回滚原配置。此操作不会修改 VPN 节点或其他 FX 模块设置。是否继续？")
-    .setNegativeButton("取消",null)
-    .setPositiveButton("恢复", (d,w)->root("dns-profile-restore "+encoded,r->{
-      if(r.exitCode==0){status.setText("DNS 配置快照已恢复并应用。");input.setText("");load();}
-      else fxDialogBuilder().setTitle("DNS 快照恢复失败").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
-    })).show();
+  root("dns-profile-get",currentResult->{
+    if(currentResult.exitCode!=0){
+      status.setText("无法读取当前 DNS 配置，已停止恢复预览："+safe(currentResult.output));return;
+    }
+    java.util.Map<String,String> current=new java.util.LinkedHashMap<>();
+    String currentRaw=currentResult.output==null?"":currentResult.output.trim();
+    String[] currentLines=currentRaw.split("\\r?\\n");
+    if(currentLines.length==0||!"FXYULONGDNSPROFILE1".equals(currentLines[0].trim())){
+      status.setText("当前 DNS 配置快照格式异常，已停止恢复预览。");return;
+    }
+    for(int index=1;index<currentLines.length;index++){
+      String line=currentLines[index].trim();int split=line.indexOf('=');
+      if(split<=0||current.put(line.substring(0,split),line.substring(split+1))!=null){
+        status.setText("当前 DNS 配置包含异常或重复字段，已停止恢复预览。");return;
+      }
+    }
+    String[] labels={"dns_engine_adguardhome","dns_forward","custom_dns","global_dns",
+      "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
+      "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled",
+      "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE","QUERYLOG_RETENTION"};
+    StringBuilder changes=new StringBuilder();
+    for(String key:labels){
+      String oldValue=current.get(key),newValue=preview.get(key);
+      if(oldValue==null){status.setText("当前 DNS 配置缺少字段："+key+"，已停止恢复预览。");return;}
+      if(!oldValue.equals(newValue))changes.append(key).append("：").append(oldValue)
+          .append(" → ").append(newValue).append('\\n');
+    }
+    String changeText=changes.length()==0?"与当前 DNS 配置完全一致，无字段变化。":
+        "将变更以下字段：\\n"+changes;
+    fxDialogBuilder().setTitle("DNS 快照导入预览")
+      .setMessage(summary+"\\n\\n"+changeText)
+      .setNegativeButton("取消",null)
+      .setPositiveButton("继续恢复",(d,w)->fxDialogBuilder().setTitle("确认完整替换 DNS 配置")
+        .setMessage("将完整替换当前 DNS 引擎开关、过滤策略、全部上游服务器、VPN DNS、拦截响应模式与查询日志保留期限。后端会再次校验全部字段；恢复应用失败会回滚原配置。不会修改 VPN 节点或其他 FX 模块设置。")
+        .setNegativeButton("取消",null)
+        .setPositiveButton("恢复",(dialog,which)->root("dns-profile-restore "+encoded,r->{
+          if(r.exitCode==0){status.setText("DNS 配置快照已恢复并应用。");input.setText("");load();}
+          else fxDialogBuilder().setTitle("DNS 快照恢复失败").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
+        })).show()).show();
+  });
+v4(String value){
+  if(value==null||!value.matches("[0-9]{1,3}(\\.[0-9]{1,3}){3}")||
+      "0.0.0.0".equals(value)||"255.255.255.255".equals(value))return false;
+  for(String part:value.split("\\.")){
+    try{if(Integer.parseInt(part)>255)return false;}catch(NumberFormatException e){return false;}
+  }
+  return true;
+}
+private boolean isValidProfileDnsCsv(String value,boolean encryptedAllowed){
+  if(value==null||value.isEmpty())return true;
+  String[] entries=value.split(",",-1);
+  java.util.Set<String> seen=new java.util.HashSet<>();
+  for(String entry:entries){
+    if(entry.isEmpty()||!seen.add(entry.toLowerCase(java.util.Locale.ROOT)))return false;
+    if(isValidProfileIpv4(entry))continue;
+    if(!encryptedAllowed)return false;
+    String hostPort="[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?";
+    if(entry.startsWith("tls://")||entry.startsWith("quic://")){
+      String authority=entry.substring(entry.indexOf("://")+3);
+      if(!authority.matches(hostPort)||!validProfilePort(authority))return false;
+    }else if(entry.startsWith("https://")){
+      String rest=entry.substring(8);
+      int slash=rest.indexOf('/');
+      String authority=slash<0?rest:rest.substring(0,slash);
+      String path=slash<0?"":rest.substring(slash);
+      if(!authority.matches(hostPort)||!validProfilePort(authority)||
+          !path.matches("(/[A-Za-z0-9._~!$&()*+,;=:@%/?#-]*)?"))return false;
+    }else return false;
+  }
+  return true;
+}
+private boolean validProfilePort(String authority){
+  int colon=authority.lastIndexOf(':');
+  if(colon<0)return true;
+  try{int port=Integer.parseInt(authority.substring(colon+1));return port>=1&&port<=65535;}
+  catch(NumberFormatException e){return false;}
+}
+private int countDnsEndpoints(String value){
+  if(value==null||value.trim().isEmpty())return 0;
+  int count=0;
+  for(String endpoint:value.split(",",-1))if(!endpoint.trim().isEmpty())count++;
+  return count;
 }
 private void loadDnsRuntimeStatus(TextView target){
   target.setText("正在读取 DNS 服务状态…");
   root("dns-runtime-status",r->{
     if(r.exitCode!=0){target.setText("DNS 状态读取失败："+safe(r.output));return;}
     java.util.Map<String,String> values=new java.util.LinkedHashMap<>();
-    for(String line:(r.output==null?"":r.output).split("\\r?\\n")){
+    String[] lines=(r.output==null?"":r.output).split("\\r?\\n");
+    if(lines.length==0||!"FXDNS1".equals(lines[0].trim())){
+      target.setText("DNS 状态响应版本不匹配，拒绝显示可能不完整的数据。");return;
+    }
+    java.util.Set<String> allowed=new java.util.HashSet<>(java.util.Arrays.asList(
+        "dns_engine_adguardhome","dns_forward","vpn_external_compat",
+        "vpn_external_dns_proxy","adguardhome","unbound","root_proxy",
+        "rootproxy_reason","rootproxy_cleanup","rootproxy_interface",
+        "rootproxy_vpn_uid","rootproxy_egress_ipv4","rootproxy_activated_at",
+        "rootproxy_redirects","rootproxy_dns_probe","rootproxy_route",
+        "rootproxy_whitelist_count","dns_filter_sources_total",
+        "dns_filter_sources_enabled","private_dns_mode","dns_filter_coverage",
+        "vpn_coexistence_verdict","vpn_route_probe","dns_stack_enabled",
+        "dns_stack_ready",
+        "dns_stack_readiness_reason"));
+    for(int index=1;index<lines.length;index++){
+      String line=lines[index].trim();
+      if(line.isEmpty())continue;
       int split=line.indexOf('|');
-      if(split>0&&split<line.length()-1)values.put(line.substring(0,split).trim(),line.substring(split+1).trim());
+      if(split<=0||split==line.length()-1){
+        target.setText("DNS 状态响应包含格式错误的记录，拒绝显示不完整数据。");return;
+      }
+      String key=line.substring(0,split).trim();
+      String value=line.substring(split+1).trim();
+      if(!allowed.contains(key)||values.containsKey(key)){
+        target.setText("DNS 状态响应包含未知或重复字段："+key+"；拒绝显示不完整数据。");return;
+      }
+      values.put(key,value);
+    }
+    if(values.size()!=allowed.size()){
+      target.setText("DNS 状态响应字段不完整（"+values.size()+"/"+allowed.size()+"），拒绝显示不完整数据。");return;
     }
     StringBuilder out=new StringBuilder();
     appendDnsStatus(out,"AdGuard Home",values.get("adguardhome"));
@@ -871,8 +1135,25 @@ private void loadDnsRuntimeStatus(TextView target){
     appendDnsStatus(out,"第三方 VPN Root Proxy",values.get("root_proxy"));
     appendDnsStatus(out,"DNS 过滤覆盖",values.get("dns_filter_coverage"));
     appendDnsStatus(out,"VPN 共存判定",values.get("vpn_coexistence_verdict"));
-    appendDnsStatus(out,"DNS 路由探测",values.get("vpn_route_probe"));    appendDnsStatus(out,"DNS 栈已启用",values.get("dns_stack_enabled"));
+    appendDnsStatus(out,"DNS 路由探测",values.get("vpn_route_probe"));
+    appendDnsStatus(out,"DNS 栈已启用",values.get("dns_stack_enabled"));
+    appendDnsStatus(out,"AdGuard Home 开关",values.get("dns_engine_adguardhome"));
+    appendDnsStatus(out,"Unbound 开关",values.get("dns_forward"));
+    appendDnsStatus(out,"第三方 VPN 兼容开关",values.get("vpn_external_compat"));
+    appendDnsStatus(out,"Root Proxy 开关",values.get("vpn_external_dns_proxy"));
+    appendDnsStatus(out,"Root Proxy 状态原因",values.get("rootproxy_reason"));
+    appendDnsStatus(out,"Root Proxy 清理状态",values.get("rootproxy_cleanup"));
+    appendDnsStatus(out,"VPN 接口",values.get("rootproxy_interface"));
+    appendDnsStatus(out,"VPN UID",values.get("rootproxy_vpn_uid"));
+    appendDnsStatus(out,"VPN DNS 出口 IPv4",values.get("rootproxy_egress_ipv4"));
+    appendDnsStatus(out,"Root Proxy 启动时间",values.get("rootproxy_activated_at"));
+    appendDnsStatus(out,"DNS 重定向规则",values.get("rootproxy_redirects"));
+    appendDnsStatus(out,"Root Proxy DNS 探测",values.get("rootproxy_dns_probe"));
+    appendDnsStatus(out,"Root Proxy 路由验证",values.get("rootproxy_route"));
+    appendDnsStatus(out,"Android 私有 DNS 模式",values.get("private_dns_mode"));
+    appendDnsStatus(out,"Root Proxy 白名单数量",values.get("rootproxy_whitelist_count"));
     appendDnsStatus(out,"DNS 栈就绪",values.get("dns_stack_ready"));
+    appendDnsStatus(out,"DNS 栈未就绪原因",values.get("dns_stack_readiness_reason"));
     appendDnsStatus(out,"过滤规则总数",values.get("dns_filter_sources_total"));
     appendDnsStatus(out,"已启用过滤规则",values.get("dns_filter_sources_enabled"));
     target.setText(out.length()==0?"未收到可识别的 DNS 状态字段。":out.toString().trim());
@@ -885,20 +1166,50 @@ private void appendDnsStatus(StringBuilder out,String label,String value){
 private void loadDnsLists(EditText custom,EditText global,EditText fallback,EditText remote,EditText domestic){
   root("dns-config-get",r->{
     if(r.exitCode!=0){status.setText("DNS 地址读取失败："+safe(r.output));return;}
-    List<String> a=new ArrayList<>(),b=new ArrayList<>(),f=new ArrayList<>();
-    String remoteValue="1.1.1.1",cnValue="223.5.5.5";
-    for(String line:r.output.split("\\r?\\n")){
-      String[] p=line.split("\\|",-1);
-      if(p.length==2&&"CUSTOM".equals(p[0]))a.add(p[1]);
-      else if(p.length==2&&"GLOBAL".equals(p[0]))b.add(p[1]);
-      else if(p.length==2&&"FALLBACK".equals(p[0]))f.add(p[1]);
-      else if(p.length==2&&"VPN_REMOTE".equals(p[0])&&!p[1].isEmpty())remoteValue=p[1];
-      else if(p.length==2&&"VPN_CN".equals(p[0])&&!p[1].isEmpty())cnValue=p[1];
+    String raw=r.output==null?"":r.output;
+    String[] lines=raw.split("\\r?\\n",-1);
+    if(lines.length==0||!"FXYULONGDNS1".equals(lines[0].trim())){
+      status.setText("DNS 配置响应版本不匹配，拒绝显示可能不完整的数据。");return;
     }
-    if(!a.isEmpty())custom.setText(android.text.TextUtils.join(",",a));
-    if(!b.isEmpty())global.setText(android.text.TextUtils.join(",",b));
-    if(!f.isEmpty())fallback.setText(android.text.TextUtils.join(",",f));
-    remote.setText(remoteValue);domestic.setText(cnValue);
+    List<String> a=new ArrayList<>(),b=new ArrayList<>(),f=new ArrayList<>();
+    java.util.Map<String,String> singleton=new java.util.HashMap<>();
+    java.util.Set<String> allowed=new java.util.HashSet<>(java.util.Arrays.asList(
+        "CUSTOM_ENABLED","GLOBAL_ENABLED","VPN_REMOTE","VPN_CN"));
+    for(int index=1;index<lines.length;index++){
+      String line=lines[index].trim();
+      if(line.isEmpty())continue;
+      int split=line.indexOf('|');
+      if(split<=0){status.setText("DNS 配置响应包含格式错误的记录，未更新输入框。");return;}
+      String key=line.substring(0,split),value=line.substring(split+1);
+      if("CUSTOM".equals(key)){if(value.isEmpty()){status.setText("自定义 DNS 响应包含空服务器记录。");return;}a.add(value);}
+      else if("GLOBAL".equals(key)){if(value.isEmpty()){status.setText("全局 DNS 响应包含空服务器记录。");return;}b.add(value);}
+      else if("FALLBACK".equals(key)){if(value.isEmpty()){status.setText("备用 DNS 响应包含空服务器记录。");return;}f.add(value);}
+      else if(allowed.contains(key)){
+        if(singleton.containsKey(key)){status.setText("DNS 配置响应包含重复字段："+key+"。");return;}
+        singleton.put(key,value);
+      }else{status.setText("DNS 配置响应包含未知字段："+key+"。");return;}
+    }
+    for(String key:allowed)if(!singleton.containsKey(key)){
+      status.setText("DNS 配置响应缺少字段："+key+"，未更新输入框。");return;
+    }
+    for(String key:new String[]{"CUSTOM_ENABLED","GLOBAL_ENABLED"}){
+      String value=singleton.get(key);
+      if(!"0".equals(value)&&!"1".equals(value)){
+        status.setText("DNS 配置响应开关值非法："+key+"。");return;
+      }
+    }
+    String remoteValue=singleton.get("VPN_REMOTE"),cnValue=singleton.get("VPN_CN");
+    if(!remoteValue.isEmpty()&&!isValidProfileIpv4(remoteValue)){
+      status.setText("DNS 配置响应中的 VPN 远端地址无效。");return;
+    }
+    if(!cnValue.isEmpty()&&!isValidProfileIpv4(cnValue)){
+      status.setText("DNS 配置响应中的 VPN 国内地址无效。");return;
+    }
+    custom.setText(android.text.TextUtils.join(",",a));
+    global.setText(android.text.TextUtils.join(",",b));
+    fallback.setText(android.text.TextUtils.join(",",f));
+    remote.setText(remoteValue.isEmpty()?"1.1.1.1":remoteValue);
+    domestic.setText(cnValue.isEmpty()?"223.5.5.5":cnValue);
   });
 }
 private void clearDnsSection(String kind,EditText input){
@@ -935,7 +1246,9 @@ private void applyDnsSecurityProfile(String mode,boolean strict,TextView state,
       .setNegativeButton("取消",null)
       .setPositiveButton("应用",(dialog,which)->root("dns-security-profile-set "+mode+" "+(strict?"1":"0"),r->{
         if(r.exitCode==0){
-          group.check(nx.getId());
+          if("nxdomain".equals(mode))group.check(nx.getId());
+          else if("refused".equals(mode))group.check(refused.getId());
+          else if("custom_ip".equals(mode))group.check(empty.getId());
           state.setText(action+"已在同一配置事务中保存并应用。");
           status.setText(action+"已应用。");
           load();
@@ -1009,7 +1322,7 @@ private void saveVpnDns(String key,EditText input){
       btn("清空全部白名单",()->clearAllDomains("allow")));
   EditText allowBulk=draftField("allow_bulk"); allowBulk.setGravity(Gravity.TOP|Gravity.START);
   allowBulk.setMinLines(4); allowBulk.setHint("每行一个域名；可选格式：example.com|备注");
-  card("批量导入白名单","最多 2000 条、48 Ki 字符（导入字节仍限制为 64 KiB）。整批验证并通过一次 FX apply 事务；失败会回滚。",
+  card("批量导入白名单","不限制名单条目数量；整批验证并通过一次 FX apply 事务，失败会回滚。",
       allowBulk,btn("验证并批量导入白名单",()->importDomains("allow",allowBulk)));
 
   EditText block=draftField("block_domain"); block.setSingleLine(true); block.setHint("黑名单域名");
@@ -1024,7 +1337,7 @@ private void saveVpnDns(String key,EditText input){
       btn("清空全部黑名单",()->clearAllDomains("block")));
   EditText blockBulk=draftField("block_bulk"); blockBulk.setGravity(Gravity.TOP|Gravity.START);
   blockBulk.setMinLines(4); blockBulk.setHint("每行一个域名；可选格式：example.com|备注");
-  card("批量导入黑名单","最多 2000 条、48 Ki 字符（导入字节仍限制为 64 KiB）。整批验证并通过一次 FX apply 事务；失败会回滚。",
+  card("批量导入黑名单","不限制名单条目数量；整批验证并通过一次 FX apply 事务，失败会回滚。",
       blockBulk,btn("验证并批量导入黑名单",()->importDomains("block",blockBulk)));
 
   EditText allowRemoveBulk=draftField("allow_remove_bulk");
@@ -1032,7 +1345,7 @@ private void saveVpnDns(String key,EditText input){
   allowRemoveBulk.setMinLines(3);
   allowRemoveBulk.setHint("每行一个域名；仅删除白名单中匹配的条目");
   card("批量移除白名单",
-      "最多 2000 条。先完整校验域名，再在单次 FX 配置事务中移除；任何一步失败都会回滚。",
+      "完整校验筛选域名，再在单次 FX 配置事务中移除；任何一步失败都会回滚。",
       allowRemoveBulk,
       btn("确认批量移除白名单",()->removeDomains("allow",allowRemoveBulk)));
 
@@ -1041,7 +1354,7 @@ private void saveVpnDns(String key,EditText input){
   blockRemoveBulk.setMinLines(3);
   blockRemoveBulk.setHint("每行一个域名；仅删除黑名单中匹配的条目");
   card("批量移除黑名单",
-      "最多 2000 条。先完整校验域名，再在单次 FX 配置事务中移除；任何一步失败都会回滚。",
+      "完整校验域名，再在单次 FX 配置事务中移除；任何一步失败都会回滚。",
       blockRemoveBulk,
       btn("确认批量移除黑名单",()->removeDomains("block",blockRemoveBulk)));
 
@@ -1109,10 +1422,8 @@ private void saveVpnDns(String key,EditText input){
    if(filter.isEmpty()||(row.value+" "+row.title).toLowerCase(Locale.ROOT).contains(filter))selected.add(row.value);
   }
   if(selected.isEmpty()){status.setText("当前筛选条件下没有匹配的白名单条目。");return;}
-  if(selected.size()>2000){status.setText("单次最多批量切换 2000 条白名单，请缩小筛选范围。");return;}
-  String payload=String.join("\\n",selected);
+  String payload=String.join("\n",selected);
   byte[] bytes=payload.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-  if(bytes.length>65536){status.setText("批量状态数据超过 64 KiB，请缩小筛选范围。");return;}
   String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);
   String action=enabled?"启用":"停用";
   fxDialogBuilder().setTitle(action+"筛选命中的白名单")
@@ -1128,10 +1439,8 @@ private void saveVpnDns(String key,EditText input){
    if(filter.isEmpty()||(row.value+" "+row.title).toLowerCase(Locale.ROOT).contains(filter))selected.add(row.value);
   }
   if(selected.isEmpty()){status.setText("当前筛选条件下没有匹配的黑名单条目。");return;}
-  if(selected.size()>2000){status.setText("单次最多批量切换 2000 条黑名单，请缩小筛选范围。");return;}
-  String payload=String.join("\\n",selected);
+   String payload=String.join("\n",selected);
   byte[] bytes=payload.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-  if(bytes.length>65536){status.setText("批量状态数据超过 64 KiB，请缩小筛选范围。");return;}
   String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);
   String action=enabled?"启用":"停用";
   fxDialogBuilder().setTitle(action+"筛选命中的黑名单")
@@ -1154,30 +1463,25 @@ private void saveVpnDns(String key,EditText input){
    return;
   }
   StringBuilder payload=new StringBuilder();
-  payload.append("# FX Ad domain list export\\n")
-      .append("# format: allow|domain|note or block|domain|note\\n");
-  int included=0,omitted=0;
-  final int maxBytes=64*1024;
+   payload.append("# FX Ad domain list export\n")
+       .append("# format: allow|domain|note or block|domain|note\n");
+  int included=0;
   for(Row row:selected){
    String line=row.kind.toLowerCase(Locale.ROOT)+"|"
        +cleanDomainExportField(row.value)+"|"
-       +cleanDomainExportField(row.title)+"\\n";
-   int used=payload.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
-   int bytes=line.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
-   if(used+bytes>maxBytes){omitted++;continue;}
-   payload.append(line);included++;
+        +cleanDomainExportField(row.title)+"\n";
+    payload.append(line);included++;
   }
-  if(included==0){status.setText("名单内容超过导出限制，没有生成导出数据。");return;}
-  if(omitted>0)payload.append("# omitted ").append(omitted)
-      .append(" rows at 64 KiB export limit\\n");
+  if(included!=selected.size()){
+   status.setText("名单导出数量不完整，已取消导出。");return;
+  }
   try{
    Intent send=new Intent(Intent.ACTION_SEND);
    send.setType("text/plain");
    send.putExtra(Intent.EXTRA_SUBJECT,"FX Ad 域名名单备份");
    send.putExtra(Intent.EXTRA_TEXT,payload.toString());
    startActivity(Intent.createChooser(send,"分享域名名单"));
-   status.setText("已准备分享 "+included+" 条域名名单"
-       +(omitted>0?"；另有 "+omitted+" 条因 64 KiB 上限省略。":"。"));
+    status.setText("已准备分享 "+included+" 条域名名单。");
   }catch(RuntimeException unavailable){
    status.setText("无法打开系统分享面板："+safe(unavailable.getMessage()));
   }
@@ -1195,18 +1499,16 @@ private void saveVpnDns(String key,EditText input){
    String[] fields=value.split("\\|",-1);
    if(fields.length!=3||!("allow".equals(fields[0].trim())||"block".equals(fields[0].trim()))
        ||fields[1].trim().isEmpty()||fields[1].trim().length()>253
-       ||fields[2].trim().length()>180){
+       ){
     status.setText("合并备份格式错误：每行必须为 allow|domain|note 或 block|domain|note。");
     return;
    }
    String kind=fields[0].trim(),domain=fields[1].trim(),note=fields[2].trim();
    unique.putIfAbsent(kind+"|"+domain,kind+"|"+domain+"|"+note);
-   if(unique.size()>2000){status.setText("单次最多恢复 2000 条唯一域名。");return;}
   }
   if(unique.isEmpty()){status.setText("没有可恢复的域名条目。");return;}
   String payload=String.join("\n",unique.values());
   byte[] bytes=payload.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-  if(bytes.length>65536){status.setText("合并备份超过 64 KiB，请拆分后导入。");return;}
   String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);
   fxDialogBuilder().setTitle("恢复白名单与黑名单")
       .setMessage("将恢复 "+unique.size()+" 条唯一域名记录；白名单和黑名单通过单次 FX 配置事务写入并统一应用。重复行已合并，任一写入失败会回滚整批。是否继续？")
@@ -1227,12 +1529,10 @@ private void saveVpnDns(String key,EditText input){
     return;
    }
    domains.add(domain);
-   if(domains.size()>2000){status.setText("单次最多移除 2000 条域名。");return;}
   }
   if(domains.isEmpty()){status.setText("没有可移除的域名。");return;}
-  String payload=String.join("\\n",domains);
+  String payload=String.join("\n",domains);
   byte[] bytes=payload.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-  if(bytes.length>65536){status.setText("批量移除数据超过 64 KiB，请分批处理。");return;}
   String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);
   String label="allow".equals(kind)?"白名单":"黑名单";
   fxDialogBuilder().setTitle("批量移除"+label)
@@ -1250,17 +1550,15 @@ private void saveVpnDns(String key,EditText input){
    if(value.isEmpty()||value.startsWith("#")) continue;
    String[] fields=value.split("\\|",-1);
    if(fields.length>2 || fields[0].trim().isEmpty() || fields[0].trim().length()>253
-       || (fields.length==2 && fields[1].trim().length()>180)){
+       ){
     status.setText("导入格式错误：请使用 domain 或 domain|note，每行一条。");
     return;
    }
    lines.add(fields.length==1?fields[0].trim():fields[0].trim()+"|"+fields[1].trim());
-   if(lines.size()>2000){status.setText("单次最多导入 2000 条域名。");return;}
   }
   if(lines.isEmpty()){status.setText("没有可导入的域名。");return;}
   String payload=String.join("\n",lines);
   byte[] bytes=payload.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-  if(bytes.length>65536){status.setText("批量域名数据超过 64 KiB，请分批导入。");return;}
   String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);
   fxDialogBuilder().setTitle(kind.equals("allow")?"批量导入白名单":"批量导入黑名单")
       .setMessage("共 "+lines.size()+" 条。后端会先验证所有域名，再原子写入配置并应用；任何失败都会回滚整批。")
@@ -1402,7 +1700,7 @@ private String dnsValue(String key){for(String line:snapshot.split("\\r?\\n")){S
    .setPositiveButton("保存",(dialog,which)->{
     String note=input.getText()==null?"":input.getText().toString().trim();
     if(note.isEmpty()){status.setText("备注不能为空；如需清空请使用单个空格以外的明确备注。");return;}
-    if(note.length()>160||note.indexOf(10)>=0||note.indexOf(13)>=0){status.setText("备注最多 160 个字符且不能包含换行。");return;}
+    if(note.indexOf(10)>=0||note.indexOf(13)>=0){status.setText("备注不能包含换行。");return;}
     apply((allow?"allow-note ":"block-note ")+q(e.value)+" "+q(note),allow?"白名单备注":"黑名单备注");
    }).show();
  }
@@ -1411,7 +1709,7 @@ private String dnsValue(String key){for(String line:snapshot.split("\\r?\\n")){S
   final long requestGeneration=pageGeneration;
   final String requestPage=page;
   Runnable task=()->{
-   RootAccess.Result result=RootAccess.execute(profileCmd(args),90000L,512*1024);
+   RootAccess.Result result=RootAccess.execute(profileCmd(args),90000L,Integer.MAX_VALUE);
    runOnUiThread(()->{
     if(isFinishing()||isDestroyed()||requestGeneration!=pageGeneration
        ||!requestPage.equals(page))return;
