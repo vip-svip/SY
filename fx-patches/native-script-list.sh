@@ -166,7 +166,7 @@ case "$ACTION" in
               ;;
             SOURCE)
               note=$(decode_b64 "$note64") || { batch_failed=$((batch_failed+1)); continue; }
-              [ ""${#note}"" -le 4096 ] || { batch_failed=$((batch_failed+1)); continue; }
+              [ "${#note}" -le 4096 ] || { batch_failed=$((batch_failed+1)); continue; }
               : > "$VALUE_FILE"
               decode_b64 "$value64" > "$VALUE_FILE" || { batch_failed=$((batch_failed+1)); continue; }
               source_size=$(wc -c < "$VALUE_FILE" 2>/dev/null | tr -d ' ')
