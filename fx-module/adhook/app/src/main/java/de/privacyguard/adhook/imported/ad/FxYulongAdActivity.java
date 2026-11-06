@@ -847,14 +847,56 @@ private void restoreDnsProfile(EditText input){
   }
   byte[] bytes=raw.getBytes(java.nio.charset.StandardCharsets.UTF_8);
   if(bytes.length>48*1024){status.setText("快照超过 48 KiB，未提交。");return;}
+  String[] allowed={"dns_engine_adguardhome","dns_forward","custom_dns","global_dns",
+      "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
+      "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled",
+      "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE"};
+  java.util.Set<String> keys=new java.util.HashSet<>(java.util.Arrays.asList(allowed));
+  java.util.Map<String,String> preview=new java.util.LinkedHashMap<>();
+  for(String line:raw.split("\\n")){
+    if("FXYULONGDNSPROFILE1".equals(line))continue;
+    int split=line.indexOf('=');
+    if(split<=0){status.setText("快照字段格式错误，未提交。");return;}
+    String key=line.substring(0,split);
+    if(!keys.contains(key)||preview.containsKey(key)){
+      status.setText("快照包含未知或重复字段："+key+"；未提交。");return;
+    }
+    preview.put(key,line.substring(split+1));
+  }
+  if(preview.size()!=allowed.length){
+    status.setText("快照字段不完整（"+preview.size()+"/"+allowed.length+"），未提交。");return;
+  }
+  for(String key:allowed)if(!preview.containsKey(key)){
+    status.setText("快照缺少字段："+key+"；未提交。");return;
+  }
+  int enabled=0;
+  for(String key:new String[]{"dns_engine_adguardhome","dns_forward","custom_dns","global_dns",
+      "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
+      "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled"})
+    if("1".equals(preview.get(key)))enabled++;
+  String summary="快照包含 18 项字段、12 个开关（启用 "+enabled+" 项）。\\n"
+      +"自定义上游："+countDnsEndpoints(preview.get("CUSTOM_SERVERS"))+" 条；"
+      +"全局上游："+countDnsEndpoints(preview.get("GLOBAL_SERVERS"))+" 条；"
+      +"备用上游："+countDnsEndpoints(preview.get("FALLBACK_SERVERS"))+" 条。\\n"
+      +"VPN 远端 DNS："+preview.get("VPN_REMOTE")+"；国内 DNS："+preview.get("VPN_CN")+"。\\n"
+      +"拦截响应模式："+preview.get("RESPONSE_MODE")+"。\\n\\n"
+      +"这是本地结构预览，不代表端点及配置语义已通过后端校验；继续后仍由 FX Root 后端完整校验。";
   String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);
-  fxDialogBuilder().setTitle("恢复 DNS 配置快照")
-    .setMessage("将完整替换当前 DNS 引擎开关、过滤策略、上游服务器、VPN DNS 与拦截响应模式。所有字段会先校验；恢复应用失败会回滚原配置。此操作不会修改 VPN 节点或其他 FX 模块设置。是否继续？")
+  fxDialogBuilder().setTitle("DNS 快照导入预览").setMessage(summary)
     .setNegativeButton("取消",null)
-    .setPositiveButton("恢复", (d,w)->root("dns-profile-restore "+encoded,r->{
-      if(r.exitCode==0){status.setText("DNS 配置快照已恢复并应用。");input.setText("");load();}
-      else fxDialogBuilder().setTitle("DNS 快照恢复失败").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
-    })).show();
+    .setPositiveButton("继续恢复",(d,w)->fxDialogBuilder().setTitle("确认完整替换 DNS 配置")
+      .setMessage("将完整替换当前 DNS 引擎开关、过滤策略、上游服务器、VPN DNS 与拦截响应模式。后端会再次校验全部字段；恢复应用失败会回滚原配置。不会修改 VPN 节点或其他 FX 模块设置。")
+      .setNegativeButton("取消",null)
+      .setPositiveButton("恢复",(dialog,which)->root("dns-profile-restore "+encoded,r->{
+        if(r.exitCode==0){status.setText("DNS 配置快照已恢复并应用。");input.setText("");load();}
+        else fxDialogBuilder().setTitle("DNS 快照恢复失败").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
+      })).show()).show();
+}
+private int countDnsEndpoints(String value){
+  if(value==null||value.trim().isEmpty())return 0;
+  int count=0;
+  for(String endpoint:value.split(",",-1))if(!endpoint.trim().isEmpty())count++;
+  return count;
 }
 private void loadDnsRuntimeStatus(TextView target){
   target.setText("正在读取 DNS 服务状态…");
