@@ -7338,3 +7338,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`：Ad 页增加“重新应用 DNS 服务配置”操作，执行前确认，完成后刷新 DNS 引擎详情，失败时提供重试入口。
 - 提交：模块脚本 `175a32fa35eec3e39fc1e79a301fe14f1a14dd16`；源码脚本 `69cbf1082d36e108f272ed5ea965e67ebfc8b431`；UI `d232857ef0cadb8be5bf456f88ced9c80e4e5d32`。
 - 按提速要求未运行测试、静态检查、构建、CI 或真机验证。
+
+
+## 2026-11-06 — 隐私 Hook 状态面板扩展
+
+- `adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`：隐私页状态摘要增加剪贴板隔离目标数、通知权限提示隐藏开关、通知监听策略开关、只读会员诊断目标数、目标配置用户数及远程配置发布状态；保留原有 Root、LSPosed、Accessibility、Remote Files、Wi-Fi 扫描与通知监听目标信息。
+- 提交：`3499d343e22d779a134cef8012801405cca63713`。
+- 这些数字和开关是模块状态接口的回读值，不等同于目标应用进程内 Hook 已实际生效；实际生效仍取决于 LSPosed scope、Remote Files 与目标进程加载条件。
+- 按提速要求未运行测试、静态检查、构建、CI 或真机验证。
