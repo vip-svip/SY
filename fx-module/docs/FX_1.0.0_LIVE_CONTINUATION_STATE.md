@@ -6801,3 +6801,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 修复 AdGuard Home 配置生成器在处理 `querylog.ignored: []` 默认空列表时的 AWK 正则表达式：将空方括号改为转义后的字面量匹配，避免把它作为无效/空字符类解析。
 - 同步修复规范构建源码 `scripts/adguardhome.sh` 与 KernelSU 模块源码 `fx-module/scripts/adguardhome.sh`；两个文件更新后的 blob SHA 相同。
 - 本轮未运行脚本、测试、静态检查、构建、CI 或 Android 真机验证；仅按用户要求提交源码修正。
+## 2026-11-07 — 逐条 DNS 查询日志排除域名
+
+- 新增独立配置段 `[conf:yulong_dns_querylog_ignored]`，保存 `enabled` 与 `ignored` 域名 CSV。该配置与 `[conf:yulong_dns_statistics]` 的聚合统计忽略域名完全独立，启用/编辑其中一组不会覆盖另一组。
+- `yulong-ad-control.sh` 与模块副本新增 `dns-querylog-ignored-get`、`dns-querylog-ignored-set`，校验域名格式和重复项，使用私有临时文件与原子替换保存；域名条数不设应用层上限。
+- AdGuard Home canonical/module renderer 读取新的 Root 设置，写入 `querylog.ignored_enabled` 与 `querylog.ignored`；运行配置校验器检查开关字段、列表字段、域名有效性和重复项。
+- 原生 Ad 页面增加“设置逐条日志排除域名”入口，可开关和编辑任意多条域名；排除项只阻止指定域名进入逐条查询日志，不改变拦截/放行，也不影响独立聚合统计。
+- DNS 配置快照增加 `QUERYLOG_IGNORED_ENABLED`、`QUERYLOG_IGNORED` 两项，纳入导出、导入验证、差异预览和恢复确认。旧版快照缺少新字段时默认关闭、列表为空，保证向后兼容。
+- 代码提交：Root 后端 `69ebb09ba807bdee05008b1347244d1bbb5127d6`，模块后端 `149194a161e800b9b39b52a5b75e1fb824c198ce`；AdGuard renderer `494d658e2665dea3837efb50332ae91a53c7e364`，模块 renderer `3df2caa22dc2ed8f4bbe5101fe44d8be4089813c`；原生 UI `1ec84dda4ea284d9c5bcd14dad47dc1d31028d9b`，模块 UI `78013a73d26cec461db2f61970121ff8235dd674`；快照 canonical `40830bfdad13d03328995e416bc2b7f75ee2a6b8`，模块快照 `d0d27b3d2d69c1c7d5ada8015941fb0f0ff045b7`。
+- 按当前推进要求未运行测试、静态检查、构建、CI 或 Android 真机验证；本记录描述源码移植，不代表设备端验收通过。
