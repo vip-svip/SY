@@ -5248,11 +5248,15 @@ public final class MainActivity extends ComponentActivity {
                 String name = uri.getLastPathSegment();
                 String lowerName = name == null ? "" : name.toLowerCase(Locale.ROOT);
                 boolean isJson = lowerName.endsWith(".json");
-                boolean isEgernYaml = lowerName.endsWith(".yaml") || lowerName.endsWith(".yml");
+                boolean isYamlFile = lowerName.endsWith(".yaml") || lowerName.endsWith(".yml");
+                boolean isEgernYaml = false;
+                boolean isStashYaml = false;
                 boolean isModuleConfig = lowerName.endsWith(".conf") || lowerName.endsWith(".ini")
                         || lowerName.endsWith(".sgmodule") || lowerName.endsWith(".loon")
                         || lowerName.endsWith(".qxconf");
-                if (!isJson && !isModuleConfig && !isEgernYaml) {
+                // Detect YAML by content even when the provider gave the file a
+                // generic name. Do not assume every .yaml file uses Egern syntax.
+                if (!isJson && !isModuleConfig) {
                     byte[] prefix = new byte[8192];
                     int count;
                     try (InputStream probe = new java.io.FileInputStream(staged)) {
@@ -5263,10 +5267,25 @@ public final class MainActivity extends ComponentActivity {
                     String lowerHeader = header.toLowerCase(Locale.ROOT);
                     isModuleConfig = lowerHeader.contains("[script]")
                             || lowerHeader.contains("[rewrite_local]");
-                    isEgernYaml = lowerHeader.contains("scriptings:")
-                            || (lowerHeader.contains("script-providers:") && lowerHeader.contains("http:"));
+                    isEgernYaml = lowerHeader.contains("scriptings:");
+                    isStashYaml = lowerHeader.contains("script-providers:")
+                            && lowerHeader.contains("http:") && lowerHeader.contains("script:");
                 }
-                if (isEgernYaml && !isJson) {
+                if (isYamlFile && !isJson && !isEgernYaml && !isStashYaml) {
+                    throw new IllegalArgumentException("无法识别 YAML 脚本配置：目前识别 Egern scriptings 与 Stash http.script + script-providers");
+                }
+                if (isStashYaml && !isJson) {
+                    try (InputStream input = new java.io.FileInputStream(staged);
+                         ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+                        byte[] buffer = new byte[64 * 1024];
+                        int count;
+                        while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
+                        JSONObject document = StashScriptYamlImporter.parse(
+                                new String(output.toByteArray(), StandardCharsets.UTF_8));
+                        importNativeScriptDocument(document.toString());
+                    }
+                    staged.delete();
+                } else if (isEgernYaml && !isJson) {
                     try (InputStream input = new java.io.FileInputStream(staged);
                          ByteArrayOutputStream output = new ByteArrayOutputStream()) {
                         byte[] buffer = new byte[64 * 1024];
