@@ -121,14 +121,32 @@ normalize_value() {
 }
 list_rows() {
   section="$1"
-  awk -F'|' -v target="[list:$section]" '
-    BEGIN { rownum=0; inlist=0 }
-    $0==target {inlist=1; next}
-    /^\[/ {inlist=0}
-    inlist && NF>=2 && $1!="" && $1 !~ /^[[:space:]]*#/ {
+  awk -F'|' -v target="[list:$section]" -v kind="$section" '
+    BEGIN { rownum=0; inlist=0; bad=0 }
+    $0==target { inlist=1; next }
+    /^\\[/ { inlist=0 }
+    inlist && $0 !~ /^[[:space:]]*$/ && $0 !~ /^[[:space:]]*#/ {
+      value=$1
       note=$2
-      enabled=(NF>=3 && $3=="0" ? 0 : 1)
-      printf "%d|%s|%s|%d\n", rownum++, $1, note, enabled
+      enabled=(NF==2 ? "1" : $3)
+      key=(kind=="rule" ? value : tolower(value))
+      valid=(NF==2 || NF==3)
+      valid=valid && value!="" && length(value)<=4096
+      valid=valid && length(note)<=180
+      valid=valid && value !~ /[[:cntrl:]]/ && note !~ /[[:cntrl:]]/
+      valid=valid && (enabled=="0" || enabled=="1")
+      if(kind=="rule") {
+        valid=valid && value ~ /^https?:\\/\\/[A-Za-z0-9._~:/?#@!$&()*+,;=%-]+$/
+      } else {
+        valid=valid && tolower(value) ~ /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/
+        valid=valid && length(value)<=253
+      }
+      if(!valid || seen[key]++) { bad=1; next }
+      rows[++count]=sprintf("%d|%s|%s|%d",rownum++,value,note,enabled)
+    }
+    END {
+      if(bad) exit 2
+      for(i=1;i<=count;i++) print rows[i]
     }
   ' "$CONF"
 }
