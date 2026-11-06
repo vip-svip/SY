@@ -196,7 +196,14 @@ public final class StashScriptYamlImporter {
                 if (!script.engine.isEmpty() && !"auto".equals(script.engine)) script.supported = false;
                 break;
             case "disabled":
-                script.disabled = truthy(value);
+                if ("true".equalsIgnoreCase(value) || "yes".equalsIgnoreCase(value) || "1".equals(value)) {
+                    script.disabled = true;
+                } else if ("false".equalsIgnoreCase(value) || "no".equalsIgnoreCase(value)
+                        || "0".equals(value) || value.isEmpty()) {
+                    script.disabled = false;
+                } else {
+                    script.supported = false;
+                }
                 break;
             default:
                 // Reject unknown script options rather than silently dropping their semantics.
