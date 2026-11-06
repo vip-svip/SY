@@ -50,28 +50,42 @@ public final class DeveloperExecutableDescriptor {
      */
     public static String fromJavaSignature(String value, String packageName) {
         if (value == null || packageName == null || value.length() > 768) return null;
-        String frida = fromFridaOverloadSignature(value, packageName);
+        // Kotlin declaration form: fun com.example.Foo.run(value: kotlin.String, count: Int): Boolean
+        // Parameter names are presentation-only; runtime matching remains based on exact erased JVM types.
+        String source = value.trim();
+        if (source.startsWith("fun ")) source = source.substring(4).trim();
+        String frida = fromFridaOverloadSignature(source, packageName);
         if (frida != null) return frida;
-        int open = value.indexOf('(');
-        int close = value.indexOf(')', open + 1);
+        int open = source.indexOf('(');
+        int close = source.indexOf(')', open + 1);
         if (open <= 0 || close < open || close != value.lastIndexOf(')')) return null;
-        int hash = value.lastIndexOf('#', open);
-        int dot = value.lastIndexOf('.', open);
+        int hash = source.lastIndexOf('#', open);
+        int dot = source.lastIndexOf('.', open);
         int split = Math.max(hash, dot);
         if (split <= 0) return null;
-        String owner = value.substring(0, split);
-        String name = value.substring(split + 1, open);
+        String owner = source.substring(0, split);
+        String name = source.substring(split + 1, open);
         if (!owner.startsWith(packageName + ".") || !name.matches("[A-Za-z_$][A-Za-z0-9_$]*|<init>")) return null;
-        String argsText = value.substring(open + 1, close).trim();
+        String argsText = source.substring(open + 1, close).trim();
         List<String> args = new ArrayList<>();
         if (!argsText.isEmpty()) {
             for (String part : argsText.split(",", -1)) {
-                String descriptor = javaTypeDescriptor(part.trim(), false);
+                String argument = part.trim();
+                // Kotlin named parameters use "name: Type". Reject defaults,
+                // destructuring, and malformed names rather than guessing an ABI.
+                if (argument.indexOf('=') >= 0) return null;
+                int typeSeparator = argument.indexOf(':');
+                if (typeSeparator >= 0) {
+                    String parameterName = argument.substring(0, typeSeparator).trim();
+                    if (!parameterName.matches("[A-Za-z_$][A-Za-z0-9_$]*")) return null;
+                    argument = argument.substring(typeSeparator + 1).trim();
+                }
+                String descriptor = javaTypeDescriptor(argument, false);
                 if (descriptor == null || args.size() >= 64) return null;
                 args.add(descriptor);
             }
         }
-        String returnText = value.substring(close + 1).trim();
+        String returnText = source.substring(close + 1).trim();
         if (returnText.startsWith(":")) returnText = returnText.substring(1).trim();
         else if (returnText.startsWith("->")) returnText = returnText.substring(2).trim();
         else if (returnText.regionMatches(true, 0, "returns ", 0, 8))
