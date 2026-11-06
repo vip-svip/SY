@@ -6820,3 +6820,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `MainActivity.java`（`1458d5d8`）将 Private DNS（off/opportunistic/hostname）、过滤覆盖（port-53/可能绕过/严格模式旁路）、共存裁决及 route probe 呈现在 Ad DNS 区域，避免把本地 DNS 引擎就绪误报为第三方 VPN 路径兼容。
 - 已确认现有 KernelSU workflow 在 Yulong 资源解码后调用 `scripts/integrate_yulong_ad_rules.py fx-module`（既有阶段，不重复添加），并已包含 native DNS 设置脚本的模块安装步骤。
 - 本批未运行 Shell/Python/Gradle 检查、回归测试、构建、CI 或真机验证；UI/状态接线提交不代表设备上的 VPN 路由和 DNS 拦截效果已得到验证。
+
+## 2026-11-06 — DNS 状态界面本地化
+
+- 更新 `adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`（`35874390`），将 AdGuard Home/Unbound 的运行状态、Root Proxy 接管状态、Android Private DNS 模式、DNS 过滤覆盖、VPN 共存 verdict 与 route probe 映射为中文状态标签。
+- 现有原生状态字段仍保留机器值；仅 UI 显示层转换，不改变路由裁决、Private DNS 系统设置或 DNS 配置。
+- 本批按要求未运行 Java/Gradle 检查、测试、构建、CI 或设备验证。
