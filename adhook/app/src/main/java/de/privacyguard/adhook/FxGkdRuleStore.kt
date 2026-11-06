@@ -263,6 +263,17 @@ object FxGkdRuleStore {
         return if (writeRules(context, next)) rule else null
     }
 
+    /** Duplicate a rule as a disabled draft with a fresh identity. */
+    @JvmStatic
+    @Synchronized
+    fun duplicateRule(context: Context, id: String): FxGkdRule? {
+        val rules = getRules(context)
+        val source = rules.firstOrNull { it.id == id } ?: return null
+        if (rules.size >= MAX_RULES) return null
+        val duplicate = source.copy(id = UUID.randomUUID().toString(), enabled = false)
+        return if (writeRules(context, rules + duplicate)) duplicate else null
+    }
+
     @JvmStatic
     @Synchronized
     fun updateRule(
