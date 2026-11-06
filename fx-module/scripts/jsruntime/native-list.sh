@@ -65,7 +65,7 @@ case "$ACTION" in
       printf '%s|%s|%s\n' "$value64" "$note64" "$enabled"
     done
     ;;
-  add|add-file|add-batch|update|toggle|delete)
+  add|add-file|add-batch|update|toggle|toggle-all|delete)
     [ -f "$CONF" ] || { echo "ERROR settings.conf missing"; exit 1; }
     LOCK="$PG/jsruntime/native-script-list.lock"
     tries=0
@@ -290,6 +290,15 @@ case "$ACTION" in
         awk -F'|' -v n="$index" -v vf="$VALUE_FILE" -v nf="$NOTE_FILE" 'BEGIN{getline v < vf; getline d < nf; OFS="|"} {i++; if(i==n){print v,d,$3; found=1}else print} END{if(!found)exit 4}' "$ROWS" > "$TMP.rows" || { rm -f "$TMP.rows"; echo "ERROR script index not found"; exit 66; }
         mv "$TMP.rows" "$ROWS"
         ;;
+      toggle-all)
+        [ "$#" -eq 1 ] || { echo "ERROR toggle-all expects enabled"; exit 64; }
+        enabled=$1
+        case "$enabled" in 0|1) ;; *) echo "ERROR enabled must be 0 or 1"; exit 64 ;; esac
+        awk -F'|' -v e="$enabled" 'BEGIN{OFS="|"} NF >= 3 {$3=e; print; next} {print}' "$ROWS" > "$TMP.rows" || {
+          echo "ERROR unable to stage bulk script state"; exit 1;
+        }
+        mv "$TMP.rows" "$ROWS"
+        ;;
       toggle)
         [ "$#" -eq 2 ] || { echo "ERROR toggle expects index enabled"; exit 64; }
         index=$1; enabled=$2
@@ -330,5 +339,5 @@ case "$ACTION" in
       echo "OK"
     fi
     ;;
-  *) echo "ERROR usage: native-list.sh list|add|add-file|add-batch|update|toggle|delete"; exit 64 ;;
+  *) echo "ERROR usage: native-list.sh list|add|add-file|add-batch|update|toggle|toggle-all|delete"; exit 64 ;;
 esac
