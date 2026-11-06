@@ -1,4 +1,13 @@
 
+### FX DNS 策略值与上游状态统一回传（2026-11-07）
+
+- 文件：`scripts/native-dns-settings.sh`、`fx-module/scripts/native-dns-settings.sh`、根 APK 与 fx-module APK 源码中的 `FxYulongAdActivity.java`。
+- DNS runtime status 在既有上游模式、数量、bootstrap 与故障回退字段外，额外回传自定义/全局 DNS 开关、QUIC、DoT、明文 DNS、IPv6、跟踪域名保护和查询日志开关。
+- 两份 APK 状态解析白名单同步接收新增字段；五项网络策略明确标注为“配置值”，不把尚未完成系统层拦截验证的开关描述为已经拦截。
+- 根目录构建源码与 fx-module 镜像同步更新。Unbound 保留为本地递归默认路径及加密上游 bootstrap 服务。
+- 按用户要求未执行测试、静态检查、构建、CI 或设备验证。
+
+
 
 ### FX DNS 查询日志记录类型筛选扩展为动态完整 RR 类型（2026-11-07）
 

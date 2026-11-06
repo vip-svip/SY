@@ -377,6 +377,14 @@ status() {
   printf 'dns_fallback_mode|%s\n' "$_dns_fallback_mode"
   printf 'dns_encrypted_upstreams|%s\n' "$_dns_encrypted_count"
   printf 'dns_bootstrap_mode|%s\n' "$_dns_bootstrap_mode"
+  printf 'custom_dns|%s\n' "$(read_flag custom_dns)"
+  printf 'global_dns|%s\n' "$(read_flag global_dns)"
+  printf 'block_quic|%s\n' "$(read_flag block_quic)"
+  printf 'block_dot|%s\n' "$(read_flag block_dot)"
+  printf 'block_plain_dns|%s\n' "$(read_flag block_plain_dns)"
+  printf 'block_ipv6|%s\n' "$(read_flag block_ipv6)"
+  printf 'block_track_domains|%s\n' "$(read_flag block_track_domains)"
+  printf 'dns_querylog_enabled|%s\n' "$(read_flag dns_querylog_enabled)"
 }
 mutate() {
   _key=$1
@@ -389,8 +397,9 @@ mutate() {
   _set_rc=0
   case "$_key:$_value" in
     dns_engine_adguardhome:1)
-      # AdGuard's only upstream is local Unbound; enabling the filter must
-      # activate its recursive resolver in the same config transaction.
+      # Keep Unbound active for the default recursive path and encrypted
+      # upstream bootstrap; an explicitly enabled custom/global list can
+      # override AdGuard's primary upstream without disabling this fallback.
       write_flags_many dns_forward 1 dns_engine_adguardhome 1 || _set_rc=$?
       ;;
     dns_engine_adguardhome:0)

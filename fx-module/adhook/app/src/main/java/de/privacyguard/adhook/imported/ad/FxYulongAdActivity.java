@@ -1119,7 +1119,9 @@ private void loadDnsRuntimeStatus(TextView target){
         "dns_stack_ready",
         "dns_stack_readiness_reason","dns_upstream_mode","dns_upstream_state",
         "dns_custom_upstreams","dns_global_upstreams","dns_fallback_upstreams",
-        "dns_encrypted_upstreams","dns_bootstrap_mode","dns_fallback_mode"));
+        "dns_encrypted_upstreams","dns_bootstrap_mode","dns_fallback_mode",
+        "custom_dns","global_dns","block_quic","block_dot","block_plain_dns",
+        "block_ipv6","block_track_domains","dns_querylog_enabled"));
     for(int index=1;index<lines.length;index++){
       String line=lines[index].trim();
       if(line.isEmpty())continue;
@@ -1172,6 +1174,14 @@ private void loadDnsRuntimeStatus(TextView target){
     appendDnsStatus(out,"加密 DNS 上游数量",values.get("dns_encrypted_upstreams"));
     appendDnsStatus(out,"加密上游引导解析",values.get("dns_bootstrap_mode"));
     appendDnsStatus(out,"DNS 故障回退方式",values.get("dns_fallback_mode"));
+    appendDnsStatus(out,"自定义 DNS 开关",values.get("custom_dns"));
+    appendDnsStatus(out,"全局 DNS 开关",values.get("global_dns"));
+    appendDnsStatus(out,"QUIC 策略开关（配置值）",values.get("block_quic"));
+    appendDnsStatus(out,"DoT 策略开关（配置值）",values.get("block_dot"));
+    appendDnsStatus(out,"明文 DNS 策略开关（配置值）",values.get("block_plain_dns"));
+    appendDnsStatus(out,"IPv6 策略开关（配置值）",values.get("block_ipv6"));
+    appendDnsStatus(out,"跟踪域名保护开关（配置值）",values.get("block_track_domains"));
+    appendDnsStatus(out,"DNS 查询日志开关",values.get("dns_querylog_enabled"));
     target.setText(out.length()==0?"未收到可识别的 DNS 状态字段。":out.toString().trim());
   });
 }
