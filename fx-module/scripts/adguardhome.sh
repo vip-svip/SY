@@ -155,9 +155,9 @@ _build_user_rules() {
     if ! _safe_file_or_absent "$_yulong_file" || [ ! -r "$_yulong_file" ]; then
       _yulong_file="$MODDIR/rulefiles/Yulong_AdBlock.txt"
     fi
-    if ! _safe_file_or_absent "$_yulong_file" || [ ! -r "$_yulong_file" ]; then
-      _yulong_file=""
-      _log 'Yulong ad-domain source is enabled but its rule file is unavailable; continuing with other DNS rules'
+    if ! _safe_file_or_absent "$_yulong_file" || [ ! -r "$_yulong_file" ] || [ ! -s "$_yulong_file" ]; then
+      _log 'Yulong ad-domain source is enabled but its rule file is missing, empty or unsafe; refusing partial DNS rule render'
+      return 1
     fi
   fi
   if [ -n "$_yulong_file" ]; then
