@@ -152,6 +152,11 @@ if [ -f "$MODDIR/scripts/vpn-external-watchdog.sh" ]; then
 fi
 sh "$MODDIR/scripts/apply.sh" >> "$PG/boot.log" 2>&1
 _rc=$?
+# Root Proxy whitelist reconciliation follows PackageManager changes even when the APK UI is not foreground.
+if [ -f "$MODDIR/scripts/yulong-root-proxy-package-watch.sh" ]; then
+  sh "$MODDIR/scripts/yulong-root-proxy-package-watch.sh" start "$MODDIR" "$PG" >> "$PG/boot.log" 2>&1 || \\
+    echo "[$(date '+%m-%d %H:%M:%S')] Root Proxy package watcher failed to start" >> "$PG/boot.log"
+fi
 if [ -f "$MODDIR/scripts/yulong-app-firewall.sh" ]; then
   sh "$MODDIR/scripts/yulong-app-firewall.sh" apply >> "$PG/boot.log" 2>&1 || \
     echo "[$(date '+%m-%d %H:%M:%S')] Yulong per-app firewall deferred; FX main startup continues" >> "$PG/boot.log"
