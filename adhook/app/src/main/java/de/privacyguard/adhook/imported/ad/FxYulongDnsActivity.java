@@ -76,11 +76,12 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
         b.setOnClickListener(v -> action.run()); return b;
     }
     private String shell(String args) {
+        boolean domainListAdd = args != null && args.matches("(allow-add|block-add) [A-Za-z0-9.-]{1,253}");
         if (!"dns-log-tail".equals(args) && !"cache-flush".equals(args)
                 && !"cache-flush adguardhome".equals(args)
                 && !"cache-flush unbound".equals(args)
                 && !"cache-flush all".equals(args)
-                && !"dns-log-clear".equals(args)) {
+                && !"dns-log-clear".equals(args) && !domainListAdd) {
             throw new IllegalArgumentException("Unsupported Yulong DNS operation.");
         }
         return FxYulongRootModuleCommand.command("yulong-ad-control.sh", args);
@@ -254,6 +255,33 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
                 || (resultFilter == 2 && !item.blocked);
     }
 
+    private void confirmAddDomain(Entry item, boolean allow) {
+        String domain = item == null || item.domain == null ? "" : item.domain.trim().toLowerCase(Locale.ROOT);
+        if (!domain.matches("[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?") || domain.contains("..")
+                || domain.startsWith(".") || domain.endsWith(".")) {
+            status.setText("该查询域名不符合域名名单格式，未执行添加。");
+            return;
+        }
+        String listName = allow ? "白名单" : "黑名单";
+        fxDialogBuilder().setTitle("加入 DNS " + listName)
+                .setMessage("将域名 " + domain + " 添加到 FX " + listName
+                        + "。此操作会修改本机域名名单并应用配置；"
+                        + (allow ? "白名单优先放行该域名。" : "黑名单将阻断该域名。")
+                        + "是否继续？")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("添加", (dialog, which) -> {
+                    String operation = (allow ? "allow-add " : "block-add ") + domain;
+                    root(shell(operation), result -> {
+                        if (result.exitCode == 0) {
+                            status.setText(domain + " 已加入 FX " + listName + "。");
+                            load();
+                        } else {
+                            status.setText("加入" + listName + "失败：" + safe(result.output));
+                        }
+                    });
+                }).show();
+    }
+
     private void render() {
         if (rows == null) return;
         rows.removeAllViews();
@@ -279,6 +307,13 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
                     + (item.reason.isEmpty() ? "" : " · " + item.reason), 11,
                     item.blocked ? 0xffb42318 : 0xff526170, false));
             if (!item.time.isEmpty()) row.addView(text(item.time, 10, 0xff718091, false));
+            LinearLayout actions = new LinearLayout(this);
+            actions.setOrientation(LinearLayout.HORIZONTAL);
+            actions.addView(button("加入白名单", () -> confirmAddDomain(item, true)),
+                    new LinearLayout.LayoutParams(0, -2, 1));
+            actions.addView(button("加入黑名单", () -> confirmAddDomain(item, false)),
+                    new LinearLayout.LayoutParams(0, -2, 1));
+            row.addView(actions);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
             lp.setMargins(dp(10), dp(2), dp(10), dp(2)); rows.addView(row, lp);
             shown++;
