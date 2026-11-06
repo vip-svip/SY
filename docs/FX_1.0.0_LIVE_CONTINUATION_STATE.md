@@ -1232,5 +1232,5 @@
 - 两套脚本在逐项完成路径组件、符号链接及普通文件检查后，使用 POSIX shell 位置参数构建实际日志输入列表；AWK 只接收真实存在且已通过检查的日志文件，兼容只有活动日志、活动加轮转日志及空日志目录。
 - 保留对所有活动/轮转日志的完整聚合、畸形 JSONL fail-closed 和不输出域名/客户端 IP 的隐私行为。
 - 同步文件：`scripts/yulong-ad-dns-summary.sh`、`fx-module/scripts/yulong-ad-dns-summary.sh`。
-- 本批提交：待提交 SHA。
+- 本批代码提交：`eeb8c956ca1d47005fe4fcbef70c2ab3e45e9d4e`。
 - 按当前要求未运行脚本、测试、静态检查、构建、CI 或 Android 真机验证；本次仅进行源码修改与 GitHub 提交。
