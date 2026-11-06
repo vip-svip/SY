@@ -629,16 +629,13 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
        "自定义 DNS 最多 3 个上游，可混合 IPv4、DoH、DoT、DoQ；备用 DNS 只支持 IPv4。加密上游只在 FX 本地 AdGuard Home 过滤引擎运行时生效；启用“阻止 DoT/QUIC”会阻断对应传输协议。",
        txt("自定义 DNS 上游",12,0xff617080,true),customServers,
        btn("保存自定义 DNS",()->saveDnsServerList("custom",customServers)),
+       btn("清除自定义 DNS",()->clearDnsSection("custom",customServers)),
        txt("备用 DNS（故障回退）",12,0xff617080,true),fallbackServers,
        btn("保存备用 DNS",()->saveDnsServerList("fallback",fallbackServers)),
-       btn("清除备用 DNS",()->fxDialogBuilder().setTitle("清除备用 DNS")
-         .setMessage("清除故障回退服务器后，AdGuard Home 将不再使用备用 DNS。是否继续？")
-         .setNegativeButton("取消",null).setPositiveButton("清除",(d,w)->root("dns-config-clear fallback",r->{
-           if(r.exitCode==0){fallbackServers.setText("");status.setText("备用 DNS 已清除。");}
-           else fxDialogBuilder().setTitle("清除失败").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
-         })).show()),
+       btn("清除备用 DNS",()->clearDnsSection("fallback",fallbackServers)),
        txt("全局 DNS 替换",12,0xff617080,true),globalServers,
-       btn("保存全局 DNS",()->saveDnsServerList("global",globalServers)));
+       btn("保存全局 DNS",()->saveDnsServerList("global",globalServers)),
+       btn("清除全局 DNS",()->clearDnsSection("global",globalServers)));
   EditText remoteDns=draftField("vpn_remote_dns");
   remoteDns.setSingleLine(true);remoteDns.setHint("VPN 远端 DNS，例如 1.1.1.1");
   EditText cnDns=draftField("vpn_cn_dns");
@@ -684,6 +681,16 @@ private void loadDnsLists(EditText custom,EditText global,EditText fallback,Edit
     remote.setText(remoteValue);domestic.setText(cnValue);
   });
 }
+private void clearDnsSection(String kind,EditText input){
+  String label="custom".equals(kind)?"自定义 DNS":("global".equals(kind)?"全局 DNS":"备用 DNS");
+  fxDialogBuilder().setTitle("清除"+label)
+      .setMessage("将移除 FX 配置中的"+label+"服务器段；不会自动关闭对应开关，也不会修改 VPN 节点 DNS。是否继续？")
+      .setNegativeButton("取消",null)
+      .setPositiveButton("清除",(dialog,which)->root("dns-config-clear "+kind,r->{
+       if(r.exitCode==0){input.setText("");status.setText(label+"服务器配置已清除。");load();}
+       else fxDialogBuilder().setTitle("清除失败").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
+      })).show();
+ }
 private void saveDnsServerList(String kind,EditText input){
   String value=input.getText()==null?"":input.getText().toString().trim();
   root("dns-config-set "+kind+" "+q(value),r->{
