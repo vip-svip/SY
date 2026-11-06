@@ -1914,6 +1914,11 @@ case "$cmd" in
   [ -x "$MP/scripts/native-dns-settings.sh" ] || { echo "native DNS dependency manager is missing" >&2; exit 20; }
   MP="$MP" PG="$PG" sh "$MP/scripts/native-dns-settings.sh" status
   ;;
+ dns-repair)
+  [ "$#" -eq 1 ] || exit 2
+  [ -x "$MP/scripts/localdns-watchdog.sh" ] || { echo "local DNS watchdog is missing" >&2; exit 20; }
+  MP="$MP" PG="$PG" sh "$MP/scripts/localdns-watchdog.sh" repair "$MP" "$PG"
+  ;;
  dns-config-set)
   [ "$#" -eq 3 ] || { echo "usage: $0 dns-config-set custom|global|fallback server[,server...]" >&2; exit 2; }
   servers=$(normalize_dns_csv "$3")
