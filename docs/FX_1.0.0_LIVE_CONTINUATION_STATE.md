@@ -7869,3 +7869,13 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - Ad → DNS 上游卡新增“一次性保存三组 DNS 上游”，同时读取自定义、全局、备用三个输入框；留空明确映射为清除对应服务器段，确认后单次调用后端事务。
   - 保留原有逐组保存与清除入口；批量入口成功后刷新 DNS 页面。
 - 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证；本批尚未验收。
+
+
+## 2026-11-06 — Ad VPN 双 DNS 上游一次性事务保存
+
+- 后端提交：`15700bea79161abd7f20fe9fec64d79486ac7d2a`，文件 `scripts/yulong-ad-control.sh`。
+  - 新增 `dns-vpn-set-many REMOTE_IPV4 CN_IPV4`；先验证两项均为 IPv4 字面量，再在同一 FX 配置事务中写入 `remote_dns` 与 `cn_dns` 并统一 apply。
+  - 避免先保存一项、第二项校验失败而留下部分修改；不改变 VPN 节点、DNS 引擎或过滤策略。
+- UI 提交：`d446e1002eb2650b84c3eef16cc0f0b1f1327f6f`，文件 `adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
+  - Ad → DNS → VPN 节点 DNS 新增“一次性保存两组 VPN DNS”，要求两项均填写后确认，调用单一事务入口；保留原有单项保存及恢复默认值功能。
+- 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证；本批尚未验收。
