@@ -709,9 +709,37 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
       }).setNegativeButton("取消",null).show();
   });
  }
- private static boolean isValidDnsRuntimeCacheSize(String value){
+ private static boolean isValidDnsRuntimeUint32(String value,boolean allowZero){
   if(value==null||!value.matches("[0-9]+"))return false;
-  try{return Long.parseLong(value)>0;}catch(NumberFormatException failure){return false;}
+  try{
+   java.math.BigInteger number=new java.math.BigInteger(value);
+   return (allowZero?number.signum()>=0:number.signum()>0)
+       &&number.compareTo(new java.math.BigInteger("4294967295"))<=0;
+  }catch(NumberFormatException failure){return false;}
+ }
+ private static boolean isValidDnsRuntimeCacheSize(String value){
+  return isValidDnsRuntimeUint32(value,false);
+ }
+ private static boolean isValidDnsRuntimeCacheTtl(String minimum,String maximum){
+  if(!isValidDnsRuntimeUint32(minimum,true)||!isValidDnsRuntimeUint32(maximum,true))return false;
+  return new java.math.BigInteger(minimum).compareTo(new java.math.BigInteger(maximum))<=0;
+ }
+ private static boolean isValidDnsRuntimeOptimisticAnswerTtl(String value){
+  if(!isValidDnsRuntimeDuration(value))return false;
+  String unit;
+  String number;
+  if(value.endsWith("ms")){unit="ms";number=value.substring(0,value.length()-2);}
+  else if(value.endsWith("s")){unit="s";number=value.substring(0,value.length()-1);}
+  else if(value.endsWith("m")){unit="m";number=value.substring(0,value.length()-1);}
+  else if(value.endsWith("h")){unit="h";number=value.substring(0,value.length()-1);}
+  else return false;
+  java.math.BigInteger factor="ms".equals(unit)?java.math.BigInteger.ONE
+      :"s".equals(unit)?java.math.BigInteger.valueOf(1000L)
+      :"m".equals(unit)?java.math.BigInteger.valueOf(60000L)
+      :java.math.BigInteger.valueOf(3600000L);
+  java.math.BigInteger millis=new java.math.BigInteger(number).multiply(factor);
+  return millis.compareTo(java.math.BigInteger.valueOf(1000L))>=0
+      &&millis.compareTo(new java.math.BigInteger("4294967295000"))<=0;
  }
  private static boolean isValidDnsRuntimeMode(String value){
   return "load_balance".equals(value)||"parallel".equals(value)||"fastest_addr".equals(value);
@@ -742,7 +770,9 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
   return isValidDnsRuntimeDuration(value);
  }
  private void loadDnsRuntimeControls(EditText mode,EditText fastest,EditText upstream,
-      EditText cacheSize,Switch cacheEnabled,Switch cacheOptimistic,Switch dnssec,TextView state){
+      EditText cacheSize,EditText cacheTtlMin,EditText cacheTtlMax,
+      EditText optimisticAnswerTtl,EditText optimisticMaxAge,
+      Switch cacheEnabled,Switch cacheOptimistic,Switch dnssec,TextView state){
   root("dns-runtime-get",result->{
     if(result.exitCode!=0){state.setText("读取 AdGuard Home 引擎参数失败："+safe(result.output));return;}
     java.util.Map<String,String> values=new java.util.LinkedHashMap<>();
@@ -757,6 +787,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
       }
     }
     String[] required={"UPSTREAM_MODE","FASTEST_TIMEOUT","UPSTREAM_TIMEOUT","CACHE_SIZE",
+        "CACHE_TTL_MIN","CACHE_TTL_MAX","CACHE_OPTIMISTIC_ANSWER_TTL","CACHE_OPTIMISTIC_MAX_AGE",
         "CACHE_ENABLED","CACHE_OPTIMISTIC","ENABLE_DNSSEC"};
     for(String key:required)if(!values.containsKey(key)){
       state.setText("DNS 引擎参数响应缺少字段："+key+"。");return;
@@ -764,8 +795,11 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
     if(!isValidDnsRuntimeMode(values.get("UPSTREAM_MODE"))
         ||!isValidDnsRuntimeFastestTimeout(values.get("FASTEST_TIMEOUT"))
         ||!isValidDnsRuntimeUpstreamTimeout(values.get("UPSTREAM_TIMEOUT"))
-        ||!isValidDnsRuntimeCacheSize(values.get("CACHE_SIZE"))){
-      state.setText("DNS 引擎参数响应的策略、超时或缓存容量无效。");return;
+        ||!isValidDnsRuntimeCacheSize(values.get("CACHE_SIZE"))
+        ||!isValidDnsRuntimeCacheTtl(values.get("CACHE_TTL_MIN"),values.get("CACHE_TTL_MAX"))
+        ||!isValidDnsRuntimeOptimisticAnswerTtl(values.get("CACHE_OPTIMISTIC_ANSWER_TTL"))
+        ||!isValidDnsRuntimeDuration(values.get("CACHE_OPTIMISTIC_MAX_AGE"))){
+      state.setText("DNS 引擎参数响应的策略、超时、缓存容量或 TTL 无效。");return;
     }
     for(String key:new String[]{"CACHE_ENABLED","CACHE_OPTIMISTIC","ENABLE_DNSSEC"})
       if(!"0".equals(values.get(key))&&!"1".equals(values.get(key))){
@@ -775,6 +809,10 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
     fastest.setText(values.get("FASTEST_TIMEOUT"));
     upstream.setText(values.get("UPSTREAM_TIMEOUT"));
     cacheSize.setText(values.get("CACHE_SIZE"));
+    cacheTtlMin.setText(values.get("CACHE_TTL_MIN"));
+    cacheTtlMax.setText(values.get("CACHE_TTL_MAX"));
+    optimisticAnswerTtl.setText(values.get("CACHE_OPTIMISTIC_ANSWER_TTL"));
+    optimisticMaxAge.setText(values.get("CACHE_OPTIMISTIC_MAX_AGE"));
     cacheEnabled.setChecked("1".equals(values.get("CACHE_ENABLED")));
     cacheOptimistic.setChecked("1".equals(values.get("CACHE_OPTIMISTIC")));
     dnssec.setChecked("1".equals(values.get("ENABLE_DNSSEC")));
@@ -819,6 +857,20 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
   dnsRuntimeCacheSize.setSingleLine(true);
   dnsRuntimeCacheSize.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
   dnsRuntimeCacheSize.setHint("缓存容量（字节），例如 4194304");
+  EditText dnsRuntimeCacheTtlMin=draftField("dns_runtime_cache_ttl_min");
+  dnsRuntimeCacheTtlMin.setSingleLine(true);
+  dnsRuntimeCacheTtlMin.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+  dnsRuntimeCacheTtlMin.setHint("0 表示不强制提高缓存 TTL");
+  EditText dnsRuntimeCacheTtlMax=draftField("dns_runtime_cache_ttl_max");
+  dnsRuntimeCacheTtlMax.setSingleLine(true);
+  dnsRuntimeCacheTtlMax.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+  dnsRuntimeCacheTtlMax.setHint("0 表示不限制缓存 TTL 上限");
+  EditText dnsRuntimeOptimisticAnswerTtl=draftField("dns_runtime_optimistic_answer_ttl");
+  dnsRuntimeOptimisticAnswerTtl.setSingleLine(true);
+  dnsRuntimeOptimisticAnswerTtl.setHint("例如 30s，至少 1 秒");
+  EditText dnsRuntimeOptimisticMaxAge=draftField("dns_runtime_optimistic_max_age");
+  dnsRuntimeOptimisticMaxAge.setSingleLine(true);
+  dnsRuntimeOptimisticMaxAge.setHint("例如 12h，过期缓存最大年龄");
   Switch dnsCacheEnabled=new Switch(this);
   dnsCacheEnabled.setText("启用 AdGuard Home DNS 缓存");
   Switch dnsCacheOptimistic=new Switch(this);
@@ -832,20 +884,32 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
        txt("fastest_addr 探测超时",12,0xff617080,true),dnsRuntimeFastest,
        txt("上游请求超时",12,0xff617080,true),dnsRuntimeTimeout,
        txt("DNS 缓存容量（字节）",12,0xff617080,true),dnsRuntimeCacheSize,
+       txt("缓存最小 TTL（秒）",12,0xff617080,true),dnsRuntimeCacheTtlMin,
+       txt("缓存最大 TTL（秒）",12,0xff617080,true),dnsRuntimeCacheTtlMax,
+       txt("乐观缓存答复 TTL",12,0xff617080,true),dnsRuntimeOptimisticAnswerTtl,
+       txt("乐观缓存最大年龄",12,0xff617080,true),dnsRuntimeOptimisticMaxAge,
        dnsCacheEnabled,dnsCacheOptimistic,dnssecEnabled,
        btn("保存并应用 AdGuard Home 引擎参数",()->{
          String modeValue=dnsRuntimeMode.getText()==null?"":dnsRuntimeMode.getText().toString().trim();
          String fastestValue=dnsRuntimeFastest.getText()==null?"":dnsRuntimeFastest.getText().toString().trim();
          String timeoutValue=dnsRuntimeTimeout.getText()==null?"":dnsRuntimeTimeout.getText().toString().trim();
          String cacheValue=dnsRuntimeCacheSize.getText()==null?"":dnsRuntimeCacheSize.getText().toString().trim();
+         String cacheMin=dnsRuntimeCacheTtlMin.getText()==null?"":dnsRuntimeCacheTtlMin.getText().toString().trim();
+         String cacheMax=dnsRuntimeCacheTtlMax.getText()==null?"":dnsRuntimeCacheTtlMax.getText().toString().trim();
+         String optimisticAnswer=dnsRuntimeOptimisticAnswerTtl.getText()==null?"":dnsRuntimeOptimisticAnswerTtl.getText().toString().trim();
+         String optimisticMaxAge=dnsRuntimeOptimisticMaxAge.getText()==null?"":dnsRuntimeOptimisticMaxAge.getText().toString().trim();
          if(!isValidDnsRuntimeMode(modeValue)||!isValidDnsRuntimeFastestTimeout(fastestValue)
-             ||!isValidDnsRuntimeUpstreamTimeout(timeoutValue)||!isValidDnsRuntimeCacheSize(cacheValue)){
-           status.setText("策略、超时或缓存容量格式无效；未提交任何变更。");
+             ||!isValidDnsRuntimeUpstreamTimeout(timeoutValue)||!isValidDnsRuntimeCacheSize(cacheValue)
+             ||!isValidDnsRuntimeCacheTtl(cacheMin,cacheMax)
+             ||!isValidDnsRuntimeOptimisticAnswerTtl(optimisticAnswer)
+             ||!isValidDnsRuntimeDuration(optimisticMaxAge)){
+           status.setText("策略、超时、缓存容量或 TTL 格式/范围无效；未提交任何变更。");
            return;
          }
          String command="dns-runtime-set "+q(modeValue)+" "+q(fastestValue)+" "+q(timeoutValue)+" "
              +q(cacheValue)+" "+(dnsCacheEnabled.isChecked()?"1":"0")+" "
-             +(dnsCacheOptimistic.isChecked()?"1":"0")+" "+(dnssecEnabled.isChecked()?"1":"0");
+             +(dnsCacheOptimistic.isChecked()?"1":"0")+" "+(dnssecEnabled.isChecked()?"1":"0")+" "
+             +q(cacheMin)+" "+q(cacheMax)+" "+q(optimisticAnswer)+" "+q(optimisticMaxAge);
          root(command,result->{
            if(result.exitCode==0){dnsRuntimeState.setText("AdGuard Home 引擎参数已保存并应用。");load();}
            else fxDialogBuilder().setTitle("DNS 引擎参数未应用").setMessage(safe(result.output)).setPositiveButton("关闭",null).show();
@@ -853,6 +917,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
        }),
        dnsRuntimeState);
   loadDnsRuntimeControls(dnsRuntimeMode,dnsRuntimeFastest,dnsRuntimeTimeout,dnsRuntimeCacheSize,
+      dnsRuntimeCacheTtlMin,dnsRuntimeCacheTtlMax,dnsRuntimeOptimisticAnswerTtl,dnsRuntimeOptimisticMaxAge,
       dnsCacheEnabled,dnsCacheOptimistic,dnssecEnabled,dnsRuntimeState);
 
   card("过滤策略","DNS 和网络策略开关；与 DNS 上游地址分开保存。批量操作会一次性更新以下五项策略。",
@@ -1066,7 +1131,8 @@ private void restoreDnsProfile(EditText input){
       "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
       "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled",
       "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE","QUERYLOG_RETENTION",
-      "UPSTREAM_MODE","FASTEST_TIMEOUT","UPSTREAM_TIMEOUT","CACHE_SIZE","CACHE_ENABLED","CACHE_OPTIMISTIC","ENABLE_DNSSEC"};
+      "UPSTREAM_MODE","FASTEST_TIMEOUT","UPSTREAM_TIMEOUT","CACHE_SIZE","CACHE_ENABLED","CACHE_OPTIMISTIC","ENABLE_DNSSEC",
+      "CACHE_TTL_MIN","CACHE_TTL_MAX","CACHE_OPTIMISTIC_ANSWER_TTL","CACHE_OPTIMISTIC_MAX_AGE"};
   java.util.Set<String> keys=new java.util.HashSet<>(java.util.Arrays.asList(allowed));
   java.util.Map<String,String> preview=new java.util.LinkedHashMap<>();
   for(String line:raw.split("\\n")){
@@ -1079,7 +1145,7 @@ private void restoreDnsProfile(EditText input){
     }
     preview.put(key,line.substring(split+1));
   }
-  if(preview.size()!=allowed.length&&preview.size()!=19&&preview.size()!=18){
+  if(preview.size()!=allowed.length&&preview.size()!=26&&preview.size()!=19&&preview.size()!=18){
     status.setText("快照字段不完整（"+preview.size()+"/"+allowed.length+"），未提交。");return;
   }
   for(String key:allowed)if(!preview.containsKey(key)){
@@ -1091,6 +1157,10 @@ private void restoreDnsProfile(EditText input){
     else if("CACHE_ENABLED".equals(key))preview.put(key,"1");
     else if("CACHE_OPTIMISTIC".equals(key))preview.put(key,"0");
     else if("ENABLE_DNSSEC".equals(key))preview.put(key,"1");
+    else if("CACHE_TTL_MIN".equals(key))preview.put(key,"0");
+    else if("CACHE_TTL_MAX".equals(key))preview.put(key,"0");
+    else if("CACHE_OPTIMISTIC_ANSWER_TTL".equals(key))preview.put(key,"30s");
+    else if("CACHE_OPTIMISTIC_MAX_AGE".equals(key))preview.put(key,"12h");
     else {status.setText("快照缺少字段："+key+"；未提交。");return;}
   }
   for(String key:new String[]{"dns_engine_adguardhome","dns_forward","custom_dns","global_dns",
@@ -1124,6 +1194,11 @@ private void restoreDnsProfile(EditText input){
     if(!"0".equals(preview.get(key))&&!"1".equals(preview.get(key))){
       status.setText("快照 DNS 引擎开关值非法："+key+"；未提交。");return;
     }
+  if(!isValidDnsRuntimeCacheTtl(preview.get("CACHE_TTL_MIN"),preview.get("CACHE_TTL_MAX"))
+      ||!isValidDnsRuntimeOptimisticAnswerTtl(preview.get("CACHE_OPTIMISTIC_ANSWER_TTL"))
+      ||!isValidDnsRuntimeDuration(preview.get("CACHE_OPTIMISTIC_MAX_AGE"))){
+    status.setText("快照 DNS 缓存 TTL 或乐观缓存期限非法；未提交。");return;
+  }
   for(String key:new String[]{"CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS"}){
     String value=preview.get(key);
     boolean encrypted="CUSTOM_SERVERS".equals(key);
@@ -1143,14 +1218,14 @@ private void restoreDnsProfile(EditText input){
       "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled"})
     if("1".equals(preview.get(key)))enabled++;
   for(String key:new String[]{"CACHE_ENABLED","CACHE_OPTIMISTIC","ENABLE_DNSSEC"})if("1".equals(preview.get(key)))enabled++;
-  String summary="快照包含 26 项字段、15 个开关（启用 "+enabled+" 项）。\\n"
+  String summary="快照包含 30 项字段、15 个开关（启用 "+enabled+" 项）。\\n"
       +"自定义上游："+countDnsEndpoints(preview.get("CUSTOM_SERVERS"))+" 条；"
       +"全局上游："+countDnsEndpoints(preview.get("GLOBAL_SERVERS"))+" 条；"
       +"备用上游："+countDnsEndpoints(preview.get("FALLBACK_SERVERS"))+" 条。\\n"
       +"VPN 远端 DNS："+preview.get("VPN_REMOTE")+"；国内 DNS："+preview.get("VPN_CN")+"。\\n"
       +"拦截响应模式："+preview.get("RESPONSE_MODE")+"；查询日志保留："+querylogRetention+"。\\n"
       +"上游策略："+preview.get("UPSTREAM_MODE")+"；fastest 超时："+preview.get("FASTEST_TIMEOUT")+"；上游超时："+preview.get("UPSTREAM_TIMEOUT")+"。\\n"
-      +"DNS 缓存："+preview.get("CACHE_SIZE")+" 字节；缓存开关："+preview.get("CACHE_ENABLED")+"；乐观缓存："+preview.get("CACHE_OPTIMISTIC")+"；DNSSEC："+preview.get("ENABLE_DNSSEC")+"。\\n\\n"
+      +"DNS 缓存："+preview.get("CACHE_SIZE")+" 字节；缓存 TTL："+preview.get("CACHE_TTL_MIN")+"~"+preview.get("CACHE_TTL_MAX")+" 秒；乐观缓存："+preview.get("CACHE_OPTIMISTIC")+"（答复 TTL "+preview.get("CACHE_OPTIMISTIC_ANSWER_TTL")+"，最大年龄 "+preview.get("CACHE_OPTIMISTIC_MAX_AGE")+"）；DNSSEC："+preview.get("ENABLE_DNSSEC")+"。\\n\\n"
       +"这是本地结构预览，不代表端点及配置语义已通过后端校验；继续后仍由 FX Root 后端完整校验。";
   String encoded=android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP);
   root("dns-profile-get",currentResult->{
@@ -1173,7 +1248,8 @@ private void restoreDnsProfile(EditText input){
       "block_quic","block_dot","block_plain_dns","block_ipv6","block_track_domains",
       "vpn_external_dns_proxy","vpn_external_compat","dns_querylog_enabled",
       "CUSTOM_SERVERS","GLOBAL_SERVERS","FALLBACK_SERVERS","VPN_REMOTE","VPN_CN","RESPONSE_MODE","QUERYLOG_RETENTION",
-      "UPSTREAM_MODE","FASTEST_TIMEOUT","UPSTREAM_TIMEOUT","CACHE_SIZE","CACHE_ENABLED","CACHE_OPTIMISTIC","ENABLE_DNSSEC"};
+      "UPSTREAM_MODE","FASTEST_TIMEOUT","UPSTREAM_TIMEOUT","CACHE_SIZE","CACHE_ENABLED","CACHE_OPTIMISTIC","ENABLE_DNSSEC",
+      "CACHE_TTL_MIN","CACHE_TTL_MAX","CACHE_OPTIMISTIC_ANSWER_TTL","CACHE_OPTIMISTIC_MAX_AGE"};
     StringBuilder changes=new StringBuilder();
     for(String key:labels){
       String oldValue=current.get(key),newValue=preview.get(key);
@@ -1187,7 +1263,7 @@ private void restoreDnsProfile(EditText input){
       .setMessage(summary+"\\n\\n"+changeText)
       .setNegativeButton("取消",null)
       .setPositiveButton("继续恢复",(d,w)->fxDialogBuilder().setTitle("确认完整替换 DNS 配置")
-        .setMessage("将完整替换当前 DNS 引擎开关、过滤策略、全部上游服务器、VPN DNS、拦截响应模式、日志保留期限、上游选择/超时、缓存和 DNSSEC。后端会再次校验全部字段；恢复应用失败会回滚原配置。不会修改 VPN 节点或其他 FX 模块设置。")
+        .setMessage("将完整替换当前 DNS 引擎开关、过滤策略、全部上游服务器、VPN DNS、拦截响应模式、日志保留期限、上游选择/超时、缓存容量/TTL/乐观缓存策略和 DNSSEC。后端会再次校验全部字段；恢复应用失败会回滚原配置。不会修改 VPN 节点或其他 FX 模块设置。")
         .setNegativeButton("取消",null)
         .setPositiveButton("恢复",(dialog,which)->root("dns-profile-restore "+encoded,r->{
           if(r.exitCode==0){status.setText("DNS 配置快照已恢复并应用。");input.setText("");load();}
