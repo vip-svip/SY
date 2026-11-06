@@ -7121,3 +7121,12 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 仍复用 `ClipboardPrivacyPolicy.shouldBlockRead()`：隐私总开关、按应用目标开关、单包进程条件和系统/FX/LSPosed 保护名单不变；共享包进程继续 fail-open。
 - 应用 Hook 提交：`1988afd9a7b420d9ca827f38466652fc749507f6`；模块 Hook 提交：`3a30f3cc9088c595bf4ec913c000fa9e2e1c12e0`。
 - 按要求未运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-06 — Stash HTTP 脚本 argument 运行时贯通
+
+- Stash YAML 导入器已有 http.script.argument → FXMETA 第 6 字段的映射；本轮把第 6 字段接入订阅同步器，写为 FX-SCRIPT-ARGUMENT 源码头，并限制为单行、最多 512 字节，拒绝控制字符与额外尾随字段。
+- QuickJS host 读取 FX-SCRIPT-ARGUMENT 并覆盖传统全局 $argument；Egern ctx.script.argument 也透传同一值。运行时 host 与 Egern 构建恢复补丁均包含这段读取桥接。
+- 原生脚本详情显示“脚本参数：已配置”，不回显参数值；编辑显示名称仍保留原有参数和其他 FXMETA 字段。
+- 提交：同步器参数接线 c45c05f071d4be60573e1127b3d8f3c2fd3e2be2；同步器重复字段/头收敛 44fe43736d513625c72eb236e195f4b64797850b；应用 UI b230cead26cc59ea98b5cfb1dda0b587673c1d69；模块 UI 40b314cf12fdd33aff6c250efb720841e8bd9da4；运行时说明 c063325163dea55f705204b6a631f60f61684fd3。
+- QuickJS host 以及根/模块两份 Egern 构建恢复补丁的参数读取桥接已存在于最新分支；这部分由并行改动提交，本轮重新接入并保留，没有覆盖其 SHA。
+- 固定 FX 1.0.0；依照当前移植节奏，没有运行测试、静态检查、构建、CI 或真机验证。
