@@ -728,7 +728,7 @@ _render_managed_config() {
       print "  ignored_enabled: " (querylog_ignored_enabled=="1" ? "true" : "false")
       next
     }
-    in_querylog && /^  ignored: []$/ {
+    in_querylog && /^  ignored: \[\]$/ {
       if (querylog_ignored=="") {
         print "  ignored: []"
       } else {
