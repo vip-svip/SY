@@ -183,11 +183,7 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
             if (input == null) throw new java.io.IOException("无法读取所选文件");
             byte[] buffer = new byte[8192];
             int count;
-            final int maximumBytes = 1024 * 1024;
             while ((count = input.read(buffer)) != -1) {
-                if (output.size() > maximumBytes - count) {
-                    throw new java.io.IOException("规则文件超过 1 MiB 限制，已停止读取。");
-                }
                 output.write(buffer, 0, count);
             }
             String json = decodeGkdRuleJson(output.toByteArray());

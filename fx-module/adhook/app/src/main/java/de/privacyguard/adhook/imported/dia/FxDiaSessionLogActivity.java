@@ -213,7 +213,7 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
     private void refreshLog() {
         if (destroyed || logPath == null) return;
         final int request = ++requestGeneration;
-        status.setText("正在读取最近 500 行日志…");
+        status.setText("正在读取完整日志…");
         final String command = checkedDirectoryPrefix()
                 + "if [ -f " + quote(logPath) + " ] && [ ! -L " + quote(logPath)
                 + " ] && [ -r " + quote(logPath) + " ] && [ -s " + quote(logPath)
@@ -227,7 +227,6 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
                 if (result == null || result.exitCode != 0) {
                     String detail = result == null || result.output == null
                             ? "Root 读取失败。" : result.output.trim();
-                    if (detail.length() > 240) detail = detail.substring(0, 240);
                     logContent = "";
                     status.setText("读取日志失败：" + (detail.isEmpty() ? "没有错误详情。" : detail));
                     logLoaded = true;
@@ -245,7 +244,7 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
                     logContent = value;
                     int lines = value.isEmpty() ? 0 : value.split("\\r?\\n", -1).length;
                     String time = new SimpleDateFormat("HH:mm:ss", Locale.ROOT).format(new Date());
-                    status.setText("最近读取：" + time + " · 返回 " + lines + " 行（最多 500 行）。");
+                    status.setText("最近读取：" + time + " · 完整返回 " + lines + " 行。");
                 }
                 logLoaded = true;
                 renderLog();
@@ -301,7 +300,6 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
             Toast.makeText(this, "当前没有可分享的日志内容。", Toast.LENGTH_SHORT).show();
             return;
         }
-        final int shareLimit = Integer.MAX_VALUE;
         String header = "FX Dia 会话日志 · " + targetName + " · "
                 + (gadgetLog ? "Gadget" : "Frida") + "\\n"
                 + "包名：" + targetPackage + "\\n"
@@ -454,7 +452,6 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
                 } else {
                     String detail = result == null || result.output == null
                             ? "Root 操作失败。" : result.output.trim();
-                    if (detail.length() > 240) detail = detail.substring(0, 240);
                     status.setText("清空失败，日志未被确认清空：" + detail);
                 }
             });

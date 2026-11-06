@@ -62,8 +62,8 @@ object FxGkdSelectorEngine {
     @JvmStatic
     fun compile(source: String): FxGkdSelectorCompilation {
         val normalized = source.trim()
-        if (normalized.isEmpty() || normalized.length > 512) {
-            return FxGkdSelectorCompilation(null, "选择器不能为空，且最多 512 个字符")
+        if (normalized.isEmpty()) {
+            return FxGkdSelectorCompilation(null, "选择器不能为空")
         }
         return try {
             when (val parsed = Selector.compile(normalized)) {
@@ -91,16 +91,14 @@ object FxGkdSelectorEngine {
     internal fun findMatches(
         root: FxGkdNode,
         selector: Selector,
-        maximum: Int = 12
     ): List<FxGkdNode> {
-        if (maximum <= 0) return emptyList()
         val adapter = FxGkdNodeAdapter
         val matches = if (selector.isMatchRoot) {
             listOfNotNull(selector.match(root, adapter, MatchOptions(fastQuery = false)))
         } else {
             adapter.querySelectorAll(root, selector, MatchOptions(fastQuery = false))
         }
-        return matches.take(maximum)
+        return matches
     }
 
     private object FxGkdNodeAdapter : NodeAdapter<FxGkdNode>() {

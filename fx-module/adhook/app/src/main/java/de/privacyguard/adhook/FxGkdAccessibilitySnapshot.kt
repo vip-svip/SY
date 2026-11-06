@@ -4,7 +4,7 @@ import android.graphics.Rect
 import android.view.accessibility.AccessibilityNodeInfo
 
 /**
- * Owns a bounded copy of one live AccessibilityNodeInfo tree. The caller must
+ * Owns a complete per-event copy of one live AccessibilityNodeInfo tree. The caller must
  * close it immediately after matching/action dispatch; handles are never stored
  * in preferences, logs, broadcasts or long-lived caches.
  */
@@ -23,10 +23,7 @@ internal class FxGkdAccessibilitySnapshot private constructor(
     }
 
     companion object {
-        private const val MAX_NODES = 700
         private const val MAX_DEPTH = 32
-        private const val MAX_CHILDREN_PER_NODE = 80
-        private const val MAX_TEXT_LENGTH = 256
 
         /**
          * Takes ownership of [rootHandle], including on failure.
@@ -46,7 +43,7 @@ internal class FxGkdAccessibilitySnapshot private constructor(
                 index: Int,
                 depth: Int
             ): FxGkdNode? {
-                if (depth > MAX_DEPTH || handles.size >= MAX_NODES) {
+                if (depth > MAX_DEPTH) {
                     truncated = true
                     try { info.recycle() } catch (_: RuntimeException) {}
                     return null
@@ -56,9 +53,9 @@ internal class FxGkdAccessibilitySnapshot private constructor(
                 // any getter below may throw if the accessibility node was invalidated.
                 handles.add(info)
                 val sensitive = info.isPassword || info.isEditable
-                val text = if (sensitive) null else info.text?.toString()?.take(MAX_TEXT_LENGTH)
+                val text = if (sensitive) null else info.text?.toString()
                 val description = if (sensitive) null
-                    else info.contentDescription?.toString()?.take(MAX_TEXT_LENGTH)
+                    else info.contentDescription?.toString()
                 val bounds = Rect()
                 try { info.getBoundsInScreen(bounds) } catch (_: RuntimeException) { bounds.setEmpty() }
 
@@ -91,13 +88,7 @@ internal class FxGkdAccessibilitySnapshot private constructor(
                     truncated = true
                     0
                 }
-                if (reportedChildCount > MAX_CHILDREN_PER_NODE) truncated = true
-                val childCount = reportedChildCount.coerceAtMost(MAX_CHILDREN_PER_NODE)
-                for (childIndex in 0 until childCount) {
-                    if (handles.size >= MAX_NODES) {
-                        truncated = true
-                        break
-                    }
+                for (childIndex in 0 until reportedChildCount) {
                     val child = try {
                         info.getChild(childIndex)
                     } catch (_: RuntimeException) {

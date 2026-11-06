@@ -80,13 +80,12 @@ object FxGkdAutomationRuntime {
 
                 // A matching exclusion selector suppresses this rule for the current event.
                 if (rule.excludeSelector != null &&
-                    FxGkdSelectorEngine.findMatches(snapshot.root, rule.excludeSelector, maximum = 1).isNotEmpty()
+                    FxGkdSelectorEngine.findMatches(snapshot.root, rule.excludeSelector).isNotEmpty()
                 ) continue
 
                 val matches = FxGkdSelectorEngine.findMatches(
                     snapshot.root,
-                    rule.selector,
-                    maximum = 12
+                    rule.selector
                 )
                 for (candidate in matches) {
                     val longClick = rule.source.action == "long_click"
