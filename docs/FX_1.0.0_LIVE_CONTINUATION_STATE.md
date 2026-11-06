@@ -6826,3 +6826,9 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 更新 `adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`（`35874390`），将 AdGuard Home/Unbound 的运行状态、Root Proxy 接管状态、Android Private DNS 模式、DNS 过滤覆盖、VPN 共存 verdict 与 route probe 映射为中文状态标签。
 - 现有原生状态字段仍保留机器值；仅 UI 显示层转换，不改变路由裁决、Private DNS 系统设置或 DNS 配置。
 - 本批按要求未运行 Java/Gradle 检查、测试、构建、CI 或设备验证。
+
+
+## 2026-11-06 — DNS 状态可读性补齐
+
+- `adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java`（`445b4a14`）为 Private DNS 模式、DNS 过滤覆盖、VPN 共存 verdict 和路由探测结果增加原生中文标签，Ad 页面不再直接向用户显示内部协议枚举值。
+- 本批未运行 Shell/Python/Gradle 检查、回归测试、构建、CI 或 Android 真机验证；本次只记录源码移植。
