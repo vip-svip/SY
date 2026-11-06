@@ -1207,12 +1207,21 @@ private boolean isValidProfileIpv4(String value){
     return first!=0&&first!=127&&first<224&&!(first==169&&second==254);
   }catch(NumberFormatException invalid){return false;}
 }
+private boolean isValidProfileDnsHost(String host){
+  if(host==null||host.isEmpty()||host.length()>253)return false;
+  if(host.matches("[0-9.]+"))return isValidProfileIpv4(host);
+  String[] labels=host.split("\\.",-1);
+  for(String label:labels){
+    if(label.isEmpty()||label.length()>63||
+        !label.matches("[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?"))return false;
+  }
+  return true;
+}
 private boolean isValidProfileDnsHostPort(String authority){
   String hostPort="[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?";
   int colon=authority.lastIndexOf(':');
   String host=colon<0?authority:authority.substring(0,colon);
-  if(host.matches("[0-9.]+")&&!isValidProfileIpv4(host))return false;
-  return authority.matches(hostPort)&&validProfilePort(authority);
+  return authority.matches(hostPort)&&isValidProfileDnsHost(host)&&validProfilePort(authority);
 }
 private boolean isValidProfileDnsCsv(String value,boolean encryptedAllowed){
   if(value==null||value.isEmpty())return true;
@@ -1231,6 +1240,15 @@ private boolean isValidProfileDnsCsv(String value,boolean encryptedAllowed){
       String authority=slash<0?rest:rest.substring(0,slash);
       String path=slash<0?"":rest.substring(slash);
       if(!isValidProfileDnsHostPort(authority)||
+          !path.matches("(/[A-Za-z0-9._~!    if(entry.startsWith("tls://")||entry.startsWith("quic://")){
+      String authority=entry.substring(entry.indexOf("://")+3);
+      if(!isValidProfileDnsHostPort(authority))return false;
+    }else if(entry.startsWith("https://")){
+      String rest=entry.substring(8);
+      int slash=rest.indexOf('/');
+      String authority=slash<0?rest:rest.substring(0,slash);
+      String path=slash<0?"":rest.substring(slash);
+      if(!isValidProfileDnsHostPort(authority)||
           !path.matches("(/[A-Za-z0-9._~!    String hostPort="[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?";
     if(entry.startsWith("tls://")||entry.startsWith("quic://")){
       String authority=entry.substring(entry.indexOf("://")+3);
@@ -1241,7 +1259,7 @@ private boolean isValidProfileDnsCsv(String value,boolean encryptedAllowed){
       String authority=slash<0?rest:rest.substring(0,slash);
       String path=slash<0?"":rest.substring(slash);
       if(!authority.matches(hostPort)||!validProfilePort(authority)||
-          !path.matches("(/[A-Za-z0-9._~!$&()*+,;=:@%/?#-]*)?"))return false;()*+,;=:@%/?#-]*)?"))return false;
+          !path.matches("(/[A-Za-z0-9._~!$&()*+,;=:@%/?#-]*)?"))return false;()*+,;=:@%/?#-]*)?"))return false;()*+,;=:@%/?#-]*)?"))return false;
     }else return false;
   }
   return true;
