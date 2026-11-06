@@ -191,6 +191,10 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
         actions.addView(button("导入 JSON", this::chooseImport), new LinearLayout.LayoutParams(0, -2, 1));
         actions.addView(button("导出 JSON", this::chooseExport), new LinearLayout.LayoutParams(0, -2, 1));
         body.addView(actions);
+        body.addView(button("删除当前筛选页脚本", this::confirmDeleteCurrentPage),
+                new LinearLayout.LayoutParams(-1, -2));
+        body.addView(button("复制当前筛选页 JSON", this::copyCurrentPageJson),
+                new LinearLayout.LayoutParams(-1, -2));
         rows = new LinearLayout(this);
         rows.setOrientation(LinearLayout.VERTICAL);
         body.addView(rows, new LinearLayout.LayoutParams(-1, -2));
