@@ -111,10 +111,28 @@ write_snapshot() {
 package_snapshot_hash() {
   _raw=$(cmd package list packages -U 2>/dev/null) || return 1
   [ -n "$_raw" ] || return 1
-  _rows=$(printf '%s\n' "$_raw" | awk '
-    $1 ~ /^package:[A-Za-z0-9_.-]+$/ && $2 ~ /^uid:[0-9]+$/ {
-      pkg=substr($1,9); uid=substr($2,5)
-      if (pkg ~ /^[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+$/ && uid ~ /^[0-9]+$/) print pkg "|" uid
+  # A partial PackageManager listing must never become the new baseline:
+  # otherwise a malformed row could hide a package/UID change and leave
+  # Root Proxy applying stale per-UID exclusions.
+  _rows=$(printf '%s\\n' "$_raw" | awk '
+    BEGIN {valid=1; count=0}
+    {
+      if($0 ~ /^[ \\t]*$/) next
+      line=$0
+      sub(/^[ \\t]+/, "", line)
+      sub(/[ \\t]+$/, "", line)
+      n=split(line, field, /[ \\t]+/)
+      if(n!=2 || field[1] !~ /^package:[A-Za-z0-9_.-]+$/ ||
+          field[2] !~ /^uid:[0-9]+$/) {valid=0; next}
+      pkg=substr(field[1],9); uid=substr(field[2],5)
+      if(pkg !~ /^[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+$/ ||
+          uid !~ /^[0-9]+$/ || uid=="0" || pkg in seen) {valid=0; next}
+      seen[pkg]=1
+      rows[++count]=pkg "|" uid
+    }
+    END {
+      if(!valid || count==0) exit 2
+      for(i=1;i<=count;i++) print rows[i]
     }
   ' | LC_ALL=C sort) || return 1
   [ -n "$_rows" ] || return 1
