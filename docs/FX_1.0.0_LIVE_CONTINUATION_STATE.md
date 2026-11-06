@@ -7747,3 +7747,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 导出为逐行 `allow|domain|note` / `block|domain|note` 文本，字段中的分隔符与换行会清理，最大 64 KiB，超限按完整记录省略并注明数量；通过 Android 系统分享面板交给用户选择保存/发送目标。
 - 该功能只读取并分享用户明确选择的本地域名名单，不上传、不自动发送，也不修改设备配置。
 - 按用户当前要求未运行测试、静态检查、Gradle 构建、CI、安装或真机验证；导出与恢复流程尚未验收。
+
+
+## 2026-11-06 — Ad 域名白/黑名单事务式批量移除
+
+- 后端提交：`925b8c8d6f0a9b8ba78dbb90826d33dde416e3d5`，改动 `scripts/yulong-ad-control.sh`。
+  - 新增 `allow-remove-many` / `block-remove-many` 命令；输入为 Base64 域名行列表，先解码并完整验证域名、64 KiB 与 2000 条上限，再执行删除。
+  - 两类操作均通过现有配置锁与事务备份/回滚机制运行；白名单调用既有 whitelist remove，黑名单调用既有 block 配置写入，不引入新的配置格式。
+- UI 提交：`86de7e8394490856f2a812488a516f4e7a89c5f3`，改动 `adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
+  - Ad → 域名名单新增白名单与黑名单的多行批量移除入口；空行与注释行忽略，前端去重，提交前显示目标名单和条目数并二次确认。
+  - UI 与后端均限制最多 2000 条、64 KiB；后端重新验证全部域名，事务失败时回滚。
+- 按用户当前要求，本批未运行测试、静态检查、Gradle 构建、CI、安装或真机验证；批量移除行为尚未验收。
