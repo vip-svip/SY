@@ -215,7 +215,7 @@ _build_filter_sources() {
       if (name=="") name=url
       # Stable URL-derived IDs survive subscription reordering. Resolve rare
       # hash collisions deterministically within this render.
-      alphabet="0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._~:/?#@!alphabet="0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._~:/?#@!$&() *+,;=%"'()*+,;=%"
+      alphabet="0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._~:/?#@!$&'()*+,;=%"
       id=0
       for (i=1; i<=length(url); i++)
         id=(id*131+index(alphabet,substr(url,i,1)))%2147483000
