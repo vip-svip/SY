@@ -705,7 +705,8 @@ dns_profile_restore() {
         case "$_profile_value" in nxdomain|refused|custom_ip) : ;; *) echo "invalid DNS response mode" >&2; return 2 ;; esac
         ;;
       QUERYLOG_RETENTION)
-        case "$_profile_value" in 1d|3d|7d|30d) _profile_querylog_retention=$_profile_value ;; *) echo "invalid DNS query-log retention" >&2; return 2 ;; esac
+        valid_dns_querylog_retention "$_profile_value" || { echo "invalid DNS query-log retention" >&2; return 2; }
+        _profile_querylog_retention=$_profile_value
         ;;
     esac
     case "$_profile_key" in
