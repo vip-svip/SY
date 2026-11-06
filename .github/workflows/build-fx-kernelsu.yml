@@ -278,6 +278,7 @@ jobs:
           install -D -m 0755 scripts/yulong-stellar-control.sh fx-module/scripts/yulong-stellar-control.sh
           install -D -m 0755 scripts/yulong-app-whitelist.sh fx-module/scripts/yulong-app-whitelist.sh
           install -D -m 0755 scripts/native-managed-lists.sh fx-module/scripts/native-managed-lists.sh
+          install -D -m 0755 scripts/native-dns-settings.sh fx-module/scripts/native-dns-settings.sh
           install -D -m 0755 scripts/adguardhome.sh fx-module/scripts/adguardhome.sh
           install -D -m 0644 .github/dns/AdGuardHome-FX-runtime-v1.0.0.yaml fx-module/engines/adguardhome/AdGuardHome.yaml
           install -D -m 0755 scripts/native-vpn-config.sh fx-module/scripts/native-vpn-config.sh
