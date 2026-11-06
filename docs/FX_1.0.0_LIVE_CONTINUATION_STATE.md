@@ -7080,3 +7080,10 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 应用与模块两份 `FxYulongAppWhitelistActivity.java` 增加“清理未安装应用”入口，清理后重新读取后端名单并刷新显示。提交：686d9dae7cdd418f39146d471adb5d329ced4e9f、6e4086a264e1547c0265fe9288c127b203fbb712。
 - 应用与模块两份 `FxYulongFirewallPackageReceiver.java` 包生命周期命令在 settings.conf 可用时先清理 Yulong 应用广告过滤白名单，再调用 Root Proxy 的 `package-event` 统一处理独立 DNS 白名单与路由重协调。提交：68a7878162da582d1934f6d19fc5cf433f1cdec4、8e5cb75b6ef7c3bc9b97eb249db01193d75c2973。
 - 本批按要求未运行测试、静态检查、构建、CI 或真机验证。
+
+## 2026-11-06 — 应用白名单当前页批量管理与防火墙 UID 批处理
+
+- `yulong-app-whitelist.sh` 增加 `batch-add` / `batch-remove`：一组包名在锁内一次性合并/删除，单次原子替换配置并只运行一次 `apply.sh fast`；应用失败时恢复原配置。批量 AWK 按字面量识别配置段边界。提交：3e6201f90b812e8029358794543b4ec8c11cad39、b7e86fd4dc5fb4cbd7499d878e174defdb62b9d0、1cab101b83a4d446f3b25235d4aafbf398df2534。
+- 应用与模块两份 `FxYulongAppWhitelistActivity.java` 增加“批量加入当前页 / 批量移出当前页”，按当前搜索条件和分页范围处理最多一页应用，操作前确认数量，成功后刷新 Root 名单。提交：6856d6763189ae4e12242b74a8a8eb1d3af546b7、1ad6894d24352074b7507a0c45154724a6cfdb2d。
+- `fx-module/scripts/yulong-app-firewall.sh` 将多个选中应用的 UID 解析改为一次读取 PackageManager 快照后统一映射，避免每个包重复启动 AWK 全量扫描；缺失应用跳过，非法或不可用 UID 仍保留旧防火墙。提交：4a1cd9e9a77438c5b776483d8e69c22c105e7ee8。
+- 本批按要求未运行测试、静态检查、构建、CI 或真机验证。
