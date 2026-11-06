@@ -7594,3 +7594,11 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 改动文件：`adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaMonitorEventsActivity.java`。
 - 将结构化事件导出限制从 Java 字符数调整为 UTF-8 实际字节数，按事件逐项累计；达到 256 KiB 时添加截断说明，并按 Unicode 码点截断头部，避免多字节字符使导出文件超限或出现半个代理对。
 - 本批未运行测试、静态检查、Gradle 构建、CI、安装或真机验证。
+
+
+## 2026-11-06 — 游龙 Tasker 执行回执清理
+
+- 代码提交：`f0bd56375e88d77dd3fb91a3d42ee0cb4337e031`。
+- 改动文件：`adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdGeneralActivity.java`。
+- Tasker / 自动化设置新增“清除最近执行回执”，清除前二次确认；只删除最近动作、目标、请求状态、结果、退出码、详情和时间戳，不动发送方包名/签名固定、外部授权开关或 VPN/广告过滤状态。提交失败时保留原记录并提示；成功后刷新页面回执状态。
+- 本批未运行测试、静态检查、Gradle 构建、CI、安装或真机验证。
