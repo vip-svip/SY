@@ -501,6 +501,7 @@ dns_profile_transaction() {
     if ! cp -p "$_profile_backup" "$_profile_restore" || ! chmod 600 "$_profile_restore" || ! mv -f "$_profile_restore" "$CONF"; then
       rm -f "$_profile_restore" 2>/dev/null || :; echo "DNS profile rollback failed; backup retained at $_profile_backup" >&2; return 11
     fi
+    sh "$MP/scripts/apply.sh" full >/dev/null 2>&1 || echo "previous DNS profile restored; runtime reconcile failed" >&2
     rm -f "$_profile_backup"; return 1
   fi
   if sh "$MP/scripts/apply.sh" full; then rm -f "$_profile_backup"; return 0; fi
