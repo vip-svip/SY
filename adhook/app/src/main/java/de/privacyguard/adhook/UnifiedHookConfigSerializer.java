@@ -37,6 +37,12 @@ public final class UnifiedHookConfigSerializer {
 
     public static String serialize(boolean adsEnabled, boolean privacyEnabled, boolean wifiScanEnabled, boolean notificationListenEnabled, boolean notificationPermissionHideEnabled, boolean clipboardIsolationEnabled,
                                    Map<String, UnifiedHookConfigParser.Target> targets) {
+        return serializeInternal(adsEnabled, privacyEnabled, wifiScanEnabled, notificationListenEnabled,
+                notificationPermissionHideEnabled, clipboardIsolationEnabled, targets, true);
+    }
+
+    private static String serializeInternal(boolean adsEnabled, boolean privacyEnabled, boolean wifiScanEnabled, boolean notificationListenEnabled, boolean notificationPermissionHideEnabled, boolean clipboardIsolationEnabled,
+                                            Map<String, UnifiedHookConfigParser.Target> targets, boolean verifyRoundTrip) {
         if (targets == null) throw new IllegalArgumentException("targets is null");
         Map<String, UnifiedHookConfigParser.Target> sorted = new TreeMap<>(targets);
         StringBuilder out = new StringBuilder(128);
@@ -233,12 +239,28 @@ public final class UnifiedHookConfigSerializer {
         }
 
         String serialized = out.toString();
-        // Reuse the parser as the single schema validator; invalid/protected package
-        // names and malformed state must never be emitted as a seemingly valid file.
-        UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(serialized);
-        if (parsed.adsEnabled != adsEnabled || parsed.privacyEnabled != privacyEnabled
-                || parsed.wifiScanEnabled != wifiScanEnabled || parsed.notificationListenEnabled != notificationListenEnabled || parsed.notificationPermissionHideEnabled != notificationPermissionHideEnabled || parsed.clipboardIsolationEnabled != clipboardIsolationEnabled || parsed.targets.size() != sorted.size()) {
-            throw new IllegalArgumentException("config failed validation");
+        if (verifyRoundTrip) {
+            // Parse the just-built document through the canonical schema parser, then
+            // serialize the parsed model without recursively re-entering this guard.
+            // A byte-for-byte canonical comparison covers every target flag, optional
+            // simulation value, dialog/Toast rule and ordered developer rule payload,
+            // not merely the number of packages in the document.
+            UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(serialized);
+            if (parsed.adsEnabled != adsEnabled || parsed.privacyEnabled != privacyEnabled
+                    || parsed.wifiScanEnabled != wifiScanEnabled
+                    || parsed.notificationListenEnabled != notificationListenEnabled
+                    || parsed.notificationPermissionHideEnabled != notificationPermissionHideEnabled
+                    || parsed.clipboardIsolationEnabled != clipboardIsolationEnabled
+                    || parsed.targets.size() != sorted.size()) {
+                throw new IllegalArgumentException("config failed validation");
+            }
+            String canonical = serializeInternal(parsed.adsEnabled, parsed.privacyEnabled,
+                    parsed.wifiScanEnabled, parsed.notificationListenEnabled,
+                    parsed.notificationPermissionHideEnabled, parsed.clipboardIsolationEnabled,
+                    parsed.targets, false);
+            if (!serialized.equals(canonical)) {
+                throw new IllegalArgumentException("config lost fields during parser round-trip");
+            }
         }
         return serialized;
     }
