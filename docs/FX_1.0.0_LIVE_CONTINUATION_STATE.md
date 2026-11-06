@@ -8274,3 +8274,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - 补齐本地 DNS 引擎组一键启停、五项过滤策略一键启停、三组 DNS 上游一次性保存、VPN 两组 DNS 一次性保存、自定义/全局/备用 DNS 清除，以及 AdGuard Home / Unbound 定向和全部缓存刷新入口。
 - 所有操作复用现有原生后端命令与事务语义；未另造 DNS 配置协议。
 - 按用户要求暂不核验；未运行测试、静态检查、Gradle 构建、CI、安装或设备验证。
+
+
+### FX 模块过滤订阅管理与后端事务能力整批同步（2026-11-07）
+
+- 原生 UI 首批提交：`c693559610c559068a9e51fae0595b2fe94d73a0`；列表重命名入口补齐：`f904e7db1c107fea8b4333cbef9348327556fa78`。
+- UI 文件：`fx-module/adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
+- 增加过滤订阅多行导入、全部订阅分享导出、按当前搜索筛选批量启用/暂停、按当前搜索筛选批量移除，以及每条订阅重命名入口；保留逐条启停和删除。
+- 模块后端脚本同步提交：`e4b3be917fd13c9511935da53c66484343480880`。
+- 后端文件：`fx-module/scripts/yulong-ad-control.sh`；以仓库规范脚本 `scripts/yulong-ad-control.sh` 的完整实现同步，补入模块此前缺失的 rule-remove-many、rule-rename、rule-set-many、rule-add-many 等事务命令，同时同步 DNS 配置快照、运行状态、批量 DNS 配置、VPN DNS 双项保存及名单管理等既有后端能力。模块脚本与规范脚本内容现已一致。
+- 批量订阅操作沿用现有输入上限、来源验证、事务锁和回滚逻辑；未另建订阅数据格式或后端协议。
+- 按用户要求暂不核验；未运行测试、静态检查、Gradle 构建、CI、安装或设备验证。
