@@ -131,6 +131,37 @@ _install_config() {
   fi
   _log 'installed loopback-only AdGuard Home config template'
 }
+_config_contract() {
+  # AdGuard must remain a loopback-only DNS filter. Its sole upstream is the
+  # local recursive Unbound listener; never allow a saved config to introduce
+  # a public resolver or expose the DNS/admin listeners on LAN interfaces.
+  awk '
+    /^http:$/ {http=1; next}
+    http && /^[^[:space:]]/ {http=0}
+    http && /^  address:/ {http_addr=$2}
+    /^dns:$/ {dns=1; next}
+    dns && /^[^[:space:]]/ {dns=0}
+    dns && /^  port:/ {dns_port=$2}
+    dns && /^  bind_hosts:/ {bind=1; next}
+    dns && bind && /^  [A-Za-z_][A-Za-z0-9_-]*:/ {bind=0}
+    dns && bind && /^  - / {hosts[$2]=1; bind_count++}
+    dns && /^  upstream_dns:/ {upstream=1; next}
+    dns && upstream && /^  [A-Za-z_][A-Za-z0-9_-]*:/ {upstream=0}
+    dns && upstream && /^  - / {
+      upstream_count++
+      if ($2=="127.0.0.1:5353") local_upstream=1
+      else unsafe_upstream=1
+    }
+    END {
+      exit (http_addr=="127.0.0.1:0" && dns_port=="53" &&
+        hosts["127.0.0.1"] && hosts["::1"] && bind_count==2 &&
+        upstream_count==1 && local_upstream && !unsafe_upstream) ? 0 : 1
+    }
+  ' "$CFG" || {
+    _log 'AdGuard config violates FX loopback/listener/local-Unbound policy'
+    return 1
+  }
+}
 _remove_pid_marker_if_matches() {
   _expected=$1
   _safe_file_or_absent "$PIDFILE" || return 1
@@ -234,6 +265,7 @@ _ensure() {
   _prepare_state_dirs || return 1
   _check_files || return 1
   _install_config || return 1
+  _config_contract || return 1
   if _p=$(_owned_pid 2>/dev/null); then
     if _probe; then
       echo 'ready'
