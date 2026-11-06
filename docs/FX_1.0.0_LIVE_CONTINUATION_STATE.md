@@ -1,5 +1,15 @@
 
 
+### FX Unbound 递归解析器运行参数接通与 38 字段 DNS 快照（2026-11-07）
+
+- 文件：`scripts/yulong-ad-control.sh`、`fx-module/scripts/yulong-ad-control.sh`、`fx-module/scripts/unbound.sh`、APK 根目录与模块目录的 `FxYulongAdActivity.java`。
+- 正式打包的根目录 DNS 控制器与模块目录已同步，新增 `unbound-runtime-get/set`：Unbound 缓存最大/最小 TTL、Serve Expired 开关、过期缓存最大年龄、过期答复 TTL、客户端等待超时、预取及 QNAME minimisation。
+- Unbound 生命周期脚本从控制器读取参数并生成真实 `unbound.conf`；保存后走现有配置检查、生命周期锁和健康探测流程，不是仅保存 UI 值。
+- DNS 页面提供 8 项 Unbound 参数的读取、编辑和保存；DNS 快照扩展到 38 项（18 个布尔开关），兼容旧 18/19/26/30 项快照。
+- 清除并行合并造成的重复 Unbound 参数读取方法和重复设置卡；保留按后端 uint32 边界与最小 TTL 不大于最大 TTL的校验，且根目录/模块目录 APK 源码同步。
+- 按用户要求未运行测试、静态检查、构建、CI 或设备验证。
+
+
 ### FX AdGuard Home 上游策略、请求超时、缓存与 DNSSEC 引擎参数移植（2026-11-07）
 
 - 文件：`scripts/yulong-ad-control.sh`、`scripts/adguardhome.sh`、`adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java` 及 `fx-module/` 对应模块镜像；同步运行模板 `.github/dns/AdGuardHome-FX-runtime-v1.0.0.yaml`、模块配置副本和 `fx-module/engines/adguardhome/AdGuardHome.yaml`。
