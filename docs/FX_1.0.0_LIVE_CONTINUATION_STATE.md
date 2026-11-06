@@ -7891,3 +7891,14 @@ HEAD 前最近一组提交（按读取时的提交历史）：
   - DNS 拦截返回模式卡新增“严格 DNS 保护”与“基础 DNS 拦截”两个预设入口；前者设置 NXDOMAIN 并启用五项策略，后者保留 NXDOMAIN 并关闭五项附加策略。
   - 二次确认后单次调用后端事务，成功时同步返回模式显示并刷新页面。
 - 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证；本批尚未验收。
+
+
+## 2026-11-06 — Ad DNS 用户域名名单一键清空
+
+- 后端提交：`e60b7ed4df275a3227b435aaeba0325932bdbe0e`，文件 `scripts/yulong-ad-control.sh`。
+  - 新增 `allow-clear-all` / `block-clear-all`。
+  - 从当前用户名单提取域名并复用既有完整域名校验、批量移除和配置事务；空名单作为成功的无操作处理。
+  - 两条命令互相独立，不触碰另一份名单、内置规则源、DNS 上游或过滤策略。
+- UI 提交：`9a15f2082b200d1ee0b7c2a7249a3d6f185cce5c`，文件 `adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
+  - 白名单、黑名单各新增独立维护卡与“清空全部”入口；二次确认后调用对应后端事务，成功后刷新页面。
+- 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证；本批尚未验收。
