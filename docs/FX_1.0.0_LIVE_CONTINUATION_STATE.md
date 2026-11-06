@@ -8061,3 +8061,15 @@ HEAD 前最近一组提交（按读取时的提交历史）：
 - `8210f0bf87a6248047d9841bf9611e9f408c646e`：`FxGkdRuleStore.kt` 增加分组批量改名接口，保留原规则内容、顺序与开关状态。
 - `d8a517d99fc788e1def6560bb5f322f23a661306`：`FxGkdAutomationActivity.java` 在具体分组筛选下增加改名入口；同名目标分组会合并，完成后刷新规则缓存与服务配置。
 - 本轮依照要求未执行构建、测试或运行验证。
+
+
+## 2026-11-06 — Ad DNS 白名单逐条与筛选批量启停
+
+- 后端提交：`60389ee163f3c4c6bb14722fc3037aab388f801b`，文件 `scripts/yulong-ad-control.sh`。
+  - 白名单写入统一由 FX 配置段 `[list:domain]` 管理，新增 `allow-set DOMAIN 0|1` 与 `allow-set-many 0|1 BASE64_DOMAIN_LIST`。
+  - 单条及批量操作保留域名、备注和记录位置；批量先校验载荷、域名、数量及条目存在性，再由既有配置锁、整份备份/回滚与一次 apply 执行。
+  - 不修改黑名单、过滤订阅、DNS 上游或 VPN 设置。
+- UI 提交：`4adeef4e76e9f6b6b9244efdaccdc222e05fc1e5`，文件 `adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdActivity.java`。
+  - 白名单列表增加每条独立启用开关；域名名单筛选卡增加“启用筛选命中的白名单 / 停用筛选命中的白名单”，与现有黑名单批量操作并列。
+  - 批量入口严格沿用当前域名/备注搜索条件，最多 2000 条、64 KiB；确认后调用单一后端事务。
+- 按用户要求未运行测试、静态检查、Gradle 构建、CI、安装或设备验证；本批尚未验收。
