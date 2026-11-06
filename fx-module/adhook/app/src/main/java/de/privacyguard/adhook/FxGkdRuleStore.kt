@@ -175,10 +175,17 @@ object FxGkdRuleStore {
             val packageName = item.optString("package").trim()
             val selector = item.optString("selector").trim()
             val cooldown = item.optLong("cooldown_ms", DEFAULT_COOLDOWN_MS)
+            val action = item.optString("action", "click")
+            val group = item.optString("group", "默认").trim()
+            val excludeSelector = item.optString("exclude_selector", "").trim()
             if (merged.size >= MAX_RULES ||
                 !isValidPackageName(packageName) || packageName == context.packageName ||
                 selector.isEmpty() || selector.length > 512 ||
                 cooldown !in MIN_COOLDOWN_MS..MAX_COOLDOWN_MS ||
+                (action != "click" && action != "long_click") ||
+                group.isEmpty() || group.length > 40 ||
+                excludeSelector.length > 512 ||
+                (excludeSelector.isNotEmpty() && !FxGkdSelectorEngine.compile(excludeSelector).isValid) ||
                 !isInstalledUserApplication(context, packageName) ||
                 !FxGkdSelectorEngine.compile(selector).isValid ||
                 !known.add(packageName + "\u0000" + selector)
@@ -187,17 +194,17 @@ object FxGkdRuleStore {
                 continue
             }
             // Never import an enabled action. Users must review and enable it locally.
+            // Reject malformed action/exclusion metadata instead of silently changing
+            // its meaning to a broader click rule with no exclusion guard.
             merged += FxGkdRule(
                 id = UUID.randomUUID().toString(),
                 packageName = packageName,
                 selector = selector,
                 cooldownMillis = cooldown,
                 enabled = false,
-                action = item.optString("action", "click").takeIf { it == "click" || it == "long_click" } ?: "click",
-                group = item.optString("group", "默认").trim().takeIf { it.isNotEmpty() && it.length <= 40 } ?: "默认",
-                excludeSelector = item.optString("exclude_selector", "").trim().takeIf {
-                    it.length <= 512 && (it.isEmpty() || FxGkdSelectorEngine.compile(it).isValid)
-                } ?: ""
+                action = action,
+                group = group,
+                excludeSelector = excludeSelector
             )
         }
 
