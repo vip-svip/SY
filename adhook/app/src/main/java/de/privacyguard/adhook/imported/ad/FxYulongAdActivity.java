@@ -1630,9 +1630,6 @@ private void restoreDnsProfile(EditText input){
     }
     preview.put(key,line.substring(split+1));
   }
-  if(preview.size()!=allowed.length&&preview.size()!=49&&preview.size()!=48&&preview.size()!=46&&preview.size()!=44&&preview.size()!=43&&preview.size()!=39&&preview.size()!=38&&preview.size()!=30&&preview.size()!=26&&preview.size()!=19&&preview.size()!=18){
-    status.setText("快照字段不完整（"+preview.size()+"/"+allowed.length+"），未提交。");return;
-  }
   for(String key:allowed)if(!preview.containsKey(key)){
     if("QUERYLOG_RETENTION".equals(key))preview.put(key,"7d");
     else if("QUERYLOG_MEMORY_SIZE".equals(key))preview.put(key,"1000");
