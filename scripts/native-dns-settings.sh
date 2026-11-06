@@ -115,7 +115,7 @@ status() {
     case "$_filter_total:$_filter_enabled" in *[!0-9:]*|:*) _filter_total=unknown; _filter_enabled=unknown ;; esac
   fi
   if [ -f "$MP/scripts/yulong-root-proxy.sh" ] && [ ! -L "$MP/scripts/yulong-root-proxy.sh" ]; then
-    _root_output=$(MP="$MP" PG="$PG" sh "$MP/scripts/yulong-root-proxy.sh" status 2>/dev/null) || _root_output=
+    if _root_output=$(MP="$MP" PG="$PG" sh "$MP/scripts/yulong-root-proxy.sh" status 2>/dev/null); then :; else _root_status_rc=$?; fi
     if [ -n "$_root_output" ]; then
       if printf '%s\n' "$_root_output" | grep -Fqx 'active=1'; then _root=active
       elif printf '%s\n' "$_root_output" | grep -Fqx 'active=0'; then _root=inactive
