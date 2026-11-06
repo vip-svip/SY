@@ -1597,7 +1597,7 @@ dns_statistics_values() {
       amount=substr(interval,1,length(interval)-1)
       maximum=(unit=="h"?8760:365)
       if(amount+0<1 || amount+0>maximum || int(amount+0)!=amount+0)exit 1
-      printf "STATISTICS_ENABLED=%s\\nSTATISTICS_INTERVAL=%s\\n",enabled,interval
+      printf "STATISTICS_ENABLED=%s\nSTATISTICS_INTERVAL=%s\n",enabled,interval
     }
   ' "$CONF" 2>/dev/null
 }
@@ -1653,7 +1653,7 @@ write_dns_statistics_settings() {
 }
 dns_statistics_set() {
   write_dns_statistics_settings "$1" "$2" || return $?
-  printf 'statistics_enabled=%s statistics_interval=%s\\n' "$1" "$2"
+  printf 'statistics_enabled=%s statistics_interval=%s\n' "$1" "$2"
 }
 
 dns_config_get() {
