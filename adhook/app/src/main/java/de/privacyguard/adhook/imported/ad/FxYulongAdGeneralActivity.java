@@ -257,6 +257,7 @@ public final class FxYulongAdGeneralActivity extends de.privacyguard.adhook.FxNa
                 button("复制：原版 Tasker_START", () -> copyTaskerAction("原版 Tasker_START", FxYulongAdTaskerReceiver.LEGACY_ACTION_START)),
                 button("复制：原版 Tasker_STOP", () -> copyTaskerAction("原版 Tasker_STOP", FxYulongAdTaskerReceiver.LEGACY_ACTION_STOP)),
                 button("刷新最近执行回执", this::refreshTaskerResultStatus),
+                button("清除最近执行回执", this::confirmClearTaskerReceipt),
                 taskerResultStatus);
 
         card(body, "界面、主题与语言",
@@ -527,6 +528,36 @@ public final class FxYulongAdGeneralActivity extends de.privacyguard.adhook.FxNa
                         : "已关闭（后续外部请求将在 Root 执行前被拒绝）");
         display.append("\n注意：这是最近一次广播命令回执，不代表该服务当前仍处于运行状态。");
         taskerResultStatus.setText(display.toString());
+    }
+
+    private void confirmClearTaskerReceipt() {
+        new AlertDialog.Builder(this)
+                .setTitle("清除自动化执行回执")
+                .setMessage("仅清除最近一次 Tasker / 自动化命令的本地执行记录，不会更改已固定的发送方、授权开关或任何 VPN / 广告过滤运行状态。此操作不可撤销。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("清除记录", (dialog, which) -> clearTaskerReceipt())
+                .show();
+    }
+
+    private void clearTaskerReceipt() {
+        android.content.SharedPreferences prefs =
+                getSharedPreferences(FxYulongAdTaskerReceiver.PREFS_NAME, MODE_PRIVATE);
+        boolean cleared = prefs.edit()
+                .remove(FxYulongAdTaskerReceiver.PREF_LAST_ACTION)
+                .remove(FxYulongAdTaskerReceiver.PREF_LAST_TARGET)
+                .remove(FxYulongAdTaskerReceiver.PREF_LAST_ENABLED)
+                .remove(FxYulongAdTaskerReceiver.PREF_LAST_SUCCESS)
+                .remove(FxYulongAdTaskerReceiver.PREF_LAST_EXIT_CODE)
+                .remove(FxYulongAdTaskerReceiver.PREF_LAST_DETAIL)
+                .remove(FxYulongAdTaskerReceiver.PREF_LAST_AT)
+                .commit();
+        if (!cleared) {
+            Toast.makeText(this, "清除执行回执失败，原记录保持不变。", Toast.LENGTH_LONG).show();
+            return;
+        }
+        refreshTaskerResultStatus();
+        Toast.makeText(this, "最近执行回执已清除；自动化授权和服务状态未更改。",
+                Toast.LENGTH_SHORT).show();
     }
 
     private void requestHomeWidgetPin() {
