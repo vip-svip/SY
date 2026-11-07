@@ -15,8 +15,9 @@ privacy = s.index('id="pagePrivacy"')
 scripts = s.index('id="pageScript"')
 card = s.index('<div class="card fxah-card" id="cardFxAdHook">')
 assert privacy < card < scripts, "unified Hook card must be on the Privacy page"
-for token in ('data-key="lsposed_enabled"', 'id="fxHookMaster"',
-              'id="fxHookPrivacyMaster"', 'id="fxHookManage"', 'id="fxHookSync"'):
+for token in ('data-key="hook_ads_enabled"', 'id="fxHookMaster"',
+              'data-key="hook_privacy_enabled"', 'id="fxHookPrivacyMaster"',
+              'id="fxHookManage"', 'id="fxHookSync"'):
     assert s.count(token) == 1, f"missing/duplicate Hook control: {token}"
 assert '统一应用内 Hook 管理' in s
 assert 'FX Hook 模块' in s

@@ -63,7 +63,7 @@ public final class FxDiaInspectorActivity extends de.privacyguard.adhook.FxNativ
         c.addView(text(title,16,0xff17212b,true));c.addView(text(detail,12,0xff617080,false));for(View v:controls)c.addView(v);
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(dp(12),dp(5),dp(12),dp(5));p.addView(c,lp);
     }
-    private String quote(String s){return "'"+s.replace("'","'\\''")+"'";}
+    private String quote(String s){return "'"+s.replace("'","'\''")+"'";}
     @Override protected void onCreate(Bundle state){
         super.onCreate(state);mode=getIntent().getStringExtra("dia_mode");if(!"memory".equals(mode))mode="database";
         LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setBackgroundColor(0xfff7f8fa);

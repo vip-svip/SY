@@ -529,8 +529,8 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
                                 setStatus(oldName.equals(newName) ? "名称未变化。"
                                         : "脚本已重命名为：“" + newName + "”。源码保持不变。");
                             });
-                        } catch (Throwable error) {
-                            runOnUiThread(() -> setStatus("重命名失败：" + detail(error)));
+                        } catch (Throwable failure) {
+                            runOnUiThread(() -> setStatus("重命名失败：" + detail(failure)));
                         }
                     });
                 }).show();
@@ -575,8 +575,8 @@ public final class FxDiaScriptLibraryActivity extends de.privacyguard.adhook.FxN
                                 renderRows();
                                 setStatus("已复制为新草稿：“" + newName + "”。原脚本保持不变，副本未执行。");
                             });
-                        } catch (Throwable error) {
-                            runOnUiThread(() -> setStatus("复制脚本失败：" + detail(error)));
+                        } catch (Throwable failure) {
+                            runOnUiThread(() -> setStatus("复制脚本失败：" + detail(failure)));
                         }
                     });
                 }).show();

@@ -89,7 +89,7 @@ public final class FxDiaBackupActivity extends de.privacyguard.adhook.FxNativeTa
     private int dp(float n){return (int)(n*getResources().getDisplayMetrics().density+0.5f);}
     private TextView text(String s,int size,int color,boolean bold){TextView v=new TextView(this);v.setText(s);v.setTextSize(size);v.setTextColor(color);if(bold)v.setTypeface(Typeface.DEFAULT,Typeface.BOLD);v.setPadding(dp(4),dp(5),dp(4),dp(5));return v;}
     private Button button(String s,Runnable r){Button b=new Button(this);b.setAllCaps(false);b.setText(s);b.setOnClickListener(v->r.run());return b;}
-    private String quote(String s){return "'"+s.replace("'","'\\''")+"'";}
+    private String quote(String s){return "'"+s.replace("'","'\''")+"'";}
 
     private static boolean isSafePendingExportName(String name) {
         return name != null && name.matches("fx-dia-export-[A-Za-z0-9]+\\.tmp");
@@ -294,7 +294,7 @@ public final class FxDiaBackupActivity extends de.privacyguard.adhook.FxNativeTa
                 +"[ -d /data/adb ] && [ ! -L /data/adb ] || exit 18; "
                 +"PG=/data/adb/privacyguard; [ ! -L \"$PG\" ] || exit 19; [ -d \"$PG\" ] || exit 20; "
                 +"[ ! -L \"$PG/settings.conf\" ] || exit 21; [ -f \"$PG/settings.conf\" ] && [ -s \"$PG/settings.conf\" ] || exit 20; "
-                +"base64 \"$PG/settings.conf\" | tr -d '\\n'";
+                +"base64 \"$PG/settings.conf\" | tr -d '\n'";
     }
 
     private String rootStellarFilesCommand(){
@@ -311,7 +311,7 @@ public final class FxDiaBackupActivity extends de.privacyguard.adhook.FxNativeTa
                 +"[ ! -L \"$DIR/$f\" ] || exit 42; "
                 +"[ ! -e \"$DIR/$f\" ] || [ -f \"$DIR/$f\" ] || exit 43; "
                 +"if [ -f \"$DIR/$f\" ]; then "
-                +"printf 'STELLARFILE|%s|' \"$f\"; base64 \"$DIR/$f\" | tr -d '\\n'; printf '\\n'; "
+                +"printf 'STELLARFILE|%s|' \"$f\"; base64 \"$DIR/$f\" | tr -d '\n'; printf '\n'; "
                 +"fi; done";
     }
 

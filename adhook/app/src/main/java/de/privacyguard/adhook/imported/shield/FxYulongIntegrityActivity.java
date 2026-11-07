@@ -210,11 +210,12 @@ public final class FxYulongIntegrityActivity extends de.privacyguard.adhook.FxNa
                             + (error.getMessage() == null ? "" : "：" + error.getMessage())
                             + "\n请确认 FX Hook 的 Root 授权与模块状态后重试。";
                 }
+                final String snapshot = report;
                 runOnUiThread(() -> {
                     if (destroyed || isFinishing() || isDestroyed()
                             || request != checkGeneration) return;
                     checkButton.setEnabled(true);
-                    moduleStatus.setText(report);
+                    moduleStatus.setText(snapshot);
                 });
             });
         } catch (RejectedExecutionException full) {

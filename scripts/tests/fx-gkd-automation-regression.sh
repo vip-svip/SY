@@ -208,7 +208,7 @@ assert 'android:canPerformGestures="false"' in service_xml
 assert 'android:accessibilityEventTypes="typeWindowStateChanged"' in service_xml
 assert "只有用户在 FX 的 GKD 页面主动启用总开关" in strings
 assert "限额 Accessibility 节点快照、本地规则匹配与 Click 执行" in activity
-assert "尚未接入：上游订阅源、规则组/排除项、AI 服务商、触发历史、云同步与上游备份格式" in activity
+assert "尚未接入：上游订阅源、AI 服务商、触发历史、云同步与上游备份格式、复杂动作与手势" in activity
 
 # Upstream parser adapter behavior is exercised on the FX node model.
 for test_name in ("matchesUpstreamAttributeAndWidgetSelectors",

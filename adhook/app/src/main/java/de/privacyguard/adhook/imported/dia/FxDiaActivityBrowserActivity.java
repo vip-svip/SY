@@ -131,7 +131,7 @@ public final class FxDiaActivityBrowserActivity extends de.privacyguard.adhook.F
     }
 
     private String quote(String value) {
-        return "'" + value.replace("'", "'\\''") + "'";
+        return "'" + value.replace("'", "'\''") + "'";
     }
 
     private boolean submitWorker(Runnable task) {
@@ -826,7 +826,13 @@ public final class FxDiaActivityBrowserActivity extends de.privacyguard.adhook.F
                             activityGeneration++;
                             activitiesLoading = false;
                             loadActivities();
-               private void confirmDisableVisibleActivities() {
+                        });
+                    });
+                })
+                .show();
+    }
+
+    private void confirmDisableVisibleActivities() {
         if (launcherOnly || selected == null || !isSafePackage(selected.packageName)
                 || activitiesLoading || destroyed) {
             status.setText("请先选择目标应用并完成 Activity 读取。");
@@ -913,12 +919,6 @@ public final class FxDiaActivityBrowserActivity extends de.privacyguard.adhook.F
                             activityGeneration++;
                             activitiesLoading = false;
                             loadActivities();
-                        });
-                    });
-                })
-                .show();
-    }
-
              });
                     });
                 })

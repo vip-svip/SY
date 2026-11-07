@@ -197,7 +197,7 @@ public final class FxDiaGadgetDeployment {
     }
 
     private static String q(String value) {
-        return "'" + value.replace("'", "'\\''") + "'";
+        return "'" + value.replace("'", "'\''") + "'";
     }
 
     public static String buildDeployCommand(String library, String config,

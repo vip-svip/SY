@@ -1,5 +1,7 @@
 package de.privacyguard.adhook;
 
+import android.widget.Toast;
+
 import androidx.activity.ComponentActivity;
 import androidx.appcompat.app.AlertDialog;
 import android.content.BroadcastReceiver;
@@ -1147,7 +1149,7 @@ public final class MainActivity extends ComponentActivity {
         FxNativeSkin.builder(this).setTitle("重新应用 DNS 配置")
                 .setMessage("将按当前设置重新协调 AdGuard Home、Unbound 与 Root Proxy 服务。此操作不会创建第二个 Android VPN，也不会修改 Android Private DNS。")
                 .setPositiveButton("重新应用", (dialog, which) -> {
-                    runNativeModuleCommand("sh \\"$MP/scripts/native-dns-settings.sh\\" reconcile", 180000L, result -> {
+                    runNativeModuleCommand("sh \"$MP/scripts/native-dns-settings.sh\" reconcile", 180000L, result -> {
                         if (result.exitCode == 0) {
                             Toast.makeText(this, "DNS 服务配置已重新应用", Toast.LENGTH_LONG).show();
                             showNativeDnsSettingsDialog();
@@ -1472,7 +1474,7 @@ public final class MainActivity extends ComponentActivity {
                     boolean[] checked = new boolean[packages.size()];
                     for (int i = 0; i < packages.size(); i++) checked[i] = selectedPackages.contains(packages.get(i));
                     final AlertDialog[] whitelistDialog = new AlertDialog[1];
-                    whitelistDialog[0] = new AlertDialog.Builder(this)
+                    whitelistDialog[0] = FxNativeSkin.builder(this)
                             .setTitle("应用 DNS 白名单")
                             .setMultiChoiceItems(names.toArray(new String[0]), checked, (dialog, which, enabled) -> {
                                 String pkg = packages.get(which);
@@ -1932,6 +1934,7 @@ public final class MainActivity extends ComponentActivity {
         addNativeActionCard("Toast 文本过滤", "逐应用过滤明确命中的 Toast 文本；使用不区分大小写的字面关键词，不是正则。必须填写关键词，不提供空规则全屏蔽；自定义 View 按可读取文本匹配。", "配置 Toast 过滤", () -> showAppList("Toast过滤"));
         addNativeActionCard("媒体读取与 EXIF", "按应用阻止 MediaStore 查询、文件流、文件描述符、MIME 元数据和缩略图读取；图片/视频 EXIF 清理独立控制。", "配置媒体隐私", () -> showAppList("媒体隐私"));
         addNativeActionCard("只读会员状态诊断", "仅记录目标应用可观察的会员状态诊断信息，不修改购买结果、令牌或服务端授权。", "配置只读诊断", () -> showAppList("会员诊断"));
+        addNativeActionCard("应用版本模拟", "为目标 debuggable 测试应用覆盖其自身进程读到的 versionName / versionCode；不改 APK、签名、安装包或其它应用。", "选择目标应用", () -> showAppList("应用版本模拟"));
 
         // These are privacy/security policies, not application preferences.
         // Keep their native controls on the Privacy destination where users expect them.
@@ -2380,10 +2383,10 @@ public final class MainActivity extends ComponentActivity {
         String bodyFlag = fields.length > 2 && "1".equals(fields[2]) ? "1" : "0";
         String safeName = displayName == null ? ""
                 : displayName.replaceAll("[\\\\p{Cntrl}]", " ").trim();
-        StringBuilder updated = new StringBuilder(fields[0]).append('\\n')
-                .append(fields[1]).append('\\n').append(bodyFlag).append('\\n').append(safeName);
+        StringBuilder updated = new StringBuilder(fields[0]).append('\n')
+                .append(fields[1]).append('\n').append(bodyFlag).append('\n').append(safeName);
         // Preserve Egern env JSON and forward-compatible trailing metadata fields.
-        for (int i = 4; i < fields.length; i++) updated.append('\\n').append(fields[i]);
+        for (int i = 4; i < fields.length; i++) updated.append('\n').append(fields[i]);
         return "FXMETA_B64:" + Base64.encodeToString(
                 updated.toString().getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
     }
@@ -2481,9 +2484,7 @@ public final class MainActivity extends ComponentActivity {
                     ops.addView(enabledSwitch, new LinearLayout.LayoutParams(0, -2, 1));
                     row.setOnClickListener(v -> FxNativeSkin.builder(this)
                             .setTitle(displayNote.isEmpty() ? "脚本详情" : displayNote)
-                            .setMessage((metadataSummary.isEmpty() ? "" : metadataSummary + "
-
-")
+                            .setMessage((metadataSummary.isEmpty() ? "" : metadataSummary + "\n\n")
                                     + "来源：" + valueText)
                             .setPositiveButton("关闭", null).show());
                     if (!valueText.startsWith("https://")) {
@@ -4075,7 +4076,7 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private static String shellQuote(String value) {
-        return "'" + String.valueOf(value).replace("'", "'\\''") + "'";
+        return "'" + String.valueOf(value).replace("'", "'\''") + "'";
     }
 
     private String nativeVpnRootCommand(String action, String value) {

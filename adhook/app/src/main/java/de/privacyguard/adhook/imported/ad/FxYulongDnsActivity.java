@@ -694,6 +694,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
             status.setText("当前筛选条件没有可加入名单的域名。");
             return;
         }
+        final int matchedRowCount = matchedRows;
         String payload = String.join("\n", unique);
         byte[] bytes = payload.getBytes(java.nio.charset.StandardCharsets.UTF_8);
         String encoded = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP);
@@ -708,7 +709,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
                 .setPositiveButton("批量添加", (dialog, which) -> root(shell(operation), result -> {
                     if (result.exitCode == 0) {
                         status.setText("已将 " + unique.size() + " 个去重域名加入 FX " + listName
-                                + "（来源 " + matchedRows + " 条筛选记录）。");
+                                + "（来源 " + matchedRowCount + " 条筛选记录）。");
                         load();
                     } else {
                         status.setText("批量加入" + listName + "失败：" + safe(result.output));
@@ -904,7 +905,7 @@ public final class FxYulongDnsActivity extends de.privacyguard.adhook.FxNativeTa
     }
 
     private static String cleanExportField(String value) {
-        return value == null ? "" : value.replace('\\t', ' ')
+        return value == null ? "" : value.replace('\t', ' ')
                 .replace('\r', ' ').replace('\n', ' ');
     }
 

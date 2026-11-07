@@ -482,6 +482,12 @@ public final class UnifiedHookConfigParser {
                     case "ads_splash": splash = on; break;
                     case "ads_feed": feed = on; break;
                     case "ads_overlay": overlay = on; break;
+                    // 旧版 HookTargetConfigParser 的短键必须继续可读：升级后历史 hook 配置、
+                    // 已导出的 [list:targets] 行仍写 splash/feed/overlay，直接抛 unknown feature
+                    // 会让整份配置解析失败并把已启用的 Hook 目标全部丢掉。
+                    case "splash": splash = on; break;
+                    case "feed": feed = on; break;
+                    case "overlay": overlay = on; break;
                     case "member_diag": member = on; break;
                     case "privacy": targetPrivacy = on; break;
                     case "exif_strip": exifStrip = on; break;

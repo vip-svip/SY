@@ -283,7 +283,7 @@ public final class FxYulongFirewallActivity extends de.privacyguard.adhook.FxNat
         return FxYulongRootModuleCommand.command("yulong-app-firewall.sh", args);
     }
     private String quote(String s) {
-        return "'" + (s == null ? "" : s.replace("'", "'\\''")) + "'";
+        return "'" + (s == null ? "" : s.replace("'", "'\''")) + "'";
     }
     private void runRoot(String args, java.util.function.Consumer<RootAccess.Result> callback) {
         try {

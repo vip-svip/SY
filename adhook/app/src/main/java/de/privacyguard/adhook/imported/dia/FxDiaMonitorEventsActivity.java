@@ -152,7 +152,7 @@ public final class FxDiaMonitorEventsActivity extends de.privacyguard.adhook.FxN
     }
 
     private String shellQuote(String value) {
-        return "'" + value.replace("'", "'\\''") + "'";
+        return "'" + value.replace("'", "'\''") + "'";
     }
 
     private void buildPage() {

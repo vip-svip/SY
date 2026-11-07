@@ -50,6 +50,17 @@ def has_conflict_aware_location_control(source):
         'content.addView(sw',
     )) and 'if (locationAccessBlocked && (enabled || providerEnabled))' in source
 
+# The MediaStore control was relabelled once it started blocking file reads as
+# well as queries; both labels belong to the same feature key and both are
+# valid API-101 UI for that field.
+MEDIA_STORE_LABELS = ("阻止媒体库查询与文件读取", "清理媒体查询元数据")
+
+
+def has_media_store_toggle(source):
+    return any('toggle("' + label + '", "media_store_query_block"' in source
+               for label in MEDIA_STORE_LABELS)
+
+
 already_complete = (
     'else if (key == "camera_access_block") camera_access=val' in gen_text
     and 'camera_access_block=%s' in gen_text
@@ -60,9 +71,9 @@ already_complete = (
     ))
     and all(marker in native_ui_text for marker in (
         'toggle("限制摄像头访问", "camera_access_block"',
-        'toggle("阻止录音启动（会影响录音功能）", "mic_access_block"',
-        'toggle("清理媒体查询元数据", "media_store_query_block"'
+        'toggle("阻止录音启动（会影响录音功能）", "mic_access_block"'
     ))
+    and has_media_store_toggle(native_ui_text)
     and (
         'toggle("限制位置访问", "location_access_block"' in native_ui_text
         or has_conflict_aware_location_control(native_ui_text)
@@ -151,7 +162,6 @@ for label, feature in (
     ("限制摄像头访问", "camera_access_block"),
     ("限制位置访问", "location_access_block"),
     ("阻止录音启动（会影响录音功能）", "mic_access_block"),
-    ("清理媒体查询元数据", "media_store_query_block"),
 ):
     has_generic_toggle = 'toggle("' + label + '", "' + feature + '"' in native_ui_final
     if feature == "location_access_block":
@@ -162,6 +172,10 @@ for label, feature in (
         missing.append(feature + " native UI toggle")
     if '"' + feature + '"' not in native_ui_final:
         missing.append(feature + " native config serializer")
+if not has_media_store_toggle(native_ui_final):
+    missing.append("media_store_query_block native UI toggle")
+if '"media_store_query_block"' not in native_ui_final:
+    missing.append("media_store_query_block native config serializer")
 if missing:
     raise SystemExit("API-101 privacy migration incomplete; missing fields: " + ", ".join(sorted(set(missing))))
 if "com.sensitive.app" not in reg_final or "media_store_query_block=1" not in reg_final:

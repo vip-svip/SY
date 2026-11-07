@@ -1,5 +1,7 @@
 package de.privacyguard.adhook;
 
+import android.content.Intent;
+
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -102,7 +104,7 @@ public final class FxHookObservationLogsActivity extends FxNativeTabActivity {
     }
 
     private String shellQuote(String value) {
-        return "'" + value.replace("'", "'\\''") + "'";
+        return "'" + value.replace("'", "'\''") + "'";
     }
 
     private String observationCommand() {

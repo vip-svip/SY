@@ -92,7 +92,7 @@ public final class FxYulongAdActivity extends de.privacyguard.adhook.FxNativeTab
   }
  }
  private void card(String title,String detail,View... views){LinearLayout p=new LinearLayout(this);p.setTag("fx-card");p.setOrientation(1);p.setPadding(dp(14),dp(10),dp(14),dp(10));p.setBackgroundColor(0xfff0f3f7);TextView heading=txt(title,15,0xff17212b,true);heading.setTag("fx-card-title");p.addView(heading);TextView description=txt(detail,12,0xff617080,false);description.setTag("fx-card-detail");p.addView(description);for(View v:views)p.addView(v);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(dp(12),dp(5),dp(12),dp(5));body.addView(p,lp);}
- private String q(String s){return "'"+(s==null?"":s.replace("'","'\\''"))+"'";}
+ private String q(String s){return "'"+(s==null?"":s.replace("'","'\''"))+"'";}
  private String cmd(String args){
    return FxYulongRootModuleCommand.command("yulong-ad-control.sh", args);
   }
@@ -2138,6 +2138,7 @@ private void restoreDnsProfile(EditText input){
           else fxDialogBuilder().setTitle("DNS 快照恢复失败").setMessage(safe(r.output)).setPositiveButton("关闭",null).show();
         })).show()).show();
   });
+}
 private boolean isValidDnsBlockingIpv4(String value){
   if(value==null||!value.matches("[0-9]{1,3}(\\.[0-9]{1,3}){3}"))return false;
   for(String part:value.split("\\.",-1)){
@@ -2264,26 +2265,7 @@ private boolean isValidProfileDnsCsv(String value,boolean encryptedAllowed){
       String authority=slash<0?rest:rest.substring(0,slash);
       String path=slash<0?"":rest.substring(slash);
       if(!isValidProfileDnsHostPort(authority)||
-          !path.matches("(/[A-Za-z0-9._~!    if(entry.startsWith("tls://")||entry.startsWith("quic://")){
-      String authority=entry.substring(entry.indexOf("://")+3);
-      if(!isValidProfileDnsHostPort(authority))return false;
-    }else if(entry.startsWith("https://")){
-      String rest=entry.substring(8);
-      int slash=rest.indexOf('/');
-      String authority=slash<0?rest:rest.substring(0,slash);
-      String path=slash<0?"":rest.substring(slash);
-      if(!isValidProfileDnsHostPort(authority)||
-          !path.matches("(/[A-Za-z0-9._~!    String hostPort="[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?";
-    if(entry.startsWith("tls://")||entry.startsWith("quic://")){
-      String authority=entry.substring(entry.indexOf("://")+3);
-      if(!authority.matches(hostPort)||!validProfilePort(authority))return false;
-    }else if(entry.startsWith("https://")){
-      String rest=entry.substring(8);
-      int slash=rest.indexOf('/');
-      String authority=slash<0?rest:rest.substring(0,slash);
-      String path=slash<0?"":rest.substring(slash);
-      if(!authority.matches(hostPort)||!validProfilePort(authority)||
-          !path.matches("(/[A-Za-z0-9._~!$&()*+,;=:@%/?#-]*)?"))return false;()*+,;=:@%/?#-]*)?"))return false;()*+,;=:@%/?#-]*)?"))return false;
+          !path.matches("(/[A-Za-z0-9._~!$&()*+,;=:@%/?#-]*)?"))return false;
     }else return false;
   }
   return true;
@@ -2984,8 +2966,8 @@ private void saveVpnDns(String key,EditText input){
   }
  }
  private static String cleanDomainExportField(String value){
-  return value==null?"":value.replace('|',' ').replace('\\t',' ')
-      .replace('\\r',' ').replace('\n',' ');
+  return value==null?"":value.replace('|',' ').replace('\t',' ')
+      .replace('\r',' ').replace('\n',' ');
  }
  private void importDomainBundle(EditText input){
   String raw=input.getText()==null?"":input.getText().toString();

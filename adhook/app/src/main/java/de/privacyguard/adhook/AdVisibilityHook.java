@@ -6,6 +6,16 @@ import android.media.MediaRecorder;
 import android.hardware.Camera;
 import android.hardware.camera2.CameraManager;
 import android.location.LocationManager;
+import android.location.Location;
+import android.location.LocationListener;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
+import android.os.CancellationSignal;
+import android.os.Parcel;
+import android.os.SystemClock;
+import java.time.ZoneId;
+import java.util.TimeZone;
+import java.util.function.Consumer;
 import android.app.Dialog;
 import android.app.Instrumentation;
 import android.app.Application;
@@ -724,11 +734,13 @@ private boolean targetDeveloperOptIn(String packageName) {
 
     private boolean isMediaStoreUri(Object value) {
         if (!(value instanceof Uri)) return false;
-        Uri uri = (Uri) value;
-        if (!"content".equalsIgnoreCase(uri.getScheme())) return false;
-        String authority = uri.getAuthority();
-        return "media".equals(authority)
-                || "com.android.providers.media.documents".equals(authority)
+        Uri first = (Uri) value;
+        if (!"content".equalsIgnoreCase(first.getScheme())) return false;
+        // Primary MediaStore authority first; the document and photo-picker
+        // providers serve the same media reads under their own authorities.
+        if ("media".equals(((Uri) first).getAuthority())) return true;
+        String authority = first.getAuthority();
+        return "com.android.providers.media.documents".equals(authority)
                 || "com.android.providers.media.photopicker".equals(authority)
                 || "com.android.providers.media.module".equals(authority);
     }
@@ -748,7 +760,7 @@ private boolean targetDeveloperOptIn(String packageName) {
                     && params.length > 0 && Uri.class.isAssignableFrom(params[0]);
             if (!query && !mediaRead || mediaStoreQueryHookedMethods.contains(method)) continue;
             try {
-                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PASSTHROUGH).intercept(chain -> {
                     if (processPackages.size() != 1 || !privacyEnabled) return chain.proceed();
                     String activePackage = currentPackage;
                     UnifiedHookConfigParser.Target active = targets.get(activePackage);
@@ -1886,6 +1898,297 @@ private boolean targetDeveloperOptIn(String packageName) {
         return installed;
     }
 
+    /**
+     * Device-value simulation only applies inside a single-package process whose
+     * target build is debuggable and whose package is not on the never-touch list.
+     * Shared processes fail closed so a simulated identity can never leak into an
+     * unrelated application that happens to run beside the target.
+     */
+    private boolean isAuthorizedDeviceSimulationTarget(String packageName) {
+        if (packageName == null || packageName.isEmpty()) return false;
+        if (NEVER.contains(packageName)) return false;
+        if (targets.get(packageName) == null) return false;
+        if (!debuggablePackages.contains(packageName)) return false;
+        return processPackages.size() == 1 && processPackages.contains(packageName);
+    }
+
+    private UnifiedHookConfigParser.Target authorizedSimulationTarget() {
+        String activePackage = currentPackage;
+        if (!isAuthorizedDeviceSimulationTarget(activePackage)) return null;
+        return targets.get(activePackage);
+    }
+
+    private static Location simulatedLocation(UnifiedHookConfigParser.Target active) {
+        Location location = new Location("gps");
+        location.setLatitude(active.simulatedLatitude);
+        location.setLongitude(active.simulatedLongitude);
+        location.setAccuracy(active.simulatedAccuracy);
+        location.setTime(System.currentTimeMillis());
+        location.setElapsedRealtimeNanos(SystemClock.elapsedRealtimeNanos());
+        location.setSpeed(0f);
+        location.setBearing(0f);
+        return location;
+    }
+
+    private static NetworkInfo simulatedNetworkInfo(String type) {
+        int networkType = "cellular".equals(type)
+                ? ConnectivityManager.TYPE_MOBILE : ConnectivityManager.TYPE_WIFI;
+        String typeName = "cellular".equals(type) ? "MOBILE" : "WIFI";
+        try {
+            java.lang.reflect.Constructor<NetworkInfo> constructor =
+                    NetworkInfo.class.getDeclaredConstructor(
+                            int.class, int.class, String.class, String.class);
+            constructor.setAccessible(true);
+            return constructor.newInstance(networkType, 0, typeName, "");
+        } catch (Throwable unavailable) {
+            return null;
+        }
+    }
+
+    private static PackageInfo copyPackageInfo(PackageInfo original) {
+        Parcel parcel = Parcel.obtain();
+        try {
+            original.writeToParcel(parcel, 0);
+            parcel.setDataPosition(0);
+            return PackageInfo.CREATOR.createFromParcel(parcel);
+        } finally {
+            parcel.recycle();
+        }
+    }
+
+    /**
+     * Override the in-process Wi-Fi identity reported by WifiInfo. The real adapter,
+     * link state and scan results stay untouched: only the SSID/BSSID strings handed
+     * the target process change.
+     */
+    private synchronized void installWifiInfoSimulationHooks(final String packageName) {
+        if (wifiInfoSimulationHooksInstalled) return;
+        int installed = 0;
+        try {
+            Class<?> wifiInfoType = Class.forName("android.net.wifi.WifiInfo", false, null);
+            for (Method method : wifiInfoType.getDeclaredMethods()) {
+                final String name = method.getName();
+                if (!"getSSID".equals(name) && !"getBSSID".equals(name)) continue;
+                if (method.getReturnType() != String.class || method.getParameterCount() != 0) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                        Object original = chain.proceed();
+                        UnifiedHookConfigParser.Target active = authorizedSimulationTarget();
+                        if (active == null || !active.wifiSimulation) return original;
+                        String simulated = "getSSID".equals(name)
+                                ? active.simulatedWifiSsid : active.simulatedWifiBssid;
+                        if (simulated == null || simulated.isEmpty()) return original;
+                        if (!"getSSID".equals(name)) return simulated;
+                        // WifiInfo reports a real SSID wrapped in double quotes.
+                        String bare = simulated;
+                        if (bare.length() > 1 && bare.startsWith("\"") && bare.endsWith("\"")) {
+                            bare = bare.substring(1, bare.length() - 1);
+                        }
+                        return "\"" + bare + "\"";
+                    });
+                    installed++;
+                } catch (Throwable t) {
+                    logFx(Log.WARN, "Wi-Fi simulation hook unavailable for " + name
+                            + ": " + t.getClass().getSimpleName());
+                }
+            }
+        } catch (Throwable missing) {
+            logFx(Log.WARN, "WifiInfo is unavailable in this process: "
+                    + missing.getClass().getSimpleName());
+        }
+        wifiInfoSimulationHooksInstalled = installed > 0;
+        logFx(wifiInfoSimulationHooksInstalled ? Log.INFO : Log.WARN,
+                "Wi-Fi identity simulation hooks installed=" + installed + " for " + packageName);
+    }
+
+    /**
+     * Override the active network type seen by the target process. Only the reported
+     * transport changes; the real connectivity, sockets and metering policy are not
+     * modified.
+     */
+    private synchronized void installNetworkTypeSimulationHooks(final String packageName) {
+        if (networkTypeSimulationHooksInstalled) return;
+        int installed = 0;
+        try {
+            Method activeNetworkInfo = ConnectivityManager.class.getDeclaredMethod("getActiveNetworkInfo");
+            hook(activeNetworkInfo).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                Object original = chain.proceed();
+                UnifiedHookConfigParser.Target active = authorizedSimulationTarget();
+                if (active == null || !active.networkTypeSimulation
+                        || active.simulatedNetworkType == null) return original;
+                NetworkInfo simulated = simulatedNetworkInfo(active.simulatedNetworkType);
+                return simulated == null ? original : simulated;
+            });
+            installed++;
+            Method metered = ConnectivityManager.class.getDeclaredMethod("isActiveNetworkMetered");
+            hook(metered).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                Object original = chain.proceed();
+                UnifiedHookConfigParser.Target active = authorizedSimulationTarget();
+                if (active == null || !active.networkTypeSimulation
+                        || active.simulatedNetworkType == null) return original;
+                return "cellular".equals(active.simulatedNetworkType);
+            });
+            installed++;
+        } catch (Throwable t) {
+            logFx(Log.WARN, "Network type simulation hook unavailable: " + t.getClass().getSimpleName());
+        }
+        networkTypeSimulationHooksInstalled = installed > 0;
+        logFx(networkTypeSimulationHooksInstalled ? Log.INFO : Log.WARN,
+                "Network type simulation hooks installed=" + installed + " for " + packageName);
+    }
+
+    /**
+     * Serve the configured test fix from LocationManager instead of a physical fix.
+     * GNSS hardware, the system mock-location setting and other applications keep
+     * their real behaviour; only this process observes the simulated coordinate.
+     */
+    private synchronized void installLocationSimulationHooks(final String packageName) {
+        if (locationSimulationHooksInstalled && locationProviderEnabledHooksInstalled) return;
+        int installed = 0;
+        try {
+            for (Method method : LocationManager.class.getDeclaredMethods()) {
+                final String name = method.getName();
+                if ("getLastKnownLocation".equals(name) && method.getReturnType() == Location.class) {
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                            Object original = chain.proceed();
+                            UnifiedHookConfigParser.Target active = authorizedSimulationTarget();
+                            if (active == null || !active.locationSimulation) return original;
+                            return simulatedLocation(active);
+                        });
+                        installed++;
+                    } catch (Throwable t) {
+                        logFx(Log.WARN, "location simulation hook unavailable for getLastKnownLocation: "
+                                + t.getClass().getSimpleName());
+                    }
+                    continue;
+                }
+                if ("requestLocationUpdates".equals(name)
+                        && method.getParameterCount() == 4
+                        && method.getParameterTypes()[3] == LocationListener.class) {
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                            UnifiedHookConfigParser.Target active = authorizedSimulationTarget();
+                            if (active == null || !active.locationSimulation) return chain.proceed();
+                            Object listener = chain.getArgs().get(3);
+                            if (listener instanceof LocationListener) {
+                                ((LocationListener) listener).onLocationChanged(simulatedLocation(active));
+                            }
+                            return null;
+                        });
+                        installed++;
+                    } catch (Throwable t) {
+                        logFx(Log.WARN, "location simulation hook unavailable for requestLocationUpdates: "
+                                + t.getClass().getSimpleName());
+                    }
+                    continue;
+                }
+                if ("isProviderEnabled".equals(name)
+                        && method.getParameterCount() == 1
+                        && method.getParameterTypes()[0] == String.class) {
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                            Object original = chain.proceed();
+                            UnifiedHookConfigParser.Target active = authorizedSimulationTarget();
+                            if (active == null || !active.locationProviderEnabledSimulation) return original;
+                            return true;
+                        });
+                        installed++;
+                    } catch (Throwable t) {
+                        logFx(Log.WARN, "provider-enabled simulation hook unavailable: "
+                                + t.getClass().getSimpleName());
+                    }
+                }
+            }
+        } catch (Throwable t) {
+            logFx(Log.WARN, "location simulation hooks unavailable: " + t.getClass().getSimpleName());
+        }
+        if (installed > 0) {
+            locationSimulationHooksInstalled = true;
+            locationProviderEnabledHooksInstalled = true;
+        }
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "location simulation hooks installed=" + installed + " for " + packageName);
+    }
+
+    /**
+     * Present the configured IANA zone to java.util and java.time callers. The device
+     * system clock and the global system zone remain untouched.
+     */
+    private synchronized void installTimeZoneSimulationHooks(final String packageName) {
+        if (timeZoneSimulationHooksInstalled) return;
+        int installed = 0;
+        try {
+            Method defaultZone = TimeZone.class.getDeclaredMethod("getDefault");
+            hook(defaultZone).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                Object original = chain.proceed();
+                UnifiedHookConfigParser.Target active = authorizedSimulationTarget();
+                if (active == null || !active.timeZoneSimulation || active.simulatedTimeZone == null) {
+                    return original;
+                }
+                return TimeZone.getTimeZone(active.simulatedTimeZone);
+            });
+            installed++;
+            Method zoneIdDefault = ZoneId.class.getDeclaredMethod("systemDefault");
+            hook(zoneIdDefault).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                Object original = chain.proceed();
+                UnifiedHookConfigParser.Target active = authorizedSimulationTarget();
+                if (active == null || !active.timeZoneSimulation || active.simulatedTimeZone == null) {
+                    return original;
+                }
+                return ZoneId.of(active.simulatedTimeZone);
+            });
+            installed++;
+        } catch (Throwable t) {
+            logFx(Log.WARN, "time zone simulation hooks unavailable: " + t.getClass().getSimpleName());
+        }
+        timeZoneSimulationHooksInstalled = installed > 0;
+        logFx(timeZoneSimulationHooksInstalled ? Log.INFO : Log.WARN,
+                "time zone simulation hooks installed=" + installed + " for " + packageName);
+    }
+
+    /**
+     * Report the configured version name/code for queries the target makes about its
+     * own package. Framework PackageInfo instances are copied before mutation so the
+     * shared framework cache is never rewritten.
+     */
+    private synchronized void installAppVersionSimulationHooks(final String packageName) {
+        if (appVersionSimulationHooksInstalled) return;
+        int installed = 0;
+        try {
+            Class<?> managerType = Class.forName("android.app.ApplicationPackageManager", false, null);
+            for (Method method : managerType.getDeclaredMethods()) {
+                final String name = method.getName();
+                if (!"getPackageInfo".equals(name) || method.getReturnType() != PackageInfo.class) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                        Object firstArg = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
+                        Object original = chain.proceed();
+                        if (!(firstArg instanceof String) || !(original instanceof PackageInfo)) return original;
+                        String requestedPackage = (String) firstArg;
+                        String activePackage = currentPackage;
+                        UnifiedHookConfigParser.Target active = targets.get(activePackage);
+                        if (active == null || !active.appVersionSimulation
+                                || !activePackage.equals(requestedPackage)
+                                || !debuggablePackages.contains(activePackage)) return original;
+                        PackageInfo info = copyPackageInfo((PackageInfo) original);
+                        info.versionName = active.simulatedVersionName;
+                        info.versionCode = (int) active.simulatedVersionCode;
+                        return info;
+                    });
+                    installed++;
+                } catch (Throwable t) {
+                    logFx(Log.WARN, "app version simulation hook unavailable for " + name
+                            + ": " + t.getClass().getSimpleName());
+                }
+            }
+        } catch (Throwable t) {
+            logFx(Log.WARN, "PackageManager simulation hooks unavailable: " + t.getClass().getSimpleName());
+        }
+        appVersionSimulationHooksInstalled = installed > 0;
+        logFx(appVersionSimulationHooksInstalled ? Log.INFO : Log.WARN,
+                "app version simulation hooks installed=" + installed + " for " + packageName);
+    }
     private synchronized boolean installPrivacyIdentifierHooks(final String pkg) {
         if (privacyIdentifierHookInstalled) return true;
         try {

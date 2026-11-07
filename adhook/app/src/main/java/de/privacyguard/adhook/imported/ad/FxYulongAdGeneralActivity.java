@@ -939,7 +939,7 @@ public final class FxYulongAdGeneralActivity extends de.privacyguard.adhook.FxNa
         return String.join(",", values);
     }
 
-    private String quote(String value) { return "'" + value.replace("'", "'\\''") + "'"; }
+    private String quote(String value) { return "'" + value.replace("'", "'\''") + "'"; }
     private boolean validIpv4(String value) {
         if (value == null || !value.matches("[0-9]{1,3}(\\.[0-9]{1,3}){3}")) return false;
         for (String part : value.split("\\.")) if (Integer.parseInt(part)>255) return false;

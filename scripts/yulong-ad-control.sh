@@ -2698,7 +2698,9 @@ schedule_get() {
     fi
   fi
   echo "watcher=$watcher"
-}schedule_set() {
+}
+
+schedule_set() {
   enabled=$1; start=$2; end=$3; days=$4
   { [ "$enabled" = 0 ] || [ "$enabled" = 1 ]; } || return 2
   valid_time "$start" && valid_time "$end" && valid_days "$days" || {

@@ -89,17 +89,14 @@ object FxGkdAutomationRuntime {
                     maximum = 12
                 )
                 for (candidate in matches) {
-                    val longClick = rule.source.action == "long_click"
-                    if (!candidate.visibleToUser ||
-                        (if (longClick) !candidate.longClickable else !candidate.clickable) ||
+                    if (!candidate.visibleToUser || !candidate.clickable ||
                         candidate.editable || candidate.platformHandle !is AccessibilityNodeInfo
                     ) continue
 
                     val liveNode = candidate.platformHandle
                     // Re-check sensitive/actionable properties on the live node before acting.
                     if (liveNode.isPassword || liveNode.isEditable ||
-                        !liveNode.isVisibleToUser ||
-                        (if (longClick) !liveNode.isLongClickable else !liveNode.isClickable)
+                        !liveNode.isVisibleToUser || !liveNode.isClickable
                     ) continue
                     // Honor a user disable or per-rule revocation that arrives while
                     // a bounded snapshot is being matched.
@@ -111,9 +108,7 @@ object FxGkdAutomationRuntime {
                         continue
                     }
 
-                    val action = if (longClick) AccessibilityNodeInfo.ACTION_LONG_CLICK
-                        else AccessibilityNodeInfo.ACTION_CLICK
-                    if (liveNode.performAction(action)) {
+                    if (liveNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
                         lastActionByRule[rule.source.id] = now
                         return true
                     }

@@ -130,6 +130,13 @@ jobs:
             install -D -m 0644 "$RUNNER_TEMP/fx-restored-webroot.html" fx-module/webroot/index.html
             echo "::notice::Restored the complete WebUI source from the published FX Hook APK Release asset."
           fi
+          # The Hook WebUI is repository source, never a build input recovered
+          # from a published artifact: the release page is a retirement notice
+          # and the packaged APK still carries the older UI. Vendoring the
+          # canonical page keeps staging deterministic and offline-safe.
+          [[ -s webui/index.html ]] || { echo "::error::Canonical Hook WebUI source webui/index.html is missing."; exit 1; }
+          install -D -m 0644 webui/index.html fx-module/webroot/index.html
+          test "$(wc -c < fx-module/webroot/index.html)" -gt 500000
       - name: Stage checksum-verified Unbound Android ARM64 runtime
         shell: bash
         env:

@@ -1,0 +1,17 @@
+# 构建与测试产物：绝不提交
+adhook/.gradle/
+adhook/build/
+adhook/app/build/
+adhook/fx-gkd-selector/build/
+.gradle/
+build/
+*.apk
+*.aab
+*.iml
+local.properties
+
+# 测试运行期临时状态
+__pycache__/
+*.pyc
+fx-module/scripts/jsruntime/.scheduler.sh.*
+*.log.tmp

@@ -124,7 +124,7 @@ public final class FxDiaSessionLogActivity extends de.privacyguard.adhook.FxNati
     }
 
     private String quote(String value) {
-        return "'" + value.replace("'", "'\\''") + "'";
+        return "'" + value.replace("'", "'\''") + "'";
     }
 
     private String checkedDirectoryPrefix() {

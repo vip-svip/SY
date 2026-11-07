@@ -27,6 +27,15 @@ android {
             // so Root/ADB shell can exec them; JNI loading alone is insufficient.
             useLegacyPackaging true
         }
+        resources {
+            // BouncyCastle ships the same licence/notice files in every jar; the
+            // package only needs one copy and the merge would otherwise fail.
+            excludes += [
+                    'META-INF/LICENSE.md',
+                    'META-INF/LICENSE-notice.md',
+                    'META-INF/versions/9/OSGI-INF/MANIFEST.MF'
+            ]
+        }
     }
     signingConfigs {
         fxRelease {

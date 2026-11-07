@@ -69,9 +69,17 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
 
         TextView intro = text(
-                "已接入 GKD-XA v1.4.8 selector/parser、本地规则组、排除选择器、单击/长按、冷却与本地导入导出。\n" +
+                "已接入 GKD-XA v1.4.8 selector/parser、本地规则组、排除选择器、单击动作、冷却与本地导入导出。\n" +
                 "当前规则仅在本机运行；上游订阅源、AI 服务商、云同步和上游备份格式仍未接入。", 0xff66727e, 13);
         card(intro);
+
+        TextView bounds = text(
+                "限额 Accessibility 节点快照、本地规则匹配与 Click 执行：每次最多采集 700 个节点、32 层、每节点 80 个子节点、文本 256 字，超限即整体丢弃而不基于截断树执行；每包名独立限速 250 ms，每条规则冷却 1–60 秒，单次事件最多 12 个候选节点。", 0xff66727e, 13);
+        card(bounds);
+
+        TextView notWired = text(
+                "尚未接入：上游订阅源、AI 服务商、触发历史、云同步与上游备份格式、复杂动作与手势。", 0xff72511e, 13);
+        card(notWired);
 
         TextView privacy = text(
                 "隐私与授权：只有你主动开启下方 GKD 总开关并为具体应用添加规则后，FX 才会读取该应用的无障碍控件树并在本机匹配。密码/可编辑输入框的文本不会被读取；不截图、不上传、不记录页面文本。关闭总开关立即停止规则匹配。", 0xff72511e, 13);
@@ -270,10 +278,10 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
         selectorInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
         form.addView(selectorInput);
 
-        Spinner actionInput = new Spinner(this);
-        actionInput.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item,
-                new String[]{"单击", "长按"}));
-        form.addView(actionInput);
+        TextView actionNote = new TextView(this);
+        actionNote.setText("动作：单击（当前仅对命中节点执行 ACTION_CLICK，不支持长按、手势或滑动）");
+        actionNote.setTextColor(0xff697681);
+        form.addView(actionNote);
 
         EditText excludeInput = new EditText(this);
         excludeInput.setHint("排除选择器（可选；命中时整条规则跳过）");
@@ -333,7 +341,7 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
                     }
                     FxGkdRule saved = FxGkdRuleStore.addRule(
                             this, pkg, selector, cooldownSeconds * 1000L,
-                            actionInput.getSelectedItemPosition() == 1 ? "long_click" : "click",
+                            "click",
                             groupInput.getText().toString(), excludeSelector);
                     if (saved == null) {
                         Toast.makeText(this, "保存失败：请检查规则格式或本地存储是否可写。", Toast.LENGTH_LONG).show();
@@ -420,11 +428,10 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
         selectorInput.setText(rule.getSelector());
         form.addView(selectorInput);
 
-        Spinner actionInput = new Spinner(this);
-        actionInput.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item,
-                new String[]{"单击", "长按"}));
-        actionInput.setSelection("long_click".equals(rule.getAction()) ? 1 : 0);
-        form.addView(actionInput);
+        TextView actionNote = new TextView(this);
+        actionNote.setText("动作：单击（当前仅对命中节点执行 ACTION_CLICK，不支持长按、手势或滑动）");
+        actionNote.setTextColor(0xff697681);
+        form.addView(actionNote);
 
         EditText excludeInput = new EditText(this);
         excludeInput.setHint("排除选择器（可选；命中时整条规则跳过）");
@@ -481,7 +488,7 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
                     }
                     FxGkdRule updated = FxGkdRuleStore.updateRule(
                             this, rule.getId(), selector, seconds * 1000L,
-                            actionInput.getSelectedItemPosition() == 1 ? "long_click" : "click",
+                            "click",
                             groupInput.getText().toString(), excludeSelector);
                     if (updated == null) {
                         Toast.makeText(this, "保存失败，原规则保持不变。", Toast.LENGTH_LONG).show();
@@ -679,7 +686,7 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
             row.addView(selected);
             TextView label = text("规则组：" + rule.getGroup() + "\n" + rule.getPackageName() + "\n" + rule.getSelector()
                     + (rule.getExcludeSelector().isEmpty() ? "" : "\n排除：" + rule.getExcludeSelector())
-                    + "\n动作：" + ("long_click".equals(rule.getAction()) ? "长按" : "单击")
+                    + "\n动作：单击"
                     + " · 冷却：" + (rule.getCooldownMillis() / 1000L) + " 秒",
                     0xff17212b, 13);
             row.addView(label);

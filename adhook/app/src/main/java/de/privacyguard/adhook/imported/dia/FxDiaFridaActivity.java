@@ -167,7 +167,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
         parent.addView(panel, lp);
     }
     private String quote(String value) {
-        return "'" + value.replace("'", "'\\''") + "'";
+        return "'" + value.replace("'", "'\''") + "'";
     }
     private boolean validPath(String value) {
         return value != null && value.startsWith("/")
@@ -1601,9 +1601,9 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 + "server_pid_matches() { "
                 + "fx_server_pid=\"$1\"; server_pid_live \"$fx_server_pid\" || return 1; "
                 + "[ -r \"/proc/$fx_server_pid/cmdline\" ] || return 1; "
-                + "[ \"$(tr '\\000' '\\n' < \"/proc/$fx_server_pid/cmdline\" 2>/dev/null | sed -n '1p')\" = \"$server\" ] && "
-                + "[ \"$(tr '\\000' '\\n' < \"/proc/$fx_server_pid/cmdline\" 2>/dev/null | sed -n '2p')\" = \"-l\" ] && "
-                + "[ \"$(tr '\\000' '\\n' < \"/proc/$fx_server_pid/cmdline\" 2>/dev/null | sed -n '3p')\" = \"127.0.0.1:27042\" ]; }; ";
+                + "[ \"$(tr '\\000' '\n' < \"/proc/$fx_server_pid/cmdline\" 2>/dev/null | sed -n '1p')\" = \"$server\" ] && "
+                + "[ \"$(tr '\\000' '\n' < \"/proc/$fx_server_pid/cmdline\" 2>/dev/null | sed -n '2p')\" = \"-l\" ] && "
+                + "[ \"$(tr '\\000' '\n' < \"/proc/$fx_server_pid/cmdline\" 2>/dev/null | sed -n '3p')\" = \"127.0.0.1:27042\" ]; }; ";
     }
 
         private void startServer() {
@@ -2987,7 +2987,7 @@ public final class FxDiaFridaActivity extends de.privacyguard.adhook.FxNativeTab
                 + "cli_version=$(\"$cli\" --version 2>&1) || { echo FX_GADGET_CLI_UNAVAILABLE; exit 20; }; "
                 + "target_uid=" + targetUid + "; proc_root=/proc; "
                 + "pids=$(ps -A -o PID 2>/dev/null | awk 'NR>1 && $1 ~ /^[0-9]+$/ {print $1}' | while IFS= read -r pid; do "
-                + "proc_name=$(tr '\\000' '\\n' < \"$proc_root/$pid/cmdline\" 2>/dev/null | sed -n '1p'); "
+                + "proc_name=$(tr '\\000' '\n' < \"$proc_root/$pid/cmdline\" 2>/dev/null | sed -n '1p'); "
                 + "[ \"$proc_name\" = \"$process\" ] || continue; "
                 + "uid=$(awk '$1==\"Uid:\" {print $2; exit}' \"$proc_root/$pid/status\" 2>/dev/null || :); "
                 + "[ \"$uid\" = \"$target_uid\" ] && printf '%s\\n' \"$pid\" || :; done); "

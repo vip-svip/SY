@@ -185,6 +185,6 @@ final class StellarCommandArguments {
     }
 
     private static String shellQuote(String value) {
-        return "'" + value.replace("'", "'\\''") + "'";
+        return "'" + value.replace("'", "'\''") + "'";
     }
 }

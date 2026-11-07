@@ -91,7 +91,7 @@ public final class FxStellarSecureSettingsActivity extends Activity {
     }
 
     private String quote(String value) {
-        return "'" + value.replace("'", "'\\''") + "'";
+        return "'" + value.replace("'", "'\''") + "'";
     }
 
     private String permissionCommand(boolean grant) {

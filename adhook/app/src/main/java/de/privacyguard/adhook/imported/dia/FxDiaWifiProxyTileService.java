@@ -39,7 +39,7 @@ public final class FxDiaWifiProxyTileService extends TileService {
         return getSharedPreferences(PREFS, MODE_PRIVATE);
     }
     private String quote(String value) {
-        return "'" + value.replace("'", "'\\''") + "'";
+        return "'" + value.replace("'", "'\''") + "'";
     }
     private void refreshTile(FxDiaWifiProxyState.Status state) {
         Tile tile = getQsTile();
@@ -77,7 +77,7 @@ public final class FxDiaWifiProxyTileService extends TileService {
 
     private String readCurrentProxy() {
         RootAccess.Result result = RootAccess.execute(
-                "settings get global http_proxy 2>/dev/null | tr -d '\\r'", 12000L, 4096);
+                "settings get global http_proxy 2>/dev/null | tr -d '\r'", 12000L, 4096);
         if (result.exitCode != 0 || result.output == null) return null;
         return result.output.trim();
     }
@@ -127,11 +127,11 @@ public final class FxDiaWifiProxyTileService extends TileService {
         boolean active = FxDiaWifiProxyState.mayRestore(before);
 
         if (active) {
-            String command = "set -eu; current=$(settings get global http_proxy 2>/dev/null | tr -d '\\r'); "
+            String command = "set -eu; current=$(settings get global http_proxy 2>/dev/null | tr -d '\r'); "
                     + "[ \"$current\" = " + quote(expected) + " ] || { echo FX_PROXY_CONFLICT; exit 30; }; "
                     + "if [ " + quote(previous) + " = null ]; then settings delete global http_proxy; "
                     + "else settings put global http_proxy " + quote(previous) + "; fi; "
-                    + "actual=$(settings get global http_proxy 2>/dev/null | tr -d '\\r'); "
+                    + "actual=$(settings get global http_proxy 2>/dev/null | tr -d '\r'); "
                     + "if [ " + quote(previous) + " = null ]; then "
                     + "[ -z \"$actual\" ] || [ \"$actual\" = null ] || exit 31; "
                     + "else [ \"$actual\" = " + quote(previous) + " ] || exit 31; fi; "
@@ -164,10 +164,10 @@ public final class FxDiaWifiProxyTileService extends TileService {
                 target = host + ":" + port;
             } catch (Exception invalid) { return; }
 
-            String command = "set -eu; current=$(settings get global http_proxy 2>/dev/null | tr -d '\\r'); "
+            String command = "set -eu; current=$(settings get global http_proxy 2>/dev/null | tr -d '\r'); "
                     + "[ -n \"$current\" ] || current=null; "
                     + "settings put global http_proxy " + quote(target) + "; "
-                    + "actual=$(settings get global http_proxy 2>/dev/null | tr -d '\\r'); "
+                    + "actual=$(settings get global http_proxy 2>/dev/null | tr -d '\r'); "
                     + "if [ \"$actual\" != " + quote(target) + " ]; then "
                     + "if [ \"$current\" = null ]; then settings delete global http_proxy; "
                     + "else settings put global http_proxy \"$current\"; fi; "

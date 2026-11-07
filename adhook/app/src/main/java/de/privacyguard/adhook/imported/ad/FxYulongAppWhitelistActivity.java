@@ -1,5 +1,7 @@
 package de.privacyguard.adhook.imported.ad;
 
+import android.widget.Toast;
+
 import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -81,7 +83,7 @@ public final class FxYulongAppWhitelistActivity extends de.privacyguard.adhook.F
         return (int)(value * getResources().getDisplayMetrics().density + 0.5f);
     }
     private String quote(String value) {
-        return "'" + (value == null ? "" : value.replace("'", "'\\''")) + "'";
+        return "'" + (value == null ? "" : value.replace("'", "'\''")) + "'";
     }
     private String command(String args) {
         return FxYulongRootModuleCommand.command("yulong-app-whitelist.sh", args);

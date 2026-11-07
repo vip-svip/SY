@@ -37,8 +37,6 @@ object FxGkdRuleStore {
     const val MIN_COOLDOWN_MS = 1_000L
     const val MAX_COOLDOWN_MS = 60_000L
     const val DEFAULT_COOLDOWN_MS = 3_000L
-    const val MAX_RULES = 500
-    const val MAX_IMPORT_CHARS = 1_048_576
 
     // Accessibility events can arrive frequently. Cache the decoded rules by
     // their persisted JSON value so the event hot path does not rebuild a
@@ -94,7 +92,7 @@ object FxGkdRuleStore {
                     val selector = item.optString("selector").takeIf { it.isNotBlank() && it.length <= 512 } ?: continue
                     val cooldown = item.optLong("cooldown_ms", DEFAULT_COOLDOWN_MS)
                         .coerceIn(MIN_COOLDOWN_MS, MAX_COOLDOWN_MS)
-                    val action = item.optString("action", "click").takeIf { it == "click" || it == "long_click" } ?: "click"
+                    val action = item.optString("action", "click").takeIf { it == "click" } ?: "click"
                     val group = item.optString("group", "默认").trim().takeIf { it.isNotEmpty() && it.length <= 40 } ?: "默认"
                     val excludeSelector = item.optString("exclude_selector", "").trim()
                         .takeIf { it.length <= 512 && (it.isEmpty() || FxGkdSelectorEngine.compile(it).isValid) } ?: ""
@@ -144,9 +142,6 @@ object FxGkdRuleStore {
     @JvmStatic
     @Synchronized
     fun importJson(context: Context, raw: String): FxGkdImportResult {
-        if (raw.length > MAX_IMPORT_CHARS) {
-            return FxGkdImportResult(0, 0, "规则文件超过 1 MiB 限制。")
-        }
         val document = try {
             JSONObject(raw)
         } catch (_: Exception) {
@@ -160,9 +155,6 @@ object FxGkdRuleStore {
         val sourceRules = document.optJSONArray("rules")
             ?: return FxGkdImportResult(0, 0, "文件缺少 rules 数组。")
         val merged = getRules(context).toMutableList()
-        if (merged.size >= MAX_RULES) {
-            return FxGkdImportResult(0, sourceRules.length(), "本地规则已达到 500 条上限。")
-        }
         val known = merged.map { it.packageName + "\u0000" + it.selector }.toMutableSet()
         var skipped = 0
 
@@ -175,8 +167,7 @@ object FxGkdRuleStore {
             val packageName = item.optString("package").trim()
             val selector = item.optString("selector").trim()
             val cooldown = item.optLong("cooldown_ms", DEFAULT_COOLDOWN_MS)
-            if (merged.size >= MAX_RULES ||
-                !isValidPackageName(packageName) || packageName == context.packageName ||
+            if (!isValidPackageName(packageName) || packageName == context.packageName ||
                 selector.isEmpty() || selector.length > 512 ||
                 cooldown !in MIN_COOLDOWN_MS..MAX_COOLDOWN_MS ||
                 !isInstalledUserApplication(context, packageName) ||
@@ -193,7 +184,7 @@ object FxGkdRuleStore {
                 selector = selector,
                 cooldownMillis = cooldown,
                 enabled = false,
-                action = item.optString("action", "click").takeIf { it == "click" || it == "long_click" } ?: "click",
+                action = item.optString("action", "click").takeIf { it == "click" } ?: "click",
                 group = item.optString("group", "默认").trim().takeIf { it.isNotEmpty() && it.length <= 40 } ?: "默认",
                 excludeSelector = item.optString("exclude_selector", "").trim().takeIf {
                     it.length <= 512 && (it.isEmpty() || FxGkdSelectorEngine.compile(it).isValid)
@@ -243,12 +234,11 @@ object FxGkdRuleStore {
         val compiled = FxGkdSelectorEngine.compile(expression)
         val safeGroup = group.trim().ifEmpty { "默认" }
         val safeExclude = excludeSelector.trim()
-        if (!compiled.isValid || (action != "click" && action != "long_click") ||
+        if (!compiled.isValid || (action != "click") ||
             safeGroup.length > 40 || safeExclude.length > 512 ||
             (safeExclude.isNotEmpty() && !FxGkdSelectorEngine.compile(safeExclude).isValid)
         ) return null
         val existing = getRules(context)
-        if (existing.size >= MAX_RULES) return null
         val rule = FxGkdRule(
             id = UUID.randomUUID().toString(),
             packageName = pkg,
@@ -290,7 +280,6 @@ object FxGkdRuleStore {
     fun duplicateRule(context: Context, id: String): FxGkdRule? {
         val rules = getRules(context)
         val source = rules.firstOrNull { it.id == id } ?: return null
-        if (rules.size >= MAX_RULES) return null
         val duplicate = source.copy(id = UUID.randomUUID().toString(), enabled = false)
         return if (writeRules(context, rules + duplicate)) duplicate else null
     }
@@ -310,7 +299,7 @@ object FxGkdRuleStore {
         if (expression.isEmpty() || expression.length > 512 ||
             cooldownMillis !in MIN_COOLDOWN_MS..MAX_COOLDOWN_MS ||
             !FxGkdSelectorEngine.compile(expression).isValid ||
-            (action != "click" && action != "long_click") ||
+            (action != "click") ||
             (excludeSelector != null && (excludeSelector.length > 512 ||
                 (excludeSelector.isNotBlank() && !FxGkdSelectorEngine.compile(excludeSelector).isValid)))
         ) return null
@@ -351,7 +340,7 @@ object FxGkdRuleStore {
         val source = oldGroup.trim()
         val target = newGroup.trim()
         if (source.isEmpty() || source.length > 40 || target.isEmpty() || target.length > 40 ||
-            target.any { it == '\\n' || it == '\\r' }) return -1
+            target.any { it == '\n' || it == '\r' }) return -1
         val rules = getRules(context)
         val changed = rules.count { it.group == source }
         if (changed == 0) return 0
@@ -447,7 +436,6 @@ object FxGkdRuleStore {
             value.matches(Regex("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+"))
 
     private fun writeRules(context: Context, rules: List<FxGkdRule>): Boolean {
-        if (rules.size > MAX_RULES) return false
         val array = JSONArray()
         rules.forEach { rule ->
             array.put(JSONObject()

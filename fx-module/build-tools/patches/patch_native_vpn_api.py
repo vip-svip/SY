@@ -34,8 +34,8 @@ api = r"""
     window.__vpnFillStatus=function(status){
       if(status&&typeof status.vpn_on!=='undefined'){
         window.__pgVpnRuntimeStatus=status;
-        window.__pgVpnLiveKnown=true;
-        window.__pgVpnLiveOn=status.vpn_on===true||status.vpn_on===1;
+        window.__pgVpnRuntimeKnown=true;
+        window.__pgVpnRuntimeOn=status.vpn_on===true||status.vpn_on===1;
       }
       return originalVpnFillStatus.apply(this,arguments);
     };
@@ -53,8 +53,8 @@ api = r"""
     var runtime=window.__pgVpnRuntimeStatus;
     return JSON.stringify({
       mode:String(pget('vpn_mode','direct')||'direct'),
-      liveKnown:window.__pgVpnLiveKnown===true,
-      liveOn:window.__pgVpnLiveOn===true,
+      liveKnown:window.__pgVpnRuntimeKnown===true,
+      liveOn:window.__pgVpnRuntimeOn===true,
       runtimeMode:runtime&&runtime.vpn_mode?String(runtime.vpn_mode):'',
       coreOn:runtime&&runtime.vpn_core===1,
       node:selected,

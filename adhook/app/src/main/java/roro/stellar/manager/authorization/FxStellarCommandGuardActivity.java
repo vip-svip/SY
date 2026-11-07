@@ -181,7 +181,7 @@ public final class FxStellarCommandGuardActivity extends Activity {
     }
 
     private String quote(String value) {
-        return "'" + value.replace("'", "'\\''") + "'";
+        return "'" + value.replace("'", "'\''") + "'";
     }
 
     private String responseCommand(String decision) {

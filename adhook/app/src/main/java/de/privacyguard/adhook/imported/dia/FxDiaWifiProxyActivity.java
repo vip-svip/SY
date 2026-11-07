@@ -77,7 +77,7 @@ public final class FxDiaWifiProxyActivity extends de.privacyguard.adhook.FxNativ
     }
 
     private String quote(String value) {
-        return "'" + value.replace("'", "'\\''") + "'";
+        return "'" + value.replace("'", "'\''") + "'";
     }
 
     private void runRoot(String command, Consumer<RootAccess.Result> callback) {
@@ -229,13 +229,13 @@ public final class FxDiaWifiProxyActivity extends de.privacyguard.adhook.FxNativ
         String restorePrevious = alreadyActive ? previous : "";
         String expectedCurrent = alreadyActive ? previousApplied : "";
 
-        String command = "set -eu; current=$(settings get global http_proxy 2>/dev/null | tr -d '\\r'); "
+        String command = "set -eu; current=$(settings get global http_proxy 2>/dev/null | tr -d '\r'); "
                 + "if [ " + (alreadyActive ? "1" : "0") + " = 1 ]; then "
                 + "[ \"$current\" = " + quote(expectedCurrent) + " ] || { echo FX_PROXY_CONFLICT; exit 30; }; "
                 + "old=" + quote(restorePrevious) + "; "
                 + "else old=\"$current\"; [ -n \"$old\" ] || old=null; fi; "
                 + "settings put global http_proxy " + quote(target) + "; "
-                + "actual=$(settings get global http_proxy 2>/dev/null | tr -d '\\r'); "
+                + "actual=$(settings get global http_proxy 2>/dev/null | tr -d '\r'); "
                 + "if [ \"$actual\" != " + quote(target) + " ]; then "
                 + "if [ \"$old\" = null ]; then settings delete global http_proxy; "
                 + "else settings put global http_proxy \"$old\"; fi; "
@@ -260,11 +260,11 @@ public final class FxDiaWifiProxyActivity extends de.privacyguard.adhook.FxNativ
             if (!saved) {
                 // The OS setting has already changed. Roll it back only if it still
                 // equals the value FX just wrote; never overwrite a concurrent user change.
-                String rollback = "set -eu; current=$(settings get global http_proxy 2>/dev/null | tr -d '\\r'); "
+                String rollback = "set -eu; current=$(settings get global http_proxy 2>/dev/null | tr -d '\r'); "
                         + "[ \"$current\" = " + quote(target) + " ] || { echo FX_PROXY_CONFLICT; exit 30; }; "
                         + "if [ " + quote(newPrevious) + " = null ]; then settings delete global http_proxy; "
                         + "else settings put global http_proxy " + quote(newPrevious) + "; fi; "
-                        + "actual=$(settings get global http_proxy 2>/dev/null | tr -d '\\r'); "
+                        + "actual=$(settings get global http_proxy 2>/dev/null | tr -d '\r'); "
                         + "[ \"$actual\" = " + quote(newPrevious) + " ] || { echo FX_PROXY_ROLLBACK_FAILED; exit 31; }";
                 runRoot(rollback, rollbackResult -> {
                     if (rollbackResult.exitCode == 0) {
@@ -299,11 +299,11 @@ public final class FxDiaWifiProxyActivity extends de.privacyguard.adhook.FxNativ
     private void restoreProxyConfirmed() {
         String expected = prefs().getString("applied", "");
         String previous = prefs().getString("previous", "null");
-        String command = "set -eu; current=$(settings get global http_proxy 2>/dev/null | tr -d '\\r'); "
+        String command = "set -eu; current=$(settings get global http_proxy 2>/dev/null | tr -d '\r'); "
                 + "[ \"$current\" = " + quote(expected) + " ] || { echo FX_PROXY_CONFLICT; exit 30; }; "
                 + "if [ " + quote(previous) + " = null ]; then settings delete global http_proxy; "
                 + "else settings put global http_proxy " + quote(previous) + "; fi; "
-                + "actual=$(settings get global http_proxy 2>/dev/null | tr -d '\\r'); "
+                + "actual=$(settings get global http_proxy 2>/dev/null | tr -d '\r'); "
                 + "if [ " + quote(previous) + " = null ]; then "
                 + "[ -z \"$actual\" ] || [ \"$actual\" = null ] || exit 31; "
                 + "else [ \"$actual\" = " + quote(previous) + " ] || exit 31; fi; "
@@ -346,7 +346,7 @@ public final class FxDiaWifiProxyActivity extends de.privacyguard.adhook.FxNativ
     private void refreshStatus() {
         final boolean managed = prefs().getBoolean("active", false);
         final String expected = prefs().getString("applied", "");
-        runRoot("settings get global http_proxy 2>/dev/null | tr -d '\\r'", result -> {
+        runRoot("settings get global http_proxy 2>/dev/null | tr -d '\r'", result -> {
             if (result.exitCode != 0) {
                 proxyStatus = FxDiaWifiProxyState.Status.UNKNOWN;
                 status.setText("无法读取系统代理：" + safe(result.output)

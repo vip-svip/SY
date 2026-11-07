@@ -536,7 +536,12 @@ public final class FxYulongVirusDb {
         String lower = normalized.toLowerCase(Locale.ROOT);
         // These endpoints are plain-text lists or JSON string arrays, never HTML,
         // JSON error objects, proxy error pages or arrays of error objects.
+        // A JSON array that carries any object is an error envelope: upstream
+        // proxies also emit it with escaped whitespace (`[\n {"error":...}]`),
+        // so the check is structural rather than a start-anchored pattern.
+        boolean arrayOfObjects = normalized.startsWith("[") && normalized.indexOf('{') >= 0;
         if (normalized.startsWith("{")
+                || arrayOfObjects
                 || lower.startsWith("<")
                 || lower.contains("<!doctype")
                 || lower.contains("<html")

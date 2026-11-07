@@ -69,7 +69,7 @@ public final class FxStellarManagerActivity extends Activity {
  private int dp(float n){return (int)(n*getResources().getDisplayMetrics().density+0.5f);}
  private TextView text(String s,int size,int color,boolean bold){TextView v=new TextView(this);v.setText(s);v.setTextSize(size);v.setTextColor(color);if(bold)v.setTypeface(Typeface.DEFAULT,Typeface.BOLD);v.setPadding(dp(4),dp(5),dp(4),dp(5));return v;}
  private Button button(String s,Runnable r){Button b=new Button(this);b.setAllCaps(false);b.setText(s);b.setOnClickListener(v->r.run());return b;}
- private String quote(String s){return "'"+s.replace("'","'\\''")+"'";}
+ private String quote(String s){return "'"+s.replace("'","'\''")+"'";}
  private static final String COMMAND_SHORTCUT_ACTION =
    "roro.stellar.manager.action.EXECUTE_COMMAND_SHORTCUT";
  private static final String COMMAND_SHORTCUT_PREFS = "fx_stellar_command_shortcuts";

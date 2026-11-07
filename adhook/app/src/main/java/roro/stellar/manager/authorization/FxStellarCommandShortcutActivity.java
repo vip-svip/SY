@@ -54,7 +54,7 @@ public final class FxStellarCommandShortcutActivity extends Activity {
         return view;
     }
     private String quote(String value) {
-        return "'" + value.replace("'", "'\\''") + "'";
+        return "'" + value.replace("'", "'\''") + "'";
     }
     private boolean validPackage(String value) {
         return value != null && value.matches("[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+");

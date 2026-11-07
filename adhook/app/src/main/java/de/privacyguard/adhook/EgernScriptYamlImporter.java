@@ -271,7 +271,12 @@ public final class EgernScriptYamlImporter {
             String envValue = scalar(rawValue);
             if (envValue.length() > 512) return false;
             if (!target.has(key) && target.length() >= 32) return false;
-            target.put(key, envValue);
+            try {
+                target.put(key, envValue);
+            } catch (Throwable invalidJson) {
+                // JSONObject rejects non-finite or otherwise unencodable values.
+                return false;
+            }
             if (target.toString().length() > 2048) return false;
         }
         return true;

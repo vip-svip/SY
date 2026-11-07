@@ -83,7 +83,10 @@ large64=$(printf '%s' "$large_source" | base64 | tr -d '\n')
 [ "$(sh "$SCRIPT" list | grep -c '|')" -eq 4 ] || fail "large script was not retained"
 i=1
 while [ "$i" -le 8 ]; do
-  [ "$(sh "$SCRIPT" add "$large64" "$multi_note" 1)" = "OK" ] || fail "large aggregate entry $i was rejected"
+  # Distinct sources: an identical (value, note) pair is intentionally deduped,
+  # so the aggregate check must add real variants instead of repeating one row.
+  variant64=$(printf '%s\n// aggregate entry %s' "$large_source" "$i" | base64 | tr -d '\n')
+  [ "$(sh "$SCRIPT" add "$variant64" "$multi_note" 1)" = "OK" ] || fail "large aggregate entry $i was rejected"
   i=$((i+1))
 done
 i=1
@@ -95,7 +98,8 @@ done
 [ "$(sh "$SCRIPT" list | grep -c '|')" -eq 152 ] || fail "catalog truncated above 128 entries or former aggregate limit"
 mkdir -p "$PG/jsruntime/staging"
 staged="$PG/jsruntime/staging/fx-native-script-regression"
-printf '%s' "$large_source" > "$staged"
+# Distinct content: re-importing the exact (value, note) pair is deduped by design.
+printf '%s\n// file-backed variant' "$large_source" > "$staged"
 [ "$(sh "$SCRIPT" add-file "$staged" "$multi_note" 1)" = "OK" ] || fail "file-backed large script import was rejected"
 [ "$(sh "$SCRIPT" list | grep -c '|')" -eq 153 ] || fail "file-backed large script was not retained"
 # The parser/serializer must decode FXSRC_B64 rows while keeping HTTPS URLs readable.
@@ -121,19 +125,21 @@ cmp -s "$ROOT/fx-patches/native-script-run.sh" "$MOD/scripts/jsruntime/local-run
 MAIN="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
 grep -Fq 'nativeScriptStoreCommand("add-file"' "$MAIN" || fail "Android script storage still transports source bytes in shell arguments"
 grep -Fq 'storeNativeScriptFile(staged, displayName, "1"' "$MAIN" || fail "file imports do not use the file-backed store transport"
-grep -Fq 'storeNativeScriptValue(value, name, enabled' "$MAIN" || fail "JSON imports do not use the file-backed store transport"
+grep -Fq 'private void storeNativeScriptValue(' "$MAIN" || fail "JSON imports do not use the file-backed store transport"
+grep -Fq 'storeNativeScriptFile(staged, note, enabled, callback);' "$MAIN" || fail "JSON imports do not spool payloads through a staged file"
 if grep -Fq 'total > 1024 * 1024' "$MAIN"; then fail "Android file import still has a 1 MiB cap"; fi
 if grep -Fq 'MAX_NATIVE_SCRIPT_EXPORT_BYTES' "$MAIN"; then fail "Android script export still has a fixed payload cap"; fi
 python3 - "$SCRIPT" <<'PY'
 from pathlib import Path
 import sys
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
-assert "add|add-file|update|toggle|delete)" in source, "file-backed action is not routed through the locked store"
+assert "add|add-file|add-batch|update|toggle|delete)" in source, "file-backed action is not routed through the locked store"
 start = source.index("      add-file)")
 end = source.index("\n      update)", start)
 branch = source[start:end]
 assert 'first_line=$(sed -n \'1{p;q;}\' "$VALUE_FILE")' in branch, "file import must classify using a bounded first-line read"
-assert 'base64 < "$VALUE_FILE" | tr -d \'\\n\' >> "$ROWS"' in branch, "local source must stream from the staged file into the config row"
+assert 'base64 < "$VALUE_FILE" | tr -d \'\\n\'' in branch, "local source must stream from the staged file into the config row"
+assert '} >> "$ROWS"' in branch, "local source row must be appended to the staged config rows"
 local_start = branch.index('          *)', branch.index('case "$first_line" in'))
 local_end = branch.index("\n        esac", local_start)
 local_branch = branch[local_start:local_end]

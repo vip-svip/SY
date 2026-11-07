@@ -10,7 +10,16 @@ public class SensorPrivacyPolicyTest {
     @Test public void mapsOnlySixSensorTypes() {
         UnifiedHookConfigParser.Target t=target(true,true,true,true,true,true);
         for(int type:new int[]{1,2,4,5,6,8}) assertTrue(SensorPrivacyPolicy.isEnabled(t,type));
-        assertFalse(SensorPrivacyPolicy.isEnabled(t,3)); assertFalse(SensorPrivacyPolicy.isEnabled(t,9));
+        // Uncalibrated / gravity variants belong to the same data family as the
+        // six switches, so they follow the family toggle instead of leaking.
+        assertTrue(SensorPrivacyPolicy.isEnabled(t,9));   // TYPE_GRAVITY -> accel
+        assertTrue(SensorPrivacyPolicy.isEnabled(t,35));  // TYPE_ACCELEROMETER_UNCALIBRATED
+        assertTrue(SensorPrivacyPolicy.isEnabled(t,14));  // TYPE_MAGNETIC_FIELD_UNCALIBRATED
+        assertTrue(SensorPrivacyPolicy.isEnabled(t,16));  // TYPE_GYROSCOPE_UNCALIBRATED
+        assertFalse(SensorPrivacyPolicy.isEnabled(t,3));  // TYPE_ORIENTATION -> fusion (off here)
+        // Metadata pseudo-types and unknown OEM types must fail open.
+        assertFalse(SensorPrivacyPolicy.isEnabled(t,32)); // TYPE_DYNAMIC_SENSOR_META
+        assertFalse(SensorPrivacyPolicy.isEnabled(t,99));
     }
     @Test public void masterOffSharedProcessAndProtectedPackagesFailOpen() {
         UnifiedHookConfigParser.Target t=target(true,true,true,true,true,true);

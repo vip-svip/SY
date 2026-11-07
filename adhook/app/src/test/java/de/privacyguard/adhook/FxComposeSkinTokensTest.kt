@@ -28,7 +28,9 @@ class FxComposeSkinTokensTest {
         val cupertino = resolve("ios")
 
         assertEquals(66, defaultMode.tabBarHeightDp)
-        assertEquals(14, defaultMode.barCornerRadiusDp)
+        // Default shell bar radius is 18dp (tab items use 14dp); MainActivity's
+        // roundedDrawable("default") resolves the same 18dp card radius.
+        assertEquals(18, defaultMode.barCornerRadiusDp)
         assertEquals(60, classic.tabBarHeightDp)
         assertEquals(72, glass.tabBarHeightDp)
         assertEquals(68, miuix.tabBarHeightDp)
