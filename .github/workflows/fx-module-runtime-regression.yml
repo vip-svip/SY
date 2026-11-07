@@ -67,6 +67,12 @@ jobs:
           # refuses to package a modern renderer next to a stale controller, so stage the
           # canonical repository copy exactly like the APK lane does.
           install -D -m 0755 scripts/yulong-ad-control.sh "$module/scripts/yulong-ad-control.sh"
+          # Same reason as the Root controller: the Release ZIP carries the pre-FX
+          # AdGuard Home renderer and no runtime YAML template, and
+          # patch_yulong_dns_upstreams.py refuses to package a legacy/partial DNS stack.
+          # Stage the reviewed repository copies before the patcher runs.
+          install -D -m 0755 scripts/adguardhome.sh "$module/scripts/adguardhome.sh"
+          install -D -m 0644 fx-module/engines/adguardhome/AdGuardHome.yaml "$module/engines/adguardhome/AdGuardHome.yaml"
           python3 fx-patches/patch_vpn_apps.py "$module"
           python3 fx-patches/patch_vpn_direct_core_stop_result.py "$module"
           python3 fx-patches/patch_vpn_core_stop_guard.py "$module"

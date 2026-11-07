@@ -134,7 +134,7 @@ list_rows() {
       valid=valid && value !~ /[[:cntrl:]]/ && note !~ /[[:cntrl:]]/
       valid=valid && (enabled=="0" || enabled=="1")
       if(kind=="rule") {
-        valid=valid && value ~ /^https?:\\/\\/[A-Za-z0-9._~:/?#@!$&()*+,;=%-]+$/
+        valid=valid && value ~ /^https?:\/\/[A-Za-z0-9._~:/?#@!$&()*+,;=%-]+$/
       } else {
         valid=valid && tolower(value) ~ /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/
         valid=valid && length(value)<=253

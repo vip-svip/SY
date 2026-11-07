@@ -210,13 +210,7 @@ public final class FxYulongIntegrityActivity extends de.privacyguard.adhook.FxNa
                             + (error.getMessage() == null ? "" : "：" + error.getMessage())
                             + "\n请确认 FX Hook 的 Root 授权与模块状态后重试。";
                 }
-                final String snapshot = report;
-                runOnUiThread(() -> {
-                    if (destroyed || isFinishing() || isDestroyed()
-                            || request != checkGeneration) return;
-                    checkButton.setEnabled(true);
-                    moduleStatus.setText(snapshot);
-                });
+                reportIntegrityResult(request, report);
             });
         } catch (RejectedExecutionException full) {
             checkButton.setEnabled(true);
@@ -230,6 +224,20 @@ public final class FxYulongIntegrityActivity extends de.privacyguard.adhook.FxNa
             manager.setPrimaryClip(ClipData.newPlainText("FX integrity report", value));
             android.widget.Toast.makeText(this, "报告已复制。", android.widget.Toast.LENGTH_SHORT).show();
         }
+    }
+
+    /**
+     * Publish one integrity result on the UI thread. The captured value is a method
+     * parameter, so a worker-assigned result stays effectively final and the check
+     * generation guard still drops stale reports.
+     */
+    private void reportIntegrityResult(final int request, final String report) {
+        runOnUiThread(() -> {
+            if (destroyed || isFinishing() || isDestroyed()
+                    || request != checkGeneration) return;
+            checkButton.setEnabled(true);
+            moduleStatus.setText(report);
+        });
     }
 
     @Override protected void onDestroy() {
