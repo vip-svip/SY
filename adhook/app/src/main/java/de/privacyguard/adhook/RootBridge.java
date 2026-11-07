@@ -42,13 +42,17 @@ public final class RootBridge {
     private final Activity activity;
     private final WebView webView;
     private volatile boolean closed;
+    /** Set only while the trusted local index document is the live page. */
+    private volatile boolean trustedPage;
     private final Object taskLock = new Object();
     private final Set<FutureTask<Void>> activeRootTasks = ConcurrentHashMap.newKeySet();
 
     private final class TrackedRootTask extends FutureTask<Void> {
         TrackedRootTask(String command, String callbackName) {
             super(() -> {
-                if (closed || Thread.currentThread().isInterrupted()) return null;
+                if (closed || !trustedPage || Thread.currentThread().isInterrupted()) {
+                    return null;
+                }
                 RootAccess.Result result = RootAccess.execute(command, 110000L, 1024 * 1024);
                 deliver(callbackName, result.exitCode, result.output, "");
                 return null;
@@ -65,6 +69,22 @@ public final class RootBridge {
         this.webView = webView;
     }
 
+    /**
+     * Called only when the trusted local Classic index document becomes active or
+     * inactive. While inactive the bridge refuses to run Root commands, so navigating
+     * to an untrusted URL cannot reach the shell.
+     */
+    void setTrustedPage(boolean trusted) {
+        synchronized (taskLock) {
+            if (closed) return;
+            trustedPage = trusted;
+            if (!trusted) {
+                for (FutureTask<Void> task : activeRootTasks) task.cancel(true);
+                activeRootTasks.clear();
+            }
+        }
+    }
+
     public void close() {
         synchronized (taskLock) {
             if (closed) return;
@@ -76,7 +96,7 @@ public final class RootBridge {
 
     @JavascriptInterface
     public void exec(String command, String callbackName) {
-        if (closed) return;
+        if (closed || !trustedPage) return;
         if (callbackName == null || !CALLBACK.matcher(callbackName).matches()) return;
         if (command == null || command.length() == 0 || command.length() > 131072) {
             deliver(callbackName, 2, "Root 命令为空或超过 128 KiB 限制", "");

@@ -84,6 +84,10 @@ public final class UnifiedHookConfigParser {
         public double simulatedLatitude;
         public double simulatedLongitude;
         public float simulatedAccuracy = 5f;
+        /** Opt-in, bounded developer fixtures for this package (dev_rule_N slots). */
+        public final List<DeveloperHookRule> developerRules = new ArrayList<>();
+        /** Legacy opt-in flag retained for source compatibility with old configs. */
+        public boolean developerHooksEnabled;
         /** Per-app extra class/resource-name tokens grouped by ad category. */
         public final Map<String, Set<String>> customRules;
 
@@ -417,6 +421,10 @@ public final class UnifiedHookConfigParser {
             int keyFinishTrigger=-1, keyDialogToggleTrigger=-1;
             String dialogTextTermsRaw=null, dialogIdTermsRaw=null, toastTextTermsRaw=null;
             Set<String> seen = new HashSet<>();
+            boolean developerHooksEnabled = false;
+            List<DeveloperHookRule> developerRules = new ArrayList<>();
+            Set<String> developerRuleIds = new HashSet<>();
+            Set<Integer> developerRuleSlots = new HashSet<>();
             Map<String, Set<String>> customRules = new LinkedHashMap<>();
             for (int i = 1; i < parts.length; i++) {
                 int eq = parts[i].indexOf('=');
@@ -459,6 +467,40 @@ public final class UnifiedHookConfigParser {
                     if (Float.isNaN(simulatedAccuracy) || Float.isInfinite(simulatedAccuracy)
                             || simulatedAccuracy < 0f || simulatedAccuracy > 1000f)
                         throw new IllegalArgumentException("simulated accuracy out of range");
+                    continue;
+                }
+                if ("dev_hook_enabled".equals(key)) {
+                    if (!bit(value)) throw new IllegalArgumentException("invalid developer hook opt-in");
+                    developerHooksEnabled = "1".equals(value);
+                    continue;
+                }
+                java.util.regex.Matcher rawRuleKey =
+                        java.util.regex.Pattern.compile("^dev_rule_([0-9]+)$").matcher(key);
+                java.util.regex.Matcher encodedRuleKey =
+                        java.util.regex.Pattern.compile("^dev_rule_b64_([0-9]+)$").matcher(key);
+                if (rawRuleKey.matches() || encodedRuleKey.matches()) {
+                    int slot = Integer.parseInt(rawRuleKey.matches()
+                            ? rawRuleKey.group(1) : encodedRuleKey.group(1));
+                    if (slot < 1 || !developerRuleSlots.add(slot))
+                        throw new IllegalArgumentException("duplicate or invalid developer rule slot");
+                    // Legacy dev_rule_N values remain readable. New writes use URL-safe
+                    // Base64 so commas inside typed JVM parameter signatures cannot be
+                    // mistaken for target-row separators.
+                    String ruleValue = encodedRuleKey.matches()
+                            ? decodeDeveloperRuleValue(value) : value;
+                    DeveloperHookRule rule = DeveloperHookRule.parse(ruleValue, pkg);
+                    if (rule == null) {
+                        String[] ruleFields = ruleValue.split("\\|", -1);
+                        if (ruleFields.length == 4
+                                && DeveloperHookRule.isUnsupportedMutationAction(ruleFields[2])) {
+                            throw new IllegalArgumentException(
+                                    DeveloperHookRule.UNSUPPORTED_MUTATION_ACTION_MESSAGE);
+                        }
+                        throw new IllegalArgumentException("invalid developer rule");
+                    }
+                    if (!developerRuleIds.add(rule.id))
+                        throw new IllegalArgumentException("duplicate developer rule id");
+                    developerRules.add(rule);
                     continue;
                 }
                 if ("rules".equals(key)) {
@@ -627,6 +669,8 @@ public final class UnifiedHookConfigParser {
             parsedTarget.wifiScanHide = wifiScanHide;
             parsedTarget.cellInfoHide = cellInfoHide;
             targets.put(pkg, parsedTarget);
+            parsedTarget.developerRules.addAll(developerRules);
+            parsedTarget.developerHooksEnabled = developerHooksEnabled;
         }
 
         if (!schemaSeen || !adsSeen || !privacySeen || !targetsSectionSeen)
@@ -635,6 +679,20 @@ public final class UnifiedHookConfigParser {
                 pmQueryEnabled, appListEnabled, appListMode, hiddenApps, keptApps, targets);
     }
 
+
+    /** Decode a dev_rule_b64_N payload; raw legacy values pass through untouched. */
+    private static String decodeDeveloperRuleValue(String encoded) {
+        if (encoded == null) return null;
+        try {
+            byte[] decoded = java.util.Base64.getUrlDecoder().decode(encoded);
+            return StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+                    .decode(java.nio.ByteBuffer.wrap(decoded)).toString();
+        } catch (Throwable invalid) {
+            throw new IllegalArgumentException("invalid encoded developer rule");
+        }
+    }
 
     private static String decodeDiaTerms(String encoded) {
         if (encoded == null) return null;

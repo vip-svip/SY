@@ -198,8 +198,10 @@ public final class FxYulongIntegrityActivity extends de.privacyguard.adhook.FxNa
         try {
             worker.execute(() -> {
                 String report;
+                int exitCode = Integer.MIN_VALUE;
                 try {
                     RootAccess.Result result = RootAccess.execute(moduleCheckCommand(), 30000L, 256 * 1024);
+                    exitCode = result.exitCode;
                     report = "Root 退出码：" + result.exitCode + "\n"
                             + (result.output == null ? "" : result.output)
                             + (result.exitCode == 0
@@ -210,7 +212,7 @@ public final class FxYulongIntegrityActivity extends de.privacyguard.adhook.FxNa
                             + (error.getMessage() == null ? "" : "：" + error.getMessage())
                             + "\n请确认 FX Hook 的 Root 授权与模块状态后重试。";
                 }
-                reportIntegrityResult(request, report);
+                reportIntegrityResult(request, exitCode, report);
             });
         } catch (RejectedExecutionException full) {
             checkButton.setEnabled(true);

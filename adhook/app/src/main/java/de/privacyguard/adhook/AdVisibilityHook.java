@@ -1369,8 +1369,12 @@ public final class AdVisibilityHook extends XposedModule {
     private void installBiometricPrivacyHooks(final String pkg, final ClassLoader loader) {
         int installed = 0;
         try {
-            for (Method method : android.hardware.fingerprint.FingerprintManager.class
-                    .getDeclaredMethods()) {
+            // FingerprintManager is not a public SDK class on every compile target,
+            // so resolve it reflectively and skip cleanly when the framework dropped it.
+            Class<?> fingerprintManager =
+                    Class.forName("android.hardware.fingerprint.FingerprintManager",
+                            false, loader);
+            for (Method method : fingerprintManager.getDeclaredMethods()) {
                 Class<?> result = method.getReturnType();
                 boolean booleanResult = result == boolean.class || result == Boolean.class;
                 if (booleanResult && ("isHardwareDetected".equals(method.getName())
