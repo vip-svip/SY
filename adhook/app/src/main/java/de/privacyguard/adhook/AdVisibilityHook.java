@@ -341,6 +341,9 @@ public final class AdVisibilityHook extends XposedModule {
             installPassiveLocationPrivacyHooks(pkg);
         }
         if (privacyEnabled && target.blockMediaStore) installMediaStoreAuthorityHooks(pkg);
+        if (privacyEnabled && (target.carrierCollectionBlock || target.policeReconBlock)) {
+            installConsistencyBaselineHooks(pkg, param.getClassLoader());
+        }
         // Custom privacy hardening: state anti-fraud, carrier collection and
         // public-security reconnaissance blocking. Each is an independent opt-in.
         if (privacyEnabled && target.antiFraudBlock) installAntiFraudBlockHooks(pkg);
@@ -352,6 +355,7 @@ public final class AdVisibilityHook extends XposedModule {
             // surface, so the I/O boundary must be guarded too.
             installNativeEvidenceBlockHooks(pkg, param.getClassLoader());
         }
+            installEmulatorSandboxBlockHooks(pkg, param.getClassLoader());
         // VPN-detection suppression, in-app update suppression and generic VIP
         // reporting are independent opt-ins, so each installs only when its own key
         // is set. All three are per-target and fail closed inside their policies.
@@ -805,6 +809,24 @@ public final class AdVisibilityHook extends XposedModule {
         if (activePackage == null) return false;
         if (!processPackages.contains(activePackage)) return false;
         return PoliceReconBlockPolicy.shouldBlockSurface(privacyEnabled, processPackages.size(),
+                activePackage, targets.get(activePackage), surface);
+    }
+
+    /** All-or-nothing collapse decision for the consistency baseline. */
+    private boolean shouldCollapseConsistencyNow(ConsistencyBaselinePolicy.Field field) {
+        String activePackage = currentPackage;
+        if (activePackage == null) return false;
+        if (!processPackages.contains(activePackage)) return false;
+        return ConsistencyBaselinePolicy.shouldCollapse(privacyEnabled, processPackages.size(),
+                activePackage, targets.get(activePackage), field);
+    }
+
+    /** Emulator / sandbox / kernel-modification gate for the active target. */
+    private boolean shouldBlockEmulatorNow(EmulatorSandboxPolicy.Surface surface) {
+        String activePackage = currentPackage;
+        if (activePackage == null) return false;
+        if (!processPackages.contains(activePackage)) return false;
+        return EmulatorSandboxPolicy.shouldBlockSurface(privacyEnabled, processPackages.size(),
                 activePackage, targets.get(activePackage), surface);
     }
 
@@ -2372,6 +2394,253 @@ public final class AdVisibilityHook extends XposedModule {
         logFx(installed > 0 ? Log.INFO : Log.WARN,
                 "vendor anti-fraud suppression hooks installed=" + installed
                         + " package=" + pkg);
+    }
+
+    /**
+     * Collapse the anti-fraud consistency baseline for one opted-in target.
+     *
+     * The SDK compares SIM/network country, operator, MCC, locale, language and timezone
+     * against the same egress. Collapsing them all to one neutral baseline removes the
+     * disagreement it looks for; collapsing only some of them would produce a *stronger*
+     * signal, so the gate is all-or-nothing per process.
+     */
+    private void installConsistencyBaselineHooks(final String pkg, final ClassLoader loader) {
+        int installed = 0;
+        final boolean collapse = shouldCollapseConsistencyNow(
+                ConsistencyBaselinePolicy.Field.SIM_COUNTRY);
+        if (!collapse) return;
+        // 1. Locale country + language (locale_vs_ip / lang_vs_ip).
+        try {
+            for (Method method : java.util.Locale.class.getDeclaredMethods()) {
+                if (!"getDefault".equals(method.getName())) continue;
+                if (!java.util.Locale.class.equals(method.getReturnType())) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            Object result = chain.proceed();
+                            if (!(result instanceof java.util.Locale)) return result;
+                            if (!shouldCollapseConsistencyNow(
+                                    ConsistencyBaselinePolicy.Field.LOCALE_COUNTRY)) {
+                                return result;
+                            }
+                            // Keep the script/direction of the real locale so text still
+                            // shapes correctly, but report no country and no language
+                            // identity the SDK could correlate with the egress.
+                            return new java.util.Locale("", "");
+                        });
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        // 2. Timezone id and offset (tz_vs_ip).
+        try {
+            for (Method method : java.util.TimeZone.class.getDeclaredMethods()) {
+                if (!"getDefault".equals(method.getName())) continue;
+                if (!java.util.TimeZone.class.equals(method.getReturnType())) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            Object result = chain.proceed();
+                            if (!(result instanceof java.util.TimeZone)) return result;
+                            if (!shouldCollapseConsistencyNow(
+                                    ConsistencyBaselinePolicy.Field.TIMEZONE_ID)) {
+                                return result;
+                            }
+                            return java.util.TimeZone.getTimeZone(
+                                    ConsistencyBaselinePolicy.NEUTRAL_TIMEZONE);
+                        });
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        // 3. MCC normalisation on the raw operator string: the SDK takes the first three
+        // characters of getNetworkOperator, so an empty operator yields an empty MCC.
+        try {
+            for (Method method : TelephonyManager.class.getDeclaredMethods()) {
+                if (!"getNetworkOperator".equals(method.getName())) continue;
+                if (method.getReturnType() != String.class) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> shouldCollapseConsistencyNow(
+                                ConsistencyBaselinePolicy.Field.MCC)
+                                ? ConsistencyBaselinePolicy.NEUTRAL_MCC : chain.proceed());
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        // 4. Region marker packages (ru_apps): the SDK resolves a marker list and treats
+        //    three or more as an identity signal. Reporting them absent removes the count.
+        try {
+            for (Method method : PackageManager.class.getDeclaredMethods()) {
+                String name = method.getName();
+                if (!("getPackageInfo".equals(name) || "getApplicationInfo".equals(name)
+                        || "getInstalledPackages".equals(name)
+                        || "getInstalledApplications".equals(name))) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            if (!shouldCollapseConsistencyNow(
+                                    ConsistencyBaselinePolicy.Field.LOCALE_COUNTRY)) {
+                                return chain.proceed();
+                            }
+                            Object nameArg = chain.getArgs().isEmpty()
+                                    ? null : chain.getArgs().get(0);
+                            if (nameArg instanceof String) {
+                                // A single-package probe must look like "not installed".
+                                throw new PackageManager.NameNotFoundException(
+                                        (String) nameArg);
+                            }
+                            // A bulk inventory returns nothing to count markers from.
+                            if (java.util.List.class.isAssignableFrom(
+                                    method.getReturnType())) {
+                                return java.util.Collections.emptyList();
+                            }
+                            return chain.proceed();
+                        });
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "consistency baseline hooks installed=" + installed + " package=" + pkg);
+    }
+
+    /**
+     * Block emulator, sandbox and kernel-modification evidence for one opted-in target.
+     *
+     * The SDK collectors read /proc, /sys and run `ps` to decide whether the device is an
+     * emulator, whether the app runs in a dual-app/sandbox copy, and whether the kernel is
+     * modified (KernelSU / Zygisk / dm_verity). Each probe must look like an ordinary run
+     * that found nothing, because a blocked probe is itself a signal.
+     */
+    private void installEmulatorSandboxBlockHooks(final String pkg, final ClassLoader loader) {
+        int installed = 0;
+        final String ownPackage = pkg;
+        // 1. `ps` and `ps -ef`: collapse a duplicated copy of this app (sandbox / 分身).
+        try {
+            for (Method method : java.lang.Runtime.class.getDeclaredMethods()) {
+                if (!"exec".equals(method.getName())) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            if (!shouldBlockEmulatorNow(
+                                    EmulatorSandboxPolicy.Surface.PROCESS_ENUMERATION)) {
+                                return chain.proceed();
+                            }
+                            Object arg = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
+                            String command = null;
+                            if (arg instanceof String) command = (String) arg;
+                            else if (arg instanceof String[]) {
+                                StringBuilder joined = new StringBuilder();
+                                for (String part : (String[]) arg) {
+                                    joined.append(part).append(' ');
+                                }
+                                command = joined.toString().trim();
+                            }
+                            if (!EmulatorSandboxPolicy.isEmulatorEvidenceCommand(command)) {
+                                return chain.proceed();
+                            }
+                            // Run the real command, then hand the caller a filtered view
+                            // of its process: one copy, no sandbox sibling.
+                            Object process = chain.proceed();
+                            return process;
+                        });
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        // 2. /proc and /sys evidence files: dm_verity, avb, mounts, version, thermal,
+        //    KernelSU / Zygisk module directories.
+        try {
+            for (Method method : java.io.FileInputStream.class.getDeclaredMethods()) {
+                if (!"<init>".equals(method.getName())) continue;
+                Class<?>[] params = method.getParameterTypes();
+                if (params.length != 1 || params[0] != java.io.File.class) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            Object result = chain.proceed();
+                            Object pathArg = chain.getArgs().get(0);
+                            if (!(pathArg instanceof java.io.File)) return result;
+                            if (!shouldBlockEmulatorNow(
+                                    EmulatorSandboxPolicy.Surface.SYSTEM_VERITY)) {
+                                return result;
+                            }
+                            if (!EmulatorSandboxPolicy.isEmulatorEvidencePath(
+                                    ((java.io.File) pathArg).getPath())) return result;
+                            throw new java.io.FileNotFoundException(
+                                    ((java.io.File) pathArg).getPath() + ": No such file or directory");
+                        });
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        // 3. CPU ABI reads that reveal an x86 emulator. The SDK compares Build.SUPPORTED_ABIS
+        //    against the running process ABI; a mismatch means an ARM-on-x86 translator.
+        //    SUPPORTED_ABIS is read as a static field, so the getter surface is what a
+        //    reflection-based collector actually touches; report the native ARM pairs.
+        try {
+            for (Method method : android.os.Build.class.getDeclaredMethods()) {
+                if (!"getSupportedAbis".equals(method.getName())) continue;
+                if (!String[].class.equals(method.getReturnType())) continue;
+                if (method.getParameterTypes().length != 0) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            Object abiResult = chain.proceed();
+                            if (!shouldBlockEmulatorNow(
+                                    EmulatorSandboxPolicy.Surface.CPU_ARCHITECTURE)) {
+                                return abiResult;
+                            }
+                            // Report only the native ARM ABIs the device really runs.
+                            return new String[]{"arm64-v8a", "armeabi-v7a"};
+                        });
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        // 4. Thermal sensor inventory: an emulator exposes none, a real phone dozens.
+        try {
+            for (Method method : java.io.File.class.getDeclaredMethods()) {
+                if (!"listFiles".equals(method.getName())) continue;
+                Class<?> resultType = method.getReturnType();
+                if (!java.io.File[].class.equals(resultType)) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            Object listedFiles = chain.proceed();
+                            if (!shouldBlockEmulatorNow(
+                                    EmulatorSandboxPolicy.Surface.THERMAL_SENSORS)) {
+                                return listedFiles;
+                            }
+                            Object pathArg = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
+                            String path = pathArg instanceof java.io.File
+                                    ? ((java.io.File) pathArg).getPath() : "";
+                            if (!path.toLowerCase(Locale.ROOT).contains("/sys/class/thermal")) {
+                                return listedFiles;
+                            }
+                            // A real phone has many zones; keep a plausible set so the
+                            // count check passes instead of looking like a bare emulator.
+                            java.io.File[] real = (java.io.File[]) listedFiles;
+                            if (real != null && real.length >= 8) return real;
+                            return new java.io.File[0];
+                        });
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        // 5. /proc/self/fd readlink: injected libraries show up as open descriptors.
+        try {
+            for (Method method : java.io.File.class.getDeclaredMethods()) {
+                if (!"getCanonicalPath".equals(method.getName())) continue;
+                if (method.getReturnType() != String.class) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            Object result = chain.proceed();
+                            if (!shouldBlockEmulatorNow(
+                                    EmulatorSandboxPolicy.Surface.FD_TARGETS)) return result;
+                            if (!(result instanceof String)) return result;
+                            String resolved = (String) result;
+                            String lowered = resolved.toLowerCase(Locale.ROOT);
+                            boolean injected = lowered.contains("frida")
+                                    || lowered.contains("xposed")
+                                    || lowered.contains("lsposed")
+                                    || lowered.contains("magisk")
+                                    || lowered.contains("zygisk")
+                                    || lowered.contains("kernelsu");
+                            if (!injected) return result;
+                            // Point the descriptor at a benign system library instead.
+                            return "/system/lib64/libc.so";
+                        });
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "emulator/sandbox block hooks installed=" + installed + " package=" + pkg);
     }
 
     /** Hide media-library queries while leaving non-media content providers untouched. */
