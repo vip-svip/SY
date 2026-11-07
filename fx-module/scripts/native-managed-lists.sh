@@ -136,7 +136,7 @@ list_rows() {
       if(kind=="rule") {
         valid=valid && value ~ /^https?:\/\/[A-Za-z0-9._~:/?#@!$&()*+,;=%-]+$/
       } else {
-        valid=valid && tolower(value) ~ /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/
+        valid=valid && tolower(value) ~ /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/
         valid=valid && length(value)<=253
       }
       if(!valid || seen[key]++) { bad=1; next }

@@ -147,8 +147,10 @@ case "$*" in
   # Any authoritative probe target reaching the validated tunnel source is routed
   # through that same tunnel; production probes six root-server addresses and only
   # the first two are modelled explicitly above.
+  # Production invocation is `ip route get <dest> from <source>`, so the arguments
+  # are $3=<dest> and $5=<source>.
   "route get"*" from "*)
-    printf '%s\n' "$2 from $4 dev tun0 src $4 uid 0"
+    printf '%s\n' "$3 from $5 dev tun0 src $5 uid 0"
     ;;
   *) echo "unexpected ip invocation: $*" >&2; exit 64 ;;
 esac
