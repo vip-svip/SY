@@ -253,6 +253,17 @@ case "$1" in
 esac
 ADGUARD
 chmod 0755 "$BIN"/* "$MOD/scripts/"*
+mkdir -p "$MOD/engines/unbound"
+cat > "$MOD/engines/unbound/fx-dns-probe" <<'PROBE'
+#!/bin/sh
+# Fixture for the native probe: server port timeout protocol
+_server=${1:-127.0.0.1}
+[ -z "${MOCK_DNS_PROBE_LOG:-}" ] || printf '%s %s\n' "$_server" "${4:-udp}" >> "$MOCK_DNS_PROBE_LOG"
+[ "${MOCK_DNS_PROBE_FAIL:-0}" = 0 ] || exit 1
+[ "${MOCK_DNS_PROBE_FAIL_IPV6:-0}" = 0 ] || [ "$_server" != "::1" ] || exit 1
+exit 0
+PROBE
+chmod 0755 "$MOD/engines/unbound/fx-dns-probe"
 
 prepare_case(){
   CASE_DIR="$T/$1"; CASE_PG="$CASE_DIR/state"; mkdir -p "$CASE_PG"
