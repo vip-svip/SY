@@ -281,6 +281,9 @@ fi
 # A reply carrying only the server line proves the listener answered but says
 # nothing about resolution; production must treat it as an unhealthy probe.
 [ "${MOCK_DNS_SERVER_ONLY:-0}" = 0 ] || exit 1
+# A resolved answer that is a loopback/private literal is not a proof of unicast
+# reachability either, so production must reject it as well.
+[ "${MOCK_DNS_INVALID_ANSWER:-0}" = 0 ] || exit 1
 exit 0
 PROBE
 chmod 0755 "$MOD/engines/unbound/fx-dns-probe"
