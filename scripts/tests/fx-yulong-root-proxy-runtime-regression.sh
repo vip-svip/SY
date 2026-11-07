@@ -144,6 +144,12 @@ case "$*" in
     route_count=$((route_count+1)); printf '%s\n' "$route_count" > "$MOCK_ROUTE_COUNT"
     [ "${MOCK_ROUTE_FAIL_SECOND:-0}" = 1 ] && { echo '199.9.14.201 from 10.23.4.5 dev wlan0'; exit 0; }
     echo '199.9.14.201 from 10.23.4.5 dev tun0 src 10.23.4.5 uid 0' ;;
+  # Any authoritative probe target reaching the validated tunnel source is routed
+  # through that same tunnel; production probes six root-server addresses and only
+  # the first two are modelled explicitly above.
+  "route get"*" from "*)
+    printf '%s\n' "$2 from $4 dev tun0 src $4 uid 0"
+    ;;
   *) echo "unexpected ip invocation: $*" >&2; exit 64 ;;
 esac
 IP

@@ -122,7 +122,7 @@ list_rows() {
   awk -F'|' -v target="[list:$section]" -v kind="$section" '
     BEGIN { rownum=0; inlist=0; bad=0 }
     $0==target { inlist=1; next }
-    /^\\[/ { inlist=0 }
+    /^\[/ { inlist=0 }
     inlist && $0 !~ /^[[:space:]]*$/ && $0 !~ /^[[:space:]]*#/ {
       value=$1
       note=$2
@@ -154,8 +154,8 @@ list_state() {
   # by writers. Emit the protocol header only after parsing succeeds, so a
   # concurrent replacement or malformed row cannot produce a partial list.
   rows=$(list_rows "$section") || return $?
-  printf '%s\\n' FXLIST1
-  [ -z "$rows" ] || printf '%s\\n' "$rows"
+  printf '%s\n' FXLIST1
+  [ -z "$rows" ] || printf '%s\n' "$rows"
 }
 value_exists() {
   section="$1"; wanted="$2"; ignore_case="$3"; excluded="${4:--1}"

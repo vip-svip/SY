@@ -130,7 +130,10 @@ jobs:
               # released archive as root scripts/ copies; the integration branch
               # owns their fixes, so an add/add conflict there must keep ours
               # instead of blocking every recovery run.
-              unexpected=$(printf '%s\n' "$unmerged" | grep -Ev '^(fx-module/|scripts/tests/|docs/fx-module-recovery/|scripts/yulong-ad-control\.sh|scripts/yulong-ad-dns-summary\.sh)$' || :)
+              # Allow the additive recovery trees themselves, not just their
+              # directory names: an earlier anchored pattern could never match a
+              # concrete path inside fx-module/ or scripts/tests/.
+              unexpected=$(printf '%s\n' "$unmerged" | grep -Ev '^(fx-module/|scripts/tests/|docs/fx-module-recovery/|scripts/yulong-ad-control\.sh$|scripts/yulong-ad-dns-summary\.sh$)' || :)
               if [[ -n "$unexpected" ]]; then
                 echo "::error::Unexpected source-import conflicts outside additive recovery paths:"
                 printf '%s\n' "$unexpected"

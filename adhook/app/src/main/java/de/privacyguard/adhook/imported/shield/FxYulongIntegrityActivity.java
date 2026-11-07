@@ -231,7 +231,8 @@ public final class FxYulongIntegrityActivity extends de.privacyguard.adhook.FxNa
      * parameter, so a worker-assigned result stays effectively final and the check
      * generation guard still drops stale reports.
      */
-    private void reportIntegrityResult(final int request, final String report) {
+    private void reportIntegrityResult(final int request, final int exitCode,
+                                       final String report) {
         runOnUiThread(() -> {
             if (destroyed || isFinishing() || isDestroyed()
                     || request != checkGeneration) return;

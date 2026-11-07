@@ -154,8 +154,8 @@ list_state() {
   # by writers. Emit the protocol header only after parsing succeeds, so a
   # concurrent replacement or malformed row cannot produce a partial list.
   rows=$(list_rows "$section") || return $?
-  printf '%s\\n' FXLIST1
-  [ -z "$rows" ] || printf '%s\\n' "$rows"
+  printf '%s\n' FXLIST1
+  [ -z "$rows" ] || printf '%s\n' "$rows"
 }
 value_exists() {
   section="$1"; wanted="$2"; ignore_case="$3"; excluded="${4:--1}"
