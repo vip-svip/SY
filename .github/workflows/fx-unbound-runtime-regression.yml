@@ -1,0 +1,32 @@
+name: FX Unbound runtime rendering regression
+
+on:
+  push:
+    branches:
+      - fx-v1.0.0-unified-hook-integration
+    paths:
+      - "fx-module/scripts/unbound.sh"
+      - "scripts/tests/fx-unbound-runtime-render-regression.sh"
+      - ".github/workflows/fx-unbound-runtime-regression.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fx-unbound-runtime-regression-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unbound-runtime-render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check shell syntax
+        run: |
+          set -eu
+          sh -n fx-module/scripts/unbound.sh
+          sh -n scripts/tests/fx-unbound-runtime-render-regression.sh
+      - name: Run Unbound runtime rendering regression
+        run: sh scripts/tests/fx-unbound-runtime-render-regression.sh
