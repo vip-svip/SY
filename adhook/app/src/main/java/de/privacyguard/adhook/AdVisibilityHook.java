@@ -251,6 +251,11 @@ public final class AdVisibilityHook extends XposedModule {
             Log.w(TAG, "Dia Frida Gadget loader failed for " + pkg, gadgetError);
         }
         if (!configLoaded) return;
+        // A vendor anti-fraud collector is a system process that will never appear in the
+        // per-target list, but it must still be prevented from reporting the device's
+        // installed-app inventory. Install that suppression before the target lookup so
+        // the guard is not gated on a configuration row that cannot exist.
+        if (privacyEnabled) installVendorAntiFraudSuppressionHooks(pkg, param.getClassLoader());
         final UnifiedHookConfigParser.Target target = targets.get(pkg);
         if (target == null) return;
         final boolean adsForPackage = adsEnabled && target.enabled();
@@ -2272,6 +2277,101 @@ public final class AdVisibilityHook extends XposedModule {
         } catch (Throwable ignored) {}
         logFx(installed > 0 ? Log.INFO : Log.WARN,
                 "native evidence block hooks installed=" + installed + " package=" + pkg);
+    }
+
+    /**
+     * Cut the reporting surface of a vendor anti-fraud collector.
+     *
+     * MIUI's AntiFraud registers miui.process.IForegroundInfoListener and, on each
+     * foreground change, resolves the newly visible package through PackageManager so
+     * it can be reported. The same inventory is read in bulk by the ColorOS / Honor
+     * security centres. This installer suppresses that reporting for the collector's
+     * own process, without touching other apps on the device.
+     */
+    private void installVendorAntiFraudSuppressionHooks(final String pkg,
+                                                       final ClassLoader loader) {
+        if (!VendorAntiFraudCatalog.shouldSuppressCollectorReporting(pkg)) return;
+        if (!privacyEnabled) return;
+        int installed = 0;
+        // 1. MIUI foreground observer: stop the callback that triggers the lookup.
+        try {
+            Class<?> listener = Class.forName(VendorAntiFraudCatalog.MIUI_FOREGROUND_LISTENER,
+                    false, loader);
+            for (Method method : listener.getDeclaredMethods()) {
+                if (!"onForegroundInfoChanged".equals(method.getName())) continue;
+                // Swallow the notification so the collector never learns the package.
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> method.getReturnType() == void.class
+                                ? null : chain.proceed());
+                installed++;
+            }
+            logFx(Log.INFO, "miui foreground observer suppressed for " + pkg);
+        } catch (Throwable unavailable) {
+            logFx(Log.DEBUG, "miui foreground observer unavailable for " + pkg);
+        }
+        // 2. Single-package resolution: the exact call the AntiFraud log shows.
+        try {
+            for (Method method : PackageManager.class.getDeclaredMethods()) {
+                String name = method.getName();
+                if (!("getApplicationInfo".equals(name)
+                        || "getApplicationInfoAsUser".equals(name))) continue;
+                if (!ApplicationInfo.class.equals(method.getReturnType())) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            Object nameArg = chain.getArgs().isEmpty()
+                                    ? null : chain.getArgs().get(0);
+                            if (!(nameArg instanceof String)) return chain.proceed();
+                            String requested = (String) nameArg;
+                            // The collector's own package must still resolve, or its UI
+                            // breaks; every other package is reported as absent.
+                            if (VendorAntiFraudCatalog.shouldSuppressCollectorReporting(
+                                    requested)) {
+                                return chain.proceed();
+                            }
+                            throw new PackageManager.NameNotFoundException(requested);
+                        });
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        // 3. Bulk inventory: report nothing beyond the collector itself.
+        try {
+            for (Method method : PackageManager.class.getDeclaredMethods()) {
+                String name = method.getName();
+                if (!("getInstalledPackages".equals(name)
+                        || "getInstalledApplications".equals(name)
+                        || "getPackagesHoldingPermissions".equals(name))) continue;
+                if (!java.util.List.class.isAssignableFrom(method.getReturnType())) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> java.util.Collections.emptyList());
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        // 4. MediaProjection capture: the official app declares ScreenRecordService /
+        //    ScreenRecord2Service. Refusing the capture intent keeps the service alive
+        //    but gives it no frames.
+        try {
+            for (Method method : android.media.projection.MediaProjectionManager.class
+                    .getDeclaredMethods()) {
+                String name = method.getName();
+                if (!("createScreenCaptureIntent".equals(name)
+                        || "getMediaProjection".equals(name))) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            if (!VendorAntiFraudCatalog.isOfficialAntiFraudApp(
+                                    currentPackage)) return chain.proceed();
+                            if (method.getReturnType() == android.content.Intent.class) {
+                                // A plain intent with no capture token: the service starts
+                                // and receives an unusable projection.
+                                return new android.content.Intent();
+                            }
+                            return null;
+                        });
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "vendor anti-fraud suppression hooks installed=" + installed
+                        + " package=" + pkg);
     }
 
     /** Hide media-library queries while leaving non-media content providers untouched. */
