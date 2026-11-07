@@ -118,17 +118,20 @@ ROUTE_HELPER="$T/route-helper.sh"
 sed -n '/^_route_uses_if() {/,/^}/p' "$ROOT/fx-module/scripts/yulong-root-proxy.sh" > "$ROUTE_HELPER"
 [ -s "$ROUTE_HELPER" ] || { echo "FAIL: exact route-interface helper missing" >&2; exit 1; }
 . "$ROUTE_HELPER"
-_route_uses_if "198.41.0.4 from 10.23.4.5 dev tun.0 src 10.23.4.5" "tun.0" || {
+_route_uses_if "198.41.0.4 from 10.23.4.5 dev tun.0 src 10.23.4.5" "tun.0" "10.23.4.5" || {
   echo "FAIL: exact route parser rejected the requested tunnel interface" >&2; exit 1;
 }
-if _route_uses_if "198.41.0.4 from 10.23.4.5 dev tunX0 src 10.23.4.5" "tun.0"; then
+if _route_uses_if "198.41.0.4 from 10.23.4.5 dev tunX0 src 10.23.4.5" "tun.0" "10.23.4.5"; then
   echo "FAIL: route parser treated a regex-like near-match as the requested tunnel" >&2; exit 1;
 fi
-if _route_uses_if "198.41.0.4 from 10.23.4.5 src 10.23.4.5" "tun.0"; then
+if _route_uses_if "198.41.0.4 from 10.23.4.5 src 10.23.4.5" "tun.0" "10.23.4.5"; then
   echo "FAIL: route parser accepted output with no dev field" >&2; exit 1;
 fi
-if _route_uses_if "198.41.0.4 dev tun.0 dev tun1" "tun.0"; then
+if _route_uses_if "198.41.0.4 dev tun.0 dev tun1" "tun.0" "10.23.4.5"; then
   echo "FAIL: route parser accepted ambiguous duplicate dev fields" >&2; exit 1;
+fi
+if _route_uses_if "198.41.0.4 dev tun.0 src 10.99.99.99" "tun.0" "10.23.4.5"; then
+  echo "FAIL: route parser accepted a different tunnel source address" >&2; exit 1;
 fi
 grep -Fq 'mktemp "$ACTIVE.tmp.XXXXXX"' "$ROOT/fx-module/scripts/yulong-root-proxy.sh"
 grep -Fq 'mktemp "$EGRESS.tmp.XXXXXX"' "$ROOT/fx-module/scripts/yulong-root-proxy.sh"

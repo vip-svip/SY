@@ -267,6 +267,9 @@ chmod 0755 "$MOD/engines/unbound/fx-dns-probe"
 
 prepare_case(){
   CASE_DIR="$T/$1"; CASE_PG="$CASE_DIR/state"; mkdir -p "$CASE_PG"
+  # The production engine state lives under "$PG/unbound"; create it so engine
+  # health logs and probes are written instead of silently skipped.
+  mkdir -p "$CASE_PG/unbound"
   cat > "$CASE_PG/settings.conf" <<'CONF'
 [list:yulong_root_proxy_whitelist]
 com.example.whitelisted|1
@@ -324,7 +327,11 @@ assert_stopped(){
 # transient kernel-command failure is retried by fail-open cleanup, which must
 # remove both generations before returning control to the caller.
 prepare_case stale-generation-detach-failure
-run_proxy "$CASE_DIR" >/dev/null || fail "initial generation setup failed"
+if ! run_proxy "$CASE_DIR" >/dev/null; then
+  printf 'production log:\n' >&2
+  tail -20 "$CASE_PG/yulong-root-proxy.log" >&2 2>/dev/null || :
+  fail "initial generation setup failed"
+fi
 [ "$(cat "$CASE_DIR/hooks4")" = FXYRP4_A ] || fail "initial IPv4 generation was not active"
 if run_proxy "$CASE_DIR" MOCK_FAIL_IPV4_DETACH_ONCE=1 >/dev/null 2>&1; then
   fail "activation succeeded after previous IPv4 OUTPUT hook failed to detach"
