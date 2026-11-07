@@ -1343,6 +1343,10 @@ html.pg-keyboard-open .phone>.navbar>.nav-item{pointer-events:auto!important}
 <div class="sp-sec">硬件存在性</div>
 <button class="setrow" data-media-edit="camHw"><span class="ricon">CH</span><span class="s-main"><div class="s-title">摄像头硬件存在性欺骗</div><div class="s-sub">APP 查询不到摄像头设备</div></span><span class="switch" data-key="cam_hw_hide" data-unavailable="1" aria-disabled="true" title="此旧版开关已停用；请使用统一 Hook 的受支持逐应用隐私设置"></span></button>
 <button class="setrow" data-media-edit="micHw"><span class="ricon">MH</span><span class="s-main"><div class="s-title">麦克风硬件存在欺骗</div><div class="s-sub">APP 查询不到麦克风设备</div></span><span class="switch" data-key="mic_hw_hide" data-unavailable="1" aria-disabled="true" title="此旧版开关已停用；请使用统一 Hook 的受支持逐应用隐私设置"></span></button>
+<div class="sp-sec">反诈与侦察阻断</div>
+<button class="setrow" data-priv-edit="antiFraud"><span class="ricon">AF</span><span class="s-main"><div class="s-title">屏蔽国家反诈采集</div><div class="s-sub">反诈 SDK 与系统内置组件读联系人、短信、通话记录、应用清单时返回空</div></span><span class="switch" data-key="anti_fraud_block"></span></button>
+<button class="setrow" data-priv-edit="carrierBlock"><span class="ricon">CB</span><span class="s-main"><div class="s-title">阻断运营商采集</div><div class="s-sub">IMSI/SIM/本机号、订阅列表、基站与信号、分应用流量统计一律返回中性值</div></span><span class="switch" data-key="carrier_collection_block"></span></button>
+<button class="setrow" data-priv-edit="policeRecon"><span class="ricon">PR</span><span class="s-main"><div class="s-title">屏蔽网警侦察</div><div class="s-sub">应用清单、运行进程、无障碍服务、设备标识与 VPN 可见性返回中性基线</div></span><span class="switch" data-key="police_recon_block"></span></button>
 <div class="sp-sec">元数据与指纹</div>
 <button class="setrow" data-media-edit="exif"><span class="ricon">EX</span><span class="s-main"><div class="s-title">禁用相机元数据</div><div class="s-sub">自动擦除 EXIF：GPS / 型号 / 时间</div></span><span class="switch" data-key="exif_strip" data-unavailable="1" aria-disabled="true" title="此旧版开关已停用；请使用统一 Hook 的受支持逐应用隐私设置"></span></button>
 <button class="setrow" data-media-edit="audioFp"><span class="ricon">AF</span><span class="s-main"><div class="s-title">拦截音频回放采集</div><div class="s-sub">防止声音指纹识别</div></span><span class="switch" data-key="audio_fp_block" data-unavailable="1" aria-disabled="true" title="此旧版开关已停用；请使用统一 Hook 的受支持逐应用隐私设置"></span></button>
@@ -4270,6 +4274,7 @@ var EDMAP={
   fingerprint:'spoof_fingerprint',hardware:'spoof_hardware',baseband:'spoof_baseband',
   btmac:'spoof_bt_mac',wifimac:'spoof_wifi_mac',storage:'spoof_storage',screen:'spoof_screen',battery:'spoof_battery',
   micBlock:'mic_block',exif:'exif_strip',
+  antiFraud:'anti_fraud_block',carrierBlock:'carrier_collection_block',policeRecon:'police_recon_block',
   micSilence:'mic_silence',micAccess:'mic_access_block',camAccess:'camera_access_block',
   mediaStore:'media_store_query_block',locAccess:'location_access_block',
   isolate:'fs_isolate',hide:'fs_hide',rootlist:'fs_rootlist',attrs:'fs_attrs',vfs:'fs_vfs',

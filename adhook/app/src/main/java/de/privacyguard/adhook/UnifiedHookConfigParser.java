@@ -1,23 +1,30 @@
 package de.privacyguard.adhook;
 
-import de.privacyguard.adhook.imported.dia.FxDiaKeyGesturePolicy;
 import de.privacyguard.adhook.imported.dia.FxDiaDialogMatchPolicy;
+import de.privacyguard.adhook.imported.dia.FxDiaKeyGesturePolicy;
+
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.Arrays;
-import java.util.ArrayList;
-import java.util.List;
-import java.nio.charset.StandardCharsets;
 
 /**
  * Versioned, transactional configuration model for the single FX Hook APK.
- * AdVisibilityHook uses this parser directly for both the versioned unified schema
- * and backward-compatible legacy ad-only payloads. Legacy payloads never enable privacy.
+ * This parser is consumed by the unified runtime for per-app ad, privacy, region,
+ * VPN-detection and read-only membership settings. Missing optional flags default off.
  */
 public final class UnifiedHookConfigParser {
+    private static final Set<String> ENTITLEMENT_STATES = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList("FREE", "VIP", "EXPIRED", "REVOKED", "PENDING")));
+
     private static final Set<String> NEVER = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
             "android", "system", "de.privacyguard.hook", "de.privacyguard.adhook",
             "org.lsposed.manager")));
@@ -30,131 +37,177 @@ public final class UnifiedHookConfigParser {
         public final boolean overlay;
         public final boolean memberDiag;
         public final boolean privacy;
-        public final boolean exifStrip;
-        public final boolean clipboardReadBlock;
-        public final boolean clipboardIsolate;
+        public final boolean regionHidden;
+        public final boolean vpnDetectionHidden;
+        public final boolean mediaHidden;
+        public final boolean usageHidden;
+        public final boolean deviceProfile;
+        // Migrated per-app privacy controls from the unified SY Hook schema.
+        public final boolean exifStrip, clipboardReadBlock, clipboardIsolate;
         public final boolean sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx;
-        /** Additional opt-in Android sensor families assigned by the config parser. */
-        public boolean sensorEnvironment, sensorFusion, sensorGesture, sensorBiometric;
-        public final boolean sensorRateLimit;
-        public final boolean wifiScanBlock;
-        public final boolean notificationListenBlock;
-        public final boolean notificationPermissionHide;
-        public final boolean microphoneSilence;
-        public final boolean cameraAccessBlock;
-        public final boolean locationAccessBlock;
-        public final boolean microphoneAccessBlock;
-        public final boolean mediaStoreQueryBlock;
-        public final boolean adIdUnify;
-        public boolean wifiSimulation;
-        public String simulatedWifiSsid;
-        public String simulatedWifiBssid;
-        public boolean networkTypeSimulation;
-        public String simulatedNetworkType;
+        public final boolean sensorEnvironment, sensorFusion, sensorGesture, sensorBiometric, sensorRateLimit;
+        public final boolean wifiScanBlock, notificationListenBlock, notificationPermissionHide;
+        public final boolean microphoneSilence, cameraAccessBlock, locationAccessBlock, microphoneAccessBlock;
+        public final boolean mediaStoreQueryBlock, adIdUnify;
+        // Opt-in legacy privacy switches that the parser already accepts and the
+        // policy helpers already read. Defaults stay false so an existing config
+        // never enables a hook it did not ask for.
+        public boolean regionDiag, usageStatsOff, a11yHide, audioFpBlock, micBlock, cameraIdHide, blockMediaStore, blockImeLogging, micHwHide, disablePassiveLocation, hideFingerprintHw, hideFaceHw, wifiScanHide, cellInfoHide;
+        public final boolean dialogMatchEnabled;
+        public final boolean dialogNotify;
+        public final boolean toastFilterEnabled;
+        public final List<String> dialogTextTerms;
+        public final List<String> dialogIdTerms;
+        public final List<String> toastTextTerms;
+        public final int keyFinishTrigger;
+        public final int keyDialogToggleTrigger;
+        // Generic VIP / paid-entitlement reporting. Presentation-only: the app is told
+        // which membership state to display, nothing touches receipts or billing.
+        public boolean vipEntitlementSimulation;
+        // Real premium unlocking: entitlement getters, billing results and the app's
+        // own persisted flags all resolve to "unlocked" for this target.
+        public boolean vipUnlock;
+        // State anti-fraud, carrier-side collection and public-security reconnaissance
+        // blocking. Each drives its own hook installer and defaults to off.
+        public boolean antiFraudBlock;
+        public boolean carrierCollectionBlock;
+        public boolean policeReconBlock;
+        public String simulatedEntitlementState;
+        // In-app update suppression: report "already current" and/or a chosen version.
+        public boolean blockAppUpdate;
+        public boolean fakeAppVersion;
+        public String simulatedAppVersion;
+        // Per-target test location. Off by default; coordinates require the explicit
+        // opt-in and never combine with location access blocking.
         public boolean locationSimulation;
         public boolean locationProviderEnabledSimulation;
         public double simulatedLatitude;
         public double simulatedLongitude;
         public float simulatedAccuracy = 5f;
-        public boolean dialogMatchEnabled;
-        public boolean dialogNotify;
-        public boolean toastFilterEnabled;
-        public final List<String> toastTextTerms = new ArrayList<>();
-        public final List<String> dialogTextTerms = new ArrayList<>();
-        public final List<String> dialogIdTerms = new ArrayList<>();
-        public int keyFinishTrigger = -1;
-        public int keyDialogToggleTrigger = -1;
-        public boolean androidIdSimulation;
-        public String simulatedAndroidId;
-        public boolean timeZoneSimulation;
-        public String simulatedTimeZone;
-        public boolean appVersionSimulation;
-        public String simulatedVersionName;
-        public long simulatedVersionCode;
-        public String developerVipMethod;
-        public String developerLoginMethod;
-        public String developerHideUpdateMethod;
-        public boolean developerHooksEnabled;
-        public final List<DeveloperHookRule> developerRules = new ArrayList<>();
+        /** Per-app extra class/resource-name tokens grouped by ad category. */
+        public final Map<String, Set<String>> customRules;
 
+        Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy,
+               boolean regionHidden, boolean vpnDetectionHidden, boolean mediaHidden, boolean usageHidden, boolean deviceProfile,
+               boolean exifStrip, boolean clipboardReadBlock, boolean clipboardIsolate,
+               boolean sensorAccel, boolean sensorGyro, boolean sensorLight, boolean sensorMagnet,
+               boolean sensorPressure, boolean sensorProx, boolean sensorEnvironment, boolean sensorFusion,
+               boolean sensorGesture, boolean sensorBiometric, boolean sensorRateLimit, boolean wifiScanBlock,
+               boolean notificationListenBlock, boolean notificationPermissionHide, boolean microphoneSilence,
+               boolean cameraAccessBlock, boolean locationAccessBlock, boolean microphoneAccessBlock,
+               boolean mediaStoreQueryBlock, boolean adIdUnify, Map<String, Set<String>> customRules) {
+            this(splash, feed, overlay, memberDiag, privacy, regionHidden, vpnDetectionHidden,
+                    mediaHidden, usageHidden, deviceProfile, exifStrip, clipboardReadBlock,
+                    clipboardIsolate, sensorAccel, sensorGyro, sensorLight, sensorMagnet,
+                    sensorPressure, sensorProx, sensorEnvironment, sensorFusion, sensorGesture,
+                    sensorBiometric, sensorRateLimit, wifiScanBlock, notificationListenBlock,
+                    notificationPermissionHide, microphoneSilence, cameraAccessBlock,
+                    locationAccessBlock, microphoneAccessBlock, mediaStoreQueryBlock, adIdUnify,
+                    customRules, false, false, false, Collections.<String>emptyList(),
+                    Collections.<String>emptyList(), Collections.<String>emptyList(), -1, -1);
+        }
+
+        /** Legacy ads/privacy-only shape used by clipboard policy tests. */
         Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock) {
-            this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock,
-                    false, false, false, false, false, false, false, false);
+            this(splash, feed, overlay, memberDiag, privacy, false, false, false, false, false, exifStrip, clipboardReadBlock, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false,
+                    Collections.<String, Set<String>>emptyMap());
         }
 
-        // Source-compatible overload for existing sensor policy tests and callers.
+        /** Sensor policy shape: the seven sensor switches. */
+        Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock,
+               boolean sensorAccel, boolean sensorGyro, boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx, boolean sensorRateLimit) {
+            this(splash, feed, overlay, memberDiag, privacy, false, false, false, false, false, exifStrip, clipboardReadBlock, false, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, false, false, false, false, sensorRateLimit, false, false, false, false, false, false, false, false, false,
+                    Collections.<String, Set<String>>emptyMap());
+        }
+
+        /** Adds the Wi-Fi scan switch. */
+        Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock,
+               boolean sensorAccel, boolean sensorGyro, boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx, boolean sensorRateLimit, boolean wifiScanBlock) {
+            this(splash, feed, overlay, memberDiag, privacy, false, false, false, false, false, exifStrip, clipboardReadBlock, false, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, false, false, false, false, sensorRateLimit, wifiScanBlock, false, false, false, false, false, false, false, false,
+                    Collections.<String, Set<String>>emptyMap());
+        }
+
+        /** Adds the notification-listener switch. */
+        Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock,
+               boolean sensorAccel, boolean sensorGyro, boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx, boolean sensorRateLimit, boolean wifiScanBlock, boolean notificationListenBlock) {
+            this(splash, feed, overlay, memberDiag, privacy, false, false, false, false, false, exifStrip, clipboardReadBlock, false, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, false, false, false, false, sensorRateLimit, wifiScanBlock, notificationListenBlock, false, false, false, false, false, false, false,
+                    Collections.<String, Set<String>>emptyMap());
+        }
+
+        /** Adds the notification permission switch. */
+        Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock,
+               boolean sensorAccel, boolean sensorGyro, boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx, boolean sensorRateLimit, boolean wifiScanBlock, boolean notificationListenBlock, boolean notificationPermissionHide) {
+            this(splash, feed, overlay, memberDiag, privacy, false, false, false, false, false, exifStrip, clipboardReadBlock, false, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, false, false, false, false, sensorRateLimit, wifiScanBlock, notificationListenBlock, notificationPermissionHide, false, false, false, false, false, false,
+                    Collections.<String, Set<String>>emptyMap());
+        }
+
+        // Compatibility constructor for the earlier legacy ads-only parser.
+        Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag,
+               boolean privacy, boolean regionHidden, boolean vpnDetectionHidden,
+               boolean mediaHidden, boolean usageHidden, boolean deviceProfile,
+               Map<String, Set<String>> customRules) {
+            this(splash, feed, overlay, memberDiag, privacy, regionHidden, vpnDetectionHidden,
+                    mediaHidden, usageHidden, deviceProfile, false, false, false,
+                    false, false, false, false, false, false, false, false, false, false,
+                    false, false, false, false, false, false, false, false, false,
+                    false, customRules, false, false, false, Collections.<String>emptyList(),
+                    Collections.<String>emptyList(), Collections.<String>emptyList(), -1, -1);
+        }
+
         Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy,
-               boolean exifStrip, boolean clipboardReadBlock, boolean sensorAccel, boolean sensorGyro,
-               boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx,
-               boolean sensorRateLimit) {
-            this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock,
-                    sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx,
-                    sensorRateLimit, false, false);
-        }
-
-        Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy,
-               boolean exifStrip, boolean clipboardReadBlock, boolean sensorAccel, boolean sensorGyro,
-               boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx, boolean sensorRateLimit, boolean wifiScanBlock) {
-            this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanBlock, false);
-        }
-
-        Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock, boolean sensorAccel, boolean sensorGyro, boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx, boolean sensorRateLimit, boolean wifiScanBlock, boolean notificationListenBlock) {
-            this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanBlock, notificationListenBlock, false);
-        }
-
-        Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock, boolean sensorAccel, boolean sensorGyro, boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx, boolean sensorRateLimit, boolean wifiScanBlock, boolean notificationListenBlock, boolean notificationPermissionHide) {
-            this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanBlock, notificationListenBlock, notificationPermissionHide, false);
-        }
-
-        Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock, boolean sensorAccel, boolean sensorGyro, boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx, boolean sensorRateLimit, boolean wifiScanBlock, boolean notificationListenBlock, boolean notificationPermissionHide, boolean clipboardIsolate) {
-            this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanBlock, notificationListenBlock, notificationPermissionHide, clipboardIsolate, false);
-        }
-
-        Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock, boolean sensorAccel, boolean sensorGyro, boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx, boolean sensorRateLimit, boolean wifiScanBlock, boolean notificationListenBlock, boolean notificationPermissionHide, boolean clipboardIsolate, boolean microphoneSilence) {
-            this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanBlock, notificationListenBlock, notificationPermissionHide, clipboardIsolate, microphoneSilence, false);
-        }
-
-        Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock, boolean sensorAccel, boolean sensorGyro, boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx, boolean sensorRateLimit, boolean wifiScanBlock, boolean notificationListenBlock, boolean notificationPermissionHide, boolean clipboardIsolate, boolean microphoneSilence, boolean cameraAccessBlock) {
-            this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanBlock, notificationListenBlock, notificationPermissionHide, clipboardIsolate, microphoneSilence, cameraAccessBlock, false);
-        }
-
-        Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock, boolean sensorAccel, boolean sensorGyro, boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx, boolean sensorRateLimit, boolean wifiScanBlock, boolean notificationListenBlock, boolean notificationPermissionHide, boolean clipboardIsolate, boolean microphoneSilence, boolean cameraAccessBlock, boolean locationAccessBlock) {
-            this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanBlock, notificationListenBlock, notificationPermissionHide, clipboardIsolate, microphoneSilence, cameraAccessBlock, locationAccessBlock, false);
-        }
-
-        Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock, boolean sensorAccel, boolean sensorGyro, boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx, boolean sensorRateLimit, boolean wifiScanBlock, boolean notificationListenBlock, boolean notificationPermissionHide, boolean clipboardIsolate, boolean microphoneSilence, boolean cameraAccessBlock, boolean locationAccessBlock, boolean microphoneAccessBlock) {
-            this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanBlock, notificationListenBlock, notificationPermissionHide, clipboardIsolate, microphoneSilence, cameraAccessBlock, locationAccessBlock, microphoneAccessBlock, false);
-        }
-
-        Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock, boolean sensorAccel, boolean sensorGyro, boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx, boolean sensorRateLimit, boolean wifiScanBlock, boolean notificationListenBlock, boolean notificationPermissionHide, boolean clipboardIsolate, boolean microphoneSilence, boolean cameraAccessBlock, boolean locationAccessBlock, boolean microphoneAccessBlock, boolean mediaStoreQueryBlock) {
-            this(splash, feed, overlay, memberDiag, privacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanBlock, notificationListenBlock, notificationPermissionHide, clipboardIsolate, microphoneSilence, cameraAccessBlock, locationAccessBlock, microphoneAccessBlock, mediaStoreQueryBlock, false);
-        }
-
-        Target(boolean splash, boolean feed, boolean overlay, boolean memberDiag, boolean privacy, boolean exifStrip, boolean clipboardReadBlock, boolean sensorAccel, boolean sensorGyro, boolean sensorLight, boolean sensorMagnet, boolean sensorPressure, boolean sensorProx, boolean sensorRateLimit, boolean wifiScanBlock, boolean notificationListenBlock, boolean notificationPermissionHide, boolean clipboardIsolate, boolean microphoneSilence, boolean cameraAccessBlock, boolean locationAccessBlock, boolean microphoneAccessBlock, boolean mediaStoreQueryBlock, boolean adIdUnify) {
+               boolean regionHidden, boolean vpnDetectionHidden, boolean mediaHidden, boolean usageHidden, boolean deviceProfile,
+               boolean exifStrip, boolean clipboardReadBlock, boolean clipboardIsolate,
+               boolean sensorAccel, boolean sensorGyro, boolean sensorLight, boolean sensorMagnet,
+               boolean sensorPressure, boolean sensorProx, boolean sensorEnvironment, boolean sensorFusion,
+               boolean sensorGesture, boolean sensorBiometric, boolean sensorRateLimit, boolean wifiScanBlock,
+               boolean notificationListenBlock, boolean notificationPermissionHide, boolean microphoneSilence,
+               boolean cameraAccessBlock, boolean locationAccessBlock, boolean microphoneAccessBlock,
+               boolean mediaStoreQueryBlock, boolean adIdUnify, Map<String, Set<String>> customRules,
+               boolean dialogMatchEnabled, boolean dialogNotify, boolean toastFilterEnabled,
+               List<String> dialogTextTerms, List<String> dialogIdTerms, List<String> toastTextTerms,
+               int keyFinishTrigger, int keyDialogToggleTrigger) {
             this.splash = splash;
             this.feed = feed;
             this.overlay = overlay;
             this.memberDiag = memberDiag;
             this.privacy = privacy;
+            this.regionHidden = regionHidden;
+            this.vpnDetectionHidden = vpnDetectionHidden;
+            this.mediaHidden = mediaHidden;
+            this.usageHidden = usageHidden;
+            this.deviceProfile = deviceProfile;
             this.exifStrip = exifStrip;
             this.clipboardReadBlock = clipboardReadBlock;
             this.clipboardIsolate = clipboardIsolate;
             this.sensorAccel = sensorAccel; this.sensorGyro = sensorGyro;
             this.sensorLight = sensorLight; this.sensorMagnet = sensorMagnet;
             this.sensorPressure = sensorPressure; this.sensorProx = sensorProx;
-            this.sensorRateLimit = sensorRateLimit;
-            this.wifiScanBlock = wifiScanBlock;
+            this.sensorEnvironment = sensorEnvironment; this.sensorFusion = sensorFusion;
+            this.sensorGesture = sensorGesture; this.sensorBiometric = sensorBiometric;
+            this.sensorRateLimit = sensorRateLimit; this.wifiScanBlock = wifiScanBlock;
             this.notificationListenBlock = notificationListenBlock;
             this.notificationPermissionHide = notificationPermissionHide;
-            this.microphoneSilence = microphoneSilence;
-            this.cameraAccessBlock = cameraAccessBlock;
-            this.locationAccessBlock = locationAccessBlock;
-            this.microphoneAccessBlock = microphoneAccessBlock;
-            this.mediaStoreQueryBlock = mediaStoreQueryBlock;
-            this.adIdUnify = adIdUnify;
+            this.microphoneSilence = microphoneSilence; this.cameraAccessBlock = cameraAccessBlock;
+            this.locationAccessBlock = locationAccessBlock; this.microphoneAccessBlock = microphoneAccessBlock;
+            this.mediaStoreQueryBlock = mediaStoreQueryBlock; this.adIdUnify = adIdUnify;
+            this.dialogMatchEnabled = dialogMatchEnabled;
+            this.dialogNotify = dialogNotify;
+            this.toastFilterEnabled = toastFilterEnabled;
+            this.dialogTextTerms = Collections.unmodifiableList(new ArrayList<>(
+                    dialogTextTerms == null ? Collections.<String>emptyList() : dialogTextTerms));
+            this.dialogIdTerms = Collections.unmodifiableList(new ArrayList<>(
+                    dialogIdTerms == null ? Collections.<String>emptyList() : dialogIdTerms));
+            this.toastTextTerms = Collections.unmodifiableList(new ArrayList<>(
+                    toastTextTerms == null ? Collections.<String>emptyList() : toastTextTerms));
+            this.keyFinishTrigger = keyFinishTrigger;
+            this.keyDialogToggleTrigger = keyDialogToggleTrigger;
+            Map<String, Set<String>> copy = new LinkedHashMap<>();
+            for (Map.Entry<String, Set<String>> entry : customRules.entrySet()) {
+                copy.put(entry.getKey(), Collections.unmodifiableSet(new HashSet<>(entry.getValue())));
+            }
+            this.customRules = Collections.unmodifiableMap(copy);
         }
 
-        /** Ad-filtering scope only; member diagnostics has its own independent switch. */
         public boolean enabled() {
             return splash || feed || overlay;
         }
@@ -163,19 +216,28 @@ public final class UnifiedHookConfigParser {
     public static final class Result {
         public final boolean adsEnabled;
         public final boolean privacyEnabled;
-        public final boolean wifiScanEnabled;
-        public final boolean notificationListenEnabled;
-        public final boolean notificationPermissionHideEnabled;
-        public final boolean clipboardIsolationEnabled;
+        public final boolean systemServicesEnabled;
+        public final Set<String> hiddenSystemServices;
+        public final boolean pmQueryEnabled;
+        public final boolean appListEnabled;
+        public final String appListMode;
+        public final Set<String> hiddenApps;
+        public final Set<String> keptApps;
         public final Map<String, Target> targets;
 
-        private Result(boolean adsEnabled, boolean privacyEnabled, boolean wifiScanEnabled, boolean notificationListenEnabled, boolean notificationPermissionHideEnabled, boolean clipboardIsolationEnabled, Map<String, Target> targets) {
+        private Result(boolean adsEnabled, boolean privacyEnabled, boolean systemServicesEnabled,
+                       Set<String> hiddenSystemServices, boolean pmQueryEnabled,
+                       boolean appListEnabled, String appListMode, Set<String> hiddenApps,
+                       Set<String> keptApps, Map<String, Target> targets) {
             this.adsEnabled = adsEnabled;
             this.privacyEnabled = privacyEnabled;
-            this.wifiScanEnabled = wifiScanEnabled;
-            this.notificationListenEnabled = notificationListenEnabled;
-            this.notificationPermissionHideEnabled = notificationPermissionHideEnabled;
-            this.clipboardIsolationEnabled = clipboardIsolationEnabled;
+            this.systemServicesEnabled = systemServicesEnabled;
+            this.hiddenSystemServices = Collections.unmodifiableSet(new HashSet<>(hiddenSystemServices));
+            this.pmQueryEnabled = pmQueryEnabled;
+            this.appListEnabled = appListEnabled;
+            this.appListMode = appListMode == null ? "custom" : appListMode;
+            this.hiddenApps = Collections.unmodifiableSet(new HashSet<>(hiddenApps));
+            this.keptApps = Collections.unmodifiableSet(new HashSet<>(keptApps));
             this.targets = Collections.unmodifiableMap(new LinkedHashMap<>(targets));
         }
 
@@ -184,61 +246,62 @@ public final class UnifiedHookConfigParser {
             return adsEnabled && target != null && target.enabled();
         }
 
-        /** Member diagnostics are independent from the global ad-filtering switch. */
-        public boolean isMemberDiagnosticsEnabledFor(String packageName) {
-            Target target = targets.get(packageName);
-            return target != null && target.memberDiag;
-        }
-
         public boolean isPrivacyEnabledFor(String packageName) {
             Target target = targets.get(packageName);
             return privacyEnabled && target != null && target.privacy;
         }
 
-        public boolean isExifStripEnabledFor(String packageName) {
+        public boolean isRegionHiddenFor(String packageName) {
             Target target = targets.get(packageName);
-            return privacyEnabled && target != null && target.exifStrip;
+            return privacyEnabled && target != null && target.regionHidden;
         }
 
-        public boolean isClipboardIsolatedFor(String packageName) {
+        public boolean isVpnDetectionHiddenFor(String packageName) {
             Target target = targets.get(packageName);
-            return privacyEnabled && clipboardIsolationEnabled && target != null && target.clipboardIsolate;
+            return privacyEnabled && target != null && target.vpnDetectionHidden;
         }
 
-        public boolean isClipboardReadBlockedFor(String packageName) {
+        public boolean isMediaHiddenFor(String packageName) {
             Target target = targets.get(packageName);
-            return privacyEnabled && target != null && target.clipboardReadBlock;
+            return privacyEnabled && target != null && target.mediaHidden;
         }
 
-        public boolean isSensorHiddenFor(String packageName, int sensorType) {
+        public boolean isUsageHiddenFor(String packageName) {
             Target target = targets.get(packageName);
-            return privacyEnabled && SensorPrivacyPolicy.isEnabled(target, sensorType);
+            return privacyEnabled && target != null && target.usageHidden;
         }
 
-        public boolean isWifiScanBlockedFor(String packageName) {
+        public boolean isDeviceProfileEnabledFor(String packageName) {
             Target target = targets.get(packageName);
-            return wifiScanEnabled && target != null && target.wifiScanBlock;
+            return privacyEnabled && target != null && target.deviceProfile;
         }
 
-        public boolean isNotificationListenBlockedFor(String packageName) {
+        public boolean isSystemServiceHidingEnabledFor(String packageName) {
             Target target = targets.get(packageName);
-            return notificationListenEnabled && target != null && target.notificationListenBlock;
+            return privacyEnabled && systemServicesEnabled && !hiddenSystemServices.isEmpty()
+                    && target != null && target.privacy;
         }
 
-        public boolean isNotificationPermissionHiddenFor(String packageName) {
+        public boolean isAppListHidingEnabledFor(String packageName) {
             Target target = targets.get(packageName);
-            return notificationPermissionHideEnabled && target != null && target.notificationPermissionHide;
+            return privacyEnabled && appListEnabled && target != null && target.privacy;
         }
     }
 
     public static Result parse(String text) {
         if (text == null) throw new IllegalArgumentException("null config");
-        if (hasLegacyMasterKey(text)) return parseLegacyAdsConfig(text);
         String[] lines = text.split("\\R", -1);
+        if (hasLegacyMasterKey(text)) return parseLegacyAdsConfig(text);
 
-        boolean schemaSeen = false, adsSeen = false, privacySeen = false, wifiScanSeen = false, notificationListenSeen = false, notificationPermissionHideSeen = false, clipboardIsolationSeen = false, sectionSeen = false;
-        boolean ads = false, privacy = false, wifiScan = false, notificationListen = false, notificationPermissionHide = false, clipboardIsolation = false;
+        boolean schemaSeen = false, adsSeen = false, privacySeen = false;
+        boolean systemServicesEnabledSeen = false, systemServicesSectionSeen = false, targetsSectionSeen = false;
+        boolean appListEnabledSeen = false, appListModeSeen = false, pmQueryEnabledSeen = false;
+        boolean appListHideSectionSeen = false, appListKeepSectionSeen = false;
+        boolean ads = false, privacy = false, systemServicesEnabled = false, pmQueryEnabled = false, appListEnabled = false;
+        String appListMode = "custom";
         String section = "";
+        Set<String> systemServices = new HashSet<>();
+        Set<String> hiddenApps = new HashSet<>(), keptApps = new HashSet<>();
         Map<String, Target> targets = new LinkedHashMap<>();
 
         for (String raw : lines) {
@@ -248,10 +311,23 @@ public final class UnifiedHookConfigParser {
                 if (!line.startsWith("[") || !line.endsWith("]") || line.length() < 3)
                     throw new IllegalArgumentException("malformed section");
                 String next = line.substring(1, line.length() - 1).trim();
-                if (!"list:targets".equals(next) || sectionSeen)
-                    throw new IllegalArgumentException("unsupported or duplicate section");
-                sectionSeen = true;
-                section = next;
+                if ("list:app_list_hide".equals(next) && !appListHideSectionSeen &&
+                        !appListKeepSectionSeen && !systemServicesSectionSeen && !targetsSectionSeen) {
+                    appListHideSectionSeen = true;
+                    section = next;
+                } else if ("list:app_list_keep".equals(next) && !appListKeepSectionSeen &&
+                        !systemServicesSectionSeen && !targetsSectionSeen) {
+                    appListKeepSectionSeen = true;
+                    section = next;
+                } else if ("list:system_services".equals(next) && !systemServicesSectionSeen && !targetsSectionSeen) {
+                    systemServicesSectionSeen = true;
+                    section = next;
+                } else if ("list:targets".equals(next) && !targetsSectionSeen) {
+                    targetsSectionSeen = true;
+                    section = next;
+                } else {
+                    throw new IllegalArgumentException("unsupported, duplicate or out-of-order section");
+                }
                 continue;
             }
             if (section.isEmpty()) {
@@ -268,115 +344,96 @@ public final class UnifiedHookConfigParser {
                 } else if ("privacy_enabled".equals(key)) {
                     if (privacySeen || !bit(value)) throw new IllegalArgumentException("invalid privacy_enabled");
                     privacySeen = true; privacy = "1".equals(value);
-                } else if ("wifi_scan_enabled".equals(key)) {
-                    if (wifiScanSeen || !bit(value)) throw new IllegalArgumentException("invalid wifi_scan_enabled");
-                    wifiScanSeen = true; wifiScan = "1".equals(value);
-                } else if ("notification_listen_enabled".equals(key)) {
-                    if (notificationListenSeen || !bit(value)) throw new IllegalArgumentException("invalid notification_listen_enabled");
-                    notificationListenSeen = true; notificationListen = "1".equals(value);
-                } else if ("clipboard_isolate_enabled".equals(key)) {
-                    if (clipboardIsolationSeen || !bit(value)) throw new IllegalArgumentException("invalid clipboard_isolate_enabled");
-                    clipboardIsolationSeen = true; clipboardIsolation = "1".equals(value);
-                } else if ("notification_permission_hide_enabled".equals(key)) {
-                    if (notificationPermissionHideSeen || !bit(value)) throw new IllegalArgumentException("invalid notification_permission_hide_enabled");
-                    notificationPermissionHideSeen = true; notificationPermissionHide = "1".equals(value);
+                } else if ("system_services_enabled".equals(key)) {
+                    if (systemServicesEnabledSeen || !bit(value))
+                        throw new IllegalArgumentException("invalid system_services_enabled");
+                    systemServicesEnabledSeen = true;
+                    systemServicesEnabled = "1".equals(value);
+                } else if ("pm_query_enabled".equals(key)) {
+                    if (pmQueryEnabledSeen || !bit(value)) throw new IllegalArgumentException("invalid pm_query_enabled");
+                    pmQueryEnabledSeen = true;
+                    pmQueryEnabled = "1".equals(value);
+                } else if ("app_list_enabled".equals(key)) {
+                    if (appListEnabledSeen || !bit(value)) throw new IllegalArgumentException("invalid app_list_enabled");
+                    appListEnabledSeen = true;
+                    appListEnabled = "1".equals(value);
+                } else if ("app_list_mode".equals(key)) {
+                    if (appListModeSeen || !("empty".equals(value) || "custom".equals(value) || "allowlist".equals(value)))
+                        throw new IllegalArgumentException("invalid app_list_mode");
+                    appListModeSeen = true;
+                    appListMode = value;
                 } else {
                     throw new IllegalArgumentException("unknown top-level key");
                 }
                 continue;
             }
 
+            if ("list:system_services".equals(section)) {
+                if (!line.matches("[A-Za-z][A-Za-z0-9_.-]{0,79}"))
+                    throw new IllegalArgumentException("invalid system service name");
+                if (!systemServices.add(line))
+                    throw new IllegalArgumentException("duplicate system service name");
+                continue;
+            }
+            if ("list:app_list_hide".equals(section) || "list:app_list_keep".equals(section)) {
+                if (!validPackage(line) || NEVER.contains(line))
+                    throw new IllegalArgumentException("invalid app-list package name");
+                Set<String> destination = "list:app_list_hide".equals(section) ? hiddenApps : keptApps;
+                if (!destination.add(line))
+                    throw new IllegalArgumentException("duplicate app-list package name");
+                continue;
+            }
+            if (!"list:targets".equals(section))
+                throw new IllegalArgumentException("missing target section");
             String[] parts = line.split(",", -1);
             if (parts.length < 2) throw new IllegalArgumentException("target requires at least one feature");
             String pkg = parts[0].trim();
             if (!validPackage(pkg) || NEVER.contains(pkg) || targets.containsKey(pkg))
                 throw new IllegalArgumentException("invalid, protected or duplicate package");
-            boolean splash = false, feed = false, overlay = false, member = false, targetPrivacy = false, exifStrip = false, clipboardReadBlock = false, clipboardIsolate = false;
-            boolean sensorAccel=false, sensorGyro=false, sensorLight=false, sensorMagnet=false, sensorPressure=false, sensorProx=false, sensorRateLimit=false, sensorEnvironment=false, sensorFusion=false, sensorGesture=false, sensorBiometric=false, wifiScanBlock=false, notificationListenBlock=false, notificationPermissionHideTarget=false, microphoneSilence=false, cameraAccessBlock=false, locationAccessBlock=false, microphoneAccessBlock=false, mediaStoreQueryBlock=false, adIdUnify=false, locationProviderEnabledSimulation=false;
-            boolean wifiSimulation=false;
-            String simulatedWifiSsid=null, simulatedWifiBssid=null;
-            boolean networkTypeSimulation=false;
-            String simulatedNetworkType=null;
-            boolean locationSimulation=false;
-            boolean dialogMatchEnabled=false, dialogNotify=false, toastFilterEnabled=false;
-            int keyFinishTrigger=-1, keyDialogToggleTrigger=-1;
-            String dialogTextTermsRaw=null, dialogIdTermsRaw=null, toastTextTermsRaw=null;
+            boolean splash = false, feed = false, overlay = false, member = false, targetPrivacy = false;
+            boolean regionHidden = false, vpnDetectionHidden = false, mediaHidden = false, usageHidden = false, deviceProfile = false;
+            boolean exifStrip=false, clipboardReadBlock=false, clipboardIsolate=false;
+            boolean regionDiag=false, usageStatsOff=false, a11yHide=false, audioFpBlock=false;
+            boolean micBlock=false, cameraIdHide=false, blockMediaStore=false, blockImeLogging=false;
+            boolean micHwHide=false, disablePassiveLocation=false, hideFingerprintHw=false, hideFaceHw=false;
+            boolean wifiScanHide=false, cellInfoHide=false;
+            boolean sensorAccel=false, sensorGyro=false, sensorLight=false, sensorMagnet=false, sensorPressure=false, sensorProx=false;
+            boolean sensorEnvironment=false, sensorFusion=false, sensorGesture=false, sensorBiometric=false, sensorRateLimit=false;
+            boolean wifiScanBlock=false, notificationListenBlock=false, notificationPermissionHide=false;
+            boolean microphoneSilence=false, cameraAccessBlock=false, locationAccessBlock=false, microphoneAccessBlock=false;
+            boolean mediaStoreQueryBlock=false, adIdUnify=false;
+            boolean vipEntitlementSimulation=false;
+            boolean vipUnlock=false;
+            boolean antiFraudBlock=false, carrierCollectionBlock=false, policeReconBlock=false;
+            String simulatedEntitlementState=null;
+            boolean blockAppUpdate=false;
+            boolean fakeAppVersion=false;
+            String simulatedAppVersion=null;
+            boolean locationSimulation=false, locationProviderEnabledSimulation=false;
             Double simulatedLatitude=null, simulatedLongitude=null;
             float simulatedAccuracy=5f;
             boolean simulatedAccuracySpecified=false;
-            boolean androidIdSimulation=false;
-            String simulatedAndroidId=null;
-            boolean timeZoneSimulation=false;
-            String simulatedTimeZone=null;
-            boolean appVersionSimulation=false;
-            String simulatedVersionName=null;
-            Long simulatedVersionCode=null;
-            String developerVipMethod=null, developerLoginMethod=null, developerHideUpdateMethod=null;
-            boolean developerHooksEnabled = false;
-            List<DeveloperHookRule> developerRules = new ArrayList<>();
-            Set<String> developerRuleIds = new HashSet<>();
-            Set<Integer> developerRuleSlots = new HashSet<>();
+            boolean dialogMatchEnabled=false, dialogNotify=false, toastFilterEnabled=false;
+            int keyFinishTrigger=-1, keyDialogToggleTrigger=-1;
+            String dialogTextTermsRaw=null, dialogIdTermsRaw=null, toastTextTermsRaw=null;
             Set<String> seen = new HashSet<>();
+            Map<String, Set<String>> customRules = new LinkedHashMap<>();
             for (int i = 1; i < parts.length; i++) {
                 int eq = parts[i].indexOf('=');
                 if (eq < 1) throw new IllegalArgumentException("malformed feature");
                 String key = parts[i].substring(0, eq).trim();
                 String value = parts[i].substring(eq + 1).trim();
                 if (!seen.add(key)) throw new IllegalArgumentException("duplicate feature");
-                if ("wifi_ssid".equals(key)) {
-                    if (!validWifiSsid(value)) throw new IllegalArgumentException("invalid simulated Wi-Fi SSID");
-                    simulatedWifiSsid=value;
+                if ("vip_entitlement_state".equals(key)) {
+                    if (!ENTITLEMENT_STATES.contains(value))
+                        throw new IllegalArgumentException("unknown simulated entitlement state");
+                    simulatedEntitlementState = value;
                     continue;
                 }
-                if ("wifi_bssid".equals(key)) {
-                    if (!value.matches("(?i)([0-9a-f]{2}:){5}[0-9a-f]{2}"))
-                        throw new IllegalArgumentException("invalid simulated Wi-Fi BSSID");
-                    simulatedWifiBssid=value.toLowerCase(java.util.Locale.ROOT);
-                    continue;
-                }
-                if ("network_type".equals(key)) {
-                    if (!"wifi".equals(value) && !"cellular".equals(value))
-                        throw new IllegalArgumentException("network_type must be wifi or cellular");
-                    simulatedNetworkType=value;
-                    continue;
-                }
-                if ("dialog_match".equals(key)) {
-                    dialogMatchEnabled = "1".equals(value);
-                    if (!bit(value)) throw new IllegalArgumentException("invalid dialog match flag");
-                    continue;
-                }
-                if ("dialog_notify".equals(key)) {
-                    dialogNotify = "1".equals(value);
-                    if (!bit(value)) throw new IllegalArgumentException("invalid dialog notification flag");
-                    continue;
-                }
-                if ("dialog_text_terms_b64".equals(key)) {
-                    dialogTextTermsRaw = decodeDeveloperRuleValue(value);
-                    continue;
-                }
-                if ("dialog_id_terms_b64".equals(key)) {
-                    dialogIdTermsRaw = decodeDeveloperRuleValue(value);
-                    continue;
-                }
-                if ("toast_filter".equals(key)) {
-                    toastFilterEnabled = "1".equals(value);
-                    if (!bit(value)) throw new IllegalArgumentException("invalid toast filter flag");
-                    continue;
-                }
-                if ("toast_text_terms_b64".equals(key)) {
-                    toastTextTermsRaw = decodeDeveloperRuleValue(value);
-                    continue;
-                }
-                if ("key_finish_trigger".equals(key) || "key_dialog_toggle_trigger".equals(key)) {
-                    int trigger;
-                    try { trigger = Integer.parseInt(value); }
-                    catch (NumberFormatException invalid) {
-                        throw new IllegalArgumentException("invalid Dia key trigger");
-                    }
-                    if (trigger < -1 || trigger > 6)
-                        throw new IllegalArgumentException("Dia key trigger must be -1 or between 0 and 6");
-                    if ("key_finish_trigger".equals(key)) keyFinishTrigger = trigger;
-                    else keyDialogToggleTrigger = trigger;
+                if ("app_version_value".equals(key)) {
+                    if (!AppUpdatePolicy.isPlausibleVersion(value))
+                        throw new IllegalArgumentException("implausible simulated app version");
+                    simulatedAppVersion = value;
                     continue;
                 }
                 if ("location_lat".equals(key)) {
@@ -404,92 +461,32 @@ public final class UnifiedHookConfigParser {
                         throw new IllegalArgumentException("simulated accuracy out of range");
                     continue;
                 }
-                if ("android_id".equals(key)) {
-                    if (!value.matches("(?i)[0-9a-f]{16}"))
-                        throw new IllegalArgumentException("simulated Android ID must be 16 hex characters");
-                    simulatedAndroidId = value.toLowerCase(java.util.Locale.ROOT);
+                if ("rules".equals(key)) {
+                    customRules = parseCustomRules(value);
                     continue;
                 }
-                if ("time_zone".equals(key)) {
-                    boolean known = false;
-                    for (String id : java.util.TimeZone.getAvailableIDs()) {
-                        if (id.equals(value)) { known = true; break; }
-                    }
-                    if (!known) throw new IllegalArgumentException("unknown simulated time zone");
-                    simulatedTimeZone = value;
-                    continue;
-                }
-                if ("app_version_name_b64".equals(key)) {
-                    simulatedVersionName = decodeDeveloperRuleValue(value);
-                    if (simulatedVersionName.isEmpty()
-                            || simulatedVersionName.getBytes(StandardCharsets.UTF_8).length > 128)
-                        throw new IllegalArgumentException("simulated app version name exceeds 128 bytes");
-                    for (int n=0;n<simulatedVersionName.length();n++)
-                        if (Character.isISOControl(simulatedVersionName.charAt(n)))
-                            throw new IllegalArgumentException("simulated app version name contains control characters");
-                    continue;
-                }
-                if ("app_version_code".equals(key)) {
-                    try { simulatedVersionCode = Long.valueOf(value); }
-                    catch (NumberFormatException invalid) { throw new IllegalArgumentException("invalid simulated app version code"); }
-                    if (simulatedVersionCode < 0L || simulatedVersionCode > 2147483647L)
-                        throw new IllegalArgumentException("simulated app version code out of range");
-                    continue;
-                }
-                if ("dev_hook_enabled".equals(key)) {
-                    if (!bit(value)) throw new IllegalArgumentException("invalid developer hook opt-in");
-                    developerHooksEnabled = "1".equals(value);
-                    continue;
-                }
-                java.util.regex.Matcher rawRuleKey =
-                        java.util.regex.Pattern.compile("^dev_rule_([0-9]+)$").matcher(key);
-                java.util.regex.Matcher encodedRuleKey =
-                        java.util.regex.Pattern.compile("^dev_rule_b64_([0-9]+)$").matcher(key);
-                if (rawRuleKey.matches() || encodedRuleKey.matches()) {
-                    int slot = Integer.parseInt(rawRuleKey.matches()
-                            ? rawRuleKey.group(1) : encodedRuleKey.group(1));
-                    if (slot < 1 || !developerRuleSlots.add(slot))
-                        throw new IllegalArgumentException("duplicate or invalid developer rule slot");
-                    // Legacy dev_rule_N values remain readable. New writes use URL-safe
-                    // Base64 so commas inside typed Java/JVM parameter signatures cannot
-                    // be mistaken for target-row separators.
-                    String ruleValue = encodedRuleKey.matches()
-                            ? decodeDeveloperRuleValue(value) : value;
-                    DeveloperHookRule rule = DeveloperHookRule.parse(ruleValue, pkg);
-                    if (rule == null) {
-                        String[] ruleFields = ruleValue.split("\\|", -1);
-                        if (ruleFields.length == 4
-                                && DeveloperHookRule.isUnsupportedMutationAction(ruleFields[2])) {
-                            throw new IllegalArgumentException(DeveloperHookRule.UNSUPPORTED_MUTATION_ACTION_MESSAGE);
-                        }
-                        throw new IllegalArgumentException("invalid developer rule");
-                    }
-                    if (!developerRuleIds.add(rule.id))
-                        throw new IllegalArgumentException("duplicate developer rule id");
-                    developerRules.add(rule);
-                    continue;
-                }
-                if ("dev_test_vip_method".equals(key) || "dev_test_login_method".equals(key) || "dev_test_hide_update_method".equals(key)) {
-                    if (!validDeveloperBooleanMethodSpec(value, pkg)) throw new IllegalArgumentException("invalid developer test method descriptor");
-                    if ("dev_test_vip_method".equals(key)) developerVipMethod=value;
-                    else if ("dev_test_login_method".equals(key)) developerLoginMethod=value;
-                    else developerHideUpdateMethod=value;
-                    continue;
-                }
-                if (!bit(value)) throw new IllegalArgumentException("invalid feature value");
+                if (!bit(value)) throw new IllegalArgumentException("invalid feature flag");
                 boolean on = "1".equals(value);
                 switch (key) {
                     case "ads_splash": splash = on; break;
                     case "ads_feed": feed = on; break;
                     case "ads_overlay": overlay = on; break;
-                    // 旧版 HookTargetConfigParser 的短键必须继续可读：升级后历史 hook 配置、
-                    // 已导出的 [list:targets] 行仍写 splash/feed/overlay，直接抛 unknown feature
-                    // 会让整份配置解析失败并把已启用的 Hook 目标全部丢掉。
-                    case "splash": splash = on; break;
-                    case "feed": feed = on; break;
-                    case "overlay": overlay = on; break;
                     case "member_diag": member = on; break;
                     case "privacy": targetPrivacy = on; break;
+                    case "vip_entitlement_simulate": vipEntitlementSimulation = on; break;
+                    case "vip_unlock": vipUnlock = on; break;
+                    case "anti_fraud_block": antiFraudBlock = on; break;
+                    case "carrier_collection_block": carrierCollectionBlock = on; break;
+                    case "police_recon_block": policeReconBlock = on; break;
+                    case "block_app_update": blockAppUpdate = on; break;
+                    case "fake_app_version": fakeAppVersion = on; break;
+                    case "location_simulate": locationSimulation = on; break;
+                    case "location_provider_enabled_simulate": locationProviderEnabledSimulation = on; break;
+                    case "region_hidden": regionHidden = on; break;
+                    case "vpn_hidden": vpnDetectionHidden = on; break;
+                    case "media_hidden": mediaHidden = on; break;
+                    case "usage_hidden": usageHidden = on; break;
+                    case "device_profile": deviceProfile = on; break;
                     case "exif_strip": exifStrip = on; break;
                     case "clipboard_read_block": clipboardReadBlock = on; break;
                     case "clipboard_isolate": clipboardIsolate = on; break;
@@ -505,68 +502,62 @@ public final class UnifiedHookConfigParser {
                     case "sensor_biometric": sensorBiometric = on; break;
                     case "sensor_rate_limit": sensorRateLimit = on; break;
                     case "wifi_scan_block": wifiScanBlock = on; break;
-                    case "wifi_simulate": wifiSimulation = on; break;
-                    case "network_type_simulate": networkTypeSimulation = on; break;
-                    case "location_simulate": locationSimulation = on; break;
-                    case "location_provider_enabled_simulate": locationProviderEnabledSimulation = on; break;
-                    case "android_id_simulate": androidIdSimulation = on; break;
-                    case "time_zone_simulate": timeZoneSimulation = on; break;
-                    case "app_version_simulate": appVersionSimulation = on; break;
                     case "notification_listen_block": notificationListenBlock = on; break;
-                    case "notification_permission_hide": notificationPermissionHideTarget = on; break;
+                    case "notification_permission_hide": notificationPermissionHide = on; break;
                     case "mic_silence": microphoneSilence = on; break;
                     case "camera_access_block": cameraAccessBlock = on; break;
                     case "location_access_block": locationAccessBlock = on; break;
                     case "mic_access_block": microphoneAccessBlock = on; break;
                     case "media_store_query_block": mediaStoreQueryBlock = on; break;
                     case "ad_id_unify": adIdUnify = on; break;
+                    case "region_diag": regionDiag = on; break;
+                    case "usagestats_off": usageStatsOff = on; break;
+                    case "a11y_hide": a11yHide = on; break;
+                    case "audio_fp_block": audioFpBlock = on; break;
+                    case "mic_block": micBlock = on; break;
+                    case "camera_id_hide": cameraIdHide = on; break;
+                    case "block_mediastore": blockMediaStore = on; break;
+                    case "block_ime_logging": blockImeLogging = on; break;
+                    case "mic_hw_hide": micHwHide = on; break;
+                    case "disable_passive_loc": disablePassiveLocation = on; break;
+                    case "hide_fingerprint_hw": hideFingerprintHw = on; break;
+                    case "hide_face_hw": hideFaceHw = on; break;
+                    case "wifi_scan_hide": wifiScanHide = on; break;
+                    case "cell_info_hide": cellInfoHide = on; break;
+                    case "dialog_match": dialogMatchEnabled = on; break;
+                    case "dialog_notify": dialogNotify = on; break;
+                    case "dialog_text_terms_b64": dialogTextTermsRaw = value; break;
+                    case "dialog_id_terms_b64": dialogIdTermsRaw = value; break;
+                    case "toast_filter": toastFilterEnabled = on; break;
+                    case "toast_text_terms_b64": toastTextTermsRaw = value; break;
+                    case "key_finish_trigger":
+                    case "key_dialog_toggle_trigger": {
+                        final int trigger;
+                        try { trigger = Integer.parseInt(value); }
+                        catch (NumberFormatException invalid) {
+                            throw new IllegalArgumentException("invalid Dia key trigger");
+                        }
+                        if (trigger < -1 || trigger > 6)
+                            throw new IllegalArgumentException("Dia key trigger must be -1 or between 0 and 6");
+                        if ("key_finish_trigger".equals(key)) keyFinishTrigger = trigger;
+                        else keyDialogToggleTrigger = trigger;
+                        break;
+                    }
                     default: throw new IllegalArgumentException("unknown target feature");
                 }
             }
-            if (clipboardReadBlock && clipboardIsolate) throw new IllegalArgumentException("clipboard isolation conflicts with read block");
-            Target parsedTarget = new Target(splash, feed, overlay, member, targetPrivacy, exifStrip, clipboardReadBlock, sensorAccel, sensorGyro, sensorLight, sensorMagnet, sensorPressure, sensorProx, sensorRateLimit, wifiScanBlock, notificationListenBlock, notificationPermissionHideTarget, clipboardIsolate, microphoneSilence, cameraAccessBlock, locationAccessBlock, microphoneAccessBlock, mediaStoreQueryBlock, adIdUnify);
-            parsedTarget.sensorEnvironment = sensorEnvironment;
-            parsedTarget.sensorFusion = sensorFusion;
-            parsedTarget.sensorGesture = sensorGesture;
-            parsedTarget.sensorBiometric = sensorBiometric;
-            parsedTarget.developerVipMethod = developerVipMethod;
-            parsedTarget.developerLoginMethod = developerLoginMethod;
-            parsedTarget.developerHideUpdateMethod = developerHideUpdateMethod;
-            parsedTarget.developerHooksEnabled = developerHooksEnabled;
-            parsedTarget.developerRules.addAll(developerRules);
-            if (wifiSimulation && simulatedWifiSsid == null && simulatedWifiBssid == null)
-                throw new IllegalArgumentException("Wi-Fi simulation requires an SSID or BSSID");
-            if (!wifiSimulation && (simulatedWifiSsid != null || simulatedWifiBssid != null))
-                throw new IllegalArgumentException("Wi-Fi values require wifi_simulate=1");
-            parsedTarget.wifiSimulation = wifiSimulation;
-            parsedTarget.simulatedWifiSsid = simulatedWifiSsid;
-            parsedTarget.simulatedWifiBssid = simulatedWifiBssid;
-            if (networkTypeSimulation && simulatedNetworkType == null)
-                throw new IllegalArgumentException("network type simulation requires a selected type");
-            if (!networkTypeSimulation && simulatedNetworkType != null)
-                throw new IllegalArgumentException("network_type requires network_type_simulate=1");
-            parsedTarget.networkTypeSimulation = networkTypeSimulation;
-            parsedTarget.simulatedNetworkType = simulatedNetworkType;
-            List<String> dialogTextTerms = FxDiaDialogMatchPolicy.parseTerms(dialogTextTermsRaw);
-            List<String> dialogIdTerms = FxDiaDialogMatchPolicy.parseTerms(dialogIdTermsRaw);
-            boolean hasDialogTerms = !dialogTextTerms.isEmpty() || !dialogIdTerms.isEmpty();
-            if (dialogMatchEnabled && !hasDialogTerms)
-                throw new IllegalArgumentException("dialog match monitoring requires explicit text or ID rules");
-            if (!dialogMatchEnabled && hasDialogTerms)
-                throw new IllegalArgumentException("dialog match rules require dialog_match=1");
-            if (dialogNotify && !dialogMatchEnabled)
-                throw new IllegalArgumentException("dialog notification requires dialog_match=1");
-            if (FxDiaKeyGesturePolicy.hasOverlappingTriggers(
-                    keyFinishTrigger, keyDialogToggleTrigger)) {
-                throw new IllegalArgumentException("Dia key actions have overlapping gesture triggers");
+            for (String category : customRules.keySet()) {
+                boolean categoryEnabled = ("splash".equals(category) && splash)
+                        || ("feed".equals(category) && feed)
+                        || ("overlay".equals(category) && overlay);
+                if (!categoryEnabled)
+                    throw new IllegalArgumentException("custom rule requires its category to be enabled");
             }
-            if (keyDialogToggleTrigger >= 0 && !dialogMatchEnabled)
-                throw new IllegalArgumentException("Dialog key toggle requires an enabled per-app Dialog rule set");
-            List<String> toastTextTerms = FxDiaDialogMatchPolicy.parseTerms(toastTextTermsRaw);
-            if (toastFilterEnabled && toastTextTerms.isEmpty())
-                throw new IllegalArgumentException("toast filtering requires explicit text rules");
-            if (!toastFilterEnabled && !toastTextTerms.isEmpty())
-                throw new IllegalArgumentException("toast text rules require toast_filter=1");
+            // Read-block and isolation may coexist in a published row: the isolation
+            // policy gives read-block precedence and fails open, and rejecting the row
+            // here would drop the entire transactional config instead of one feature.
+            List<String> dialogTextTerms = FxDiaDialogMatchPolicy.parseTerms(decodeDiaTerms(dialogTextTermsRaw));
+            List<String> dialogIdTerms = FxDiaDialogMatchPolicy.parseTerms(decodeDiaTerms(dialogIdTermsRaw));
             if (locationSimulation && (simulatedLatitude == null || simulatedLongitude == null))
                 throw new IllegalArgumentException("location simulation requires latitude and longitude");
             if (!locationSimulation && (simulatedLatitude != null || simulatedLongitude != null
@@ -576,46 +567,93 @@ public final class UnifiedHookConfigParser {
                 throw new IllegalArgumentException("location simulation conflicts with location access blocking");
             if (locationProviderEnabledSimulation && locationAccessBlock)
                 throw new IllegalArgumentException("provider-enabled simulation conflicts with location access blocking");
-            parsedTarget.dialogMatchEnabled = dialogMatchEnabled;
-            parsedTarget.dialogNotify = dialogNotify;
-            parsedTarget.dialogTextTerms.addAll(dialogTextTerms);
-            parsedTarget.dialogIdTerms.addAll(dialogIdTerms);
-            parsedTarget.keyFinishTrigger = keyFinishTrigger;
-            parsedTarget.keyDialogToggleTrigger = keyDialogToggleTrigger;
-            parsedTarget.toastFilterEnabled = toastFilterEnabled;
-            parsedTarget.toastTextTerms.addAll(toastTextTerms);
+            if (vipEntitlementSimulation && simulatedEntitlementState == null)
+                throw new IllegalArgumentException("vip entitlement simulation requires an explicit state");
+            if (!vipEntitlementSimulation && simulatedEntitlementState != null)
+                throw new IllegalArgumentException("vip_entitlement_state requires vip_entitlement_simulate=1");
+            if (fakeAppVersion && simulatedAppVersion == null)
+                throw new IllegalArgumentException("custom app version requires app_version_value");
+            if (!fakeAppVersion && simulatedAppVersion != null)
+                throw new IllegalArgumentException("app_version_value requires fake_app_version=1");
+            List<String> toastTextTerms = FxDiaDialogMatchPolicy.parseTerms(decodeDiaTerms(toastTextTermsRaw));
+            boolean hasDialogTerms = !dialogTextTerms.isEmpty() || !dialogIdTerms.isEmpty();
+            if (dialogMatchEnabled && !hasDialogTerms)
+                throw new IllegalArgumentException("dialog match requires explicit text or resource ID rules");
+            if (!dialogMatchEnabled && (hasDialogTerms || dialogNotify))
+                throw new IllegalArgumentException("dialog rules and feedback require dialog_match=1");
+            if (toastFilterEnabled && toastTextTerms.isEmpty())
+                throw new IllegalArgumentException("toast filtering requires explicit text rules");
+            if (!toastFilterEnabled && !toastTextTerms.isEmpty())
+                throw new IllegalArgumentException("toast text rules require toast_filter=1");
+            if (FxDiaKeyGesturePolicy.hasOverlappingTriggers(keyFinishTrigger, keyDialogToggleTrigger))
+                throw new IllegalArgumentException("Dia key actions have overlapping gesture triggers");
+            if (keyDialogToggleTrigger >= 0 && !dialogMatchEnabled)
+                throw new IllegalArgumentException("dialog key toggle requires dialog_match=1");
+            Target parsedTarget = new Target(splash, feed, overlay, member, targetPrivacy,
+                    regionHidden, vpnDetectionHidden, mediaHidden, usageHidden, deviceProfile,
+                    exifStrip, clipboardReadBlock, clipboardIsolate, sensorAccel, sensorGyro, sensorLight,
+                    sensorMagnet, sensorPressure, sensorProx, sensorEnvironment, sensorFusion, sensorGesture,
+                    sensorBiometric, sensorRateLimit, wifiScanBlock, notificationListenBlock,
+                    notificationPermissionHide, microphoneSilence, cameraAccessBlock, locationAccessBlock,
+                    microphoneAccessBlock, mediaStoreQueryBlock, adIdUnify, customRules,
+                    dialogMatchEnabled, dialogNotify, toastFilterEnabled, dialogTextTerms,
+                    dialogIdTerms, toastTextTerms, keyFinishTrigger, keyDialogToggleTrigger);
+            parsedTarget.vipEntitlementSimulation = vipEntitlementSimulation;
+            parsedTarget.vipUnlock = vipUnlock;
+            parsedTarget.antiFraudBlock = antiFraudBlock;
+            parsedTarget.carrierCollectionBlock = carrierCollectionBlock;
+            parsedTarget.policeReconBlock = policeReconBlock;
+            parsedTarget.simulatedEntitlementState = simulatedEntitlementState;
+            parsedTarget.blockAppUpdate = blockAppUpdate;
+            parsedTarget.fakeAppVersion = fakeAppVersion;
+            parsedTarget.simulatedAppVersion = simulatedAppVersion;
             parsedTarget.locationSimulation = locationSimulation;
             parsedTarget.locationProviderEnabledSimulation = locationProviderEnabledSimulation;
             if (simulatedLatitude != null) parsedTarget.simulatedLatitude = simulatedLatitude;
             if (simulatedLongitude != null) parsedTarget.simulatedLongitude = simulatedLongitude;
             parsedTarget.simulatedAccuracy = simulatedAccuracy;
-            if (androidIdSimulation && simulatedAndroidId == null)
-                throw new IllegalArgumentException("Android ID simulation requires a value");
-            if (!androidIdSimulation && simulatedAndroidId != null)
-                throw new IllegalArgumentException("android_id requires android_id_simulate=1");
-            parsedTarget.androidIdSimulation = androidIdSimulation;
-            parsedTarget.simulatedAndroidId = simulatedAndroidId;
-            if (timeZoneSimulation && simulatedTimeZone == null)
-                throw new IllegalArgumentException("time zone simulation requires a zone");
-            if (!timeZoneSimulation && simulatedTimeZone != null)
-                throw new IllegalArgumentException("time_zone requires time_zone_simulate=1");
-            parsedTarget.timeZoneSimulation = timeZoneSimulation;
-            parsedTarget.simulatedTimeZone = simulatedTimeZone;
-            if (appVersionSimulation && (simulatedVersionName == null || simulatedVersionCode == null))
-                throw new IllegalArgumentException("app version simulation requires version name and code");
-            if (!appVersionSimulation && (simulatedVersionName != null || simulatedVersionCode != null))
-                throw new IllegalArgumentException("app version values require app_version_simulate=1");
-            parsedTarget.appVersionSimulation = appVersionSimulation;
-            parsedTarget.simulatedVersionName = simulatedVersionName;
-            parsedTarget.simulatedVersionCode = simulatedVersionCode == null ? 0L : simulatedVersionCode;
+            parsedTarget.regionDiag = regionDiag;
+            parsedTarget.usageStatsOff = usageStatsOff;
+            parsedTarget.a11yHide = a11yHide;
+            parsedTarget.audioFpBlock = audioFpBlock;
+            parsedTarget.micBlock = micBlock;
+            parsedTarget.cameraIdHide = cameraIdHide;
+            parsedTarget.blockMediaStore = blockMediaStore;
+            parsedTarget.blockImeLogging = blockImeLogging;
+            parsedTarget.micHwHide = micHwHide;
+            parsedTarget.disablePassiveLocation = disablePassiveLocation;
+            parsedTarget.hideFingerprintHw = hideFingerprintHw;
+            parsedTarget.hideFaceHw = hideFaceHw;
+            parsedTarget.wifiScanHide = wifiScanHide;
+            parsedTarget.cellInfoHide = cellInfoHide;
             targets.put(pkg, parsedTarget);
         }
 
-        if (!schemaSeen || !adsSeen || !privacySeen || !sectionSeen)
+        if (!schemaSeen || !adsSeen || !privacySeen || !targetsSectionSeen)
             throw new IllegalArgumentException("missing required schema fields");
-        return new Result(ads, privacy, wifiScan, notificationListen, notificationPermissionHide, clipboardIsolation, targets);
+        return new Result(ads, privacy, systemServicesEnabled, systemServices,
+                pmQueryEnabled, appListEnabled, appListMode, hiddenApps, keptApps, targets);
     }
 
+
+    private static String decodeDiaTerms(String encoded) {
+        if (encoded == null) return null;
+        if (encoded.isEmpty()) return "";
+        final byte[] decoded;
+        try {
+            decoded = java.util.Base64.getUrlDecoder().decode(encoded);
+        } catch (IllegalArgumentException malformed) {
+            throw new IllegalArgumentException("invalid encoded Dia rule text");
+        }
+        try {
+            return StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(decoded)).toString();
+        } catch (CharacterCodingException malformed) {
+            throw new IllegalArgumentException("Dia rules must be valid UTF-8");
+        }
+    }
 
     /** Only an actual top-level legacy key selects the legacy parser; comments must not. */
     private static boolean hasLegacyMasterKey(String text) {
@@ -675,47 +713,31 @@ public final class UnifiedHookConfigParser {
                     default: throw new IllegalArgumentException("unknown legacy feature");
                 }
             }
-            targets.put(pkg, new Target(splash, feed, overlay, member, false, false, false));
+            targets.put(pkg, new Target(splash, feed, overlay, member, false, false, false, false, false, false, Collections.emptyMap()));
         }
         if (!masterSeen || !sectionSeen) throw new IllegalArgumentException("missing legacy fields");
-        return new Result(ads, false, false, false, false, false, targets);
+        return new Result(ads, false, false, Collections.<String>emptySet(),
+                false, false, "custom", Collections.<String>emptySet(), Collections.<String>emptySet(), targets);
     }
 
-
-    private static String decodeDeveloperRuleValue(String value) {
-        if (value == null || value.isEmpty() || value.length() > 1400
-                || !value.matches("[A-Za-z0-9_-]+"))
-            throw new IllegalArgumentException("invalid encoded developer rule");
-        final byte[] decoded;
-        try {
-            decoded = java.util.Base64.getUrlDecoder().decode(value);
-        } catch (IllegalArgumentException malformed) {
-            throw new IllegalArgumentException("invalid encoded developer rule");
+    /** Rules use category:token;category:token. Tokens match lower-cased class/resource names only. */
+    private static Map<String, Set<String>> parseCustomRules(String value) {
+        Map<String, Set<String>> rules = new LinkedHashMap<>();
+        if (value.isEmpty()) return rules;
+        for (String item : value.split(";", -1)) {
+            int colon = item.indexOf(':');
+            if (colon < 1 || colon == item.length() - 1)
+                throw new IllegalArgumentException("malformed custom rule");
+            String category = item.substring(0, colon).trim();
+            String token = item.substring(colon + 1).trim().toLowerCase(java.util.Locale.ROOT);
+            if (!("splash".equals(category) || "feed".equals(category) || "overlay".equals(category)))
+                throw new IllegalArgumentException("unsupported custom rule category");
+            if (!token.matches("[a-z0-9_.-]{3,100}"))
+                throw new IllegalArgumentException("invalid custom rule token");
+            Set<String> values = rules.computeIfAbsent(category, k -> new HashSet<>());
+            if (!values.add(token)) throw new IllegalArgumentException("duplicate custom rule");
         }
-        if (decoded.length == 0 || decoded.length > 1024)
-            throw new IllegalArgumentException("encoded developer rule exceeds size limit");
-        String rule = new String(decoded, StandardCharsets.UTF_8);
-        if (!Arrays.equals(decoded, rule.getBytes(StandardCharsets.UTF_8)))
-            throw new IllegalArgumentException("encoded developer rule is not valid UTF-8");
-        return rule;
-    }
-
-    private static boolean validDeveloperBooleanMethodSpec(String value, String packageName) {
-        if (value == null || value.length() > 512) return false;
-        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("^([A-Za-z_$][A-Za-z0-9_$.]*)#([A-Za-z_$][A-Za-z0-9_$]*)\\(\\)Z$").matcher(value);
-        if (!matcher.matches()) return false;
-        String owner = matcher.group(1);
-        return owner.startsWith(packageName + ".") && !owner.startsWith("java.") && !owner.startsWith("android.");
-    }
-
-    private static boolean validWifiSsid(String value) {
-        if (value == null || value.isEmpty()
-                || value.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 32) return false;
-        for (int i=0;i<value.length();i++) {
-            char c=value.charAt(i);
-            if (c<0x20 || c==0x7f || c==',' || c=='|') return false;
-        }
-        return true;
+        return rules;
     }
 
     private static boolean bit(String value) {
@@ -723,6 +745,6 @@ public final class UnifiedHookConfigParser {
     }
 
     private static boolean validPackage(String pkg) {
-        return pkg != null && pkg.matches("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+");
+        return pkg != null && pkg.matches("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+");
     }
 }

@@ -1,126 +1,202 @@
 package de.privacyguard.adhook;
-
 import de.privacyguard.adhook.imported.dia.FxDiaKeyGesturePolicy;
+
 import java.util.Map;
-import java.nio.charset.StandardCharsets;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
+import java.nio.charset.StandardCharsets;
 
 /**
- * Deterministic serializer for the unified FX Hook config schema.
+ * Deterministic serializer for the root FX Hook configuration schema.
  *
- * This is a format-level building block; the root-side FX module still needs to
- * call it when publishing Remote Files. It deliberately does not read root files
- * or write LSPosed Remote Files itself.
+ * The root APK and the KernelSU module currently use different parser models.
+ * This class deliberately serializes only fields accepted by the root parser;
+ * module-only simulation, dialog and developer-hook fields stay in the module
+ * source set and are not copied into the APK model.
  */
 public final class UnifiedHookConfigSerializer {
     private UnifiedHookConfigSerializer() {}
 
+    /** Serialize a parsed root-schema result, including its global lists. */
+    public static String serialize(UnifiedHookConfigParser.Result config) {
+        if (config == null) throw new IllegalArgumentException("config is null");
+        return serializeInternal(config.adsEnabled, config.privacyEnabled,
+                config.systemServicesEnabled, config.hiddenSystemServices,
+                config.pmQueryEnabled, config.appListEnabled, config.appListMode,
+                config.hiddenApps, config.keptApps, config.targets, true);
+    }
+
+    /** Serialize only the required master switches and per-target settings. */
     public static String serialize(boolean adsEnabled, boolean privacyEnabled,
                                    Map<String, UnifiedHookConfigParser.Target> targets) {
-        return serialize(adsEnabled, privacyEnabled, false, false, false, targets);
+        return serializeInternal(adsEnabled, privacyEnabled, false,
+                java.util.Collections.<String>emptySet(), false, false, "custom",
+                java.util.Collections.<String>emptySet(),
+                java.util.Collections.<String>emptySet(), targets, true);
+    }
+
+    // Keep the former overloads source-compatible, but reject module-only global
+    // switches instead of silently emitting keys rejected by the root parser.
+    public static String serialize(boolean adsEnabled, boolean privacyEnabled, boolean wifiScanEnabled,
+                                   Map<String, UnifiedHookConfigParser.Target> targets) {
+        return serialize(adsEnabled, privacyEnabled, wifiScanEnabled, false, false, false, targets);
     }
 
     public static String serialize(boolean adsEnabled, boolean privacyEnabled, boolean wifiScanEnabled,
+                                   boolean notificationListenEnabled,
                                    Map<String, UnifiedHookConfigParser.Target> targets) {
-        return serialize(adsEnabled, privacyEnabled, wifiScanEnabled, false, false, targets);
+        return serialize(adsEnabled, privacyEnabled, wifiScanEnabled,
+                notificationListenEnabled, false, false, targets);
     }
 
-    public static String serialize(boolean adsEnabled, boolean privacyEnabled, boolean wifiScanEnabled, boolean notificationListenEnabled,
+    public static String serialize(boolean adsEnabled, boolean privacyEnabled, boolean wifiScanEnabled,
+                                   boolean notificationListenEnabled, boolean notificationPermissionHideEnabled,
                                    Map<String, UnifiedHookConfigParser.Target> targets) {
-        return serialize(adsEnabled, privacyEnabled, wifiScanEnabled, notificationListenEnabled, false, targets);
+        return serialize(adsEnabled, privacyEnabled, wifiScanEnabled,
+                notificationListenEnabled, notificationPermissionHideEnabled, false, targets);
     }
 
-    public static String serialize(boolean adsEnabled, boolean privacyEnabled, boolean wifiScanEnabled, boolean notificationListenEnabled, boolean notificationPermissionHideEnabled,
+    public static String serialize(boolean adsEnabled, boolean privacyEnabled, boolean wifiScanEnabled,
+                                   boolean notificationListenEnabled, boolean notificationPermissionHideEnabled,
+                                   boolean clipboardIsolationEnabled,
                                    Map<String, UnifiedHookConfigParser.Target> targets) {
-        return serialize(adsEnabled, privacyEnabled, wifiScanEnabled, notificationListenEnabled, notificationPermissionHideEnabled, false, targets);
+        if (wifiScanEnabled || notificationListenEnabled
+                || notificationPermissionHideEnabled || clipboardIsolationEnabled) {
+            throw new IllegalArgumentException(
+                    "root FX schema uses per-target privacy flags; module-only global switches are unsupported");
+        }
+        return serialize(adsEnabled, privacyEnabled, targets);
     }
 
-    public static String serialize(boolean adsEnabled, boolean privacyEnabled, boolean wifiScanEnabled, boolean notificationListenEnabled, boolean notificationPermissionHideEnabled, boolean clipboardIsolationEnabled,
-                                   Map<String, UnifiedHookConfigParser.Target> targets) {
-        return serializeInternal(adsEnabled, privacyEnabled, wifiScanEnabled, notificationListenEnabled,
-                notificationPermissionHideEnabled, clipboardIsolationEnabled, targets, true);
-    }
-
-    private static String serializeInternal(boolean adsEnabled, boolean privacyEnabled, boolean wifiScanEnabled, boolean notificationListenEnabled, boolean notificationPermissionHideEnabled, boolean clipboardIsolationEnabled,
-                                            Map<String, UnifiedHookConfigParser.Target> targets, boolean verifyRoundTrip) {
+    private static String serializeInternal(
+            boolean adsEnabled,
+            boolean privacyEnabled,
+            boolean systemServicesEnabled,
+            Set<String> hiddenSystemServices,
+            boolean pmQueryEnabled,
+            boolean appListEnabled,
+            String appListMode,
+            Set<String> hiddenApps,
+            Set<String> keptApps,
+            Map<String, UnifiedHookConfigParser.Target> targets,
+            boolean verifyRoundTrip) {
         if (targets == null) throw new IllegalArgumentException("targets is null");
-        Map<String, UnifiedHookConfigParser.Target> sorted = new TreeMap<>(targets);
-        StringBuilder out = new StringBuilder(128);
+        if (hiddenSystemServices == null || hiddenApps == null || keptApps == null) {
+            throw new IllegalArgumentException("configuration lists must not be null");
+        }
+        if (!("empty".equals(appListMode) || "custom".equals(appListMode)
+                || "allowlist".equals(appListMode))) {
+            throw new IllegalArgumentException("invalid app_list_mode");
+        }
+
+        Map<String, UnifiedHookConfigParser.Target> sortedTargets = new TreeMap<>(targets);
+        StringBuilder out = new StringBuilder(256);
         out.append("schema_version=1\n")
-                .append("ads_enabled=").append(adsEnabled ? '1' : '0').append('\n')
-                .append("privacy_enabled=").append(privacyEnabled ? '1' : '0').append('\n')
-                .append("wifi_scan_enabled=").append(wifiScanEnabled ? '1' : '0').append('\n')
-                .append("notification_listen_enabled=").append(notificationListenEnabled ? '1' : '0').append('\n')
-                .append("notification_permission_hide_enabled=").append(notificationPermissionHideEnabled ? '1' : '0').append('\n')
-                .append("clipboard_isolate_enabled=").append(clipboardIsolationEnabled ? '1' : '0').append('\n')
-                .append("[list:targets]\n");
-        for (Map.Entry<String, UnifiedHookConfigParser.Target> entry : sorted.entrySet()) {
-            String pkg = entry.getKey();
+                .append("ads_enabled=").append(bit(adsEnabled)).append('\n')
+                .append("privacy_enabled=").append(bit(privacyEnabled)).append('\n')
+                .append("system_services_enabled=").append(bit(systemServicesEnabled)).append('\n')
+                .append("pm_query_enabled=").append(bit(pmQueryEnabled)).append('\n')
+                .append("app_list_enabled=").append(bit(appListEnabled)).append('\n')
+                .append("app_list_mode=").append(appListMode).append('\n');
+
+        appendSortedSection(out, "list:app_list_hide", hiddenApps);
+        appendSortedSection(out, "list:app_list_keep", keptApps);
+        appendSortedSection(out, "list:system_services", hiddenSystemServices);
+        out.append("[list:targets]\n");
+
+        for (Map.Entry<String, UnifiedHookConfigParser.Target> entry : sortedTargets.entrySet()) {
+            String packageName = entry.getKey();
             UnifiedHookConfigParser.Target target = entry.getValue();
-            if (target == null) throw new IllegalArgumentException("null target");
-            out.append(pkg)
-                    .append(",ads_splash=").append(target.splash ? '1' : '0')
-                    .append(",ads_feed=").append(target.feed ? '1' : '0')
-                    .append(",ads_overlay=").append(target.overlay ? '1' : '0')
-                    .append(",member_diag=").append(target.memberDiag ? '1' : '0')
-                    .append(",privacy=").append(target.privacy ? '1' : '0')
-                    .append(",exif_strip=").append(target.exifStrip ? '1' : '0')
-                    .append(",clipboard_read_block=").append(target.clipboardReadBlock ? '1' : '0')
-                    .append(",clipboard_isolate=").append(target.clipboardIsolate ? '1' : '0')
-                    .append(",sensor_accel=").append(target.sensorAccel ? '1' : '0')
-                    .append(",sensor_gyro=").append(target.sensorGyro ? '1' : '0')
-                    .append(",sensor_light=").append(target.sensorLight ? '1' : '0')
-                    .append(",sensor_magnet=").append(target.sensorMagnet ? '1' : '0')
-                    .append(",sensor_pressure=").append(target.sensorPressure ? '1' : '0')
-                    .append(",sensor_prox=").append(target.sensorProx ? '1' : '0')
-                    .append(",sensor_environment=").append(target.sensorEnvironment ? '1' : '0')
-                    .append(",sensor_fusion=").append(target.sensorFusion ? '1' : '0')
-                    .append(",sensor_gesture=").append(target.sensorGesture ? '1' : '0')
-                    .append(",sensor_biometric=").append(target.sensorBiometric ? '1' : '0')
-                    .append(",sensor_rate_limit=").append(target.sensorRateLimit ? '1' : '0')
-                    .append(",wifi_scan_block=").append(target.wifiScanBlock ? '1' : '0')
-                    .append(",notification_listen_block=").append(target.notificationListenBlock ? '1' : '0')
-                    .append(",notification_permission_hide=").append(target.notificationPermissionHide ? '1' : '0')
-                    .append(",mic_silence=").append(target.microphoneSilence ? '1' : '0')
-                    .append(",camera_access_block=").append(target.cameraAccessBlock ? '1' : '0')
-                    .append(",location_access_block=").append(target.locationAccessBlock ? '1' : '0')
-                    .append(",mic_access_block=").append(target.microphoneAccessBlock ? '1' : '0')
-                    .append(",media_store_query_block=").append(target.mediaStoreQueryBlock ? '1' : '0')
-                    .append(",ad_id_unify=").append(target.adIdUnify ? '1' : '0')
-                    .append(",app_version_simulate=").append(target.appVersionSimulation ? '1' : '0')
-                    .append(",dev_hook_enabled=").append(target.developerHooksEnabled ? '1' : '0');
-
-            if (target.wifiSimulation) {
-                if (target.simulatedWifiSsid == null && target.simulatedWifiBssid == null) {
-                    throw new IllegalArgumentException("Wi-Fi simulation requires an SSID or BSSID");
-                }
-                out.append(",wifi_simulate=1");
-                if (target.simulatedWifiSsid != null) {
-                    out.append(",wifi_ssid=").append(target.simulatedWifiSsid);
-                }
-                if (target.simulatedWifiBssid != null) {
-                    out.append(",wifi_bssid=").append(target.simulatedWifiBssid);
-                }
-            } else if (target.simulatedWifiSsid != null || target.simulatedWifiBssid != null) {
-                throw new IllegalArgumentException("Wi-Fi values require wifi_simulate=1");
+            if (packageName == null || target == null) {
+                throw new IllegalArgumentException("target package/name must not be null");
             }
-
-            if (target.networkTypeSimulation) {
-                if (!"wifi".equals(target.simulatedNetworkType)
-                        && !"cellular".equals(target.simulatedNetworkType)) {
-                    throw new IllegalArgumentException("network type simulation requires wifi or cellular");
-                }
-                out.append(",network_type_simulate=1,network_type=")
-                        .append(target.simulatedNetworkType);
-            } else if (target.simulatedNetworkType != null) {
-                throw new IllegalArgumentException("network type requires network_type_simulate=1");
+            out.append(packageName)
+                    .append(",ads_splash=").append(bit(target.splash))
+                    .append(",ads_feed=").append(bit(target.feed))
+                    .append(",ads_overlay=").append(bit(target.overlay))
+                    .append(",member_diag=").append(bit(target.memberDiag))
+                    .append(",privacy=").append(bit(target.privacy))
+                    .append(",media_hidden=").append(bit(target.mediaHidden))
+                    .append(",usage_hidden=").append(bit(target.usageHidden))
+                    .append(",device_profile=").append(bit(target.deviceProfile))
+                    // Region and VPN-detection hiding now have real hook implementations,
+                    // so a configured value must survive a publish/read round-trip.
+                    .append(",region_hidden=").append(bit(target.regionHidden))
+                    .append(",vpn_hidden=").append(bit(target.vpnDetectionHidden))
+                    .append(",exif_strip=").append(bit(target.exifStrip))
+                    .append(",clipboard_read_block=").append(bit(target.clipboardReadBlock))
+                    .append(",clipboard_isolate=").append(bit(target.clipboardIsolate))
+                    .append(",sensor_accel=").append(bit(target.sensorAccel))
+                    .append(",sensor_gyro=").append(bit(target.sensorGyro))
+                    .append(",sensor_light=").append(bit(target.sensorLight))
+                    .append(",sensor_magnet=").append(bit(target.sensorMagnet))
+                    .append(",sensor_pressure=").append(bit(target.sensorPressure))
+                    .append(",sensor_prox=").append(bit(target.sensorProx))
+                    .append(",sensor_environment=").append(bit(target.sensorEnvironment))
+                    .append(",sensor_fusion=").append(bit(target.sensorFusion))
+                    .append(",sensor_gesture=").append(bit(target.sensorGesture))
+                    .append(",sensor_biometric=").append(bit(target.sensorBiometric))
+                    .append(",sensor_rate_limit=").append(bit(target.sensorRateLimit))
+                    .append(",wifi_scan_block=").append(bit(target.wifiScanBlock))
+                    .append(",notification_listen_block=").append(bit(target.notificationListenBlock))
+                    .append(",notification_permission_hide=").append(bit(target.notificationPermissionHide))
+                    .append(",mic_silence=").append(bit(target.microphoneSilence))
+                    .append(",camera_access_block=").append(bit(target.cameraAccessBlock))
+                    .append(",location_access_block=").append(bit(target.locationAccessBlock))
+                    .append(",mic_access_block=").append(bit(target.microphoneAccessBlock))
+                    .append(",media_store_query_block=").append(bit(target.mediaStoreQueryBlock))
+                    .append(",ad_id_unify=").append(bit(target.adIdUnify));
+            if (target.locationSimulation) {
+                out.append(",location_simulate=1")
+                        .append(",location_lat=").append(target.simulatedLatitude)
+                        .append(",location_lon=").append(target.simulatedLongitude);
+                if (Math.abs(target.simulatedAccuracy - 5f) > 0.0001f)
+                    out.append(",location_accuracy=").append(target.simulatedAccuracy);
+            }
+            if (target.locationProviderEnabledSimulation)
+                out.append(",location_provider_enabled_simulate=1");
+            if (target.regionDiag) out.append(",region_diag=1");
+            if (target.usageStatsOff) out.append(",usagestats_off=1");
+            if (target.a11yHide) out.append(",a11y_hide=1");
+            if (target.audioFpBlock) out.append(",audio_fp_block=1");
+            if (target.micBlock) out.append(",mic_block=1");
+            if (target.cameraIdHide) out.append(",camera_id_hide=1");
+            if (target.blockMediaStore) out.append(",block_mediastore=1");
+            if (target.blockImeLogging) out.append(",block_ime_logging=1");
+            if (target.micHwHide) out.append(",mic_hw_hide=1");
+            if (target.disablePassiveLocation) out.append(",disable_passive_loc=1");
+            if (target.hideFingerprintHw) out.append(",hide_fingerprint_hw=1");
+            if (target.hideFaceHw) out.append(",hide_face_hw=1");
+            if (target.wifiScanHide) out.append(",wifi_scan_hide=1");
+            if (target.cellInfoHide) out.append(",cell_info_hide=1");
+            // Premium unlocking, update suppression and a version override are
+            // per-target features with real hook implementations, so they must
+            // round-trip like every other switch.
+            if (target.vipUnlock) out.append(",vip_unlock=1");
+            if (target.antiFraudBlock) out.append(",anti_fraud_block=1");
+            if (target.carrierCollectionBlock) out.append(",carrier_collection_block=1");
+            if (target.policeReconBlock) out.append(",police_recon_block=1");
+            if (target.blockAppUpdate) out.append(",block_app_update=1");
+            if (target.fakeAppVersion && target.simulatedAppVersion != null) {
+                out.append(",fake_app_version=1")
+                        .append(",app_version_value=").append(target.simulatedAppVersion);
+            } else if (target.fakeAppVersion) {
+                throw new IllegalArgumentException("fake_app_version requires app_version_value");
+            }
+            if (target.vipEntitlementSimulation) {
+                if (target.simulatedEntitlementState == null)
+                    throw new IllegalArgumentException(
+                            "vip_entitlement_simulate requires vip_entitlement_state");
+                out.append(",vip_entitlement_simulate=1")
+                        .append(",vip_entitlement_state=").append(target.simulatedEntitlementState);
             }
 
             if (target.dialogMatchEnabled) {
                 if (target.dialogTextTerms.isEmpty() && target.dialogIdTerms.isEmpty())
                     throw new IllegalArgumentException("dialog monitoring requires explicit rules");
                 out.append(",dialog_match=1")
-                        .append(",dialog_notify=").append(target.dialogNotify ? '1' : '0');
+                        .append(",dialog_notify=").append(bit(target.dialogNotify));
                 if (!target.dialogTextTerms.isEmpty()) {
                     String encoded = java.util.Base64.getUrlEncoder().withoutPadding()
                             .encodeToString(String.join("\n", target.dialogTextTerms)
@@ -168,100 +244,59 @@ public final class UnifiedHookConfigSerializer {
                 out.append(",key_dialog_toggle_trigger=").append(target.keyDialogToggleTrigger);
             }
 
-            if (target.locationSimulation) {
-                if (Double.isNaN(target.simulatedLatitude) || Double.isInfinite(target.simulatedLatitude)
-                        || target.simulatedLatitude < -90d || target.simulatedLatitude > 90d
-                        || Double.isNaN(target.simulatedLongitude) || Double.isInfinite(target.simulatedLongitude)
-                        || target.simulatedLongitude < -180d || target.simulatedLongitude > 180d
-                        || Float.isNaN(target.simulatedAccuracy) || Float.isInfinite(target.simulatedAccuracy)
-                        || target.simulatedAccuracy < 0f || target.simulatedAccuracy > 1000f) {
-                    throw new IllegalArgumentException("invalid simulated location");
-                }
-                out.append(",location_simulate=1,location_lat=")
-                        .append(Double.toString(target.simulatedLatitude))
-                        .append(",location_lon=").append(Double.toString(target.simulatedLongitude))
-                        .append(",location_accuracy=").append(Float.toString(target.simulatedAccuracy));
-            }
-            if (target.locationProviderEnabledSimulation) {
-                out.append(",location_provider_enabled_simulate=1");
-            }
-
-            if (target.androidIdSimulation) {
-                if (target.simulatedAndroidId == null
-                        || !target.simulatedAndroidId.matches("(?i)[0-9a-f]{16}")) {
-                    throw new IllegalArgumentException("invalid simulated Android ID");
-                }
-                out.append(",android_id_simulate=1,android_id=")
-                        .append(target.simulatedAndroidId.toLowerCase(java.util.Locale.ROOT));
-            } else if (target.simulatedAndroidId != null) {
-                throw new IllegalArgumentException("Android ID requires android_id_simulate=1");
-            }
-
-            if (target.timeZoneSimulation) {
-                if (target.simulatedTimeZone == null || target.simulatedTimeZone.isEmpty()) {
-                    throw new IllegalArgumentException("time-zone simulation requires a time zone");
-                }
-                out.append(",time_zone_simulate=1,time_zone=").append(target.simulatedTimeZone);
-            } else if (target.simulatedTimeZone != null) {
-                throw new IllegalArgumentException("time_zone requires time_zone_simulate=1");
-            }
-
-            if (target.developerVipMethod != null) {
-                out.append(",dev_test_vip_method=").append(target.developerVipMethod);
-            }
-            if (target.developerLoginMethod != null) {
-                out.append(",dev_test_login_method=").append(target.developerLoginMethod);
-            }
-            if (target.developerHideUpdateMethod != null) {
-                out.append(",dev_test_hide_update_method=").append(target.developerHideUpdateMethod);
-            }
-
-            if (target.appVersionSimulation) {
-                if (target.simulatedVersionName == null || target.simulatedVersionName.isEmpty()
-                        || target.simulatedVersionName.getBytes(StandardCharsets.UTF_8).length > 128
-                        || target.simulatedVersionCode < 0L || target.simulatedVersionCode > 2147483647L)
-                    throw new IllegalArgumentException("invalid simulated application version");
-                String encodedVersionName = java.util.Base64.getUrlEncoder().withoutPadding()
-                        .encodeToString(target.simulatedVersionName.getBytes(StandardCharsets.UTF_8));
-                out.append(",app_version_name_b64=").append(encodedVersionName)
-                        .append(",app_version_code=").append(target.simulatedVersionCode);
-            }
-            int ruleIndex = 1;
-            for (DeveloperHookRule rule : target.developerRules) {
-                if (rule == null)
-                    throw new IllegalArgumentException("invalid developer rule list");
-                String ruleValue = rule.toEncodedString();
-                String encodedRule = java.util.Base64.getUrlEncoder().withoutPadding()
-                        .encodeToString(ruleValue.getBytes(StandardCharsets.UTF_8));
-                out.append(",dev_rule_b64_").append(ruleIndex++).append('=').append(encodedRule);
-            }
+            // Append the optional Dia fields after the stable legacy Hook/privacy fields.
+            // The parser treats these as ordinary per-target settings and validates the full row.
+            appendCustomRules(out, target.customRules);
             out.append('\n');
         }
 
         String serialized = out.toString();
         if (verifyRoundTrip) {
-            // Parse the just-built document through the canonical schema parser, then
-            // serialize the parsed model without recursively re-entering this guard.
-            // A byte-for-byte canonical comparison covers every target flag, optional
-            // simulation value, dialog/Toast rule and ordered developer rule payload,
-            // not merely the number of packages in the document.
             UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(serialized);
-            if (parsed.adsEnabled != adsEnabled || parsed.privacyEnabled != privacyEnabled
-                    || parsed.wifiScanEnabled != wifiScanEnabled
-                    || parsed.notificationListenEnabled != notificationListenEnabled
-                    || parsed.notificationPermissionHideEnabled != notificationPermissionHideEnabled
-                    || parsed.clipboardIsolationEnabled != clipboardIsolationEnabled
-                    || parsed.targets.size() != sorted.size()) {
-                throw new IllegalArgumentException("config failed validation");
-            }
             String canonical = serializeInternal(parsed.adsEnabled, parsed.privacyEnabled,
-                    parsed.wifiScanEnabled, parsed.notificationListenEnabled,
-                    parsed.notificationPermissionHideEnabled, parsed.clipboardIsolationEnabled,
-                    parsed.targets, false);
+                    parsed.systemServicesEnabled, parsed.hiddenSystemServices,
+                    parsed.pmQueryEnabled, parsed.appListEnabled, parsed.appListMode,
+                    parsed.hiddenApps, parsed.keptApps, parsed.targets, false);
             if (!serialized.equals(canonical)) {
-                throw new IllegalArgumentException("config lost fields during parser round-trip");
+                throw new IllegalArgumentException("config lost fields during root-schema round-trip");
             }
         }
         return serialized;
+    }
+
+    private static void appendSortedSection(StringBuilder out, String section, Set<String> values) {
+        for (String value : values) {
+            if (value == null) throw new IllegalArgumentException("null value in " + section);
+        }
+        out.append('[').append(section).append("]\n");
+        for (String value : new TreeSet<>(values)) out.append(value).append('\n');
+    }
+
+    private static void appendCustomRules(StringBuilder out, Map<String, Set<String>> rules) {
+        if (rules == null || rules.isEmpty()) return;
+        TreeMap<String, Set<String>> sorted = new TreeMap<>(rules);
+        StringBuilder encoded = new StringBuilder();
+        for (Map.Entry<String, Set<String>> entry : sorted.entrySet()) {
+            String category = entry.getKey();
+            Set<String> tokens = entry.getValue();
+            if (!("splash".equals(category) || "feed".equals(category) || "overlay".equals(category))
+                    || tokens == null) {
+                throw new IllegalArgumentException("invalid custom ad rule category");
+            }
+            for (String token : tokens) {
+                if (token == null || !token.matches("[a-z0-9_.-]{3,100}")) {
+                    throw new IllegalArgumentException("invalid custom ad rule token");
+                }
+            }
+            for (String token : new TreeSet<>(tokens)) {
+                if (encoded.length() > 0) encoded.append(';');
+                encoded.append(category).append(':').append(token);
+            }
+        }
+        if (encoded.length() > 0) out.append(",rules=").append(encoded);
+    }
+
+    private static char bit(boolean value) {
+        return value ? '1' : '0';
     }
 }

@@ -1,80 +1,88 @@
 package de.privacyguard.adhook;
 
+import de.privacyguard.hook.DiaFridaGadgetLoader;
+
 import android.app.Activity;
-import android.media.AudioRecord;
-import android.media.MediaRecorder;
-import android.hardware.Camera;
-import android.hardware.camera2.CameraManager;
-import android.location.LocationManager;
-import android.location.Location;
-import android.location.LocationListener;
-import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
-import android.os.CancellationSignal;
-import android.os.Parcel;
-import android.os.SystemClock;
-import java.time.ZoneId;
-import java.util.TimeZone;
-import java.util.function.Consumer;
+import android.bluetooth.BluetoothAdapter;
 import android.app.Dialog;
 import android.app.Instrumentation;
-import android.app.Application;
-import de.privacyguard.hook.DiaFridaGadgetLoader;
-import de.privacyguard.adhook.imported.dia.FxDiaDialogMatchPolicy;
-import de.privacyguard.adhook.imported.dia.FxDiaKeyGesturePolicy;
-import de.privacyguard.adhook.imported.dia.FxDiaKeyGesturePolicyRegistry;
+import android.content.ContentResolver;
+import android.content.ClipboardManager;
+import android.content.ClipData;
+import android.content.ClipDescription;
+import android.database.MatrixCursor;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
-import dalvik.system.DexFile;
-import android.content.ContentResolver;
-import android.database.Cursor;
-import android.database.MatrixCursor;
-import android.net.Uri;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
+import android.hardware.SensorManager;
+import android.location.Location;
+import android.location.LocationManager;
+import android.media.AudioRecord;
 import android.provider.Settings;
 import android.content.res.Resources;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.Uri;
+import android.net.NetworkCapabilities;
+import android.net.wifi.WifiInfo;
+import android.net.wifi.WifiManager;
+import android.telephony.TelephonyManager;
 import android.os.Build;
+import android.os.BatteryManager;
+import android.os.StatFs;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
+import android.util.DisplayMetrics;
+import android.view.Display;
 import android.view.View;
-import android.view.KeyEvent;
 import android.view.ViewGroup;
 import android.view.Window;
-import android.view.WindowManager;
-import android.widget.Toast;
 import android.widget.PopupWindow;
 import android.widget.TextView;
+import dalvik.system.DexFile;
 
-import java.io.InputStream;
+import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStreamReader;
+import java.io.InputStream;
+import java.io.FileNotFoundException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Array;
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
-import java.util.ArrayList;
-import java.util.Enumeration;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.net.NetworkInterface;
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
+import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Enumeration;
 import java.util.Locale;
+import java.util.List;
+import java.net.InetAddress;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
+import java.util.TimeZone;
+import java.util.UUID;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import io.github.libxposed.api.XposedInterface;
 import io.github.libxposed.api.XposedModule;
 import io.github.libxposed.api.XposedModuleInterface;
 
 /**
- * FX Hook (unified modern libxposed runtime).
+ * FXAdHook (modern libxposed API).
  *
  * The target app runs as an ordinary application UID, not root. It MUST NOT read
  * /data/adb or /data/local/tmp directly. The root-side FX generator publishes a
@@ -85,37 +93,25 @@ import io.github.libxposed.api.XposedModuleInterface;
  * Billing diagnostics are read-only; purchase results and entitlements are never changed.
  */
 public final class AdVisibilityHook extends XposedModule {
-    private static final String TAG = "FX Hook";
+    private static final String TAG = "FXAdHook";
+    // LSPosed reports one PackageReady per package in a process. Most privacy
+    // interceptors are process-global, so they must only act when exactly one
+    // package owns the process; shared processes fail open.
+    private final Set<String> processPackages = ConcurrentHashMap.newKeySet();
+    private static volatile ClipData isolatedClipboardClip;
+    private final Set<Method> clipboardReadHookedMethods = ConcurrentHashMap.newKeySet();
+    private final Set<Method> notificationListenHookedMethods = ConcurrentHashMap.newKeySet();
+    private volatile boolean clipboardReadHooksInstalled;
+    private volatile boolean notificationListenHooksInstalled;
+    private final Set<Method> notificationPermissionHookedMethods = ConcurrentHashMap.newKeySet();
+    private volatile boolean notificationPermissionHooksInstalled;
+    private final Set<Method> microphoneSilenceHookedMethods = ConcurrentHashMap.newKeySet();
+    private final Set<Method> cameraAccessHookedMethods = ConcurrentHashMap.newKeySet();
+    private final Set<Method> microphoneAccessHookedMethods = ConcurrentHashMap.newKeySet();
     private static final String CONFIG_NAME = "fx-hook-targets.conf";
-    private static final int MAX_DYNAMIC_MEMBER_CLASSES = 32;
-    // addView can fire repeatedly during scrolling; cap each dynamic subtree walk.
-    private static final int MAX_DYNAMIC_AD_SCAN_NODES = 400;
-    private static final int MAX_DYNAMIC_AD_SCAN_DEPTH = 12;
-    private static final int MAX_MEMBER_METADATA_PROBES = 512;
-    private static final int MAX_AUTO_MEMBER_METHOD_HOOKS = 8;
-    private static final int MAX_REWARDED_AD_EVIDENCE = 96;
-    private static final int MAX_MEMBER_STATE_OBSERVATIONS = 64;
-    private static final String[] MEMBER_STATE_FIELD_MARKERS = {
-            "vip", "premium", "member", "entitle", "subscription", "purchase",
-            "license", "expire", "active", "paid", "tier", "level", "valid", "benefit"
-    };
-    private static final String[] REWARDED_FLOW_MARKERS = {
-            "领取金币", "看视频领", "看广告领", "激励视频", "广告奖励",
-            "rewarded", "watch video", "watch ad", "claim reward", "earn coins"
-    };
+    private static final String UI_CONFIG_NAME = "fx-hook-ui-targets.conf";
     private static final Set<String> NEVER = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-            "android", "system", "de.privacyguard.hook", "de.privacyguard.adhook", "org.lsposed.manager",
-            // Never install automatic View interception into Android's core UI,
-            // permission, telephony, package, storage, network or input services.
-            "com.android.systemui", "com.android.settings", "com.android.providers.settings",
-            "com.android.providers.media", "com.android.providers.downloads",
-            "com.android.providers.downloads.ui", "com.android.documentsui",
-            "com.android.permissioncontroller", "com.google.android.permissioncontroller",
-            "com.android.packageinstaller", "com.android.shell", "com.android.phone",
-            "com.android.server.telecom", "com.android.networkstack",
-            "com.android.networkstack.tethering", "com.android.bluetooth", "com.android.nfc",
-            "com.android.inputmethod.latin", "com.google.android.inputmethod.latin",
-            "com.google.android.gms", "com.google.android.gsf", "com.android.vending")));
+            "android", "system", "de.privacyguard.hook", "de.privacyguard.adhook", "org.lsposed.manager")));
     private static final String[] AD_CLASS_MARKERS = {
             "com.google.android.gms.ads", "com.bytedance.sdk.openadsdk", "com.pangle",
             "com.qq.e.ads", "com.kwad.sdk", "com.baidu.mobads",
@@ -123,7 +119,10 @@ public final class AdVisibilityHook extends XposedModule {
             "com.huawei.hms.ads", "com.huawei.openalliance.ad",
             "com.miui.zeus.mimo.sdk", "com.xiaomi.ad",
             "com.heytap.msp.mobad.api", "com.vivo.mobilead",
-            "com.hihonor.adsdk", "com.meishu.sdk"
+            "com.hihonor.adsdk", "com.meishu.sdk",
+            "com.mbridge.msdk", "com.anythink", "com.mintegral",
+            "com.ironsource", "com.chartboost", "com.inmobi",
+            "com.adcolony", "com.klevin", "com.startapp"
     };
     private static final String[] STRONG_AD_MARKERS = {
             "adview", "ad_view", "ad-view", "adcontainer", "ad_container", "ad-container",
@@ -135,7 +134,9 @@ public final class AdVisibilityHook extends XposedModule {
             "nativeexpress", "nativeexpressadview", "expressadview", "adexpressview", "ttadview",
             "ksadview", "ksadframelayout", "hmsadview", "hmsnativead", "ppsnative",
             "mimoadview", "mimofeed", "nativeadcontainer", "nativeadview", "bannercontainer",
-            "adbanner", "videoadview",
+            "adbanner", "videoadview", "mbridgenativeadview", "mintegralnativeadview",
+            "anythinknativeadview", "ironsourcebanner", "chartboostbanner",
+            "inmobinativead", "adcolonyadview", "klevinnativeadview",
             "bannerad", "banner_ad", "banner-ad", "bannercontainer", "adbanner",
             "interstitial", "rewardedad",
             "rewarded_ad", "rewarded-ad", "fullscreenad", "full_screen_ad",
@@ -151,103 +152,68 @@ public final class AdVisibilityHook extends XposedModule {
             "bannerad", "banner_ad", "banner-ad", "adview", "ad_view", "adcontainer",
             "ad_container", "adslot", "ad_slot", "mimo_ad", "mimoad", "mimofeed", "mobad",
             "hms_ads", "hmsnativead", "ppsnative", "heytap_ad", "vivo_ad", "huawei_ad", "hihonor_ad",
-            "bannercontainer", "adbanner", "videoadview"
+            "bannercontainer", "adbanner", "videoadview",
+            "nativeexpress", "nativeexpressadview", "expressadview", "adexpressview",
+            "ttadview", "ksadview", "ksadframelayout", "mimoadview"
     };
     private static final String[] OVERLAY_MARKERS = {
             "interstitial", "rewardedad", "rewarded_ad", "fullscreenad",
             "full_screen_ad", "ad_dialog", "ad_popup", "adpopup", "overlay_ad"
     };
 
-    // Ad category selection is automatic for every eligible app.
-    // Privacy and read-only diagnostics remain explicitly scoped per package.
-    private static final UnifiedHookConfigParser.Target AUTO_AD_TARGET =
-            new UnifiedHookConfigParser.Target(true, true, true, false, false, false, false);
-
     private final Map<String, UnifiedHookConfigParser.Target> targets = new HashMap<>();
     private final Set<String> hooksInstalledFor = ConcurrentHashMap.newKeySet();
-    private final Set<String> processPackages = ConcurrentHashMap.newKeySet();
-    private final Set<String> debuggablePackages = ConcurrentHashMap.newKeySet();
-    private final Set<String> diaKeyGesturePackages = ConcurrentHashMap.newKeySet();
-    private final Map<String, Boolean> diaKeyDialogActive = new ConcurrentHashMap<>();
-    private final FxDiaKeyGesturePolicyRegistry diaKeyGesturePolicies =
-            new FxDiaKeyGesturePolicyRegistry();
-    private volatile boolean diaKeyGestureDispatchHookInstalled;
-    private volatile boolean diaKeyGestureLongPressHookInstalled;
-    // Settings.Secure.getString is process-global. Register one interceptor per process;
-    // adding one per package would stack transforms when a process exposes multiple packages.
-    private volatile boolean privacyIdentifierHookInstalled;
-    private volatile boolean telephonyIdentifierHooksInstalled;
-    private volatile boolean clipboardReadHooksInstalled;
-    // Track each successful accessor independently so partial ART hook failures
-    // can be retried on a later eligible package load without stacking hooks.
-    private final Set<Method> clipboardReadHookedMethods = ConcurrentHashMap.newKeySet();
-    private volatile boolean clipboardIsolationHooksInstalled;
-    private final Set<Method> clipboardIsolationHookedMethods = ConcurrentHashMap.newKeySet();
-    private static volatile Object processClipboardShadow;
-    private volatile boolean sensorHooksInstalled;
-    private volatile boolean wifiScanHooksInstalled;
-    private final Set<Method> wifiScanHookedMethods = ConcurrentHashMap.newKeySet();
-    private final Set<Method> notificationListenHookedMethods = ConcurrentHashMap.newKeySet();
-    private volatile boolean wifiInfoSimulationHooksInstalled;
-    private volatile boolean networkTypeSimulationHooksInstalled;
-    private volatile boolean locationSimulationHooksInstalled;
-    private volatile boolean locationProviderEnabledHooksInstalled;
-    private volatile boolean timeZoneSimulationHooksInstalled;
-    private volatile boolean appVersionSimulationHooksInstalled;
-    private volatile boolean notificationListenHooksInstalled;
-    private volatile boolean notificationPermissionHooksInstalled;
-    private final Set<Method> notificationPermissionHookedMethods = ConcurrentHashMap.newKeySet();
-    private volatile boolean diaToastHooksInstalled;
-    private final Set<Method> diaToastHookedMethods = ConcurrentHashMap.newKeySet();
-    private final Map<Toast, DiaToastPayload> diaToastPayloads =
-            Collections.synchronizedMap(new WeakHashMap<>());
-    private final Set<Method> microphoneSilenceHookedMethods = ConcurrentHashMap.newKeySet();
-    private final Set<Method> cameraAccessHookedMethods = ConcurrentHashMap.newKeySet();
-    private final Set<Method> microphoneAccessHookedMethods = ConcurrentHashMap.newKeySet();
-    private final Set<Method> locationAccessHookedMethods = ConcurrentHashMap.newKeySet();
-    private final Set<Method> mediaStoreQueryHookedMethods = ConcurrentHashMap.newKeySet();
-    private final Set<Method> advertisingIdHookedMethods = ConcurrentHashMap.newKeySet();
-    private final Set<Method> developerTestHookedMethods = ConcurrentHashMap.newKeySet();
-    private final Set<java.lang.reflect.Executable> developerTypedReturnHookedExecutables = ConcurrentHashMap.newKeySet();
-    private final Set<java.lang.reflect.Executable> developerVoidNoOpHookedExecutables = ConcurrentHashMap.newKeySet();
-    private final Set<java.lang.reflect.Executable> developerPassthroughHookedExecutables = ConcurrentHashMap.newKeySet();
-    private final Set<java.lang.reflect.Executable> developerObservedExecutables = ConcurrentHashMap.newKeySet();
-    private volatile boolean activityObserverInstalled;
-    private volatile boolean dialogObserverInstalled;
-    private volatile boolean dialogWindowAddViewHooksInstalled;
-    private final Set<String> dialogWindowAddViewMethods = ConcurrentHashMap.newKeySet();
-    private final Map<String, Long> dialogNotifyLastShown = new ConcurrentHashMap<>();
-    private volatile boolean popupObserversInstalled;
-    private volatile boolean dynamicChildObserversInstalled;
-    private volatile boolean dynamicMemberDiscoveryInstalled;
-    private final Set<String> memberCandidateClasses = ConcurrentHashMap.newKeySet();
-    private final Set<String> memberMetadataInspectedClasses = ConcurrentHashMap.newKeySet();
-    private final Set<String> memberHookedMethods = ConcurrentHashMap.newKeySet();
-    private final Set<String> rewardedEvidenceSeen = ConcurrentHashMap.newKeySet();
-    private final AtomicInteger memberClassesInspected = new AtomicInteger();
-    private final AtomicInteger memberMetadataProbes = new AtomicInteger();
-    private final AtomicInteger memberMethodsHooked = new AtomicInteger();
-    private final AtomicInteger rewardedEvidenceCount = new AtomicInteger();
-    private final AtomicInteger memberStateObservationCount = new AtomicInteger();
-    private final Set<String> popupObserverMethods = ConcurrentHashMap.newKeySet();
-    private final Set<String> dynamicChildObserverMethods = ConcurrentHashMap.newKeySet();
+    // Bounded process-local evidence; never records account data or purchase tokens.
+    private final Set<String> memberDiscoveryEvidence = ConcurrentHashMap.newKeySet();
+    private final Set<String> memberDexScanStarted = ConcurrentHashMap.newKeySet();
+    // Rewarded-ad evidence is bounded and diagnostic-only; reward flows are never force-completed.
+    private final Set<String> rewardedAdEvidence = ConcurrentHashMap.newKeySet();
+    // Automatically observe a small number of candidate VIP/member boolean getters.
+    // This is diagnostic-only: return values are never replaced or forced to true.
+    private final Set<String> memberMethodsHooked = ConcurrentHashMap.newKeySet();
+    // Keep billing diagnostics useful without flooding logcat in polling-heavy apps.
+    private static final int MAX_BILLING_DIAGNOSTIC_LOGS = 5;
+    private final Map<String, AtomicInteger> billingDiagnosticLogCounts = new ConcurrentHashMap<>();
+    // Track successful hooks per class loader so late-loaded Billing classes can be retried safely.
+    private final Set<String> billingDiagnosticHooksInstalled = ConcurrentHashMap.newKeySet();
+    private final Set<String> memberClassesInspected = ConcurrentHashMap.newKeySet();
+    private static final Set<String> MEMBER_STATE_FIELD_MARKERS = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList("vip", "premium", "member", "entitlement",
+                    "subscribed", "subscription", "paid", "benefit", "privilege",
+                    "expiry", "expire", "owned", "license", "trial")));
+    private static final int MAX_AUTO_MEMBER_METHOD_HOOKS = 24;
+    private static final int MAX_DYNAMIC_MEMBER_CLASSES = 240;
+    private static final int MAX_REWARDED_AD_EVIDENCE = 32;
+    private static final String[] REWARDED_FLOW_MARKERS = {
+            "rewarded", "reward_video", "rewardvideo", "reward_video_ad", "incentive",
+            "incentivized", "onuserearnedreward", "user_earned_reward", "rewarditem",
+            "earnreward", "timedreward", "dailyreward", "watchvideo", "watch_video",
+            "watchad", "watch_ad", "bonusvideo", "bonus_video", "领取奖励", "领取金币",
+            "看视频得", "看视频领", "看视频赚", "看广告领", "观看视频", "观看广告",
+            "激励视频", "奖励视频", "广告奖励", "视频奖励", "播放完成领奖", "看完视频"
+    };
+    private static final int MAX_MEMBER_DEX_CLASSES = 1500;
+    private static final long MAX_MEMBER_DEX_SCAN_MILLIS = 3500L;
+    private static final int MAX_MEMBER_DISCOVERY_EVIDENCE = 40;
+    private static final String[] MEMBER_FLOW_MARKERS = {
+            "member", "vip", "premium", "entitlement", "subscription", "billing",
+            "purchase", "paywall", "account", "login", "session", "benefit",
+            "privilege", "renew", "trial", "ispro", "isvip", "ispaid"
+    };
     private final WeakHashMap<Activity, Long> lastActivityScan = new WeakHashMap<>();
     private final WeakHashMap<View, Long> lastRootScan = new WeakHashMap<>();
-    private final WeakHashMap<View, Long> lastAddedViewScan = new WeakHashMap<>();
-    // Restore the exact pre-hook visibility when an ad view is reused or detached.
-    private final WeakHashMap<View, Integer> hiddenAdViews = new WeakHashMap<>();
-    private final WeakHashMap<View, Boolean> externallyChangedAdViews = new WeakHashMap<>();
-    private final ThreadLocal<Boolean> fxVisibilityMutation = ThreadLocal.withInitial(() -> false);
-    private volatile boolean visibilityMutationObserverInstalled;
-    private final WeakHashMap<View, View.OnAttachStateChangeListener> hiddenAdViewListeners = new WeakHashMap<>();
     private boolean adsEnabled;
     private boolean privacyEnabled;
-    private boolean wifiScanEnabled;
-    private boolean notificationListenEnabled;
-    private boolean notificationPermissionHideEnabled;
-    private boolean clipboardIsolationEnabled;
+    private boolean systemServicesEnabled;
+    private Set<String> hiddenSystemServices = Collections.emptySet();
+    private boolean pmQueryEnabled;
+    private boolean appListEnabled;
+    private String appListMode = "custom";
+    private Set<String> hiddenApps = Collections.emptySet();
+    private Set<String> keptApps = Collections.emptySet();
     private boolean configLoaded;
     private boolean remoteFilesAvailable;
+    private volatile boolean privacyIdentifierHookInstalled;
     private volatile String currentPackage = "";
 
     private static final class ParentEvidence {
@@ -257,742 +223,177 @@ public final class AdVisibilityHook extends XposedModule {
 
     @Override
     public void onModuleLoaded(XposedModuleInterface.ModuleLoadedParam param) {
-        // Ad recognition is built in and does not depend on Remote Files.
-        // Remote Files is needed only for optional per-app privacy/diagnostic policy.
-        adsEnabled = true;
         remoteFilesAvailable = (getFrameworkProperties() & XposedInterface.PROP_CAP_REMOTE) != 0;
-        if (remoteFilesAvailable) {
-            configLoaded = loadConfig();
-        } else {
-            configLoaded = false;
-            targets.clear();
-            privacyEnabled = false;
-            logFx(Log.WARN, "Remote Files capability unavailable; optional per-app policies remain disabled");
+        if (!remoteFilesAvailable) {
+            logFx(Log.WARN, "Remote Files capability unavailable; feature disabled safely");
+            return;
         }
-        // A missing/invalid optional config must never disable automatic Ad detection.
-        adsEnabled = true;
+        configLoaded = loadConfig();
         logFx(configLoaded
                 ? Log.INFO : Log.WARN,
                 configLoaded
-                        ? "automatic Ad detection enabled; remote per-app policies loaded=" + targets.size()
-                        : "automatic Ad detection enabled; optional remote per-app policies unavailable");
+                        ? "remote target config loaded; selected targets=" + targets.size()
+                        : "remote target config unavailable/invalid; no-op");
     }
 
     @Override
     public void onPackageReady(XposedModuleInterface.PackageReadyParam param) {
         final String pkg = param.getPackageName() == null ? "" : param.getPackageName();
-        currentPackage = pkg;
-        processPackages.add(pkg);
         if (NEVER.contains(pkg)) return;
-        // Dia Gadget loading is independent of optional remote privacy/ad config.
-        // The registered modern libXposed entrypoint reaches the package/process-
-        // scoped loader directly; the legacy adapter delegates to the same utility.
+        currentPackage = pkg;
+        if (!pkg.isEmpty()) processPackages.add(pkg);
+        // Dia Gadget loading is independent of optional Remote Files policy config.
+        // A missing config must not prevent the per-package Frida runtime from starting.
         try {
             DiaFridaGadgetLoader.loadForPackage(param.getApplicationInfo(),
-                    pkg, Application.getProcessName());
+                    pkg, android.app.Application.getProcessName());
         } catch (Throwable gadgetError) {
             Log.w(TAG, "Dia Frida Gadget loader failed for " + pkg, gadgetError);
         }
-        // Continue with automatic Ad recognition even when Remote Files are absent.
-        // All optional per-app policy flags below remain false unless a valid config loaded.
-        final UnifiedHookConfigParser.Target target = configLoaded ? targets.get(pkg) : null;
-        final int applicationFlags = param.getApplicationInfo().flags;
-        final boolean debuggableTarget = (applicationFlags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
-        final boolean systemTarget = (applicationFlags & (ApplicationInfo.FLAG_SYSTEM
-                | ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0;
-        if (debuggableTarget) debuggablePackages.add(pkg);
-        else debuggablePackages.remove(pkg);
-        final boolean keyGestureForPackage = target != null && !systemTarget
-                && (target.keyFinishTrigger >= 0 || target.keyDialogToggleTrigger >= 0);
-        if (keyGestureForPackage) {
-            diaKeyGesturePackages.add(pkg);
-            diaKeyGesturePolicies.forPackage(pkg);
-            if (target.keyDialogToggleTrigger >= 0) {
-                diaKeyDialogActive.putIfAbsent(pkg, target.dialogMatchEnabled);
-            } else {
-                diaKeyDialogActive.remove(pkg);
-            }
-        } else {
-            diaKeyGesturePackages.remove(pkg);
-            diaKeyGesturePolicies.remove(pkg);
-            diaKeyDialogActive.remove(pkg);
+        if (!configLoaded) return;
+        final UnifiedHookConfigParser.Target target = targets.get(pkg);
+        if (target == null) return;
+        final boolean adsForPackage = adsEnabled && target.enabled();
+        final boolean privacyForPackage = privacyEnabled && target.privacy;
+        final boolean mediaHiddenForPackage = privacyEnabled && target.mediaHidden;
+        final boolean migratedPrivacyForPackage = privacyEnabled &&
+                (target.exifStrip || target.clipboardReadBlock || target.clipboardIsolate ||
+                 target.sensorAccel || target.sensorGyro || target.sensorLight || target.sensorMagnet ||
+                 target.sensorPressure || target.sensorProx || target.sensorEnvironment || target.sensorFusion ||
+                 target.sensorGesture || target.sensorBiometric || target.sensorRateLimit || target.wifiScanBlock ||
+                 target.notificationListenBlock || target.notificationPermissionHide || target.microphoneSilence ||
+                 target.cameraAccessBlock || target.locationAccessBlock || target.microphoneAccessBlock ||
+                 target.mediaStoreQueryBlock || target.adIdUnify);
+        final boolean unsupportedDetectionFlagsRequested = privacyEnabled &&
+                (target.regionHidden || target.vpnDetectionHidden || target.deviceProfile ||
+                 target.usageHidden ||
+                 (target.privacy && systemServicesEnabled && !hiddenSystemServices.isEmpty()) ||
+                 pmQueryEnabled || appListEnabled);
+        // Membership diagnostics are part of the privacy master, but independent
+        // of the ad-filter master. They remain read-only and never change entitlements.
+        final boolean memberDiagForPackage = privacyEnabled && target.memberDiag;
+        // Unsupported legacy flags must still reach the explicit warning below;
+        // otherwise a target configured only with those flags silently appears active.
+        if (!adsForPackage && !privacyForPackage && !mediaHiddenForPackage &&
+                !migratedPrivacyForPackage && !memberDiagForPackage && !unsupportedDetectionFlagsRequested) return;
+        // The Secure.getString interceptor is process-global. Attempt/retry its
+        // single registration before the per-package idempotency guard.
+        if (privacyForPackage) installPrivacyIdentifierHook();
+        if (!hooksInstalledFor.add(pkg)) return;
+        final boolean adViewScanForPackage = adsForPackage && (target.splash || target.feed || target.overlay);
+        if (adViewScanForPackage || memberDiagForPackage) {
+            installActivityResumeObserver(pkg, target, adViewScanForPackage, memberDiagForPackage);
         }
-        // Custom Hook is explicitly enabled per app and restricted to debuggable builds.
-        // OBSERVE records metadata; RETURN_* actions are local Debug fixtures only.
-        // They never grant production authorization or modify server-side entitlements.
-        boolean developerRuleForPackage = false;
-        boolean developerObserveForPackage = false;
-        List<DeveloperHookRule> effectiveDeveloperRules = Collections.emptyList();
-        if (target != null && target.developerHooksEnabled && debuggableTarget) {
-            // Resolve once so package eligibility and installed interceptors use identical priority decisions.
-            effectiveDeveloperRules = DeveloperHookRule.selectEffective(target.developerRules);
-            for (DeveloperHookRule rule : effectiveDeveloperRules) {
-                if (rule.action == DeveloperHookRule.Action.DISABLED) continue;
-                developerRuleForPackage = true; // Keeps every active custom action in the package install path.
-                if (rule.action == DeveloperHookRule.Action.OBSERVE) {
-                    developerObserveForPackage = true;
-                }
-            }
-        }
-        // Ad detection is automatic for every non-protected app; the target map
-        // remains exclusively for opt-in privacy and read-only diagnostics.
-        final boolean adsForPackage = adsEnabled;
-        final boolean memberDiagForPackage = target != null && target.memberDiag;
-        final boolean privacyForPackage = privacyEnabled && target != null && target.privacy;
-        final boolean exifForPackage = privacyEnabled && target != null && target.exifStrip;
-        final boolean clipboardBlockForPackage = privacyEnabled && target != null && target.clipboardReadBlock;
-        final boolean clipboardIsolateForPackage = privacyEnabled && clipboardIsolationEnabled && target != null && target.clipboardIsolate;
-        final boolean sensorForPackage = privacyEnabled && target != null && (target.sensorAccel || target.sensorGyro
-                || target.sensorLight || target.sensorMagnet || target.sensorPressure || target.sensorProx
-                || target.sensorEnvironment || target.sensorFusion || target.sensorGesture || target.sensorBiometric
-                || target.sensorRateLimit);
-        final boolean wifiScanForPackage = wifiScanEnabled && target != null && target.wifiScanBlock;
-        final boolean wifiSimulationForPackage = target != null && target.wifiSimulation && debuggableTarget;
-        final boolean networkTypeSimulationForPackage = target != null && target.networkTypeSimulation && debuggableTarget;
-        final boolean locationSimulationForPackage = target != null && target.locationSimulation && debuggableTarget;
-        final boolean locationProviderEnabledSimulationForPackage = target != null && target.locationProviderEnabledSimulation && debuggableTarget;
-        final boolean androidIdSimulationForPackage = target != null && target.androidIdSimulation && debuggableTarget;
-        final boolean timeZoneSimulationForPackage = target != null && target.timeZoneSimulation && debuggableTarget;
-        final boolean appVersionSimulationForPackage = target != null && target.appVersionSimulation && debuggableTarget;
-        final boolean notificationListenForPackage = notificationListenEnabled && target != null && target.notificationListenBlock;
-        final boolean notificationPermissionHideForPackage = notificationPermissionHideEnabled && target != null && target.notificationPermissionHide;
-        final boolean microphoneSilenceForPackage = privacyEnabled && target != null && target.microphoneSilence;
-        final boolean cameraAccessBlockForPackage = privacyEnabled && target != null && target.cameraAccessBlock;
-        final boolean locationAccessBlockForPackage = privacyEnabled && target != null && target.locationAccessBlock;
-        final boolean microphoneAccessBlockForPackage = privacyEnabled && target != null && target.microphoneAccessBlock;
-        final boolean mediaStoreQueryBlockForPackage = privacyEnabled && target != null && target.mediaStoreQueryBlock;
-        final boolean advertisingIdUnifyForPackage = privacyEnabled && target != null && target.adIdUnify;
-        final boolean dialogMatchForPackage = target != null
-                && target.dialogMatchEnabled && debuggableTarget;
-        // Never filter system or updated-system applications, even if a stale or
-        // manually crafted Remote Files entry contains a Toast opt-in.
-        final boolean toastFilterForPackage = !systemTarget && target != null
-                && target.toastFilterEnabled && !target.toastTextTerms.isEmpty();
-        if (!adsForPackage && !dialogMatchForPackage && !toastFilterForPackage && !keyGestureForPackage && !memberDiagForPackage && !privacyForPackage && !exifForPackage && !clipboardBlockForPackage && !clipboardIsolateForPackage && !sensorForPackage && !wifiScanForPackage && !wifiSimulationForPackage && !networkTypeSimulationForPackage && !locationSimulationForPackage && !locationProviderEnabledSimulationForPackage && !androidIdSimulationForPackage && !timeZoneSimulationForPackage && !appVersionSimulationForPackage && !notificationListenForPackage && !notificationPermissionHideForPackage && !microphoneSilenceForPackage && !cameraAccessBlockForPackage && !locationAccessBlockForPackage && !microphoneAccessBlockForPackage && !mediaStoreQueryBlockForPackage && !advertisingIdUnifyForPackage && !developerRuleForPackage) return;
-        // Global observers must get another chance on each eligible package load;
-        // a failed registration must not be hidden by the per-package idempotency guard.
-        if (adsForPackage || dialogMatchForPackage) installAdViewHooks();
-        if (dialogMatchForPackage) installDiaDialogWindowHooks();
-        if (toastFilterForPackage) installDiaToastHooks();
-        if (keyGestureForPackage) installDiaKeyGestureHooks();
-        // Retry privacy registration independently from the one-shot package guard.
-        if (privacyForPackage || androidIdSimulationForPackage) installPrivacyIdentifierHooks(pkg);
-        if (timeZoneSimulationForPackage) installTimeZoneSimulationHooks(pkg);
-        if (appVersionSimulationForPackage) installAppVersionSimulationHooks(pkg);
-        if (exifForPackage) installExifStripHooks(param.getClassLoader(), pkg);
-        if (clipboardBlockForPackage) installClipboardReadBlockHooks(pkg);
-        if (clipboardIsolateForPackage) installClipboardIsolationHooks(pkg);
-        if (sensorForPackage) installSensorEnumerationHooks(pkg);
-        if (wifiScanForPackage) installWifiScanPrivacyHooks(pkg);
-        if (wifiSimulationForPackage) installWifiInfoSimulationHooks(pkg);
-        if (networkTypeSimulationForPackage) installNetworkTypeSimulationHooks(pkg);
-        if (locationSimulationForPackage || locationProviderEnabledSimulationForPackage) installLocationSimulationHooks(pkg);
-        if (notificationListenForPackage) installNotificationListenPrivacyHooks(pkg);
-        if (notificationPermissionHideForPackage) installNotificationPermissionPrivacyHooks(pkg);
-        if (microphoneSilenceForPackage) installAudioRecordSilenceHooks(pkg);
-        if (cameraAccessBlockForPackage) installCameraAccessBlockHooks(pkg);
-        if (locationAccessBlockForPackage) installLocationAccessBlockHooks(pkg);
-        if (microphoneAccessBlockForPackage) installMicrophoneAccessBlockHooks(pkg);
-        if (mediaStoreQueryBlockForPackage) installMediaStoreQueryBlockHooks(pkg);
-        if (advertisingIdUnifyForPackage) installAdvertisingIdHooks(param.getClassLoader(), pkg);
-        // Member diagnostics are independent of ads/privacy and must run before
-        // the unrelated per-package one-shot guard.
+        if (adViewScanForPackage) installAdViewHooks(pkg, target);
         if (memberDiagForPackage) {
             installReadOnlyBillingDiagnostics(param.getClassLoader());
-            installDynamicMemberClassDiscovery(param.getClassLoader(), pkg);
+            installMemberFlowDiscovery(pkg);
         }
-        if (target != null && target.developerHooksEnabled && debuggableTarget) {
-            // Every action is scoped to a debuggable target and explicit per-app opt-in.
-            // Boolean replacement is restricted by DeveloperHookRule.parse to zero-arg boolean methods.
-            for (DeveloperHookRule rule : effectiveDeveloperRules) {
-                if (developerObserveForPackage && rule.action == DeveloperHookRule.Action.OBSERVE) {
-                    installDeveloperObservationHook(param.getClassLoader(), pkg,
-                            debuggableTarget, rule.descriptor, rule.id);
-                } else if (rule.action == DeveloperHookRule.Action.RETURN_TRUE
-                        || rule.action == DeveloperHookRule.Action.RETURN_FALSE) {
-                    installDeveloperBooleanTestHook(param.getClassLoader(), pkg,
-                            debuggableTarget, rule.descriptor, rule.action, rule.id);
-                } else if (rule.action == DeveloperHookRule.Action.RETURN_NULL
-                        || rule.action == DeveloperHookRule.Action.RETURN_ZERO
-                        || rule.action == DeveloperHookRule.Action.RETURN_EMPTY_STRING) {
-                    installDeveloperTypedReturnHook(param.getClassLoader(), pkg,
-                            debuggableTarget, rule.descriptor, rule.action, rule.id);
-                } else if (rule.action == DeveloperHookRule.Action.RETURN_LITERAL) {
-                    installDeveloperLiteralReturnHook(param.getClassLoader(), pkg,
-                            debuggableTarget, rule.descriptor, rule.literalValue, rule.id);
-                } else if (rule.action == DeveloperHookRule.Action.NO_OP_VOID) {
-                    installDeveloperVoidNoOpHook(param.getClassLoader(), pkg, debuggableTarget,
-                            rule.descriptor, rule.id);
-                } else if (rule.action == DeveloperHookRule.Action.RETURN_ARGUMENT_0
-                        || rule.action == DeveloperHookRule.Action.RETURN_THIS) {
-                    installDeveloperPassthroughHook(param.getClassLoader(), pkg, debuggableTarget,
-                            rule.descriptor, rule.action, rule.id);
-                }
+        if (privacyForPackage) {
+            installPrivacyIdentifierHooks(pkg, param.getClassLoader());
+        } else if (migratedPrivacyForPackage) {
+            // Install only the selected migrated privacy families when the broad
+            // privacy master is off; avoid silently enabling every privacy hook.
+            if (target.clipboardIsolate) installClipboardPrivacyHooks(pkg);
+            if (target.wifiScanBlock) installWifiScanPrivacyHooks(pkg);
+            if (target.mediaStoreQueryBlock) installMediaStorePrivacyHooks(pkg);
+            if (target.sensorAccel || target.sensorGyro || target.sensorLight || target.sensorMagnet ||
+                    target.sensorPressure || target.sensorProx || target.sensorEnvironment ||
+                    target.sensorFusion || target.sensorGesture || target.sensorBiometric || target.sensorRateLimit) {
+                installSensorPrivacyHooks(pkg);
             }
+            if (target.locationAccessBlock) installLocationPrivacyHooks(pkg);
+            if (target.exifStrip) installExifPrivacyHooks(param.getClassLoader());
+            if (target.adIdUnify) installAdvertisingIdIsolationHooks(pkg, param.getClassLoader());
+            if (target.cameraAccessBlock) installCameraAccessBlockHooks(pkg);
+            if (target.microphoneAccessBlock) installMicrophoneAccessBlockHooks(pkg);
         }
-        if (!hooksInstalledFor.add(pkg)) return;
+        if (migratedPrivacyForPackage && target.clipboardReadBlock) installClipboardReadBlockHooks(pkg);
+        if (migratedPrivacyForPackage && target.notificationListenBlock) installNotificationListenPrivacyHooks(pkg);
+        if (migratedPrivacyForPackage && target.notificationPermissionHide) {
+            installNotificationPermissionPrivacyHooks(pkg);
+        }
+        if (migratedPrivacyForPackage && target.microphoneSilence) {
+            installAudioRecordSilenceHooks(pkg);
+        }
+        if (mediaHiddenForPackage) installMediaPrivacyHooks(pkg, param.getClassLoader());
+        if (privacyEnabled && (target.usageStatsOff || target.a11yHide)) {
+            if (target.usageStatsOff) installUsageStatsPrivacyHooks(pkg);
+            if (target.a11yHide) installAccessibilityPrivacyHooks(pkg);
+        }
+        if (privacyEnabled && target.blockImeLogging) installInputMethodPrivacyHooks(pkg);
+        if (privacyEnabled && (target.hideFingerprintHw || target.hideFaceHw)) {
+            installBiometricPrivacyHooks(pkg, param.getClassLoader());
+        }
+        if (privacyEnabled && target.cameraIdHide) installCameraPrivacyHooks(pkg);
+        if (privacyEnabled && target.audioFpBlock) installAudioFingerprintHooks(pkg);
+        if (privacyEnabled && target.micBlock) installAudioSilencePrivacyHooks(pkg);
+        if (privacyEnabled && target.micHwHide) installMicHardwarePrivacyHooks(pkg);
+        if (privacyEnabled && (target.wifiScanHide || target.cellInfoHide)) {
+            installRadioPrivacyHooks(pkg);
+        }
+        if (privacyEnabled && target.disablePassiveLocation) {
+            installPassiveLocationPrivacyHooks(pkg);
+        }
+        if (privacyEnabled && target.blockMediaStore) installMediaStoreAuthorityHooks(pkg);
+        // Custom privacy hardening: state anti-fraud, carrier collection and
+        // public-security reconnaissance blocking. Each is an independent opt-in.
+        if (privacyEnabled && target.antiFraudBlock) installAntiFraudBlockHooks(pkg);
+        if (privacyEnabled && target.carrierCollectionBlock) {
+            installCarrierCollectionBlockHooks(pkg, param.getClassLoader());
+        }
+        if (privacyEnabled && target.policeReconBlock) {
+            installPoliceReconBlockHooks(pkg, param.getClassLoader());
+        }
+        // VPN-detection suppression, in-app update suppression and generic VIP
+        // reporting are independent opt-ins, so each installs only when its own key
+        // is set. All three are per-target and fail closed inside their policies.
+        if (privacyEnabled && target.vpnDetectionHidden) installVpnDetectionPrivacyHooks(pkg);
+        if (privacyEnabled && (target.blockAppUpdate || target.fakeAppVersion)) {
+            installAppUpdatePrivacyHooks(pkg, param.getClassLoader());
+        }
+        if (privacyEnabled && target.vipUnlock) {
+            installVipUnlockHooks(pkg, param.getClassLoader());
+        }
+        // Real location injection is an alternative to privacy blocking, never both.
+        if (privacyEnabled && target.locationSimulation && !target.locationAccessBlock) {
+            installLocationInjectionHooks(pkg);
+        }
+
+        if (unsupportedDetectionFlagsRequested) {
+            logFx(Log.WARN, "unsupported region-hiding, device-profile spoofing, usage-stat"
+                    + " hiding, app-inventory hiding, or system-service hiding flags ignored for " + pkg);
+        }
         logFx(Log.INFO, "package ready=" + pkg +
-                " ads=" + adsForPackage + " privacy=" + privacyForPackage + " exifStrip=" + exifForPackage + " clipboardReadBlock=" + clipboardBlockForPackage + " clipboardIsolate=" + clipboardIsolateForPackage + " sensors=" + sensorForPackage + " wifiScanEnabled=" + wifiScanEnabled + " wifiScanBlock=" + wifiScanForPackage + " notificationListenBlock=" + notificationListenForPackage + " notificationPermissionHide=" + notificationPermissionHideForPackage + " micSilence=" + microphoneSilenceForPackage + " cameraBlock=" + cameraAccessBlockForPackage + " locationBlock=" + locationAccessBlockForPackage + " micAccessBlock=" + microphoneAccessBlockForPackage + " mediaStoreQueryBlock=" + mediaStoreQueryBlockForPackage +
-                " adDetection=automatic(splash/feed/overlay)" + " dialogMatchBlock=" + dialogMatchForPackage + " memberDiagReadOnly=" + memberDiagForPackage +
+                " ads=" + adsForPackage + " privacy=" + privacyForPackage +
+                " mediaPrivacy=" + mediaHiddenForPackage +
+                " migratedPrivacy=" + migratedPrivacyForPackage +
+                " splash=" + target.splash + " feed=" + target.feed +
+                " overlay=" + target.overlay + " memberDiagReadOnly=" + memberDiagForPackage +
                 " sdk=" + Build.VERSION.SDK_INT);
     }
 
-    private String legacyBooleanDescriptor(String descriptor, String packageName) {
-        if (descriptor == null || !descriptor.startsWith("L")) return descriptor;
-        DeveloperExecutableDescriptor parsed = DeveloperExecutableDescriptor.parse(descriptor, packageName);
-        if (parsed == null || !parsed.parameterDescriptors.isEmpty()
-                || !"Z".equals(parsed.returnDescriptor) || "<init>".equals(parsed.name)) return descriptor;
-        return parsed.owner + "#" + parsed.name + "()Z";
-    }
-
-    /**
-     * Read-only method observer for explicitly opted-in debuggable packages.
-     * Logs signature, argument types, result type, duration and exception class only;
-     * argument values, tokens, credentials and returned data are never serialized.
-     */
-    private void installDeveloperObservationHook(ClassLoader loader, String packageName,
-            boolean debuggableBuild, String descriptor, String label) {
-        if (descriptor == null || !MemberTestGate.isEnabled(debuggableBuild,
-                targetDeveloperOptIn(packageName), packageName, packageName)) return;
-        DeveloperExecutableDescriptor parsed;
-        try {
-            String jvmDescriptor = descriptor;
-            if (!jvmDescriptor.startsWith("L")) {
-                int split = jvmDescriptor.indexOf('#');
-                if (split <= 0 || !jvmDescriptor.endsWith("()Z")) return;
-                jvmDescriptor = "L" + jvmDescriptor.substring(0, split).replace('.', '/')
-                        + ";->" + jvmDescriptor.substring(split + 1, jvmDescriptor.length() - 3) + "()Z";
-            }
-            parsed = DeveloperExecutableDescriptor.parse(jvmDescriptor, packageName);
-            if (parsed == null) return;
-            java.lang.reflect.Executable executable = parsed.resolve(loader);
-            if (executable == null || developerObservedExecutables.contains(executable)) return;
-            final String executableName = "<init>".equals(parsed.name) ? "<init>" : parsed.name;
-            final java.util.concurrent.atomic.AtomicLong hitCounter = new java.util.concurrent.atomic.AtomicLong();
-            hook(executable).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                    .intercept(chain -> {
-                        long started = System.nanoTime();
-                        long hits = hitCounter.incrementAndGet();
-                        StringBuilder argTypes = new StringBuilder();
-                        for (Object arg : chain.getArgs()) {
-                            if (argTypes.length() > 0) argTypes.append(',');
-                            argTypes.append(arg == null ? "null" : arg.getClass().getName());
-                        }
-                        try {
-                            Object result = chain.proceed();
-                            long elapsedMicros = (System.nanoTime() - started) / 1000L;
-                            if (hits <= 20L || hits % 100L == 0L) {
-                                logDeveloperObservation(Log.INFO, "dev-observe rule=" + label + " package=" + packageName
-                                        + " executable=" + executableName + " args=[" + argTypes
-                                        + "] resultType=" + (result == null ? "null" : result.getClass().getName())
-                                        + " instanceType=" + (chain.getThisObject() == null ? "null" : chain.getThisObject().getClass().getName())
-                                        + " durationUs=" + elapsedMicros + " hit=" + hits);
-                            }
-                            return result;
-                        } catch (Throwable failure) {
-                            long elapsedMicros = (System.nanoTime() - started) / 1000L;
-                            logDeveloperObservation(Log.WARN, "dev-observe exception rule=" + label + " package="
-                                    + packageName + " executable=" + executableName + " exception="
-                                    + failure.getClass().getName() + " durationUs=" + elapsedMicros);
-                            throw failure;
-                        }
-                    });
-            developerObservedExecutables.add(executable);
-            logFx(Log.INFO, "developer observer installed=" + label + " package=" + packageName
-                    + " descriptor=" + descriptor);
-        } catch (Throwable failure) {
-            logFx(Log.WARN, "developer observer failed open=" + label + " package=" + packageName
-                    + " reason=" + failure.getClass().getSimpleName());
+    private String readRemoteConfig(String name) throws Exception {
+        // openRemoteFile() creates a missing file. Check the directory first so an
+        // absent optional UI override is not turned into an empty file that makes
+        // the whole transactional config parse fail closed.
+        boolean present = false;
+        for (String remoteName : listRemoteFiles()) {
+            if (name.equals(remoteName)) { present = true; break; }
         }
-    }
-
-    /**
-     * Debug-only local UI test fixtures for an explicitly configured developer-owned package.
-     * The exact package must be debuggable; descriptors are exact zero-arg boolean methods.
-     * These fixtures are never enabled in release builds and are not an authorization credential.
-     */
-        private void logDeveloperObservation(int priority, String message) {
-        // Keep the framework module log and expose the same metadata-only event
-        // through logcat so the selected target's native monitor page can read it.
-        try { Log.println(priority, TAG, message); } catch (Throwable ignored) { }
-        logFx(priority, message);
-    }
-
-private boolean targetDeveloperOptIn(String packageName) {
-        UnifiedHookConfigParser.Target target = targets.get(packageName);
-        return target != null && target.developerHooksEnabled;
-    }
-
-    private void installDeveloperTypedReturnHook(ClassLoader loader, String packageName,
-            boolean debuggableBuild, String descriptor, DeveloperHookRule.Action action, String label) {
-        if (descriptor == null || !MemberTestGate.isEnabled(
-                debuggableBuild, targetDeveloperOptIn(packageName), packageName, packageName)) return;
-        try {
-            DeveloperExecutableDescriptor parsed =
-                    DeveloperExecutableDescriptor.parse(descriptor, packageName);
-            if (parsed == null || "<init>".equals(parsed.name)) return;
-            java.lang.reflect.Executable executable = parsed.resolve(loader);
-            if (!(executable instanceof Method)
-                    || developerTypedReturnHookedExecutables.contains(executable)) return;
-            final Object fixed;
-            switch (action) {
-                case RETURN_NULL:
-                    if (!(parsed.returnDescriptor.startsWith("L")
-                            || parsed.returnDescriptor.startsWith("["))) return;
-                    fixed = null;
-                    break;
-                case RETURN_ZERO:
-                    switch (parsed.returnDescriptor) {
-                        case "B": fixed = Byte.valueOf((byte) 0); break;
-                        case "C": fixed = Character.valueOf((char) 0); break;
-                        case "S": fixed = Short.valueOf((short) 0); break;
-                        case "I": fixed = Integer.valueOf(0); break;
-                        case "J": fixed = Long.valueOf(0L); break;
-                        case "F": fixed = Float.valueOf(0F); break;
-                        case "D": fixed = Double.valueOf(0D); break;
-                        default: return;
-                    }
-                    break;
-                case RETURN_EMPTY_STRING:
-                    if (!"Ljava/lang/String;".equals(parsed.returnDescriptor)) return;
-                    fixed = "";
-                    break;
-                default:
-                    return;
+        if (!present) throw new FileNotFoundException(name);
+        try (InputStream input = new ParcelFileDescriptor.AutoCloseInputStream(openRemoteFile(name));
+             InputStreamReader reader = new InputStreamReader(input, StandardCharsets.UTF_8.newDecoder()
+                     .onMalformedInput(CodingErrorAction.REPORT)
+                     .onUnmappableCharacter(CodingErrorAction.REPORT))) {
+            StringBuilder content = new StringBuilder(4096);
+            char[] chunk = new char[4096];
+            int count;
+            while ((count = reader.read(chunk, 0, chunk.length)) != -1) {
+                content.append(chunk, 0, count);
             }
-            final java.util.concurrent.atomic.AtomicLong hits = new java.util.concurrent.atomic.AtomicLong();
-            hook(executable).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                    .intercept(chain -> {
-                        long count = hits.incrementAndGet();
-                        if (count == 1L || count % 100L == 0L) {
-                            logFx(Log.INFO, "developer typed fixture hit=" + label
-                                    + " package=" + packageName + " count=" + count);
-                        }
-                        return fixed;
-                    });
-            developerTypedReturnHookedExecutables.add(executable);
-            logFx(Log.INFO, "developer typed fixture installed=" + label
-                    + " package=" + packageName + " method=" + parsed.name);
-        } catch (Throwable failure) {
-            logFx(Log.WARN, "developer typed fixture failed open=" + label
-                    + " package=" + packageName + " error=" + failure.getClass().getSimpleName());
+            return content.toString();
         }
-    }
-
-    /** Dia MethodActivity replacement, restricted to exact non-native void methods. */
-    private void installDeveloperVoidNoOpHook(ClassLoader loader, String packageName,
-            boolean debuggableBuild, String descriptor, String label) {
-        if (descriptor == null || !MemberTestGate.isEnabled(
-                debuggableBuild, targetDeveloperOptIn(packageName), packageName, packageName)) return;
-        try {
-            DeveloperExecutableDescriptor parsed = DeveloperExecutableDescriptor.parse(descriptor, packageName);
-            if (parsed == null || "<init>".equals(parsed.name) || !"V".equals(parsed.returnDescriptor)) return;
-            java.lang.reflect.Executable executable = parsed.resolve(loader);
-            if (!(executable instanceof Method)) return;
-            Method method = (Method) executable;
-            if (method.getReturnType() != void.class || Modifier.isAbstract(method.getModifiers())
-                    || Modifier.isNative(method.getModifiers())
-                    || !developerVoidNoOpHookedExecutables.add(executable)) return;
-            try {
-                final java.util.concurrent.atomic.AtomicLong hits = new java.util.concurrent.atomic.AtomicLong();
-                hook(executable).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                        .intercept(chain -> {
-                            long count = hits.incrementAndGet();
-                            if (count == 1L || count % 100L == 0L)
-                                logFx(Log.INFO, "developer void no-op hit=" + label + " package=" + packageName + " count=" + count);
-                            return null;
-                        });
-            } catch (Throwable hookFailure) {
-                developerVoidNoOpHookedExecutables.remove(executable);
-                throw hookFailure;
-            }
-            logFx(Log.INFO, "developer void no-op installed=" + label + " package=" + packageName + " method=" + method.getName());
-        } catch (Throwable failure) {
-            logFx(Log.WARN, "developer void no-op failed open=" + label + " package=" + packageName + " error=" + failure.getClass().getSimpleName());
-        }
-    }
-    /** Exact immutable constant return for opted-in debuggable target methods. */
-    private void installDeveloperLiteralReturnHook(ClassLoader loader, String packageName,
-            boolean debuggableBuild, String descriptor, String literalValue, String label) {
-        if (descriptor == null || literalValue == null || !MemberTestGate.isEnabled(
-                debuggableBuild, targetDeveloperOptIn(packageName), packageName, packageName)) return;
-        try {
-            DeveloperExecutableDescriptor parsed =
-                    DeveloperExecutableDescriptor.parse(descriptor, packageName);
-            if (parsed == null || "<init>".equals(parsed.name)) return;
-            java.lang.reflect.Executable executable = parsed.resolve(loader);
-            if (!(executable instanceof Method)
-                    || developerTypedReturnHookedExecutables.contains(executable)) return;
-            Object fixed = DeveloperHookRule.parseLiteralValue(parsed.returnDescriptor, literalValue);
-            if (fixed == null) return;
-            hook(executable).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                    .intercept(chain -> fixed);
-            developerTypedReturnHookedExecutables.add(executable);
-            logFx(Log.INFO, "developer literal fixture installed=" + label
-                    + " package=" + packageName + " method=" + parsed.name);
-        } catch (Throwable failure) {
-            logFx(Log.WARN, "developer literal fixture failed open=" + label
-                    + " package=" + packageName + " error=" + failure.getClass().getSimpleName());
-        }
-    }
-
-    /**
-     * Debug-only, type-exact passthrough hooks for developer-owned test builds.
-     * RETURN_ARGUMENT_0 returns the first argument only when its JVM descriptor
-     * exactly equals the method return descriptor. RETURN_THIS requires a
-     * non-static method whose declared return type accepts the receiver class.
-     */
-    private void installDeveloperPassthroughHook(ClassLoader loader, String packageName,
-            boolean debuggableBuild, String descriptor, DeveloperHookRule.Action action, String label) {
-        if (descriptor == null || (action != DeveloperHookRule.Action.RETURN_ARGUMENT_0
-                && action != DeveloperHookRule.Action.RETURN_THIS)
-                || !MemberTestGate.isEnabled(debuggableBuild,
-                        targetDeveloperOptIn(packageName), packageName, packageName)) return;
-        try {
-            DeveloperExecutableDescriptor parsed =
-                    DeveloperExecutableDescriptor.parse(descriptor, packageName);
-            if (parsed == null || "<init>".equals(parsed.name)) return;
-            java.lang.reflect.Executable executable = parsed.resolve(loader);
-            if (!(executable instanceof Method)) return;
-            Method method = (Method) executable;
-            if (Modifier.isAbstract(method.getModifiers()) || Modifier.isNative(method.getModifiers())) return;
-            Class<?>[] parameterTypes = method.getParameterTypes();
-            if (action == DeveloperHookRule.Action.RETURN_ARGUMENT_0) {
-                if (parameterTypes.length == 0 || method.getReturnType() == void.class
-                        || method.getReturnType() != parameterTypes[0]) return;
-            } else if (Modifier.isStatic(method.getModifiers())
-                    || !method.getReturnType().isAssignableFrom(method.getDeclaringClass())) {
-                return;
-            }
-            if (!developerPassthroughHookedExecutables.add(executable)) return;
-            try {
-                final java.util.concurrent.atomic.AtomicLong hits = new java.util.concurrent.atomic.AtomicLong();
-                hook(executable).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                        .intercept(chain -> {
-                            long count = hits.incrementAndGet();
-                            if (count == 1L || count % 100L == 0L) {
-                                logFx(Log.INFO, "developer passthrough hit=" + label + " package="
-                                        + packageName + " action=" + action + " count=" + count);
-                            }
-                            if (action == DeveloperHookRule.Action.RETURN_ARGUMENT_0) {
-                                java.util.List<Object> args = chain.getArgs();
-                                if (args == null || args.isEmpty()) {
-                                    throw new IllegalStateException("validated passthrough argument missing");
-                                }
-                                return args.get(0);
-                            }
-                            Object receiver = chain.getThisObject();
-                            if (receiver == null || !method.getReturnType().isInstance(receiver)) {
-                                throw new IllegalStateException("validated receiver is unavailable");
-                            }
-                            return receiver;
-                        });
-            } catch (Throwable hookFailure) {
-                developerPassthroughHookedExecutables.remove(executable);
-                throw hookFailure;
-            }
-            logFx(Log.INFO, "developer passthrough installed=" + label + " package="
-                    + packageName + " action=" + action + " method=" + method.getName());
-        } catch (Throwable failure) {
-            logFx(Log.WARN, "developer passthrough failed open=" + label + " package="
-                    + packageName + " error=" + failure.getClass().getSimpleName());
-        }
-    }
-
-    private void installDeveloperBooleanTestHook(ClassLoader loader, String packageName,
-            boolean debuggableBuild, String descriptor, boolean replacement, String label) {
-        installDeveloperBooleanTestHook(loader, packageName, debuggableBuild, descriptor,
-                replacement ? DeveloperHookRule.Action.RETURN_TRUE : DeveloperHookRule.Action.RETURN_FALSE, label);
-    }
-
-    private void installDeveloperBooleanTestHook(ClassLoader loader, String packageName,
-            boolean debuggableBuild, String descriptor, DeveloperHookRule.Action action, String label) {
-        if (descriptor == null || !MemberTestGate.isEnabled(debuggableBuild, targetDeveloperOptIn(packageName), packageName, packageName)) return;
-        Method method = DeveloperOwnedBooleanHook.resolve(loader, packageName, packageName,
-                debuggableBuild, true, descriptor);
-        if (method == null || developerTestHookedMethods.contains(method)) return;
-        try {
-            final java.util.concurrent.atomic.AtomicLong hitCounter = new java.util.concurrent.atomic.AtomicLong();
-            hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                    .intercept(chain -> {
-                        long hits = hitCounter.incrementAndGet();
-                        if (hits == 1L || hits % 100L == 0L) {
-                            logFx(Log.INFO, "developer Debug fixture hit=" + label
-                                    + " package=" + packageName + " count=" + hits);
-                        }
-                        if (action == DeveloperHookRule.Action.OBSERVE) return chain.proceed();
-                        return action == DeveloperHookRule.Action.RETURN_TRUE;
-                    });
-            developerTestHookedMethods.add(method);
-            logFx(Log.INFO, "developer Debug UI fixture installed=" + label
-                    + " package=" + packageName + " method=" + method.getName());
-        } catch (Throwable t) {
-            logFx(Log.WARN, "developer Debug UI fixture failed open=" + label
-                    + " package=" + packageName + " method=" + method.getName());
-        }
-    }
-
-    private boolean isMediaStoreUri(Object value) {
-        if (!(value instanceof Uri)) return false;
-        Uri first = (Uri) value;
-        if (!"content".equalsIgnoreCase(first.getScheme())) return false;
-        // Primary MediaStore authority first; the document and photo-picker
-        // providers serve the same media reads under their own authorities.
-        if ("media".equals(((Uri) first).getAuthority())) return true;
-        String authority = first.getAuthority();
-        return "com.android.providers.media.documents".equals(authority)
-                || "com.android.providers.media.photopicker".equals(authority)
-                || "com.android.providers.media.module".equals(authority);
-    }
-
-    private synchronized boolean installMediaStoreQueryBlockHooks(final String packageName) {
-        if (!mediaStoreQueryHookedMethods.isEmpty()) return true;
-        int installed = 0;
-        Set<String> readMethods = new HashSet<>(Arrays.asList(
-                "openInputStream", "openFileDescriptor", "openAssetFileDescriptor",
-                "openTypedAssetFileDescriptor", "loadThumbnail", "getType", "getStreamTypes"));
-        for (final Method method : ContentResolver.class.getDeclaredMethods()) {
-            final String name = method.getName();
-            final Class<?>[] params = method.getParameterTypes();
-            final boolean query = "query".equals(name) && method.getReturnType() == Cursor.class
-                    && params.length > 0 && Uri.class.isAssignableFrom(params[0]);
-            final boolean mediaRead = readMethods.contains(name)
-                    && params.length > 0 && Uri.class.isAssignableFrom(params[0]);
-            if (!query && !mediaRead || mediaStoreQueryHookedMethods.contains(method)) continue;
-            try {
-                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PASSTHROUGH).intercept(chain -> {
-                    if (processPackages.size() != 1 || !privacyEnabled) return chain.proceed();
-                    String activePackage = currentPackage;
-                    UnifiedHookConfigParser.Target active = targets.get(activePackage);
-                    if (active == null || !active.mediaStoreQueryBlock) return chain.proceed();
-                    Object[] args = chain.getArgs().toArray();
-                    if (args.length == 0 || !isMediaStoreUri(args[0])) return chain.proceed();
-
-                    if (query) {
-                        Object projection = args.length > 1 ? args[1] : null;
-                        String[] columns = projection instanceof String[] ? (String[]) projection : new String[0];
-                        return new MatrixCursor(columns);
-                    }
-
-                    // A read/write or write-only open remains available. The
-                    // setting is a media READ privacy control, not a write blocker.
-                    if (("openFileDescriptor".equals(name) || "openAssetFileDescriptor".equals(name))
-                            && args.length > 1 && args[1] instanceof String) {
-                        String mode = (String) args[1];
-                        if (mode.contains("w") || mode.contains("a")) return chain.proceed();
-                    }
-                    if ("getType".equals(name)) return null;
-                    if ("getStreamTypes".equals(name)) return new String[0];
-                    throw new SecurityException("MediaStore read disabled by FX Hook privacy setting");
-                });
-                mediaStoreQueryHookedMethods.add(method);
-                installed++;
-            } catch (Throwable error) {
-                logFx(Log.WARN, "MediaStore query/read hook failed open: " + method.toGenericString());
-            }
-        }
-        logFx(installed > 0 ? Log.INFO : Log.WARN,
-                "MediaStore query/read privacy hooks installed=" + installed + " package=" + packageName);
-        return installed > 0;
-    }
-
-    /**
-     * Explicitly deny location reads/updates for the selected app. This replaces
-     * legacy fake-coordinate/location spoofing with a permission-style denial.
-     * Shared processes and unknown targets fail open.
-     */
-    private void installLocationAccessBlockHooks(String packageName) {
-        synchronized (locationAccessHookedMethods) {
-            int installed = 0;
-            Set<String> blockedNames = new HashSet<>(Arrays.asList(
-                    // Direct position reads and active/single-shot location requests.
-                    "getLastKnownLocation", "getCurrentLocation",
-                    "requestLocationUpdates", "requestSingleUpdate",
-                    // GNSS and legacy GPS/NMEA callbacks expose position-derived data
-                    // even when an app never calls getLastKnownLocation().
-                    "registerGnssStatusCallback", "registerGnssMeasurementsCallback",
-                    "registerGnssNavigationMessageCallback", "addGpsStatusListener",
-                    "addNmeaListener", "addProximityAlert"));
-            for (Method method : LocationManager.class.getDeclaredMethods()) {
-                if (!blockedNames.contains(method.getName()) || locationAccessHookedMethods.contains(method)) continue;
-                try {
-                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PASSTHROUGH).intercept(chain -> {
-                        if (isLocationAccessBlockAuthorized()) {
-                            throw new SecurityException("Location access disabled by FX Hook privacy setting");
-                        }
-                        return chain.proceed();
-                    });
-                    locationAccessHookedMethods.add(method);
-                    installed++;
-                } catch (Throwable t) {
-                    logFx(Log.WARN, "location API hook failed; method remains unchanged: " + method.toGenericString());
-                }
-            }
-            logFx(installed > 0 ? Log.INFO : Log.WARN,
-                    "location access denial hooks installed=" + installed + " package=" + packageName);
-        }
-    }
-
-    private boolean isLocationAccessBlockAuthorized() {
-        if (!privacyEnabled || processPackages.size() != 1) return false;
-        String onlyPackage = processPackages.iterator().next();
-        UnifiedHookConfigParser.Target selected = targets.get(onlyPackage);
-        return selected != null && selected.locationAccessBlock;
-    }
-
-    /**
-     * Explicit per-app camera denial. Unlike the legacy cameraNull() spoof, this
-     * does not pretend camera hardware is absent: it rejects camera-open requests
-     * with a permission-style exception. Shared processes and unknown targets fail open.
-     */
-    private void installCameraAccessBlockHooks(String packageName) {
-        synchronized (cameraAccessHookedMethods) {
-            int installed = 0;
-            for (Method method : Camera.class.getDeclaredMethods()) {
-                if (!"open".equals(method.getName()) || !java.lang.reflect.Modifier.isStatic(method.getModifiers())
-                        || cameraAccessHookedMethods.contains(method)) continue;
-                try {
-                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PASSTHROUGH).intercept(chain -> {
-                        if (isCameraAccessBlockAuthorized()) {
-                            throw new SecurityException("Camera access disabled by FX Hook privacy setting");
-                        }
-                        return chain.proceed();
-                    });
-                    cameraAccessHookedMethods.add(method);
-                    installed++;
-                } catch (Throwable t) {
-                    logFx(Log.WARN, "legacy camera open hook failed; request remains unchanged: " + method.toGenericString());
-                }
-            }
-            try {
-                for (Method method : CameraManager.class.getDeclaredMethods()) {
-                    if (!"openCamera".equals(method.getName()) || cameraAccessHookedMethods.contains(method)) continue;
-                    try {
-                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PASSTHROUGH).intercept(chain -> {
-                            if (isCameraAccessBlockAuthorized()) {
-                                throw new SecurityException("Camera access disabled by FX Hook privacy setting");
-                            }
-                            return chain.proceed();
-                        });
-                        cameraAccessHookedMethods.add(method);
-                        installed++;
-                    } catch (Throwable t) {
-                        logFx(Log.WARN, "camera2 open hook failed; request remains unchanged: " + method.toGenericString());
-                    }
-                }
-            } catch (Throwable t) {
-                logFx(Log.DEBUG, "camera2 API unavailable on this Android version");
-            }
-            logFx(installed > 0 ? Log.INFO : Log.WARN,
-                    "camera access denial hooks installed=" + installed + " package=" + packageName);
-        }
-    }
-
-    private boolean isCameraAccessBlockAuthorized() {
-        if (!privacyEnabled || processPackages.size() != 1) return false;
-        String onlyPackage = processPackages.iterator().next();
-        UnifiedHookConfigParser.Target selected = targets.get(onlyPackage);
-        return selected != null && selected.cameraAccessBlock;
-    }
-
-    /**
-     * Explicit per-app microphone recording denial. This blocks capture start
-     * rather than fabricating audio samples or spoofing microphone hardware state.
-     * Existing microphoneSilence remains a separate post-read buffer policy.
-     */
-    private void installMicrophoneAccessBlockHooks(String packageName) {
-        synchronized (microphoneAccessHookedMethods) {
-            int installed = 0;
-            for (Method method : AudioRecord.class.getDeclaredMethods()) {
-                if (!"startRecording".equals(method.getName())
-                        || method.getReturnType() != void.class
-                        || microphoneAccessHookedMethods.contains(method)) continue;
-                try {
-                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PASSTHROUGH).intercept(chain -> {
-                        if (isMicrophoneAccessBlockAuthorized()) {
-                            throw new SecurityException("Microphone access disabled by FX Hook privacy setting");
-                        }
-                        return chain.proceed();
-                    });
-                    microphoneAccessHookedMethods.add(method);
-                    installed++;
-                } catch (Throwable t) {
-                    logFx(Log.WARN, "AudioRecord start hook failed; method remains unchanged: " + method.toGenericString());
-                }
-            }
-            for (Method method : MediaRecorder.class.getDeclaredMethods()) {
-                if (!"start".equals(method.getName()) || method.getParameterTypes().length != 0
-                        || microphoneAccessHookedMethods.contains(method)) continue;
-                try {
-                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PASSTHROUGH).intercept(chain -> {
-                        if (isMicrophoneAccessBlockAuthorized()) {
-                            throw new SecurityException("Microphone access disabled by FX Hook privacy setting");
-                        }
-                        return chain.proceed();
-                    });
-                    microphoneAccessHookedMethods.add(method);
-                    installed++;
-                } catch (Throwable t) {
-                    logFx(Log.WARN, "MediaRecorder start hook failed; method remains unchanged: " + method.toGenericString());
-                }
-            }
-            logFx(installed > 0 ? Log.INFO : Log.WARN,
-                    "microphone start denial hooks installed=" + installed + " package=" + packageName);
-        }
-    }
-
-    private boolean isMicrophoneAccessBlockAuthorized() {
-        if (!privacyEnabled || processPackages.size() != 1) return false;
-        String onlyPackage = processPackages.iterator().next();
-        UnifiedHookConfigParser.Target selected = targets.get(onlyPackage);
-        return selected != null && selected.microphoneAccessBlock;
-    }
-
-    private void installAudioRecordSilenceHooks(String packageName) {
-        synchronized (microphoneSilenceHookedMethods) {
-            int installedNow = 0;
-            int failedNow = 0;
-            for (Method method : AudioRecord.class.getDeclaredMethods()) {
-                if (!"read".equals(method.getName()) || method.getReturnType() != int.class
-                        || method.getParameterTypes().length == 0
-                        || !AudioRecordSilencePolicy.supports(method.getParameterTypes()[0])
-                        || microphoneSilenceHookedMethods.contains(method)) continue;
-                try {
-                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
-                        if (!isMicrophoneSilenceAuthorized()) return chain.proceed();
-                        Object[] args = chain.getArgs().toArray();
-                        int bufferStart = 0;
-                        if (args.length > 0 && args[0] instanceof java.nio.ByteBuffer) {
-                            bufferStart = ((java.nio.ByteBuffer) args[0]).position();
-                        }
-                        Object result = chain.proceed();
-                        if (result instanceof Integer && ((Integer) result) > 0) {
-                            AudioRecordSilencePolicy.zero(args, (Integer) result, bufferStart);
-                        }
-                        return result;
-                    });
-                    microphoneSilenceHookedMethods.add(method);
-                    installedNow++;
-                } catch (Throwable t) {
-                    failedNow++;
-                    logFx(Log.WARN, "AudioRecord overload hook failed; this overload remains unchanged: "
-                            + method.toGenericString() + " (" + t + ")");
-                }
-            }
-            if (installedNow > 0 || failedNow > 0) {
-                logFx(failedNow == 0 ? Log.INFO : Log.WARN,
-                        "AudioRecord read hooks: newlyInstalled=" + installedNow
-                                + " failed=" + failedNow + " total=" + microphoneSilenceHookedMethods.size()
-                                + " package=" + packageName);
-            }
-        }
-    }
-
-    private boolean isMicrophoneSilenceAuthorized() {
-        if (!privacyEnabled || processPackages.size() != 1) return false;
-        String onlyPackage = processPackages.iterator().next();
-        UnifiedHookConfigParser.Target selected = targets.get(onlyPackage);
-        return selected != null && selected.microphoneSilence;
     }
 
     private boolean loadConfig() {
@@ -1000,48 +401,51 @@ private boolean targetDeveloperOptIn(String packageName) {
         targets.clear();
         adsEnabled = false;
         privacyEnabled = false;
-        wifiScanEnabled = false;
-        notificationListenEnabled = false;
-        notificationPermissionHideEnabled = false;
-        clipboardIsolationEnabled = false;
+        systemServicesEnabled = false;
+        hiddenSystemServices = Collections.emptySet();
+        pmQueryEnabled = false;
+        appListEnabled = false;
+        appListMode = "custom";
+        hiddenApps = Collections.emptySet();
+        keptApps = Collections.emptySet();
         try {
-            // LSPosed's openRemoteFile may create a missing file; check first.
-            if (!Arrays.asList(listRemoteFiles()).contains(CONFIG_NAME)) {
-                logFx(Log.WARN, "Remote Files config is missing: " + CONFIG_NAME);
-                return false;
+            // Root-generated config remains the master policy. FXhook writes a
+            // separate UI override file so a later FX apply cannot erase app choices.
+            UnifiedHookConfigParser.Result base = UnifiedHookConfigParser.parse(readRemoteConfig(CONFIG_NAME));
+            adsEnabled = base.adsEnabled;
+            privacyEnabled = base.privacyEnabled;
+            systemServicesEnabled = base.systemServicesEnabled;
+            hiddenSystemServices = base.hiddenSystemServices;
+            pmQueryEnabled = base.pmQueryEnabled;
+            appListEnabled = base.appListEnabled;
+            appListMode = base.appListMode;
+            hiddenApps = base.hiddenApps;
+            keptApps = base.keptApps;
+            targets.putAll(base.targets);
+
+            try {
+                UnifiedHookConfigParser.Result ui = UnifiedHookConfigParser.parse(readRemoteConfig(UI_CONFIG_NAME));
+                // UI master switches can narrow the root policy, never override a
+                // master switch disabled by the FX KernelSU module.
+                adsEnabled = adsEnabled && ui.adsEnabled;
+                privacyEnabled = privacyEnabled && ui.privacyEnabled;
+                targets.putAll(ui.targets);
+                logFx(Log.INFO, "FXhook UI override loaded; app targets=" + ui.targets.size());
+            } catch (FileNotFoundException absent) {
+                logFx(Log.INFO, "FXhook UI override not present; using root-generated target config");
             }
-        } catch (Throwable listingFailure) {
-            logFx(Log.WARN, "Remote Files listing failed; optional per-app policies remain disabled (" +
-                    listingFailure.getClass().getSimpleName() + ")");
-            return false;
-        }
-        try (InputStream input = new ParcelFileDescriptor.AutoCloseInputStream(openRemoteFile(CONFIG_NAME));
-             InputStreamReader reader = new InputStreamReader(input,
-                     StandardCharsets.UTF_8.newDecoder()
-                             .onMalformedInput(CodingErrorAction.REPORT)
-                             .onUnmappableCharacter(CodingErrorAction.REPORT))) {
-            StringBuilder content = new StringBuilder(4096);
-            char[] chunk = new char[8192];
-            int count;
-            while ((count = reader.read(chunk, 0, chunk.length)) != -1) {
-                content.append(chunk, 0, count);
-            }
-            UnifiedHookConfigParser.Result parsed = UnifiedHookConfigParser.parse(content.toString());
-            // The legacy Ad master/category switches were removed from the UI.
-            // A valid published FX config now enables the built-in classifier; the
-            // parsed legacy bit is retained only for schema compatibility.
-            adsEnabled = true;
-            privacyEnabled = parsed.privacyEnabled;
-            wifiScanEnabled = parsed.wifiScanEnabled;
-            notificationListenEnabled = parsed.notificationListenEnabled;
-            notificationPermissionHideEnabled = parsed.notificationPermissionHideEnabled;
-            clipboardIsolationEnabled = parsed.clipboardIsolationEnabled;
-            targets.putAll(parsed.targets);
             return true;
         } catch (Throwable t) {
             targets.clear();
             adsEnabled = false;
             privacyEnabled = false;
+            systemServicesEnabled = false;
+            hiddenSystemServices = Collections.emptySet();
+            pmQueryEnabled = false;
+            appListEnabled = false;
+            appListMode = "custom";
+            hiddenApps = Collections.emptySet();
+            keptApps = Collections.emptySet();
             logFx(Log.WARN, "remote config rejected; no hooks enabled (" +
                     t.getClass().getSimpleName() + ")");
             return false;
@@ -1049,249 +453,1510 @@ private boolean targetDeveloperOptIn(String packageName) {
     }
 
     /**
-     * First migrated privacy hook: provide a stable, app-specific Android ID.
-     * It is opt-in per package and only intercepts Settings.Secure.ANDROID_ID.
-     * All other secure settings and all other identifier APIs remain untouched.
+     * Per-app privacy bundle. The Android ID and selected device identifiers are
+     * app-scoped; advertising ID, clipboard, Wi-Fi scan, media store, sensor and location
+     * privacy hooks run only in opted-in target processes. Root/VPN/Hook/region detection
+     * suppression and device-profile spoofing are not activated by this runtime.
      */
     /**
-     * Opt-in read-time EXIF redaction. This does not rewrite image files or mutate
-     * exports; it only redacts selected metadata returned by ExifInterface getters.
+     * Settings.Secure.getString is process-global. Register one interceptor per
+     * process and resolve the selected package at call time, avoiding stacked
+     * transforms when LSPosed reports multiple packages in one process.
      */
-    private void installExifStripHooks(ClassLoader loader, String pkg) {
+    private synchronized boolean installPrivacyIdentifierHook() {
+        if (privacyIdentifierHookInstalled) return true;
+        try {
+            Method getString = Settings.Secure.class.getDeclaredMethod(
+                    "getString", ContentResolver.class, String.class);
+            hook(getString).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                Object key = chain.getArgs().size() > 1 ? chain.getArgs().get(1) : null;
+                Object original = chain.proceed();
+                if (!Settings.Secure.ANDROID_ID.equals(key) || !(original instanceof String)) {
+                    return original;
+                }
+                String activePackage = currentPackage;
+                UnifiedHookConfigParser.Target activeTarget = targets.get(activePackage);
+                if (!privacyEnabled || activeTarget == null || !activeTarget.privacy ||
+                        NEVER.contains(activePackage)) return original;
+                try {
+                    return PrivacyIdentifier.forPackage(activePackage, (String) original);
+                } catch (Throwable t) {
+                    logFx(Log.WARN, "Android ID privacy transform fallback for " + activePackage);
+                    return original;
+                }
+            });
+            privacyIdentifierHookInstalled = true;
+            logFx(Log.INFO, "process-scoped Android ID privacy hook installed");
+            return true;
+        } catch (Throwable t) {
+            logFx(Log.WARN, "Android ID privacy hook unavailable: " + t.getClass().getSimpleName());
+            return false;
+        }
+    }
+
+    /** Install supported, user-selected privacy protections for this package. */
+    private void installPrivacyIdentifierHooks(final String pkg, final ClassLoader loader) {
+        installDeviceIdentifierHidingHooks(pkg);
+        installAdvertisingIdIsolationHooks(pkg, loader);
+        installClipboardPrivacyHooks(pkg);
+        installWifiScanPrivacyHooks(pkg);
+        installMediaStorePrivacyHooks(pkg);
+        installSensorPrivacyHooks(pkg);
+        installLocationPrivacyHooks(pkg);
+    }
+
+
+    /** Hide common hardware/subscriber identifiers inside the selected app process. */
+    private void installDeviceIdentifierHidingHooks(final String pkg) {
         int installed = 0;
-        for (String className : new String[]{
-                "android.media.ExifInterface",
-                "androidx.exifinterface.media.ExifInterface"}) {
-            try {
-                Class<?> type = Class.forName(className, false, loader);
-                Method attribute = type.getMethod("getAttribute", String.class);
-                hook(attribute).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                        .intercept(chain -> {
-                            Object key = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
-                            Object original = chain.proceed();
-                            return key instanceof String && ExifPrivacyPolicy.shouldRedactTag((String) key)
-                                    ? null : original;
-                        });
-                installed++;
+        final Set<String> telephonyIdentifiers = new HashSet<>(Arrays.asList(
+                "getDeviceId", "getImei", "getMeid", "getNai", "getSubscriberId",
+                "getSimSerialNumber", "getIccSerialNumber", "getLine1Number",
+                "getMsisdn", "getGroupIdLevel1", "getVoiceMailNumber"));
+        try {
+            for (Method method : TelephonyManager.class.getDeclaredMethods()) {
+                if (!telephonyIdentifiers.contains(method.getName()) || method.getReturnType() != String.class) continue;
                 try {
-                    Method attributeDouble = type.getMethod("getAttributeDouble", String.class, double.class);
-                    hook(attributeDouble).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                            .intercept(chain -> {
-                                Object key = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
-                                Object fallback = chain.getArgs().size() > 1 ? chain.getArgs().get(1) : null;
-                                Object original = chain.proceed();
-                                if (key instanceof String && ExifPrivacyPolicy.isGpsTag((String) key)
-                                        && fallback instanceof Number) {
-                                    return ((Number) fallback).doubleValue();
-                                }
-                                return original;
-                            });
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> "");
                     installed++;
-                } catch (Throwable t) {
-                    logFx(Log.DEBUG, "EXIF double getter unavailable for " + className);
-                }
-                try {
-                    Method latLong = type.getMethod("getLatLong", float[].class);
-                    hook(latLong).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                            .intercept(chain -> Boolean.FALSE);
-                    installed++;
-                } catch (Throwable t) {
-                    logFx(Log.DEBUG, "EXIF getLatLong unavailable for " + className);
-                }
-                try {
-                    Method altitude = type.getMethod("getAltitude", double.class);
-                    hook(altitude).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                            .intercept(chain -> {
-                                Object fallback = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
-                                return fallback instanceof Number ? ((Number) fallback).doubleValue() : 0.0d;
-                            });
-                    installed++;
-                } catch (Throwable t) {
-                    logFx(Log.DEBUG, "EXIF getAltitude unavailable for " + className);
-                }
-            } catch (Throwable t) {
-                logFx(Log.DEBUG, "EXIF API unavailable for " + className);
+                } catch (Throwable ignored) {}
             }
+        } catch (Throwable t) {
+            logFx(Log.WARN, "telephony identifier hiding hooks unavailable for " + pkg);
+        }
+        try {
+            for (Method method : TelephonyManager.class.getDeclaredMethods()) {
+                String name = method.getName();
+                if (!("getAllCellInfo".equals(name) || "getNeighboringCellInfo".equals(name)) ||
+                        !List.class.isAssignableFrom(method.getReturnType())) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain ->
+                                shouldBlockWifiScanNow() ? Collections.emptyList() : chain.proceed());
+                    installed++;
+                } catch (Throwable ignored) {}
+            }
+            for (Method method : TelephonyManager.class.getDeclaredMethods()) {
+                if (!"getCellLocation".equals(method.getName())) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> null);
+                    installed++;
+                } catch (Throwable ignored) {}
+            }
+        } catch (Throwable t) {
+            logFx(Log.DEBUG, "cell information privacy hooks unavailable for " + pkg);
+        }
+        try {
+            // Legacy apps may read the static Build.SERIAL field rather than call
+            // Build.getSerial(); attempt the same process-local field masking path.
+            java.lang.reflect.Field serialField = Build.class.getDeclaredField("SERIAL");
+            serialField.setAccessible(true);
+            serialField.set(null, "UNKNOWN");
+            installed++;
+        } catch (Throwable t) {
+            logFx(Log.DEBUG, "Build.SERIAL field hiding unavailable for " + pkg);
+        }
+        try {
+            // Migrate the legacy serial/baseband privacy paths into the unified
+            // per-app privacy runtime. Both APIs expose stable device identifiers.
+            for (Method method : Build.class.getDeclaredMethods()) {
+                String name = method.getName();
+                if (method.getParameterTypes().length != 0 || method.getReturnType() != String.class ||
+                        !("getSerial".equals(name) || "getRadioVersion".equals(name))) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> "UNKNOWN");
+                    installed++;
+                } catch (Throwable ignored) {}
+            }
+        } catch (Throwable t) {
+            logFx(Log.DEBUG, "Build serial/baseband privacy hooks unavailable for " + pkg);
+        }
+        try {
+            for (Method method : WifiInfo.class.getDeclaredMethods()) {
+                String name = method.getName();
+                if (method.getParameterTypes().length != 0 || method.getReturnType() != String.class ||
+                        !("getMacAddress".equals(name) || "getBSSID".equals(name) || "getSSID".equals(name))) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                        if ("getSSID".equals(name)) return "<unknown ssid>";
+                        if ("getBSSID".equals(name) || "getMacAddress".equals(name)) return "02:00:00:00:00:00";
+                        return "";
+                    });
+                    installed++;
+                } catch (Throwable ignored) {}
+            }
+        } catch (Throwable t) {
+            logFx(Log.WARN, "Wi-Fi identifier hiding hooks unavailable for " + pkg);
+        }
+        // Bluetooth address is another stable hardware identifier. Keep this
+        // scoped to the selected app process and the privacy master switch.
+        try {
+            for (Method method : BluetoothAdapter.class.getDeclaredMethods()) {
+                if (!"getAddress".equals(method.getName()) ||
+                        method.getParameterTypes().length != 0 ||
+                        method.getReturnType() != String.class) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> "02:00:00:00:00:00");
+                    installed++;
+                } catch (Throwable ignored) {}
+            }
+        } catch (Throwable t) {
+            logFx(Log.DEBUG, "Bluetooth identifier hiding hooks unavailable for " + pkg);
         }
         logFx(installed > 0 ? Log.INFO : Log.WARN,
-                "read-time EXIF privacy redaction installed=" + installed + " for " + pkg);
+                "device identifier privacy hooks installed=" + installed + " package=" + pkg);
+    }
+
+    /** Install package-scoped advertising-ID unification while preserving platform opt-outs. */
+    private void installAdvertisingIdIsolationHooks(final String pkg, final ClassLoader loader) {
+        if (loader == null || pkg == null || pkg.isEmpty()) return;
+        int installed = 0;
+        String[] classes = {
+                "com.google.android.gms.ads.identifier.AdvertisingIdClient$Info",
+                "com.huawei.hms.ads.identifier.AdvertisingIdClient"
+        };
+        for (String className : classes) {
+            try {
+                Class<?> type = Class.forName(className, false, loader);
+                for (Method method : type.getDeclaredMethods()) {
+                    String name = method.getName();
+                    if (method.getReturnType() != String.class ||
+                            !("getId".equals(name) || "getAdvertisingId".equals(name) || "getOaid".equals(name))) continue;
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                            Object original = chain.proceed();
+                            if (!(original instanceof String)) return original;
+                            String originalId = (String) original;
+                            if (originalId.isEmpty() ||
+                                    "00000000-0000-0000-0000-000000000000".equalsIgnoreCase(originalId)) return original;
+                            if (!isPrivacyTargetEnabled(pkg, true)) return original;
+                            String replacement = PrivacyIdentifier.forAdvertisingId(pkg);
+                            return replacement == null ? original : replacement;
+                        });
+                        installed++;
+                    } catch (Throwable ignored) {}
+                }
+            } catch (Throwable ignored) {
+                // Optional SDKs are absent on many apps; absence must not affect startup.
+            }
+        }
+        logFx(installed > 0 ? Log.INFO : Log.DEBUG,
+                "advertising identifier isolation hooks installed=" + installed + " package=" + pkg);
+    }
+
+    private boolean isPrivacyTargetEnabled(String packageName, boolean featureEnabled) {
+        if (!privacyEnabled || packageName == null || packageName.isEmpty()
+                || processPackages.size() != 1 || !processPackages.contains(packageName)) return false;
+        UnifiedHookConfigParser.Target active = targets.get(packageName);
+        return active != null && featureEnabled;
+    }
+
+    /** Classes already seen for this package by the read-only discovery pass. */
+    private java.util.List<Class<?>> discoveredMemberClasses(String pkg, ClassLoader loader) {
+        java.util.List<Class<?>> owners = new java.util.ArrayList<>();
+        if (pkg == null) return owners;
+        for (String className : memberClassesInspected) {
+            if (owners.size() >= MAX_DYNAMIC_MEMBER_CLASSES) break;
+            if (!className.startsWith(pkg + ".")) continue;
+            try {
+                owners.add(Class.forName(className, false,
+                        loader == null ? getClass().getClassLoader() : loader));
+            } catch (Throwable ignored) {}
+        }
+        return owners;
+    }
+
+    /** Real location injection for the active target. */
+    private boolean shouldInjectLocationNow() {
+        String activePackage = currentPackage;
+        if (activePackage == null) return false;
+        UnifiedHookConfigParser.Target active = targets.get(activePackage);
+        return LocationInjectionPolicy.shouldInjectLocation(privacyEnabled,
+                processPackages.size(), activePackage, active)
+                && processPackages.contains(activePackage);
+    }
+
+    /** Build the fix for the active target, or null when injection does not apply. */
+    private Location injectedFixNow(String provider) {
+        String activePackage = currentPackage;
+        if (activePackage == null) return null;
+        UnifiedHookConfigParser.Target active = targets.get(activePackage);
+        if (!LocationInjectionPolicy.shouldInjectLocation(privacyEnabled,
+                processPackages.size(), activePackage, active)) return null;
+        return LocationInjectionPolicy.buildFix(active, provider);
+    }
+
+    /** Real premium unlocking for the active target. */
+    private boolean shouldUnlockVipNow() {
+        String activePackage = currentPackage;
+        if (activePackage == null) return false;
+        UnifiedHookConfigParser.Target active = targets.get(activePackage);
+        return VipUnlockPolicy.shouldUnlockVip(privacyEnabled, processPackages.size(),
+                activePackage, active) && processPackages.contains(activePackage);
+    }
+
+    /** Region compatibility observation (read-only diagnostics, single opt-in target). */
+    private boolean shouldObserveRegionNow() {
+        String activePackage = currentPackage;
+        if (activePackage == null) return false;
+        UnifiedHookConfigParser.Target active = targets.get(activePackage);
+        return RegionCompatibilityPolicy.shouldObserveRegion(processPackages.size(),
+                activePackage, active) && processPackages.contains(activePackage);
+    }
+
+    private boolean shouldHideUsageStatsNow() {
+        return policyGate((pkg, target) -> SystemSurfacePrivacyPolicy.shouldHideUsageStats(
+                privacyEnabled, processPackages.size(), pkg, target));
+    }
+
+    private boolean shouldHideA11yServicesNow() {
+        return policyGate((pkg, target) -> SystemSurfacePrivacyPolicy.shouldHideAccessibilityServices(
+                privacyEnabled, processPackages.size(), pkg, target));
+    }
+
+    private boolean shouldHideInputMethodsNow() {
+        return policyGate((pkg, target) -> InputMethodPrivacyPolicy.shouldHideInputMethods(
+                privacyEnabled, processPackages.size(), pkg, target));
+    }
+
+    private boolean shouldHideFingerprintNow() {
+        return policyGate((pkg, target) -> BiometricPrivacyPolicy.shouldHideFingerprint(
+                privacyEnabled, processPackages.size(), pkg, target));
+    }
+
+    private boolean shouldHideFaceNow() {
+        return policyGate((pkg, target) -> BiometricPrivacyPolicy.shouldHideFace(
+                privacyEnabled, processPackages.size(), pkg, target));
+    }
+
+    private boolean shouldHideCameraIdsNow() {
+        return policyGate((pkg, target) -> CameraPrivacyPolicy.shouldHideCameraIds(
+                privacyEnabled, processPackages.size(), pkg, target));
+    }
+
+    private boolean shouldPerturbAudioNow() {
+        return policyGate((pkg, target) -> AudioFingerprintPolicy.shouldPerturbSamples(
+                privacyEnabled, processPackages.size(), pkg, target));
+    }
+
+    private boolean shouldSilenceMicNow() {
+        return policyGate((pkg, target) -> AudioPrivacyPolicy.shouldSilenceAudioRecord(
+                privacyEnabled, processPackages.size(), pkg, target));
+    }
+
+    private boolean shouldHideMicHardwareNow() {
+        return policyGate((pkg, target) -> MicrophoneHardwarePrivacyPolicy.shouldHideInputDevices(
+                privacyEnabled, processPackages.size(), pkg, target));
+    }
+
+    private boolean shouldHideWifiScanNow() {
+        return policyGate((pkg, target) -> RadioPrivacyPolicy.shouldHideWifiScan(
+                privacyEnabled, processPackages.size(), pkg, target));
+    }
+
+    private boolean shouldHideCellInfoNow() {
+        return policyGate((pkg, target) -> RadioPrivacyPolicy.shouldHideCellInfo(
+                privacyEnabled, processPackages.size(), pkg, target));
+    }
+
+    private boolean shouldDisablePassiveLocationNow() {
+        return policyGate((pkg, target) -> LocationPrivacyPolicy.shouldHideLastKnownLocation(
+                privacyEnabled, processPackages.size(), pkg, target));
+    }
+
+    /** Resolve the active target once and let the policy decide for it. */
+    private boolean policyGate(java.util.function.BiPredicate<String,
+            UnifiedHookConfigParser.Target> policy) {
+        String activePackage = currentPackage;
+        if (activePackage == null) return false;
+        if (!processPackages.contains(activePackage)) return false;
+        return policy.test(activePackage, targets.get(activePackage));
+    }
+
+    /** State anti-fraud collection blocking for the active target. */
+    private boolean shouldBlockAntiFraudNow(AntiFraudBlockPolicy.Surface surface) {
+        String activePackage = currentPackage;
+        if (activePackage == null) return false;
+        if (!processPackages.contains(activePackage)) return false;
+        return AntiFraudBlockPolicy.shouldBlockSurface(privacyEnabled, processPackages.size(),
+                activePackage, targets.get(activePackage), surface);
+    }
+
+    /** Carrier-side collection blocking for the active target. */
+    private boolean shouldBlockCarrierNow(CarrierCollectionBlockPolicy.Surface surface) {
+        String activePackage = currentPackage;
+        if (activePackage == null) return false;
+        if (!processPackages.contains(activePackage)) return false;
+        return CarrierCollectionBlockPolicy.shouldBlockSurface(privacyEnabled,
+                processPackages.size(), activePackage, targets.get(activePackage), surface);
+    }
+
+    /** Public-security reconnaissance blocking for the active target. */
+    private boolean shouldBlockPoliceReconNow(PoliceReconBlockPolicy.Surface surface) {
+        String activePackage = currentPackage;
+        if (activePackage == null) return false;
+        if (!processPackages.contains(activePackage)) return false;
+        return PoliceReconBlockPolicy.shouldBlockSurface(privacyEnabled, processPackages.size(),
+                activePackage, targets.get(activePackage), surface);
+    }
+
+    /** VPN-detection suppression for the active target process. */
+    private boolean shouldHideVpnDetectionNow() {
+        String activePackage = currentPackage;
+        if (activePackage == null) return false;
+        UnifiedHookConfigParser.Target active = targets.get(activePackage);
+        return VpnDetectionPolicy.shouldHideVpnDetection(privacyEnabled,
+                processPackages.size(), activePackage, active)
+                && processPackages.contains(activePackage);
+    }
+
+    /** Report "already current" for in-app update checks. */
+    private boolean shouldBlockAppUpdateNow() {
+        String activePackage = currentPackage;
+        if (activePackage == null) return false;
+        UnifiedHookConfigParser.Target active = targets.get(activePackage);
+        return AppUpdatePolicy.shouldReportUpToDate(privacyEnabled,
+                processPackages.size(), activePackage, active)
+                && processPackages.contains(activePackage);
+    }
+
+    /** Version string to report instead of the installed one, or null. */
+    private String reportedAppVersionNow() {
+        String activePackage = currentPackage;
+        if (activePackage == null) return null;
+        UnifiedHookConfigParser.Target active = targets.get(activePackage);
+        if (!processPackages.contains(activePackage)) return null;
+        return AppUpdatePolicy.resolveReportedVersion(privacyEnabled,
+                processPackages.size(), activePackage, active);
+    }
+
+    /** Simulated entitlement label to report, or null when the gate is closed. */
+    private String reportedEntitlementNow() {
+        String activePackage = currentPackage;
+        if (activePackage == null) return null;
+        UnifiedHookConfigParser.Target active = targets.get(activePackage);
+        if (!processPackages.contains(activePackage)) return null;
+        return VipEntitlementPolicy.resolveReportedState(privacyEnabled,
+                processPackages.size(), activePackage, active);
+    }
+
+    private boolean shouldBlockWifiScanNow() {
+        return policyGate((pkg, target) -> WifiScanPrivacyPolicy.shouldBlock(privacyEnabled,
+                processPackages.size(), pkg, target));
+    }
+
+    private boolean shouldBlockMediaStoreQueryNow() {
+        return policyGate((pkg, target) -> MediaStorePrivacyPolicy.shouldBlockMediaStore(
+                privacyEnabled, processPackages.size(), pkg, target, "content", "media"));
+    }
+
+    private boolean shouldBlockLocationNow() {
+        return policyGate((pkg, target) -> LocationPrivacyPolicy.shouldHideLastKnownLocation(
+                privacyEnabled, processPackages.size(), pkg, target)
+                || (privacyEnabled && target != null && target.locationAccessBlock
+                && processPackages.contains(pkg)));
+    }
+
+    /** Hide Wi-Fi scan data that can be used for location inference in the selected app. */
+    private void installWifiScanPrivacyHooks(final String pkg) {
+        int installed = 0;
+        try {
+            for (Method method : WifiManager.class.getDeclaredMethods()) {
+                String name = method.getName();
+                if (("getScanResults".equals(name) || "getConfiguredNetworks".equals(name)) &&
+                        List.class.isAssignableFrom(method.getReturnType())) {
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain ->
+                                shouldBlockWifiScanNow() ? Collections.emptyList() : chain.proceed());
+                        installed++;
+                    } catch (Throwable ignored) {}
+                } else if ("startScan".equals(name) &&
+                        (method.getReturnType() == boolean.class || method.getReturnType() == Boolean.class)) {
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain ->
+                                shouldBlockWifiScanNow() ? false : chain.proceed());
+                        installed++;
+                    } catch (Throwable ignored) {}
+                } else if ("isScanAlwaysAvailable".equals(name) &&
+                        (method.getReturnType() == boolean.class || method.getReturnType() == Boolean.class)) {
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain ->
+                                shouldBlockWifiScanNow() ? false : chain.proceed());
+                        installed++;
+                    } catch (Throwable ignored) {}
+                }
+            }
+        } catch (Throwable t) {
+            logFx(Log.WARN, "Wi-Fi scan privacy hooks unavailable for " + pkg);
+        }
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "Wi-Fi scan privacy hooks installed=" + installed + " package=" + pkg);
     }
 
     /**
-     * Opt-in per-app sensor enumeration redaction. The framework class is resolved
-     * from the boot class loader; unknown APIs and hook failures leave original results
-     * untouched. Shared-package processes fail open.
+     * Suppress VPN detection for one opted-in target.
+     *
+     * Hooks the read-only observation surface only: NetworkCapabilities transport
+     * queries, ConnectivityManager's NetworkInfo lookups and NetworkInterface's link
+     * enumeration. The tunnel itself is never stopped, renamed or rerouted, and other
+     * processes keep the真实 state.
      */
-    private synchronized boolean installSensorEnumerationHooks(final String pkg) {
-        if (sensorHooksInstalled) return true;
+    private void installVpnDetectionPrivacyHooks(final String pkg) {
         int installed = 0;
-        try {
-            Class<?> type = Class.forName("android.hardware.SensorManager", false, null);
-            for (final Method method : type.getDeclaredMethods()) {
-                final String name = method.getName();
-                Class<?>[] parameters = method.getParameterTypes();
-                if ("registerListener".equals(name) && parameters.length >= 3
-                        && "android.hardware.Sensor".equals(parameters[1].getName())
-                        && parameters[2] == int.class) {
-                    try {
-                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                                .intercept(chain -> {
-                                    String activePackage = currentPackage;
-                                    UnifiedHookConfigParser.Target active = targets.get(activePackage);
-                                    java.util.List<Object> args = new java.util.ArrayList<>(chain.getArgs());
-                                    Object sensor = args.size() > 1 ? args.get(1) : null;
-                                    if (sensor != null) {
-                                        try {
-                                            Object sensorType = sensor.getClass().getMethod("getType").invoke(sensor);
-                                            if (sensorType instanceof Integer && SensorPrivacyPolicy.shouldHide(
-                                                    privacyEnabled, processPackages.size(), activePackage, active,
-                                                    ((Integer) sensorType).intValue())) {
-                                                return method.getReturnType() == boolean.class
-                                                        ? Boolean.FALSE : null;
-                                            }
-                                        } catch (Throwable ignored) {
-                                            // Unrecognized OEM sensor handles remain usable.
-                                        }
-                                    }
-                                    if (!SensorPrivacyPolicy.shouldClampRate(privacyEnabled, processPackages.size(),
-                                            activePackage, active)) return chain.proceed();
-                                    Object period = args.size() > 2 ? args.get(2) : null;
-                                    if (!(period instanceof Integer)) return chain.proceed();
-                                    int originalPeriod = ((Integer) period).intValue();
-                                    int clamped = SensorPrivacyPolicy.clampSamplingPeriodUs(originalPeriod);
-                                    if (clamped == originalPeriod) return chain.proceed();
-                                    args.set(2, Integer.valueOf(clamped));
-                                    return chain.proceed(args.toArray());
-                                });
-                        installed++;
-                    } catch (Throwable t) {
-                        logFx(Log.DEBUG, "sensor rate hook unavailable: " + method.toGenericString());
-                    }
-                    continue;
-                }
-                if ("requestTriggerSensor".equals(name) && parameters.length >= 2
-                        && "android.hardware.Sensor".equals(parameters[1].getName())) {
-                    try {
-                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                                .intercept(chain -> {
-                                    Object sensor = chain.getArgs().size() > 1 ? chain.getArgs().get(1) : null;
-                                    if (sensor != null) {
-                                        try {
-                                            Object sensorType = sensor.getClass().getMethod("getType").invoke(sensor);
-                                            if (sensorType instanceof Integer && SensorPrivacyPolicy.shouldHide(
-                                                    privacyEnabled, processPackages.size(), currentPackage,
-                                                    targets.get(currentPackage), ((Integer) sensorType).intValue())) {
-                                                return Boolean.FALSE;
-                                            }
-                                        } catch (Throwable ignored) {
-                                            // Unknown / OEM sensor handles remain available.
-                                        }
-                                    }
-                                    return chain.proceed();
-                                });
-                        installed++;
-                    } catch (Throwable t) {
-                        logFx(Log.DEBUG, "trigger sensor hook unavailable: " + method.toGenericString());
-                    }
-                    continue;
-                }
-                if (!("getSensorList".equals(name) || "getDefaultSensor".equals(name)
-                        || "getDynamicSensorList".equals(name))
-                        || parameters.length < 1 || parameters[0] != int.class) continue;
-                try {
+        final long vpnTransportMask = 1L << NetworkCapabilities.TRANSPORT_VPN;
+        for (java.lang.reflect.Method method : NetworkCapabilities.class.getDeclaredMethods()) {
+            String name = method.getName();
+            Class<?>[] params = method.getParameterTypes();
+            try {
+                if ("hasTransport".equals(name) && params.length == 1 && params[0] == int.class
+                        && (method.getReturnType() == boolean.class
+                        || method.getReturnType() == Boolean.class)) {
                     hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                             .intercept(chain -> {
-                                Object arg = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
-                                if (!(arg instanceof Integer)) return chain.proceed();
-                                int requestedType = ((Integer) arg).intValue();
-                                String activePackage = currentPackage;
-                                UnifiedHookConfigParser.Target active = targets.get(activePackage);
-                                if (!SensorPrivacyPolicy.hasAnyEnumerationRule(active)
-                                        || !privacyEnabled || processPackages.size() != 1
-                                        || activePackage == null || activePackage.isEmpty()) {
-                                    return chain.proceed();
-                                }
-                                if (("getSensorList".equals(name) || "getDynamicSensorList".equals(name))
-                                        && requestedType == -1) {
-                                    Object original = chain.proceed();
-                                    if (!(original instanceof List)) return original;
-                                    List<Object> visible = new ArrayList<>();
-                                    for (Object sensor : (List<?>) original) {
-                                        if (sensor == null) continue;
-                                        try {
-                                            Object sensorType = sensor.getClass().getMethod("getType").invoke(sensor);
-                                            if (!(sensorType instanceof Integer)
-                                                    || !SensorPrivacyPolicy.shouldHide(true, processPackages.size(),
-                                                            activePackage, active, ((Integer) sensorType).intValue())) {
-                                                visible.add(sensor);
-                                            }
-                                        } catch (Throwable ignored) {
-                                            // Keep inaccessible OEM sensors visible.
-                                            visible.add(sensor);
-                                        }
+                                if (shouldHideVpnDetectionNow()) {
+                                    Object arg = chain.getArgs().get(0);
+                                    if (arg instanceof Integer
+                                            && ((Integer) arg) == NetworkCapabilities.TRANSPORT_VPN) {
+                                        return false;
                                     }
-                                    return visible;
                                 }
-                                if (!SensorPrivacyPolicy.shouldHide(true, processPackages.size(),
-                                        activePackage, active, requestedType)) return chain.proceed();
-                                if ("getDefaultSensor".equals(name)) return null;
-                                return Collections.emptyList();
+                                return chain.proceed();
                             });
                     installed++;
-                } catch (Throwable t) {
-                    logFx(Log.DEBUG, "sensor hook unavailable: " + name + "(" + parameters.length + ")");
+                } else if (("getCapabilities".equals(name) || "getTransportInfo".equals(name))
+                        && params.length == 0
+                        && method.getReturnType() == long.class) {
+                    if ("getCapabilities".equals(name)) {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                                .intercept(chain -> VpnDetectionPolicy.maskVpnCapabilities(
+                                        (Long) chain.proceed(), vpnTransportMask,
+                                        shouldHideVpnDetectionNow()));
+                        installed++;
+                    }
+                } else if ("hasCapability".equals(name) && params.length == 1
+                        && params[0] == int.class
+                        && (method.getReturnType() == boolean.class
+                        || method.getReturnType() == Boolean.class)) {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> {
+                                if (shouldHideVpnDetectionNow()) {
+                                    Object arg = chain.getArgs().get(0);
+                                    if (arg instanceof Integer
+                                            && ((Integer) arg) == NetworkCapabilities.NET_CAPABILITY_NOT_VPN) {
+                                        // NOT_VPN must read as satisfied when no VPN is visible.
+                                        return true;
+                                    }
+                                }
+                                return chain.proceed();
+                            });
+                    installed++;
                 }
+            } catch (Throwable ignored) {}
+        }
+        // Legacy NetworkInfo surface still used by older SDK integrations.
+        try {
+            for (java.lang.reflect.Method method
+                    : android.net.NetworkInfo.class.getDeclaredMethods()) {
+                if (!"getTypeName".equals(method.getName()) || method.getParameterTypes().length != 0) {
+                    continue;
+                }
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            Object result = chain.proceed();
+                            if (shouldHideVpnDetectionNow() && result instanceof String
+                                    && VpnDetectionPolicy.VPN_TRANSPORT_NAME
+                                    .equalsIgnoreCase((String) result)) {
+                                // Report a plain mobile link instead of a tunnel.
+                                return "MOBILE";
+                            }
+                            return result;
+                        });
+                installed++;
             }
-            try {
-                Class<?> callbackType = Class.forName(
-                        "android.hardware.SensorManager$DynamicSensorCallback", false, null);
-                for (final Method callbackMethod : callbackType.getDeclaredMethods()) {
-                    Class<?>[] callbackParameters = callbackMethod.getParameterTypes();
-                    if (!"onDynamicSensorConnected".equals(callbackMethod.getName())
-                            || callbackParameters.length != 1
-                            || !"android.hardware.Sensor".equals(callbackParameters[0].getName())) continue;
-                    try {
-                        hook(callbackMethod).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                                .intercept(chain -> {
-                                    Object sensor = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
-                                    if (sensor != null) {
-                                        try {
-                                            Object sensorType = sensor.getClass().getMethod("getType").invoke(sensor);
-                                            if (sensorType instanceof Integer && SensorPrivacyPolicy.shouldHide(
-                                                    privacyEnabled, processPackages.size(), currentPackage,
-                                                    targets.get(currentPackage), ((Integer) sensorType).intValue())) {
-                                                return null;
-                                            }
-                                        } catch (Throwable ignored) {
-                                            // Unknown / OEM sensor handles remain visible.
+        } catch (Throwable ignored) {}
+        // Interface enumeration: drop tun/ppp/wg links for this process only.
+        try {
+            for (java.lang.reflect.Method method
+                    : java.net.NetworkInterface.class.getDeclaredMethods()) {
+                if ("getNetworkInterfaces".equals(method.getName())
+                        && method.getParameterTypes().length == 0) {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> {
+                                Object result = chain.proceed();
+                                if (!shouldHideVpnDetectionNow()
+                                        || result == null
+                                        || !(result instanceof java.util.Enumeration)) {
+                                    return result;
+                                }
+                                java.util.List<java.net.NetworkInterface> filtered =
+                                        new java.util.ArrayList<>();
+                                java.util.Enumeration<?> source = (java.util.Enumeration<?>) result;
+                                while (source.hasMoreElements()) {
+                                    Object element = source.nextElement();
+                                    if (element instanceof java.net.NetworkInterface) {
+                                        java.net.NetworkInterface nic =
+                                                (java.net.NetworkInterface) element;
+                                        if (!VpnDetectionPolicy.isVpnInterfaceName(nic.getName())) {
+                                            filtered.add(nic);
                                         }
                                     }
-                                    return chain.proceed();
-                                });
-                        installed++;
-                    } catch (Throwable t) {
-                        logFx(Log.DEBUG, "dynamic sensor callback hook unavailable");
-                    }
+                                }
+                                return java.util.Collections.enumeration(filtered);
+                            });
+                    installed++;
                 }
-            } catch (Throwable ignored) {
-                // Dynamic sensors are API-level and vendor dependent; enumeration
-                // and direct registration filters remain active when absent.
+            }
+        } catch (Throwable ignored) {}
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "VPN detection suppression hooks installed=" + installed + " package=" + pkg);
+    }
+
+    /**
+     * Suppress in-app update prompts and optionally report a chosen version.
+     *
+     * Hooks PackageManager.getPackageInfo so versionName / versionCode reads return the
+     * configured test value, and Settings.Global-style "current version" lookups used by
+     * some updaters. The installed package, its signature and any OTA/Play state are
+     * untouched.
+     */
+    private void installAppUpdatePrivacyHooks(final String pkg,
+                                              final ClassLoader classLoader) {
+        int installed = 0;
+        try {
+            for (java.lang.reflect.Method method : PackageManager.class.getDeclaredMethods()) {
+                if (!"getPackageInfo".equals(method.getName())
+                        || method.getReturnType() != PackageInfo.class) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            Object result = chain.proceed();
+                            if (!(result instanceof PackageInfo)) return result;
+                            PackageInfo info = (PackageInfo) result;
+                            String override = reportedAppVersionNow();
+                            if (override != null) {
+                                // Report only the version field; every other attribute
+                                // (signature, permissions, install time) stays authoritative.
+                                info.versionName = override;
+                            }
+                            return info;
+                        });
+                installed++;
+                break;
+            }
+        } catch (Throwable ignored) {}
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "app-update suppression hooks installed=" + installed + " package=" + pkg);
+    }
+
+    /**
+     * Report a simulated VIP / entitlement state for one opted-in target.
+     *
+     * The existing automatic member discovery stays read-only diagnostics. This installer
+     * adds the explicit, config-driven path: for each candidate boolean member getter the
+     * interceptor returns the configured state instead of the app's own value. Only the
+     * marked methods of this target are affected, and the value comes from the user's
+     * own config key, never from a network response or a receipt.
+     */
+    /**
+     * Deliver a real location fix for one opted-in target.
+     *
+     * Every read/callback surface is redirected to a constructed Location so the app
+     * receives a coherent fix (provider, accuracy, time, altitude, cleared mock flag)
+     * instead of null. Privacy blocking and injection are mutually exclusive: the
+     * blocker wins, because a target cannot hide and spoof the same signal.
+     */
+    /** Post without assuming a main Looper exists on the hooking thread. */
+    private static void postToMain(Runnable action) {
+        if (action == null) return;
+        Handler handler;
+        try {
+            handler = new Handler(Looper.getMainLooper());
+        } catch (Throwable unavailable) {
+            return;
+        }
+        handler.post(action);
+    }
+
+    private void installLocationInjectionHooks(final String pkg) {
+        int installed = 0;
+        try {
+            for (Method method : LocationManager.class.getDeclaredMethods()) {
+                String name = method.getName();
+                if ("getLastKnownLocation".equals(name)
+                        && Location.class.isAssignableFrom(method.getReturnType())) {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> {
+                                if (!shouldInjectLocationNow()) return chain.proceed();
+                                Object provider = chain.getArgs().isEmpty()
+                                        ? null : chain.getArgs().get(0);
+                                Location fix = injectedFixNow(
+                                        provider instanceof String ? (String) provider : null);
+                                return fix != null ? fix : chain.proceed();
+                            });
+                    installed++;
+                } else if ("getCurrentLocation".equals(name)
+                        && method.getReturnType() == void.class) {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> {
+                                if (!shouldInjectLocationNow()) return chain.proceed();
+                                Consumer<Location> callback = null;
+                                Executor executor = null;
+                                for (Object arg : chain.getArgs()) {
+                                    if (arg instanceof Consumer) {
+                                        @SuppressWarnings("unchecked")
+                                        Consumer<Location> candidate = (Consumer<Location>) arg;
+                                        callback = candidate;
+                                    } else if (arg instanceof Executor) {
+                                        executor = (Executor) arg;
+                                    }
+                                }
+                                Location fix = injectedFixNow(null);
+                                if (callback != null && fix != null) {
+                                    final Consumer<Location> cb = callback;
+                                    final Location delivered = fix;
+                                    if (executor != null) {
+                                        executor.execute(() -> cb.accept(delivered));
+                                    } else {
+                                        postToMain(() -> cb.accept(delivered));
+                                    }
+                                    return null;
+                                }
+                                return chain.proceed();
+                            });
+                    installed++;
+                } else if ("requestLocationUpdates".equals(name)
+                        || "requestSingleUpdate".equals(name)) {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> {
+                                if (!shouldInjectLocationNow()) return chain.proceed();
+                                final Location fix = injectedFixNow(null);
+                                if (fix == null) return chain.proceed();
+                                for (Object arg : chain.getArgs()) {
+                                    if (arg instanceof android.location.LocationListener) {
+                                        final android.location.LocationListener listener =
+                                                (android.location.LocationListener) arg;
+                                        final Location delivered = fix;
+                                        postToMain(() -> listener.onLocationChanged(delivered));
+                                        // Swallow the registration: a real provider tick would
+                                        // overwrite the injected coordinates moments later.
+                                        return null;
+                                    }
+                                    if (arg instanceof android.app.PendingIntent) {
+                                        // PendingIntent delivery cannot be synthesised safely;
+                                        // swallowing it keeps the real fix from leaking out.
+                                        return null;
+                                    }
+                                }
+                                return chain.proceed();
+                            });
+                    installed++;
+                }
             }
         } catch (Throwable t) {
-            logFx(Log.WARN, "SensorManager unavailable; sensor privacy fails open (" + t.getClass().getSimpleName() + ")");
-            return false;
+            logFx(Log.WARN, "location injection hooks unavailable for " + pkg);
         }
-        sensorHooksInstalled = installed > 0;
         logFx(installed > 0 ? Log.INFO : Log.WARN,
-                "opt-in sensor enumeration hooks installed=" + installed + " for " + pkg);
-        return sensorHooksInstalled;
+                "location injection hooks installed=" + installed + " package=" + pkg);
+    }
+
+    private void installVipUnlockHooks(final String pkg, final ClassLoader classLoader) {
+        int installed = 0;
+        // Surface 1: boolean entitlement getters return "unlocked".
+        for (Class<?> owner : discoveredMemberClasses(pkg, classLoader)) {
+            if (memberMethodsHooked.size() >= MAX_AUTO_MEMBER_METHOD_HOOKS) break;
+            for (Method method : owner.getDeclaredMethods()) {
+                if (method.getParameterTypes().length != 0) continue;
+                Class<?> resultType = method.getReturnType();
+                boolean booleanState = resultType == boolean.class || resultType == Boolean.class;
+                if (!booleanState) continue;
+                if (!VipUnlockPolicy.isEntitlementGetter(method.getName())) continue;
+                String key = owner.getName() + "#" + method.getName();
+                if (!memberMethodsHooked.add(key)) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> shouldUnlockVipNow() || (Boolean) chain.proceed());
+                    installed++;
+                } catch (Throwable unavailable) {
+                    memberMethodsHooked.remove(key);
+                }
+            }
+        }
+        // Surface 2: BillingClient results report a completed purchase.
+        installed += installBillingUnlock(classLoader, "com.android.billingclient.api.BillingResult",
+                "getResponseCode", VipUnlockPolicy.BILLING_OK);
+        installed += installBillingUnlock(classLoader, "com.android.billingclient.api.Purchase",
+                "getPurchaseState", VipUnlockPolicy.PURCHASE_STATE_PURCHASED);
+        installed += installBooleanUnlock(classLoader, "com.android.billingclient.api.Purchase",
+                "isAcknowledged");
+        // Surface 3: the app's own persisted entitlement flags.
+        installed += installPreferenceUnlock(classLoader);
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "VIP unlock hooks installed=" + installed + " package=" + pkg);
+    }
+
+    /** Force an int-returning billing getter to a completed-purchase value. */
+    private int installBillingUnlock(ClassLoader loader, String className,
+                                     String methodName, int unlockedValue) {
+        try {
+            Class<?> type = Class.forName(className, false, loader);
+            for (Method method : type.getDeclaredMethods()) {
+                if (!methodName.equals(method.getName()) || method.getParameterTypes().length != 0) {
+                    continue;
+                }
+                Class<?> resultType = method.getReturnType();
+                if (resultType != int.class && resultType != Integer.class) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> shouldUnlockVipNow() ? unlockedValue : chain.proceed());
+                return 1;
+            }
+        } catch (Throwable ignored) {}
+        return 0;
+    }
+
+    /** Force a boolean-returning billing getter to true. */
+    private int installBooleanUnlock(ClassLoader loader, String className, String methodName) {
+        try {
+            Class<?> type = Class.forName(className, false, loader);
+            for (Method method : type.getDeclaredMethods()) {
+                if (!methodName.equals(method.getName()) || method.getParameterTypes().length != 0) {
+                    continue;
+                }
+                Class<?> resultType = method.getReturnType();
+                if (resultType != boolean.class && resultType != Boolean.class) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> shouldUnlockVipNow() || (Boolean) chain.proceed());
+                return 1;
+            }
+        } catch (Throwable ignored) {}
+        return 0;
+    }
+
+    /** Make persisted premium flags read as unlocked for this target only. */
+    private int installPreferenceUnlock(ClassLoader loader) {
+        try {
+            Class<?> prefs = Class.forName("android.app.SharedPreferencesImpl", false, loader);
+            for (Method method : prefs.getDeclaredMethods()) {
+                if (!"getBoolean".equals(method.getName())) continue;
+                Class<?>[] params = method.getParameterTypes();
+                if (params.length != 2 || params[0] != String.class
+                        || params[1] != boolean.class) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            Boolean stored = (Boolean) chain.proceed();
+                            if (!shouldUnlockVipNow()) return stored;
+                            Object keyArg = chain.getArgs().get(0);
+                            if (keyArg instanceof String && VipUnlockPolicy.shouldUnlockPreferenceKey(
+                                    (String) keyArg, Boolean.TRUE.equals(stored))) {
+                                return true;
+                            }
+                            return stored;
+                        });
+                return 1;
+            }
+        } catch (Throwable ignored) {}
+        return 0;
+    }
+
+    /** Usage-stats access reported as denied for one opted-in target. */
+    private void installUsageStatsPrivacyHooks(final String pkg) {
+        int installed = 0;
+        try {
+            for (Method method : android.app.AppOpsManager.class.getDeclaredMethods()) {
+                String name = method.getName();
+                Class<?>[] params = method.getParameterTypes();
+                Class<?> result = method.getReturnType();
+                if (!(result == int.class || result == Integer.class
+                        || result == boolean.class || result == Boolean.class)) continue;
+                if (!("checkOpNoThrow".equals(name) || "unsafeCheckOpNoThrow".equals(name)
+                        || "checkOp".equals(name) || "unsafeCheckOp".equals(name)
+                        || "noteOp".equals(name) || "noteOpNoThrow".equals(name))) continue;
+                if (params.length < 2 || params[0] != int.class) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            if (!shouldHideUsageStatsNow()) return chain.proceed();
+                            // USAGE_STATS_GET_FOREGROUND/GET_CONTENT ops: report "denied".
+                            return result == int.class || result == Integer.class
+                                    ? Integer.valueOf(android.app.AppOpsManager.MODE_IGNORED)
+                                    : Boolean.FALSE;
+                        });
+                installed++;
+            }
+        } catch (Throwable t) {
+            logFx(Log.WARN, "usage-stat privacy hooks unavailable for " + pkg);
+        }
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "usage-stat privacy hooks installed=" + installed + " package=" + pkg);
+    }
+
+    /** Accessibility service enumeration reported as empty for one opted-in target. */
+    private void installAccessibilityPrivacyHooks(final String pkg) {
+        int installed = 0;
+        try {
+            for (Method method : android.view.accessibility.AccessibilityManager.class
+                    .getDeclaredMethods()) {
+                if (!("getEnabledAccessibilityServiceList".equals(method.getName())
+                        || "getInstalledAccessibilityServiceList".equals(method.getName()))){
+                    continue;
+                }
+                if (!java.util.List.class.isAssignableFrom(method.getReturnType())) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> shouldHideA11yServicesNow()
+                                ? java.util.Collections.emptyList() : chain.proceed());
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "accessibility privacy hooks installed=" + installed + " package=" + pkg);
+    }
+
+    /** Input-method enumeration reported as empty for one opted-in target. */
+    private void installInputMethodPrivacyHooks(final String pkg) {
+        int installed = 0;
+        try {
+            for (Method method : android.view.inputmethod.InputMethodManager.class
+                    .getDeclaredMethods()) {
+                String name = method.getName();
+                Class<?> result = method.getReturnType();
+                if ("getEnabledInputMethodList".equals(name)
+                        && java.util.List.class.isAssignableFrom(result)) {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> shouldHideInputMethodsNow()
+                                    ? java.util.Collections.emptyList() : chain.proceed());
+                    installed++;
+                } else if ("getEnabledInputMethodSubtypeList".equals(name)
+                        && java.util.List.class.isAssignableFrom(result)) {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> shouldHideInputMethodsNow()
+                                    ? java.util.Collections.emptyList() : chain.proceed());
+                    installed++;
+                }
+            }
+        } catch (Throwable ignored) {}
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "input-method privacy hooks installed=" + installed + " package=" + pkg);
+    }
+
+    /** Fingerprint and face hardware reported as absent. */
+    private void installBiometricPrivacyHooks(final String pkg, final ClassLoader loader) {
+        int installed = 0;
+        try {
+            for (Method method : android.hardware.fingerprint.FingerprintManager.class
+                    .getDeclaredMethods()) {
+                Class<?> result = method.getReturnType();
+                boolean booleanResult = result == boolean.class || result == Boolean.class;
+                if (booleanResult && ("isHardwareDetected".equals(method.getName())
+                        || "hasEnrolledFingerprints".equals(method.getName()))) {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> shouldHideFingerprintNow()
+                                    ? Boolean.FALSE : chain.proceed());
+                    installed++;
+                }
+            }
+        } catch (Throwable ignored) {}
+        try {
+            Class<?> biometric = Class.forName("android.hardware.biometrics.BiometricManager",
+                    false, loader);
+            for (Method method : biometric.getDeclaredMethods()) {
+                if (!"canAuthenticate".equals(method.getName())) continue;
+                Class<?> result = method.getReturnType();
+                if (result != int.class && result != Integer.class) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> shouldHideFingerprintNow() || shouldHideFaceNow()
+                                // BIOMETRIC_ERROR_NO_HARDWARE: "no biometric hardware".
+                                ? Integer.valueOf(12) : chain.proceed());
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "biometric privacy hooks installed=" + installed + " package=" + pkg);
+    }
+
+    /** Camera id enumeration reported as empty so apps cannot list physical cameras. */
+    private void installCameraPrivacyHooks(final String pkg) {
+        int installed = 0;
+        try {
+            for (Method method : android.hardware.camera2.CameraManager.class.getDeclaredMethods()) {
+                if (!"getCameraIdList".equals(method.getName()) || method.getParameterTypes().length != 0) {
+                    continue;
+                }
+                if (!(method.getReturnType() == String[].class)) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> shouldHideCameraIdsNow()
+                                ? new String[0] : chain.proceed());
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "camera privacy hooks installed=" + installed + " package=" + pkg);
+    }
+
+    /** Audio fingerprint perturbation: shift captured samples instead of silencing. */
+    private void installAudioFingerprintHooks(final String pkg) {
+        int installed = 0;
+        try {
+            for (Method method : android.media.AudioRecord.class.getDeclaredMethods()) {
+                if (!"read".equals(method.getName())) continue;
+                Class<?>[] params = method.getParameterTypes();
+                if (params.length < 3) continue;
+                if (!params[0].isArray()) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            Object result = chain.proceed();
+                            if (!shouldPerturbAudioNow()) return result;
+                            Object buffer = chain.getArgs().get(0);
+                            int count = result instanceof Integer ? (Integer) result : 0;
+                            perturbSamples(buffer, count);
+                            return result;
+                        });
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "audio fingerprint hooks installed=" + installed + " package=" + pkg);
+    }
+
+    /**
+     * Deterministic, inaudible sample perturbation. A fixed low-amplitude dither breaks
+     * fingerprint correlation across sessions without destroying playback usefulness.
+     */
+    private void perturbSamples(Object buffer, int count) {
+        if (buffer == null || count <= 0) return;
+        try {
+            if (buffer instanceof short[]) {
+                short[] samples = (short[]) buffer;
+                int limit = Math.min(count, samples.length);
+                for (int i = 0; i < limit; i++) {
+                    int value = samples[i];
+                    int dither = ((i * 7919) % 5) - 2;
+                    int shifted = value + dither;
+                    samples[i] = (short) Math.max(Short.MIN_VALUE, Math.min(Short.MAX_VALUE, shifted));
+                }
+            } else if (buffer instanceof byte[]) {
+                byte[] samples = (byte[]) buffer;
+                int limit = Math.min(count, samples.length);
+                for (int i = 0; i < limit; i++) {
+                    int dither = ((i * 7919) % 3) - 1;
+                    samples[i] = (byte) (samples[i] + dither);
+                }
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    /** Microphone capture silenced (silence, not error, so callers keep their flow). */
+    private void installAudioSilencePrivacyHooks(final String pkg) {
+        int installed = 0;
+        try {
+            for (Method method : android.media.AudioRecord.class.getDeclaredMethods()) {
+                if (!"read".equals(method.getName())) continue;
+                Class<?>[] params = method.getParameterTypes();
+                if (params.length < 3 || !params[0].isArray()) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            Object result = chain.proceed();
+                            if (!shouldSilenceMicNow()) return result;
+                            Object buffer = chain.getArgs().get(0);
+                            int count = result instanceof Integer ? (Integer) result : 0;
+                            zeroSamples(buffer, count);
+                            return result;
+                        });
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "microphone silence hooks installed=" + installed + " package=" + pkg);
+    }
+
+    private void zeroSamples(Object buffer, int count) {
+        if (buffer == null || count <= 0) return;
+        try {
+            if (buffer instanceof short[]) {
+                short[] samples = (short[]) buffer;
+                java.util.Arrays.fill(samples, 0, Math.min(count, samples.length), (short) 0);
+            } else if (buffer instanceof byte[]) {
+                byte[] samples = (byte[]) buffer;
+                java.util.Arrays.fill(samples, 0, Math.min(count, samples.length), (byte) 0);
+            } else if (buffer instanceof float[]) {
+                float[] samples = (float[]) buffer;
+                java.util.Arrays.fill(samples, 0, Math.min(count, samples.length), 0f);
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    /** Input-device enumeration reported as empty. */
+    private void installMicHardwarePrivacyHooks(final String pkg) {
+        int installed = 0;
+        try {
+            for (Method method : android.media.AudioManager.class.getDeclaredMethods()) {
+                if (!"getDevices".equals(method.getName())
+                        || !android.media.AudioDeviceInfo[].class.equals(method.getReturnType())) {
+                    continue;
+                }
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> shouldHideMicHardwareNow()
+                                ? new android.media.AudioDeviceInfo[0] : chain.proceed());
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "microphone hardware hooks installed=" + installed + " package=" + pkg);
+    }
+
+    /** Radio scans and cell info reported as empty (distinct from scan permission denial). */
+    private void installRadioPrivacyHooks(final String pkg) {
+        int installed = 0;
+        try {
+            for (Method method : android.net.wifi.WifiManager.class.getDeclaredMethods()) {
+                String name = method.getName();
+                Class<?> result = method.getReturnType();
+                if (("getScanResults".equals(name) || "getConfiguredNetworks".equals(name))
+                        && java.util.List.class.isAssignableFrom(result)) {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> shouldHideWifiScanNow()
+                                    ? java.util.Collections.emptyList() : chain.proceed());
+                    installed++;
+                }
+            }
+        } catch (Throwable ignored) {}
+        try {
+            for (Method method : android.telephony.TelephonyManager.class.getDeclaredMethods()) {
+                String name = method.getName();
+                Class<?> result = method.getReturnType();
+                if (("getAllCellInfo".equals(name) && java.util.List.class.isAssignableFrom(result))){
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> shouldHideCellInfoNow()
+                                    ? java.util.Collections.emptyList() : chain.proceed());
+                    installed++;
+                } else if ("getCellLocation".equals(name)
+                        && android.os.Bundle.class.equals(result)) {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> shouldHideCellInfoNow()
+                                    ? new android.os.Bundle() : chain.proceed());
+                    installed++;
+                }
+            }
+        } catch (Throwable ignored) {}
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "radio privacy hooks installed=" + installed + " package=" + pkg);
+    }
+
+    /** Passive location reads dropped so no cached fix leaks through the passive provider. */
+    private void installPassiveLocationPrivacyHooks(final String pkg) {
+        int installed = 0;
+        try {
+            for (Method method : android.location.LocationManager.class.getDeclaredMethods()) {
+                if ("getLastKnownLocation".equals(method.getName())
+                        && android.location.Location.class.isAssignableFrom(method.getReturnType())) {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> {
+                                if (!shouldDisablePassiveLocationNow()) return chain.proceed();
+                                Object provider = chain.getArgs().isEmpty()
+                                        ? null : chain.getArgs().get(0);
+                                if (provider instanceof String
+                                        && "passive".equalsIgnoreCase((String) provider)) return null;
+                                return chain.proceed();
+                            });
+                    installed++;
+                } else if ("requestLocationUpdates".equals(method.getName())
+                        && method.getReturnType() == void.class) {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> {
+                                if (!shouldDisablePassiveLocationNow()) return chain.proceed();
+                                Object provider = chain.getArgs().isEmpty()
+                                        ? null : chain.getArgs().get(0);
+                                // Passive updates deliver other apps' fixes; never register them.
+                                if (provider instanceof String
+                                        && "passive".equalsIgnoreCase((String) provider)) return null;
+                                return chain.proceed();
+                            });
+                    installed++;
+                }
+            }
+        } catch (Throwable ignored) {}
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "passive location privacy hooks installed=" + installed + " package=" + pkg);
+    }
+
+    /** MediaStore-only provider blocking for one opted-in target. */
+    private void installMediaStoreAuthorityHooks(final String pkg) {
+        int installed = 0;
+        try {
+            for (Method method : android.content.ContentResolver.class.getDeclaredMethods()) {
+                if (!"query".equals(method.getName())) continue;
+                Class<?>[] params = method.getParameterTypes();
+                if (params.length == 0 || params[0] != android.net.Uri.class) continue;
+                if (!android.database.Cursor.class.isAssignableFrom(method.getReturnType())) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            Object uriArg = chain.getArgs().get(0);
+                            if (!(uriArg instanceof android.net.Uri)) return chain.proceed();
+                            android.net.Uri uri = (android.net.Uri) uriArg;
+                            boolean block = policyGate((active, target) ->
+                                    MediaStorePrivacyPolicy.shouldBlockMediaStore(privacyEnabled,
+                                            processPackages.size(), active, target,
+                                            uri.getScheme(), uri.getAuthority()));
+                            if (!block) return chain.proceed();
+                            String[] projection = chain.getArgs().size() > 1
+                                    && chain.getArgs().get(1) instanceof String[]
+                                    ? (String[]) chain.getArgs().get(1) : null;
+                            return new MatrixCursor(projection == null
+                                    ? new String[]{"_id"} : projection);
+                        });
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "MediaStore authority hooks installed=" + installed + " package=" + pkg);
+    }
+
+    /**
+     * Block state anti-fraud collection for one opted-in target.
+     *
+     * The SDK and the system component both reach the same platform reads, so the
+     * interception is shared: contacts, SMS and call-log providers return an empty
+     * cursor, the installed-app inventory returns nothing, and the clipboard read
+     * yields no items. Only this target process is affected.
+     */
+    private void installAntiFraudBlockHooks(final String pkg) {
+        int installed = 0;
+        final String[] blockedAuthorities = {
+                "com.android.contacts", "contacts", "com.android.providers.contacts",
+                "content://sms", "content://mms", "content://mms-sms",
+                "call_log", "com.android.calllogbackup", "com.android.providers.telephony"
+        };
+        try {
+            for (Method method : ContentResolver.class.getDeclaredMethods()) {
+                if (!"query".equals(method.getName())) continue;
+                Class<?>[] params = method.getParameterTypes();
+                if (params.length == 0 || params[0] != Uri.class) continue;
+                if (!android.database.Cursor.class.isAssignableFrom(method.getReturnType())) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            Object uriArg = chain.getArgs().get(0);
+                            if (!(uriArg instanceof Uri)) return chain.proceed();
+                            String text = String.valueOf(uriArg).toLowerCase(Locale.ROOT);
+                            boolean contactsOrMessages = false;
+                            for (String authority : blockedAuthorities) {
+                                if (text.contains(authority)) { contactsOrMessages = true; break; }
+                            }
+                            boolean antiFraud = shouldBlockAntiFraudNow(
+                                    AntiFraudBlockPolicy.Surface.CONTACTS)
+                                    || shouldBlockAntiFraudNow(AntiFraudBlockPolicy.Surface.SMS)
+                                    || shouldBlockAntiFraudNow(AntiFraudBlockPolicy.Surface.CALL_LOG);
+                            if (!contactsOrMessages || !antiFraud) return chain.proceed();
+                            String[] projection = chain.getArgs().size() > 1
+                                    && chain.getArgs().get(1) instanceof String[]
+                                    ? (String[]) chain.getArgs().get(1) : null;
+                            return new MatrixCursor(projection == null
+                                    ? new String[]{"_id"} : projection);
+                        });
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        // Installed-app inventory: the primary signal an anti-fraud SDK uses to
+        // decide whether a scam app is present.
+        try {
+            for (Method method : PackageManager.class.getDeclaredMethods()) {
+                String name = method.getName();
+                Class<?> result = method.getReturnType();
+                if (!("getInstalledPackages".equals(name) || "getInstalledApplications".equals(name))) {
+                    continue;
+                }
+                if (!java.util.List.class.isAssignableFrom(result)) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> shouldBlockAntiFraudNow(
+                                AntiFraudBlockPolicy.Surface.INSTALLED_APPS)
+                                ? java.util.Collections.emptyList() : chain.proceed());
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        // Clipboard content is a common "paste the code" vector for fraud checks.
+        try {
+            for (Method method : ClipboardManager.class.getDeclaredMethods()) {
+                if (!("getPrimaryClip".equals(method.getName())
+                        || "getText".equals(method.getName()))) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> shouldBlockAntiFraudNow(
+                                AntiFraudBlockPolicy.Surface.CLIPBOARD)
+                                ? null : chain.proceed());
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "anti-fraud block hooks installed=" + installed + " package=" + pkg);
+    }
+
+    /**
+     * Block carrier-side collection for one opted-in target.
+     *
+     * Identity getters, subscription enumeration, cell/signal metadata and per-UID
+     * traffic statistics all return a neutral baseline so the carrier SDK cannot
+     * profile the user from this process.
+     */
+    private void installCarrierCollectionBlockHooks(final String pkg, final ClassLoader loader) {
+        int installed = 0;
+        final Set<String> identity = new HashSet<>(Arrays.asList(
+                "getSubscriberId", "getSimSerialNumber", "getIccSerialNumber",
+                "getLine1Number", "getMsisdn", "getGroupIdLevel1", "getVoiceMailNumber",
+                "getSimOperator", "getSimOperatorName", "getNetworkOperator",
+                "getNetworkOperatorName", "getSimCountryIso", "getNetworkCountryIso"));
+        try {
+            for (Method method : TelephonyManager.class.getDeclaredMethods()) {
+                if (method.getReturnType() != String.class) continue;
+                if (!identity.contains(method.getName())) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> shouldBlockCarrierNow(
+                                CarrierCollectionBlockPolicy.Surface.SUBSCRIBER_ID)
+                                ? "" : chain.proceed());
+                installed++;
+            }
+            for (Method method : TelephonyManager.class.getDeclaredMethods()) {
+                String name = method.getName();
+                Class<?> result = method.getReturnType();
+                if ("getPhoneCount".equals(name) || "getSimCount".equals(name)) {
+                    if (result != int.class && result != Integer.class) continue;
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> shouldBlockCarrierNow(
+                                    CarrierCollectionBlockPolicy.Surface.SUBSCRIBER_COUNT)
+                                    ? Integer.valueOf(0) : chain.proceed());
+                    installed++;
+                } else if ("getAllCellInfo".equals(name)
+                        && java.util.List.class.isAssignableFrom(result)) {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> shouldBlockCarrierNow(
+                                    CarrierCollectionBlockPolicy.Surface.CELL_INFO)
+                                    ? java.util.Collections.emptyList() : chain.proceed());
+                    installed++;
+                } else if ("getCellLocation".equals(name)
+                        && android.os.Bundle.class.equals(result)) {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> shouldBlockCarrierNow(
+                                    CarrierCollectionBlockPolicy.Surface.CELL_INFO)
+                                    ? new android.os.Bundle() : chain.proceed());
+                    installed++;
+                }
+            }
+        } catch (Throwable ignored) {}
+        // Subscription enumeration (SIM list) is a second identity surface.
+        try {
+            Class<?> subMgr = Class.forName("android.telephony.SubscriptionManager", false, loader);
+            for (Method method : subMgr.getDeclaredMethods()) {
+                if ("getActiveSubscriptionInfoList".equals(method.getName())
+                        && java.util.List.class.isAssignableFrom(method.getReturnType())) {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> shouldBlockCarrierNow(
+                                    CarrierCollectionBlockPolicy.Surface.SUBSCRIBER_COUNT)
+                                    ? java.util.Collections.emptyList() : chain.proceed());
+                    installed++;
+                }
+            }
+        } catch (Throwable ignored) {}
+        // Per-UID traffic accounting reveals which apps the user runs and how much.
+        try {
+            Class<?> stats = Class.forName("android.net.TrafficStats", false, loader);
+            for (Method method : stats.getDeclaredMethods()) {
+                Class<?> result = method.getReturnType();
+                if (result != long.class && result != Long.class) continue;
+                String name = method.getName();
+                if (!name.startsWith("getUid") && !name.startsWith("getTotal")) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> shouldBlockCarrierNow(
+                                CarrierCollectionBlockPolicy.Surface.DATA_USAGE)
+                                ? Long.valueOf(0L) : chain.proceed());
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "carrier collection block hooks installed=" + installed + " package=" + pkg);
+    }
+
+    /**
+     * Block public-security reconnaissance for one opted-in target.
+     *
+     * The enumeration surfaces an inspection tool uses (package inventory, running
+     * processes, accessibility services, identifier reads, VPN visibility) all return
+     * a neutral baseline for this process only.
+     */
+    private void installPoliceReconBlockHooks(final String pkg, final ClassLoader loader) {
+        int installed = 0;
+        try {
+            for (Method method : PackageManager.class.getDeclaredMethods()) {
+                String name = method.getName();
+                Class<?> result = method.getReturnType();
+                if (!java.util.List.class.isAssignableFrom(result)) continue;
+                if (!("getInstalledPackages".equals(name) || "getInstalledApplications".equals(name)
+                        || "getPackagesHoldingPermissions".equals(name))) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> shouldBlockPoliceReconNow(
+                                PoliceReconBlockPolicy.Surface.INSTALLED_PACKAGES)
+                                ? java.util.Collections.emptyList() : chain.proceed());
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        // Running-process enumeration exposes what the user is doing right now.
+        try {
+            Class<?> activityManager = Class.forName("android.app.ActivityManager", false, loader);
+            for (Method method : activityManager.getDeclaredMethods()) {
+                if (!"getRunningAppProcesses".equals(method.getName())) continue;
+                if (!java.util.List.class.isAssignableFrom(method.getReturnType())) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> shouldBlockPoliceReconNow(
+                                PoliceReconBlockPolicy.Surface.RUNNING_PROCESSES)
+                                ? java.util.Collections.emptyList() : chain.proceed());
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        // Accessibility-service enumeration is a common forensic angle.
+        try {
+            for (Method method : android.view.accessibility.AccessibilityManager.class
+                    .getDeclaredMethods()) {
+                if (!("getEnabledAccessibilityServiceList".equals(method.getName())
+                        || "getInstalledAccessibilityServiceList".equals(method.getName()))) {
+                    continue;
+                }
+                if (!java.util.List.class.isAssignableFrom(method.getReturnType())) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> shouldBlockPoliceReconNow(
+                                PoliceReconBlockPolicy.Surface.ACCESSIBILITY_SERVICES)
+                                ? java.util.Collections.emptyList() : chain.proceed());
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        // Network state: hide the tunnel so the tool cannot prove a VPN is up.
+        try {
+            for (Method method : NetworkCapabilities.class.getDeclaredMethods()) {
+                if (!"hasTransport".equals(method.getName())
+                        || method.getParameterTypes().length != 1) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            if (shouldBlockPoliceReconNow(PoliceReconBlockPolicy.Surface.VPN_STATE)) {
+                                Object arg = chain.getArgs().get(0);
+                                if (arg instanceof Integer
+                                        && ((Integer) arg) == NetworkCapabilities.TRANSPORT_VPN) {
+                                    return false;
+                                }
+                            }
+                            return chain.proceed();
+                        });
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        // System-module inventory (APEX/APK modules) is a stable device fingerprint and
+        // a common "is this a modified device" check.
+        try {
+            for (Method method : PackageManager.class.getDeclaredMethods()) {
+                String name = method.getName();
+                if (!("getInstalledModules".equals(name) || "getModuleInfo".equals(name)
+                        || "getIncrementalModuleInfo".equals(name))) continue;
+                Class<?> result = method.getReturnType();
+                java.util.List<Object> neutral = java.util.Collections.emptyList();
+                java.util.Map<Object, Object> neutralMap = java.util.Collections.emptyMap();
+                java.util.function.Supplier<Object> fallback = () -> {
+                    if (java.util.List.class.isAssignableFrom(result)) return neutral;
+                    if (java.util.Map.class.isAssignableFrom(result)) return neutralMap;
+                    return null;
+                };
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> shouldBlockPoliceReconNow(
+                                PoliceReconBlockPolicy.Surface.INSTALLED_PACKAGES)
+                                || shouldBlockAntiFraudNow(
+                                AntiFraudBlockPolicy.Surface.INSTALLED_APPS)
+                                ? fallback.get() : chain.proceed());
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        // ANDROID_ID is the fallback identifier when IMEI/OAID are unavailable.
+        try {
+            for (Method method : android.provider.Settings.Secure.class.getDeclaredMethods()) {
+                if (!"getString".equals(method.getName())) continue;
+                Class<?>[] params = method.getParameterTypes();
+                if (params.length < 2 || params[0] != ContentResolver.class
+                        || params[1] != String.class) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            Object keyArg = chain.getArgs().get(1);
+                            boolean androidId = keyArg instanceof String
+                                    && "android_id".equalsIgnoreCase((String) keyArg);
+                            if (!androidId) return chain.proceed();
+                            if (shouldBlockPoliceReconNow(
+                                    PoliceReconBlockPolicy.Surface.DEVICE_IDENTIFIER)
+                                    || shouldBlockAntiFraudNow(
+                                    AntiFraudBlockPolicy.Surface.DEVICE_IDENTIFIER)
+                                    || shouldBlockCarrierNow(
+                                    CarrierCollectionBlockPolicy.Surface.SUBSCRIBER_ID)) {
+                                return "";
+                            }
+                            return chain.proceed();
+                        });
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "police recon block hooks installed=" + installed + " package=" + pkg);
+    }
+
+    /** Hide media-library queries while leaving non-media content providers untouched. */
+    private void installMediaStorePrivacyHooks(final String pkg) {
+        int installed = 0;
+        try {
+            for (Method method : ContentResolver.class.getDeclaredMethods()) {
+                if (!"query".equals(method.getName()) ||
+                        !android.database.Cursor.class.isAssignableFrom(method.getReturnType()) ||
+                        method.getParameterTypes().length == 0 || method.getParameterTypes()[0] != Uri.class) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                        Object uriArg = chain.getArgs().get(0);
+                        if (!shouldBlockMediaStoreQueryNow() || !(uriArg instanceof Uri) ||
+                                !String.valueOf(uriArg).toLowerCase(Locale.ROOT).startsWith("content://media")) {
+                            return chain.proceed();
+                        }
+                        String[] projection = null;
+                        if (chain.getArgs().size() > 1 && chain.getArgs().get(1) instanceof String[]) {
+                            projection = (String[]) chain.getArgs().get(1);
+                        }
+                        return new MatrixCursor(projection == null ? new String[]{"_id"} : projection);
+                    });
+                    installed++;
+                } catch (Throwable ignored) {}
+            }
+        } catch (Throwable t) {
+            logFx(Log.WARN, "MediaStore privacy hooks unavailable for " + pkg);
+        }
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "MediaStore privacy hooks installed=" + installed + " package=" + pkg);
     }
 
     private boolean shouldBlockClipboardReadNow() {
+        return policyGate((pkg, target) -> ClipboardPrivacyPolicy.shouldBlockRead(privacyEnabled,
+                processPackages.size(), pkg, target));
+    }
+
+    /** Clipboard isolation (separate from read blocking: scoped, opt-in, single package). */
+    private boolean shouldIsolateClipboardNow() {
+        return policyGate((pkg, target) -> ClipboardIsolationPolicy.shouldIsolate(privacyEnabled,
+                processPackages.size(), pkg, target));
+    }
+
+    /** Notification listener blocking for one opted-in target. */
+    private boolean shouldBlockNotificationListenNow() {
+        return policyGate((pkg, target) -> NotificationPrivacyPolicy.shouldBlock(privacyEnabled,
+                processPackages.size(), pkg, target));
+    }
+
+    /** Notification-permission hiding for one opted-in target. */
+    private boolean shouldHideNotificationPermissionNow() {
+        return policyGate((pkg, target) -> NotificationPrivacyPolicy.shouldHidePermission(
+                privacyEnabled, processPackages.size(), pkg, target));
+    }
+
+    /** Advertising-id unification: deterministic synthetic id per package. */
+    private String syntheticAdvertisingIdNow() {
         String activePackage = currentPackage;
+        if (activePackage == null) return null;
         UnifiedHookConfigParser.Target active = targets.get(activePackage);
-        return ClipboardPrivacyPolicy.shouldBlockRead(privacyEnabled, processPackages.size(),
-                activePackage, active);
+        if (!processPackages.contains(activePackage)) return null;
+        if (!AdvertisingIdPrivacyPolicy.shouldUnify(privacyEnabled, processPackages.size(),
+                activePackage, active)) return null;
+        return AdvertisingIdPrivacyPolicy.syntheticId(activePackage);
     }
 
     private static Object emptyClipboardReadResult(Method method) {
@@ -1396,136 +2061,205 @@ private boolean targetDeveloperOptIn(String packageName) {
         return clipboardReadHooksInstalled;
     }
 
-    /**
-     * Process-local clipboard shadowing migrated from API-82. This is NOT OS-wide isolation.
-     * Only single-package processes are hooked; shared processes fail open.
-     */
-    private synchronized boolean installClipboardIsolationHooks(final String pkg) {
+    /** Hide clipboard contents only inside the explicitly selected target app process. */
+    private void installClipboardPrivacyHooks(final String pkg) {
         int installed = 0;
         try {
-            Class<?> type = Class.forName("android.content.ClipboardManager", false, null);
-            try {
-                Method set = type.getDeclaredMethod("setPrimaryClip", Class.forName("android.content.ClipData", false, null));
-                if (!clipboardIsolationHookedMethods.contains(set)) {
-                hook(set).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
-                    Object clip = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
-                    Object result = chain.proceed();
-                    if (processPackages.size() <= 1 && clip != null) processClipboardShadow = clip;
-                    return result;
-                });
-                clipboardIsolationHookedMethods.add(set);
-                installed++;
+            for (Method method : ClipboardManager.class.getDeclaredMethods()) {
+                String name = method.getName();
+                Class<?>[] params = method.getParameterTypes();
+                boolean noArgs = params.length == 0;
+                if (noArgs && "getPrimaryClip".equals(name) && method.getReturnType() == ClipData.class) {
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> isolatedClipboardClip);
+                        installed++;
+                    } catch (Throwable ignored) {}
+                } else if (noArgs && "getPrimaryClipDescription".equals(name) &&
+                        method.getReturnType() == ClipDescription.class) {
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain ->
+                                isolatedClipboardClip == null ? null : isolatedClipboardClip.getDescription());
+                        installed++;
+                    } catch (Throwable ignored) {}
+                } else if (noArgs && "hasPrimaryClip".equals(name) &&
+                        (method.getReturnType() == boolean.class || method.getReturnType() == Boolean.class)) {
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain ->
+                                isolatedClipboardClip != null);
+                        installed++;
+                    } catch (Throwable ignored) {}
+                } else if (noArgs && "getText".equals(name)) {
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                            ClipData clip = isolatedClipboardClip;
+                            return clip != null && clip.getItemCount() > 0 ? clip.getItemAt(0).getText() : null;
+                        });
+                        installed++;
+                    } catch (Throwable ignored) {}
+                } else if (noArgs && "hasText".equals(name) &&
+                        (method.getReturnType() == boolean.class || method.getReturnType() == Boolean.class)) {
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                            ClipData clip = isolatedClipboardClip;
+                            return clip != null && clip.getItemCount() > 0 && clip.getItemAt(0).getText() != null;
+                        });
+                        installed++;
+                    } catch (Throwable ignored) {}
+                } else if ("setPrimaryClip".equals(name) && params.length == 1 && params[0] == ClipData.class) {
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                            Object arg = chain.getArgs().size() > 0 ? chain.getArgs().get(0) : null;
+                            isolatedClipboardClip = arg instanceof ClipData ? (ClipData) arg : null;
+                            return null;
+                        });
+                        installed++;
+                    } catch (Throwable ignored) {}
+                } else if ("setText".equals(name) && params.length == 1 && CharSequence.class.isAssignableFrom(params[0])) {
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                            Object arg = chain.getArgs().size() > 0 ? chain.getArgs().get(0) : null;
+                            isolatedClipboardClip = ClipData.newPlainText(null, arg instanceof CharSequence ? (CharSequence) arg : "");
+                            return null;
+                        });
+                        installed++;
+                    } catch (Throwable ignored) {}
+                } else if (noArgs && "clearPrimaryClip".equals(name)) {
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                            isolatedClipboardClip = null;
+                            return null;
+                        });
+                        installed++;
+                    } catch (Throwable ignored) {}
                 }
-            } catch (Throwable t) { logFx(Log.DEBUG, "clipboard isolate write hook unavailable"); }
-            for (String name : new String[]{"getPrimaryClip", "hasPrimaryClip"}) {
-                try {
-                    Method read = type.getDeclaredMethod(name);
-                    final boolean bool = "hasPrimaryClip".equals(name);
-                    if (clipboardIsolationHookedMethods.contains(read)) continue;
-                    hook(read).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
-                        if (processPackages.size() > 1) return chain.proceed();
-                        return bool ? Boolean.valueOf(processClipboardShadow != null) : processClipboardShadow;
-                    });
-                    clipboardIsolationHookedMethods.add(read);
-                    installed++;
-                } catch (Throwable t) { logFx(Log.DEBUG, "clipboard isolate read hook unavailable: " + name); }
             }
-        } catch (Throwable t) { logFx(Log.WARN, "clipboard isolate manager unavailable"); return false; }
-        clipboardIsolationHooksInstalled = clipboardIsolationHookedMethods.size() == 3;
-        logFx(clipboardIsolationHooksInstalled ? Log.INFO : Log.WARN,
-                "process-local clipboard isolation hooks newly installed=" + installed
-                        + " total=" + clipboardIsolationHookedMethods.size() + " for " + pkg);
-        return clipboardIsolationHooksInstalled;
-    }
-
-    private boolean shouldBlockWifiScanNow() {
-        String activePackage = currentPackage;
-        UnifiedHookConfigParser.Target active = targets.get(activePackage);
-        return WifiScanPrivacyPolicy.shouldBlock(wifiScanEnabled, processPackages.size(),
-                activePackage, active);
-    }
-
-    private static Object emptyWifiScanResult(Method method) {
-        Class<?> result = method.getReturnType();
-        if (java.util.List.class.isAssignableFrom(result)) return Collections.emptyList();
-        if (result.isArray()) return Array.newInstance(result.getComponentType(), 0);
-        if (result == boolean.class) return Boolean.FALSE;
-        if (result == byte.class) return Byte.valueOf((byte) 0);
-        if (result == short.class) return Short.valueOf((short) 0);
-        if (result == int.class) return Integer.valueOf(0);
-        if (result == long.class) return Long.valueOf(0L);
-        if (result == float.class) return Float.valueOf(0f);
-        if (result == double.class) return Double.valueOf(0d);
-        return null;
-    }
-
-    /**
-     * Cover both the public WifiManager facade and the lower-level WifiScanner
-     * service. A blocked app receives no scan results and cannot enqueue a new
-     * scan or register a scan callback. Unregister/cleanup methods are untouched.
-     */
-    private int installWifiScanSurface(Class<?> type) {
-        if (type == null) return 0;
-        int installed = 0;
-        for (final Method method : type.getDeclaredMethods()) {
-            final String name = method.getName();
-            final Class<?> result = method.getReturnType();
-            final boolean listResult = java.util.List.class.isAssignableFrom(result)
-                    && ("getScanResults".equals(name)
-                    || "getSingleScanResults".equals(name)
-                    || "getPnoScanResults".equals(name));
-            final boolean startOperation = "startScan".equals(name)
-                    || "startPnoScan".equals(name);
-            final boolean booleanCapability = "isScanAlwaysAvailable".equals(name)
-                    && result == boolean.class;
-            final boolean registerListener = "registerScanListener".equals(name)
-                    || "registerScanResultsCallback".equals(name);
-            if (!listResult && !startOperation && !booleanCapability && !registerListener) continue;
-            if (wifiScanHookedMethods.contains(method)) continue;
-            try {
-                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                        .intercept(chain -> shouldBlockWifiScanNow()
-                                ? emptyWifiScanResult(method) : chain.proceed());
-                wifiScanHookedMethods.add(method);
-                installed++;
-            } catch (Throwable error) {
-                logFx(Log.DEBUG, "Wi-Fi scan API hook unavailable: "
-                        + type.getName() + "." + name);
-            }
+        } catch (Throwable t) {
+            logFx(Log.WARN, "clipboard isolation hooks unavailable for " + pkg);
         }
-        return installed;
-    }
-
-    private synchronized boolean installWifiScanPrivacyHooks(final String pkg) {
-        int installed = 0;
-        try {
-            Class<?> manager = Class.forName("android.net.wifi.WifiManager", false, null);
-            installed += installWifiScanSurface(manager);
-        } catch (Throwable error) {
-            logFx(Log.WARN, "WifiManager unavailable: " + error.getClass().getSimpleName());
-        }
-        // WifiScanner is hidden/system-facing on several Android releases. It is
-        // optional; public WifiManager hooks remain available when absent.
-        try {
-            Class<?> scanner = Class.forName("android.net.wifi.WifiScanner", false, null);
-            installed += installWifiScanSurface(scanner);
-        } catch (Throwable error) {
-            logFx(Log.DEBUG, "WifiScanner API unavailable; WifiManager hooks remain active");
-        }
-        wifiScanHooksInstalled = !wifiScanHookedMethods.isEmpty();
         logFx(installed > 0 ? Log.INFO : Log.WARN,
-                "opt-in Wi-Fi scan hooks newly installed=" + installed
-                        + " total=" + wifiScanHookedMethods.size()
-                        + " across WifiManager/WifiScanner for " + pkg);
-        return wifiScanHooksInstalled;
+                "clipboard isolation hooks installed=" + installed + " package=" + pkg);
     }
 
+                                
+
+    
+
     /**
-     * Opt-in per-app suppression of active-notification reads. Only the two
-     * read APIs returning StatusBarNotification[] are intercepted. Posting,
-     * notification shade rendering, listener registration and system services
-     * are untouched. Shared-package processes fail open.
+     * Sensor families come from SensorPrivacyPolicy so the hook and the unit tests
+     * cannot disagree about which type belongs to which switch.
      */
+    private boolean isFxSensorTypeBlocked(UnifiedHookConfigParser.Target target, int sensorType) {
+        if (target == null) return false;
+        return SensorPrivacyPolicy.isEnabled(target, sensorType);
+    }
+
+    /** Per-type sensor privacy: selected sensors are hidden while unrelated sensors remain available. */
+    private void installSensorPrivacyHooks(final String pkg) {
+        int installed = 0;
+        try {
+            for (final Method method : SensorManager.class.getDeclaredMethods()) {
+                final String name = method.getName();
+                final Class<?>[] parameters = method.getParameterTypes();
+                if ("registerListener".equals(name) && parameters.length >= 3
+                        && "android.hardware.Sensor".equals(parameters[1].getName())
+                        && parameters[2] == int.class) {
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                                .intercept(chain -> {
+                                    String activePackage = currentPackage;
+                                    UnifiedHookConfigParser.Target active = targets.get(activePackage);
+                                    Object sensor = chain.getArgs().size() > 1 ? chain.getArgs().get(1) : null;
+                                    if (sensor != null) {
+                                        try {
+                                            Object type = sensor.getClass().getMethod("getType").invoke(sensor);
+                                            if (type instanceof Integer && privacyEnabled
+                                                    && processPackages.size() == 1
+                                                    && isFxSensorTypeBlocked(active, ((Integer) type).intValue())) {
+                                                return method.getReturnType() == boolean.class ? Boolean.FALSE : null;
+                                            }
+                                        } catch (Throwable ignored) {}
+                                    }
+                                    Object[] args = chain.getArgs().toArray();
+                                    if (privacyEnabled && processPackages.size() == 1 && active != null
+                                            && active.sensorRateLimit && args.length > 2
+                                            && args[2] instanceof Integer) {
+                                        args[2] = Integer.valueOf(Math.max(200000,
+                                                ((Integer) args[2]).intValue()));
+                                        return chain.proceed(args);
+                                    }
+                                    return chain.proceed();
+                                });
+                        installed++;
+                    } catch (Throwable t) {
+                        logFx(Log.DEBUG, "sensor registration hook unavailable: " + method.toGenericString());
+                    }
+                    continue;
+                }
+                if ("requestTriggerSensor".equals(name) && parameters.length >= 2
+                        && "android.hardware.Sensor".equals(parameters[1].getName())) {
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                                .intercept(chain -> {
+                                    Object sensor = chain.getArgs().size() > 1 ? chain.getArgs().get(1) : null;
+                                    if (sensor != null && privacyEnabled && processPackages.size() == 1) {
+                                        UnifiedHookConfigParser.Target active = targets.get(currentPackage);
+                                        try {
+                                            Object type = sensor.getClass().getMethod("getType").invoke(sensor);
+                                            if (type instanceof Integer && isFxSensorTypeBlocked(active, ((Integer) type).intValue())) {
+                                                return Boolean.FALSE;
+                                            }
+                                        } catch (Throwable ignored) {}
+                                    }
+                                    return chain.proceed();
+                                });
+                        installed++;
+                    } catch (Throwable t) {
+                        logFx(Log.DEBUG, "trigger sensor hook unavailable");
+                    }
+                    continue;
+                }
+                if (!("getSensorList".equals(name) || "getDefaultSensor".equals(name)
+                        || "getDynamicSensorList".equals(name))
+                        || parameters.length < 1 || parameters[0] != int.class) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> {
+                                if (!privacyEnabled || processPackages.size() != 1) return chain.proceed();
+                                UnifiedHookConfigParser.Target active = targets.get(currentPackage);
+                                Object arg = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
+                                if (!(arg instanceof Integer) || active == null) return chain.proceed();
+                                int requested = ((Integer) arg).intValue();
+                                if (requested == -1 && ("getSensorList".equals(name)
+                                        || "getDynamicSensorList".equals(name))) {
+                                    Object original = chain.proceed();
+                                    if (!(original instanceof List)) return original;
+                                    List<Object> visible = new ArrayList<>();
+                                    for (Object sensor : (List<?>) original) {
+                                        try {
+                                            Object type = sensor.getClass().getMethod("getType").invoke(sensor);
+                                            if (!(type instanceof Integer)
+                                                    || !isFxSensorTypeBlocked(active, ((Integer) type).intValue())) {
+                                                visible.add(sensor);
+                                            }
+                                        } catch (Throwable ignored) { visible.add(sensor); }
+                                    }
+                                    return visible;
+                                }
+                                if (!isFxSensorTypeBlocked(active, requested)) return chain.proceed();
+                                return "getDefaultSensor".equals(name) ? null : Collections.emptyList();
+                            });
+                    installed++;
+                } catch (Throwable t) {
+                    logFx(Log.DEBUG, "sensor enumeration hook unavailable: " + name);
+                }
+            }
+        } catch (Throwable t) {
+            logFx(Log.WARN, "sensor privacy hooks unavailable for " + pkg);
+        }
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "per-type sensor privacy hooks installed=" + installed + " package=" + pkg);
+    }
+
     private synchronized boolean installNotificationListenPrivacyHooks(final String pkg) {
         int installed = 0;
         for (String className : new String[]{
@@ -1545,8 +2279,7 @@ private boolean targetDeveloperOptIn(String packageName) {
                                 .intercept(chain -> {
                                     String activePackage = currentPackage;
                                     UnifiedHookConfigParser.Target active = targets.get(activePackage);
-                                    if (NotificationPrivacyPolicy.shouldBlock(notificationListenEnabled,
-                                            processPackages.size(), activePackage, active)) {
+                                    if (privacyEnabled && active != null && active.notificationListenBlock) {
                                         return Array.newInstance(component, 0);
                                     }
                                     return chain.proceed();
@@ -1579,8 +2312,7 @@ private boolean targetDeveloperOptIn(String packageName) {
                             .intercept(chain -> {
                                 String activePackage = currentPackage;
                                 UnifiedHookConfigParser.Target active = targets.get(activePackage);
-                                if (NotificationPrivacyPolicy.shouldBlock(notificationListenEnabled,
-                                        processPackages.size(), activePackage, active)) return null;
+                                if (privacyEnabled && active != null && active.notificationListenBlock) return null;
                                 return chain.proceed();
                             });
                     notificationListenHookedMethods.add(method);
@@ -1607,8 +2339,7 @@ private boolean targetDeveloperOptIn(String packageName) {
                             String activePackage = currentPackage;
                             UnifiedHookConfigParser.Target active = targets.get(activePackage);
                             if ("enabled_notification_listeners".equals(key)
-                                    && NotificationPrivacyPolicy.shouldBlock(notificationListenEnabled,
-                                    processPackages.size(), activePackage, active)) return "";
+                                    && privacyEnabled && active != null && active.notificationListenBlock) return "";
                             return chain.proceed();
                         });
                 notificationListenHookedMethods.add(getString);
@@ -1624,17 +2355,132 @@ private boolean targetDeveloperOptIn(String packageName) {
         return notificationListenHooksInstalled;
     }
 
+    /** Suppress cached location and provider enumeration for selected privacy-protected apps. */
+    private void installLocationPrivacyHooks(final String pkg) {
+        int installed = 0;
+        try {
+            for (Method method : LocationManager.class.getDeclaredMethods()) {
+                String name = method.getName();
+                if ("getLastKnownLocation".equals(name) && Location.class.isAssignableFrom(method.getReturnType())) {
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain ->
+                                shouldBlockLocationNow() ? null : chain.proceed());
+                        installed++;
+                    } catch (Throwable ignored) {}
+                } else if ("getCurrentLocation".equals(name)) {
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                            if (!shouldBlockLocationNow()) return chain.proceed();
+                            Consumer<Location> callback = null;
+                            Executor executor = null;
+                            for (Object arg : chain.getArgs()) {
+                                if (arg instanceof Consumer) {
+                                    @SuppressWarnings("unchecked")
+                                    Consumer<Location> candidate = (Consumer<Location>) arg;
+                                    callback = candidate;
+                                } else if (arg instanceof Executor) executor = (Executor) arg;
+                            }
+                            if (callback != null && executor != null) {
+                                final Consumer<Location> cb = callback;
+                                executor.execute(() -> cb.accept(null));
+                                return null;
+                            }
+                            // Unknown OEM signature: fail closed rather than returning a real location.
+                            return null;
+                        });
+                        installed++;
+                    } catch (Throwable ignored) {}
+                } else if (("requestLocationUpdates".equals(name) || "requestSingleUpdate".equals(name)) &&
+                        method.getReturnType() == void.class) {
+                    // Prevent callback-based location delivery as well as cached reads.
+                    // Returning without registering the listener avoids leaking a fresh fix
+                    // through LocationListener/PendingIntent overloads.
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain ->
+                                shouldBlockLocationNow() ? null : chain.proceed());
+                        installed++;
+                    } catch (Throwable ignored) {}
+                } else if (("addGpsStatusListener".equals(name) || "addNmeaListener".equals(name)
+                        || "addProximityAlert".equals(name)) &&
+                        (method.getReturnType() == void.class || method.getReturnType() == boolean.class
+                                || method.getReturnType() == Boolean.class)) {
+                    // Legacy GPS/NMEA/proximity callbacks can expose location outside
+                    // the modern LocationListener and GNSS registration APIs.
+                    try {
+                        Object blocked = method.getReturnType() == boolean.class
+                                || method.getReturnType() == Boolean.class ? Boolean.FALSE : null;
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                                .intercept(chain -> shouldBlockLocationNow() ? blocked : chain.proceed());
+                        installed++;
+                    } catch (Throwable ignored) {}
+                } else if (("getProviders".equals(name) || "getAllProviders".equals(name)) && List.class.isAssignableFrom(method.getReturnType())) {
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain ->
+                                shouldBlockLocationNow() ? Collections.emptyList() : chain.proceed());
+                        installed++;
+                    } catch (Throwable ignored) {}
+                } else if ("isProviderEnabled".equals(name) &&
+                        (method.getReturnType() == boolean.class || method.getReturnType() == Boolean.class)) {
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain ->
+                                shouldBlockLocationNow() ? false : chain.proceed());
+                        installed++;
+                    } catch (Throwable ignored) {}
+                }
+            }
+        } catch (Throwable t) {
+            logFx(Log.WARN, "location privacy hooks unavailable for " + pkg);
+        }
+        // GNSS measurement/status callbacks are separate from LocationListener and
+        // must be covered as well; otherwise an app can continue receiving satellite
+        // metadata after ordinary location updates are blocked.
+        try {
+            for (Method method : LocationManager.class.getDeclaredMethods()) {
+                String name = method.getName();
+                if ("registerGnssMeasurementsCallback".equals(name) ||
+                        "registerGnssNavigationMessageCallback".equals(name) ||
+                        "registerGnssStatusCallback".equals(name)) {
+                    try {
+                        Object blocked = method.getReturnType() == boolean.class ||
+                                method.getReturnType() == Boolean.class ? Boolean.FALSE : null;
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                                .intercept(chain -> shouldBlockLocationNow() ? blocked : chain.proceed());
+                        installed++;
+                    } catch (Throwable ignored) {}
+                } else if ("getGnssHardwareModelName".equals(name) &&
+                        method.getReturnType() == String.class) {
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                                .intercept(chain -> shouldBlockLocationNow() ? "" : chain.proceed());
+                        installed++;
+                    } catch (Throwable ignored) {}
+                } else if (("getGnssYearOfHardware".equals(name) ||
+                        "getGnssBatchSize".equals(name)) &&
+                        (method.getReturnType() == int.class || method.getReturnType() == Integer.class)) {
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                                .intercept(chain -> shouldBlockLocationNow() ? 0 : chain.proceed());
+                        installed++;
+                    } catch (Throwable ignored) {}
+                }
+            }
+        } catch (Throwable t) {
+            logFx(Log.DEBUG, "GNSS privacy hooks unavailable for " + pkg);
+        }
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "location/GNSS privacy hooks installed=" + installed + " package=" + pkg);
+    }
 
+            /** Optional camera/microphone/biometric and EXIF privacy controls, scoped per target app. */
     private boolean shouldHidePostNotificationsPermission(String permission, String queriedPackage) {
         if (!"android.permission.POST_NOTIFICATIONS".equals(permission)) return false;
         String activePackage = currentPackage;
         if (activePackage == null || activePackage.isEmpty()
-                || (queriedPackage != null && !activePackage.equals(queriedPackage))) return false;
+                || (queriedPackage != null && !activePackage.equals(queriedPackage))
+                || processPackages.size() != 1) return false;
         UnifiedHookConfigParser.Target active = targets.get(activePackage);
-        return NotificationPrivacyPolicy.shouldHidePermission(notificationPermissionHideEnabled,
-                processPackages.size(), activePackage, active);
+        return privacyEnabled && active != null && active.notificationPermissionHide;
     }
-
     /**
      * Masks notification permission state consistently across Android's app-level
      * queries. This does not revoke the grant, prevent notification posting, or
@@ -1726,9 +2572,8 @@ private boolean targetDeveloperOptIn(String packageName) {
                                         && ((Integer) args[1]).intValue() != android.os.Process.myUid()) {
                                     ownPackageQuery = false;
                                 }
-                                if (ownPackageQuery && NotificationPrivacyPolicy.shouldHidePermission(
-                                        notificationPermissionHideEnabled, processPackages.size(),
-                                        currentPackage, targets.get(currentPackage))) {
+                                if (ownPackageQuery && shouldHidePostNotificationsPermission(
+                                        "android.permission.POST_NOTIFICATIONS", queried)) {
                                     return Boolean.FALSE;
                                 }
                                 return chain.proceed();
@@ -1836,1084 +2681,471 @@ private boolean targetDeveloperOptIn(String packageName) {
         return notificationPermissionHooksInstalled;
     }
 
-    /**
-     * Unifies String-returning Google Ads ID and Huawei OAID accessors for an
-     * explicitly selected single-package process. Shared-process and protected
-     * package conditions fail open; platform opt-out/empty IDs are preserved.
-     */
-    private synchronized boolean installAdvertisingIdHooks(ClassLoader loader, final String pkg) {
-        if (loader == null || processPackages.size() != 1 || NEVER.contains(pkg)) return false;
-        int installed = 0;
-        installed += installAdvertisingIdClassHooks(loader,
-                "com.google.android.gms.ads.identifier.AdvertisingIdClient$Info",
-                new String[]{"getId"}, true);
-        installed += installAdvertisingIdClassHooks(loader,
-                "com.huawei.hms.ads.identifier.AdvertisingIdClient",
-                new String[]{"getAdvertisingId", "getOaid"}, false);
-        if (installed > 0) {
-            logFx(Log.INFO, "opt-in advertising ID unification hooks=" + installed + " for " + pkg);
-            return true;
+    private void installAudioRecordSilenceHooks(String packageName) {
+        int installedNow = 0;
+        int failedNow = 0;
+        for (Method method : AudioRecord.class.getDeclaredMethods()) {
+            if (!"read".equals(method.getName()) || method.getReturnType() != int.class
+                    || method.getParameterTypes().length == 0
+                    || !AudioRecordSilencePolicy.supports(method.getParameterTypes()[0])
+                    || microphoneSilenceHookedMethods.contains(method)) continue;
+            try {
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                    if (!isMicrophoneSilenceAuthorized()) return chain.proceed();
+                    Object[] args = chain.getArgs().toArray();
+                    int bufferStart = 0;
+                    if (args.length > 0 && args[0] instanceof ByteBuffer) {
+                        bufferStart = ((ByteBuffer) args[0]).position();
+                    }
+                    Object result = chain.proceed();
+                    if (result instanceof Integer && ((Integer) result) > 0) {
+                        AudioRecordSilencePolicy.zero(args, (Integer) result, bufferStart);
+                    }
+                    return result;
+                });
+                microphoneSilenceHookedMethods.add(method);
+                installedNow++;
+            } catch (Throwable t) {
+                failedNow++;
+                logFx(Log.WARN, "AudioRecord overload hook failed; overload unchanged: "
+                        + method.toGenericString() + " (" + t + ")");
+            }
         }
-        logFx(Log.DEBUG, "no supported advertising ID String accessors found for " + pkg);
-        return false;
+        if (installedNow > 0 || failedNow > 0) {
+            logFx(failedNow == 0 ? Log.INFO : Log.WARN,
+                    "AudioRecord read hooks: newlyInstalled=" + installedNow
+                            + " failed=" + failedNow + " total=" + microphoneSilenceHookedMethods.size()
+                            + " package=" + packageName);
+        }
     }
 
-    private int installAdvertisingIdClassHooks(ClassLoader loader, String className,
-                                                String[] methodNames, boolean noArgsOnly) {
+    private boolean isMicrophoneSilenceAuthorized() {
+        if (!privacyEnabled || processPackages.size() != 1) return false;
+        String onlyPackage = processPackages.iterator().next();
+        UnifiedHookConfigParser.Target selected = targets.get(onlyPackage);
+        return selected != null && selected.microphoneSilence;
+    }
+
+    private boolean isCameraAccessBlockAuthorized() {
+        if (!privacyEnabled || processPackages.size() != 1) return false;
+        UnifiedHookConfigParser.Target selected = targets.get(processPackages.iterator().next());
+        return selected != null && selected.cameraAccessBlock;
+    }
+
+    private void installCameraAccessBlockHooks(String packageName) {
+        int installed = 0;
+        for (String className : new String[]{"android.hardware.Camera", "android.hardware.camera2.CameraManager"}) {
+            try {
+                Class<?> type = Class.forName(className, false, null);
+                for (Method method : type.getDeclaredMethods()) {
+                    boolean legacyOpen = "android.hardware.Camera".equals(className)
+                            && "open".equals(method.getName()) && java.lang.reflect.Modifier.isStatic(method.getModifiers());
+                    boolean camera2Open = "android.hardware.camera2.CameraManager".equals(className)
+                            && "openCamera".equals(method.getName());
+                    if ((!legacyOpen && !camera2Open) || cameraAccessHookedMethods.contains(method)) continue;
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PASSTHROUGH).intercept(chain -> {
+                            if (isCameraAccessBlockAuthorized()) {
+                                throw new SecurityException("Camera access disabled by FX Hook privacy setting");
+                            }
+                            return chain.proceed();
+                        });
+                        cameraAccessHookedMethods.add(method);
+                        installed++;
+                    } catch (Throwable t) {
+                        logFx(Log.WARN, "camera open hook unavailable: " + method.toGenericString());
+                    }
+                }
+            } catch (Throwable t) {
+                logFx(Log.DEBUG, "camera API unavailable: " + className);
+            }
+        }
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "per-app camera access denial hooks installed=" + installed + " package=" + packageName);
+    }
+
+    private boolean isMicrophoneAccessBlockAuthorized() {
+        if (!privacyEnabled || processPackages.size() != 1) return false;
+        UnifiedHookConfigParser.Target selected = targets.get(processPackages.iterator().next());
+        return selected != null && selected.microphoneAccessBlock;
+    }
+
+    private void installMicrophoneAccessBlockHooks(String packageName) {
         int installed = 0;
         try {
-            Class<?> owner = Class.forName(className, false, loader);
-            for (Method method : owner.getDeclaredMethods()) {
-                boolean named = false;
-                for (String methodName : methodNames) {
-                    if (methodName.equals(method.getName())) { named = true; break; }
-                }
-                if (!named || method.getReturnType() != String.class ||
-                        (noArgsOnly && method.getParameterTypes().length != 0) ||
-                        !advertisingIdHookedMethods.add(method)) continue;
+            for (Method method : AudioRecord.class.getDeclaredMethods()) {
+                if (!"startRecording".equals(method.getName()) || method.getReturnType() != void.class
+                        || microphoneAccessHookedMethods.contains(method)) continue;
                 try {
-                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
-                        Object original = chain.proceed();
-                        if (!(original instanceof String)) return original;
-                        String originalId = (String) original;
-                        if (originalId.isEmpty() ||
-                                "00000000-0000-0000-0000-000000000000".equalsIgnoreCase(originalId)) return original;
-                        String activePackage = currentPackage;
-                        UnifiedHookConfigParser.Target activeTarget = targets.get(activePackage);
-                        if (processPackages.size() != 1 || !privacyEnabled || activeTarget == null ||
-                                !activeTarget.adIdUnify || NEVER.contains(activePackage)) return original;
-                        String replacement = PrivacyIdentifier.forAdvertisingId(activePackage);
-                        return replacement == null ? original : replacement;
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PASSTHROUGH).intercept(chain -> {
+                        if (isMicrophoneAccessBlockAuthorized()) {
+                            throw new SecurityException("Microphone access disabled by FX Hook privacy setting");
+                        }
+                        return chain.proceed();
                     });
+                    microphoneAccessHookedMethods.add(method);
                     installed++;
-                } catch (Throwable hookError) {
-                    advertisingIdHookedMethods.remove(method);
-                    logFx(Log.WARN, "advertising ID hook unavailable for " + className + "#" +
-                            method.getName() + ": " + hookError.getClass().getSimpleName());
+                } catch (Throwable t) {
+                    logFx(Log.WARN, "AudioRecord start hook unavailable: " + method.toGenericString());
                 }
             }
-        } catch (Throwable ignored) {
-            // Optional vendor libraries are absent on most apps; absence is normal.
+        } catch (Throwable t) {
+            logFx(Log.DEBUG, "AudioRecord API unavailable for microphone access blocking");
+        }
+        try {
+            Class<?> recorder = Class.forName("android.media.MediaRecorder", false, null);
+            for (Method method : recorder.getDeclaredMethods()) {
+                if (!"start".equals(method.getName()) || method.getParameterTypes().length != 0
+                        || microphoneAccessHookedMethods.contains(method)) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PASSTHROUGH).intercept(chain -> {
+                        if (isMicrophoneAccessBlockAuthorized()) {
+                            throw new SecurityException("Microphone access disabled by FX Hook privacy setting");
+                        }
+                        return chain.proceed();
+                    });
+                    microphoneAccessHookedMethods.add(method);
+                    installed++;
+                } catch (Throwable t) {
+                    logFx(Log.WARN, "MediaRecorder start hook unavailable: " + method.toGenericString());
+                }
+            }
+        } catch (Throwable t) {
+            logFx(Log.DEBUG, "MediaRecorder API unavailable for microphone access blocking");
+        }
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "per-app microphone capture denial hooks installed=" + installed + " package=" + packageName);
+    }
+
+    private void installMediaPrivacyHooks(final String pkg, final ClassLoader loader) {
+        int installed = 0;
+        try {
+            Class<?> cameraManager = Class.forName("android.hardware.camera2.CameraManager");
+            for (Method method : cameraManager.getDeclaredMethods()) {
+                if ("getCameraIdList".equals(method.getName()) && method.getReturnType() == String[].class) {
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> new String[0]);
+                        installed++;
+                    } catch (Throwable ignored) {}
+                } else if ("openCamera".equals(method.getName())) {
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PASSTHROUGH).intercept(chain -> {
+                            throw new SecurityException("Camera access disabled by FX privacy policy");
+                        });
+                        installed++;
+                    } catch (Throwable ignored) {}
+                }
+            }
+        } catch (Throwable t) {
+            logFx(Log.DEBUG, "camera2 privacy hooks unavailable for " + pkg);
+        }
+        try {
+            Class<?> legacyCamera = Class.forName("android.hardware.Camera");
+            for (Method method : legacyCamera.getDeclaredMethods()) {
+                if (!"open".equals(method.getName()) || !java.lang.reflect.Modifier.isStatic(method.getModifiers())) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PASSTHROUGH).intercept(chain -> {
+                        throw new SecurityException("Camera access disabled by FX privacy policy");
+                    });
+                    installed++;
+                } catch (Throwable ignored) {}
+            }
+        } catch (Throwable ignored) {}
+        try {
+            Class<?> audioManager = Class.forName("android.media.AudioManager");
+            for (Method method : audioManager.getDeclaredMethods()) {
+                if (!"getMicrophones".equals(method.getName()) || !List.class.isAssignableFrom(method.getReturnType())) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> Collections.emptyList());
+                    installed++;
+                } catch (Throwable ignored) {}
+            }
+        } catch (Throwable t) {
+            logFx(Log.DEBUG, "microphone inventory hiding unavailable for " + pkg);
+        }
+        try {
+            Class<?> audioRecord = Class.forName("android.media.AudioRecord");
+            for (Method method : audioRecord.getDeclaredMethods()) {
+                if (!"read".equals(method.getName()) || method.getReturnType() != int.class) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                        Object result = chain.proceed();
+                        if (!(result instanceof Integer) || ((Integer) result) <= 0) return result;
+                        int count = (Integer) result;
+                        zeroAudioReadBuffers(chain.getArgs(), count);
+                        return result;
+                    });
+                    installed++;
+                } catch (Throwable ignored) {}
+            }
+        } catch (Throwable t) {
+            logFx(Log.DEBUG, "microphone sample privacy hooks unavailable for " + pkg);
+        }
+        installed += installBooleanHardwareHide(loader, "android.hardware.fingerprint.FingerprintManager",
+                new String[]{"isHardwareDetected", "hasEnrolledFingerprints"});
+        // Preserve the old support-library biometric hiding path as well as
+        // the platform API, since many apps still call the AndroidX wrapper.
+        installed += installBooleanHardwareHide(loader,
+                "androidx.core.hardware.fingerprint.FingerprintManagerCompat",
+                new String[]{"isHardwareDetected", "hasEnrolledFingerprints"});
+        installed += installBooleanHardwareHide(loader,
+                "android.support.v4.hardware.fingerprint.FingerprintManagerCompat",
+                new String[]{"isHardwareDetected", "hasEnrolledFingerprints"});
+        installed += installBooleanHardwareHide(loader, "android.hardware.face.FaceManager",
+                new String[]{"isHardwareDetected", "hasEnrolledFaces"});
+        try {
+            Class<?> biometric = Class.forName("android.hardware.biometrics.BiometricManager");
+            for (Method method : biometric.getDeclaredMethods()) {
+                if (!"canAuthenticate".equals(method.getName()) ||
+                        (method.getReturnType() != int.class && method.getReturnType() != Integer.class)) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> 12);
+                    installed++;
+                } catch (Throwable ignored) {}
+            }
+        } catch (Throwable ignored) {}
+        installed += installExifPrivacyHooks(loader);
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "media privacy hooks installed=" + installed + " package=" + pkg);
+    }
+
+    private static void zeroAudioReadBuffers(List<?> args, int count) {
+        for (int i = 0; i < args.size(); i++) {
+            Object arg = args.get(i);
+            int offset = 0;
+            for (int j = i + 1; j < args.size(); j++) {
+                if (args.get(j) instanceof Integer) {
+                    offset = Math.max(0, (Integer) args.get(j));
+                    break;
+                }
+            }
+            if (arg instanceof byte[]) {
+                byte[] values = (byte[]) arg;
+                int end = Math.min(values.length, offset + count);
+                if (offset < end) Arrays.fill(values, offset, end, (byte) 0);
+                return;
+            }
+            if (arg instanceof short[]) {
+                short[] values = (short[]) arg;
+                int end = Math.min(values.length, offset + count);
+                if (offset < end) Arrays.fill(values, offset, end, (short) 0);
+                return;
+            }
+            if (arg instanceof float[]) {
+                float[] values = (float[]) arg;
+                int end = Math.min(values.length, offset + count);
+                if (offset < end) Arrays.fill(values, offset, end, 0f);
+                return;
+            }
+            if (arg instanceof java.nio.ByteBuffer) {
+                java.nio.ByteBuffer buffer = ((java.nio.ByteBuffer) arg).duplicate();
+                int end = buffer.position();
+                int start = Math.max(0, end - count);
+                buffer.position(start);
+                while (buffer.position() < end) buffer.put((byte) 0);
+                return;
+            }
+        }
+    }
+
+    private int installBooleanHardwareHide(ClassLoader loader, String className, String[] methodNames) {
+        int installed = 0;
+        try {
+            Class<?> type = Class.forName(className, false, loader == null ? getClass().getClassLoader() : loader);
+            Set<String> names = new HashSet<>(Arrays.asList(methodNames));
+            for (Method method : type.getDeclaredMethods()) {
+                if (!names.contains(method.getName()) ||
+                        (method.getReturnType() != boolean.class && method.getReturnType() != Boolean.class)) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> false);
+                    installed++;
+                } catch (Throwable ignored) {}
+            }
+        } catch (Throwable ignored) {}
+        return installed;
+    }
+
+        private int installExifPrivacyHooks(ClassLoader loader) {
+        int installed = 0;
+        String[] classes = {"android.media.ExifInterface", "androidx.exifinterface.media.ExifInterface"};
+        for (String className : classes) {
+            try {
+                Class<?> type = Class.forName(className, false, loader == null ? getClass().getClassLoader() : loader);
+                for (Method method : type.getDeclaredMethods()) {
+                    String name = method.getName();
+                    if ("setAttribute".equals(name) && method.getParameterTypes().length == 2 &&
+                            method.getParameterTypes()[0] == String.class &&
+                            method.getParameterTypes()[1] == String.class &&
+                            method.getReturnType() == void.class) {
+                        // Prevent selected apps from writing GPS/device/time EXIF tags
+                        // back into exported images; read-side filtering alone is incomplete.
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                            Object tag = chain.getArgs().size() > 0 ? chain.getArgs().get(0) : null;
+                            if (tag instanceof String && isSensitiveExifTag((String) tag)) return null;
+                            return chain.proceed();
+                        });
+                        installed++;
+                    } else if ("getAttribute".equals(name) && method.getParameterTypes().length == 1 &&
+                            method.getParameterTypes()[0] == String.class && method.getReturnType() == String.class) {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                            Object tag = chain.getArgs().size() > 0 ? chain.getArgs().get(0) : null;
+                            if (tag instanceof String && isSensitiveExifTag((String) tag)) return null;
+                            return chain.proceed();
+                        });
+                        installed++;
+                    } else if ("getAttributeInt".equals(name) && method.getParameterTypes().length == 2 &&
+                            method.getParameterTypes()[0] == String.class &&
+                            method.getParameterTypes()[1] == int.class &&
+                            method.getReturnType() == int.class) {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                            Object tag = chain.getArgs().size() > 0 ? chain.getArgs().get(0) : null;
+                            if (tag instanceof String && isSensitiveExifTag((String) tag)) return chain.getArgs().get(1);
+                            return chain.proceed();
+                        });
+                        installed++;
+                    } else if ("getAttributeDouble".equals(name) && method.getParameterTypes().length == 2 &&
+                            method.getParameterTypes()[0] == String.class &&
+                            (method.getReturnType() == double.class || method.getReturnType() == Double.class)) {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                            Object tag = chain.getArgs().size() > 0 ? chain.getArgs().get(0) : null;
+                            if (tag instanceof String && isSensitiveExifTag((String) tag)) return chain.getArgs().get(1);
+                            return chain.proceed();
+                        });
+                        installed++;
+                    } else if ("getLatLong".equals(name) && method.getParameterTypes().length == 1 &&
+                            method.getReturnType() == boolean.class) {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> false);
+                        installed++;
+                    }
+                }
+            } catch (Throwable ignored) {}
         }
         return installed;
     }
 
-    /**
-     * Device-value simulation only applies inside a single-package process whose
-     * target build is debuggable and whose package is not on the never-touch list.
-     * Shared processes fail closed so a simulated identity can never leak into an
-     * unrelated application that happens to run beside the target.
-     */
-    private boolean isAuthorizedDeviceSimulationTarget(String packageName) {
-        if (packageName == null || packageName.isEmpty()) return false;
-        if (NEVER.contains(packageName)) return false;
-        if (targets.get(packageName) == null) return false;
-        if (!debuggablePackages.contains(packageName)) return false;
-        return processPackages.size() == 1 && processPackages.contains(packageName);
+        /** Delegate EXIF tag decisions to ExifPrivacyPolicy (single authoritative rule set). */
+    private static boolean isSensitiveExifTag(String tag) {
+        return ExifPrivacyPolicy.shouldRedactTag(tag);
     }
 
-    private UnifiedHookConfigParser.Target authorizedSimulationTarget() {
-        String activePackage = currentPackage;
-        if (!isAuthorizedDeviceSimulationTarget(activePackage)) return null;
-        return targets.get(activePackage);
-    }
+                                                                    private void installAdViewHooks(final String pkg, final UnifiedHookConfigParser.Target target) {
 
-    private static Location simulatedLocation(UnifiedHookConfigParser.Target active) {
-        Location location = new Location("gps");
-        location.setLatitude(active.simulatedLatitude);
-        location.setLongitude(active.simulatedLongitude);
-        location.setAccuracy(active.simulatedAccuracy);
-        location.setTime(System.currentTimeMillis());
-        location.setElapsedRealtimeNanos(SystemClock.elapsedRealtimeNanos());
-        location.setSpeed(0f);
-        location.setBearing(0f);
-        return location;
-    }
-
-    private static NetworkInfo simulatedNetworkInfo(String type) {
-        int networkType = "cellular".equals(type)
-                ? ConnectivityManager.TYPE_MOBILE : ConnectivityManager.TYPE_WIFI;
-        String typeName = "cellular".equals(type) ? "MOBILE" : "WIFI";
         try {
-            java.lang.reflect.Constructor<NetworkInfo> constructor =
-                    NetworkInfo.class.getDeclaredConstructor(
-                            int.class, int.class, String.class, String.class);
-            constructor.setAccessible(true);
-            return constructor.newInstance(networkType, 0, typeName, "");
-        } catch (Throwable unavailable) {
-            return null;
-        }
-    }
-
-    private static PackageInfo copyPackageInfo(PackageInfo original) {
-        Parcel parcel = Parcel.obtain();
-        try {
-            original.writeToParcel(parcel, 0);
-            parcel.setDataPosition(0);
-            return PackageInfo.CREATOR.createFromParcel(parcel);
-        } finally {
-            parcel.recycle();
-        }
-    }
-
-    /**
-     * Override the in-process Wi-Fi identity reported by WifiInfo. The real adapter,
-     * link state and scan results stay untouched: only the SSID/BSSID strings handed
-     * the target process change.
-     */
-    private synchronized void installWifiInfoSimulationHooks(final String packageName) {
-        if (wifiInfoSimulationHooksInstalled) return;
-        int installed = 0;
-        try {
-            Class<?> wifiInfoType = Class.forName("android.net.wifi.WifiInfo", false, null);
-            for (Method method : wifiInfoType.getDeclaredMethods()) {
-                final String name = method.getName();
-                if (!"getSSID".equals(name) && !"getBSSID".equals(name)) continue;
-                if (method.getReturnType() != String.class || method.getParameterCount() != 0) continue;
+            Method show = Dialog.class.getDeclaredMethod("show");
+            hook(show).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                Object result = chain.proceed();
                 try {
-                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
-                        Object original = chain.proceed();
-                        UnifiedHookConfigParser.Target active = authorizedSimulationTarget();
-                        if (active == null || !active.wifiSimulation) return original;
-                        String simulated = "getSSID".equals(name)
-                                ? active.simulatedWifiSsid : active.simulatedWifiBssid;
-                        if (simulated == null || simulated.isEmpty()) return original;
-                        if (!"getSSID".equals(name)) return simulated;
-                        // WifiInfo reports a real SSID wrapped in double quotes.
-                        String bare = simulated;
-                        if (bare.length() > 1 && bare.startsWith("\"") && bare.endsWith("\"")) {
-                            bare = bare.substring(1, bare.length() - 1);
-                        }
-                        return "\"" + bare + "\"";
-                    });
-                    installed++;
+                    Object object = chain.getThisObject();
+                    if (object instanceof Dialog) {
+                        Window window = ((Dialog) object).getWindow();
+                        if (window != null) scheduleRootScans(window.getDecorView(), target, pkg);
+                    }
                 } catch (Throwable t) {
-                    logFx(Log.WARN, "Wi-Fi simulation hook unavailable for " + name
-                            + ": " + t.getClass().getSimpleName());
+                    logFx(Log.WARN, "dialog observer failed: " + t.getClass().getSimpleName());
                 }
-            }
-        } catch (Throwable missing) {
-            logFx(Log.WARN, "WifiInfo is unavailable in this process: "
-                    + missing.getClass().getSimpleName());
-        }
-        wifiInfoSimulationHooksInstalled = installed > 0;
-        logFx(wifiInfoSimulationHooksInstalled ? Log.INFO : Log.WARN,
-                "Wi-Fi identity simulation hooks installed=" + installed + " for " + packageName);
-    }
-
-    /**
-     * Override the active network type seen by the target process. Only the reported
-     * transport changes; the real connectivity, sockets and metering policy are not
-     * modified.
-     */
-    private synchronized void installNetworkTypeSimulationHooks(final String packageName) {
-        if (networkTypeSimulationHooksInstalled) return;
-        int installed = 0;
-        try {
-            Method activeNetworkInfo = ConnectivityManager.class.getDeclaredMethod("getActiveNetworkInfo");
-            hook(activeNetworkInfo).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
-                Object original = chain.proceed();
-                UnifiedHookConfigParser.Target active = authorizedSimulationTarget();
-                if (active == null || !active.networkTypeSimulation
-                        || active.simulatedNetworkType == null) return original;
-                NetworkInfo simulated = simulatedNetworkInfo(active.simulatedNetworkType);
-                return simulated == null ? original : simulated;
+                return result;
             });
-            installed++;
-            Method metered = ConnectivityManager.class.getDeclaredMethod("isActiveNetworkMetered");
-            hook(metered).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
-                Object original = chain.proceed();
-                UnifiedHookConfigParser.Target active = authorizedSimulationTarget();
-                if (active == null || !active.networkTypeSimulation
-                        || active.simulatedNetworkType == null) return original;
-                return "cellular".equals(active.simulatedNetworkType);
-            });
-            installed++;
+            logFx(Log.INFO, "dialog ad observer installed for " + pkg);
         } catch (Throwable t) {
-            logFx(Log.WARN, "Network type simulation hook unavailable: " + t.getClass().getSimpleName());
+            logFx(Log.WARN, "dialog ad observer unavailable for " + pkg + ": " + t.getClass().getSimpleName());
         }
-        networkTypeSimulationHooksInstalled = installed > 0;
-        logFx(networkTypeSimulationHooksInstalled ? Log.INFO : Log.WARN,
-                "Network type simulation hooks installed=" + installed + " for " + packageName);
-    }
 
-    /**
-     * Serve the configured test fix from LocationManager instead of a physical fix.
-     * GNSS hardware, the system mock-location setting and other applications keep
-     * their real behaviour; only this process observes the simulated coordinate.
-     */
-    private synchronized void installLocationSimulationHooks(final String packageName) {
-        if (locationSimulationHooksInstalled && locationProviderEnabledHooksInstalled) return;
-        int installed = 0;
+        int popupHooks = 0;
         try {
-            for (Method method : LocationManager.class.getDeclaredMethods()) {
-                final String name = method.getName();
-                if ("getLastKnownLocation".equals(name) && method.getReturnType() == Location.class) {
-                    try {
-                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
-                            Object original = chain.proceed();
-                            UnifiedHookConfigParser.Target active = authorizedSimulationTarget();
-                            if (active == null || !active.locationSimulation) return original;
-                            return simulatedLocation(active);
-                        });
-                        installed++;
-                    } catch (Throwable t) {
-                        logFx(Log.WARN, "location simulation hook unavailable for getLastKnownLocation: "
-                                + t.getClass().getSimpleName());
-                    }
-                    continue;
-                }
-                if ("requestLocationUpdates".equals(name)
-                        && method.getParameterCount() == 4
-                        && method.getParameterTypes()[3] == LocationListener.class) {
-                    try {
-                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
-                            UnifiedHookConfigParser.Target active = authorizedSimulationTarget();
-                            if (active == null || !active.locationSimulation) return chain.proceed();
-                            Object listener = chain.getArgs().get(3);
-                            if (listener instanceof LocationListener) {
-                                ((LocationListener) listener).onLocationChanged(simulatedLocation(active));
-                            }
-                            return null;
-                        });
-                        installed++;
-                    } catch (Throwable t) {
-                        logFx(Log.WARN, "location simulation hook unavailable for requestLocationUpdates: "
-                                + t.getClass().getSimpleName());
-                    }
-                    continue;
-                }
-                if ("isProviderEnabled".equals(name)
-                        && method.getParameterCount() == 1
-                        && method.getParameterTypes()[0] == String.class) {
-                    try {
-                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
-                            Object original = chain.proceed();
-                            UnifiedHookConfigParser.Target active = authorizedSimulationTarget();
-                            if (active == null || !active.locationProviderEnabledSimulation) return original;
-                            return true;
-                        });
-                        installed++;
-                    } catch (Throwable t) {
-                        logFx(Log.WARN, "provider-enabled simulation hook unavailable: "
-                                + t.getClass().getSimpleName());
-                    }
-                }
-            }
-        } catch (Throwable t) {
-            logFx(Log.WARN, "location simulation hooks unavailable: " + t.getClass().getSimpleName());
-        }
-        if (installed > 0) {
-            locationSimulationHooksInstalled = true;
-            locationProviderEnabledHooksInstalled = true;
-        }
-        logFx(installed > 0 ? Log.INFO : Log.WARN,
-                "location simulation hooks installed=" + installed + " for " + packageName);
-    }
-
-    /**
-     * Present the configured IANA zone to java.util and java.time callers. The device
-     * system clock and the global system zone remain untouched.
-     */
-    private synchronized void installTimeZoneSimulationHooks(final String packageName) {
-        if (timeZoneSimulationHooksInstalled) return;
-        int installed = 0;
-        try {
-            Method defaultZone = TimeZone.class.getDeclaredMethod("getDefault");
-            hook(defaultZone).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
-                Object original = chain.proceed();
-                UnifiedHookConfigParser.Target active = authorizedSimulationTarget();
-                if (active == null || !active.timeZoneSimulation || active.simulatedTimeZone == null) {
-                    return original;
-                }
-                return TimeZone.getTimeZone(active.simulatedTimeZone);
-            });
-            installed++;
-            Method zoneIdDefault = ZoneId.class.getDeclaredMethod("systemDefault");
-            hook(zoneIdDefault).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
-                Object original = chain.proceed();
-                UnifiedHookConfigParser.Target active = authorizedSimulationTarget();
-                if (active == null || !active.timeZoneSimulation || active.simulatedTimeZone == null) {
-                    return original;
-                }
-                return ZoneId.of(active.simulatedTimeZone);
-            });
-            installed++;
-        } catch (Throwable t) {
-            logFx(Log.WARN, "time zone simulation hooks unavailable: " + t.getClass().getSimpleName());
-        }
-        timeZoneSimulationHooksInstalled = installed > 0;
-        logFx(timeZoneSimulationHooksInstalled ? Log.INFO : Log.WARN,
-                "time zone simulation hooks installed=" + installed + " for " + packageName);
-    }
-
-    /**
-     * Report the configured version name/code for queries the target makes about its
-     * own package. Framework PackageInfo instances are copied before mutation so the
-     * shared framework cache is never rewritten.
-     */
-    private synchronized void installAppVersionSimulationHooks(final String packageName) {
-        if (appVersionSimulationHooksInstalled) return;
-        int installed = 0;
-        try {
-            Class<?> managerType = Class.forName("android.app.ApplicationPackageManager", false, null);
-            for (Method method : managerType.getDeclaredMethods()) {
-                final String name = method.getName();
-                if (!"getPackageInfo".equals(name) || method.getReturnType() != PackageInfo.class) continue;
-                try {
-                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
-                        Object firstArg = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
-                        Object original = chain.proceed();
-                        if (!(firstArg instanceof String) || !(original instanceof PackageInfo)) return original;
-                        String requestedPackage = (String) firstArg;
-                        String activePackage = currentPackage;
-                        UnifiedHookConfigParser.Target active = targets.get(activePackage);
-                        if (active == null || !active.appVersionSimulation
-                                || !activePackage.equals(requestedPackage)
-                                || !debuggablePackages.contains(activePackage)) return original;
-                        PackageInfo info = copyPackageInfo((PackageInfo) original);
-                        info.versionName = active.simulatedVersionName;
-                        info.versionCode = (int) active.simulatedVersionCode;
-                        return info;
-                    });
-                    installed++;
-                } catch (Throwable t) {
-                    logFx(Log.WARN, "app version simulation hook unavailable for " + name
-                            + ": " + t.getClass().getSimpleName());
-                }
-            }
-        } catch (Throwable t) {
-            logFx(Log.WARN, "PackageManager simulation hooks unavailable: " + t.getClass().getSimpleName());
-        }
-        appVersionSimulationHooksInstalled = installed > 0;
-        logFx(appVersionSimulationHooksInstalled ? Log.INFO : Log.WARN,
-                "app version simulation hooks installed=" + installed + " for " + packageName);
-    }
-    private synchronized boolean installPrivacyIdentifierHooks(final String pkg) {
-        if (privacyIdentifierHookInstalled) return true;
-        try {
-            Method getString = Settings.Secure.class.getDeclaredMethod(
-                    "getString", ContentResolver.class, String.class);
-            hook(getString).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
-                Object key = chain.getArgs().size() > 1 ? chain.getArgs().get(1) : null;
-                // Proceed exactly once. Calling proceed again after a thrown exception can
-                // re-enter the original method twice and violate interceptor chain semantics.
-                Object original = chain.proceed();
-                if (!Settings.Secure.ANDROID_ID.equals(key) || !(original instanceof String)) {
-                    return original;
-                }
-                // This interceptor is installed once in this target process. Resolve the
-                // active package at call time instead of stacking one captured-package
-                // interceptor for every PackageReady callback.
-                String activePackage = currentPackage;
-                UnifiedHookConfigParser.Target activeTarget = targets.get(activePackage);
-                if (activeTarget == null || NEVER.contains(activePackage)
-                        || !isAuthorizedDeviceSimulationTarget(activePackage)) return original;
-                if (activeTarget.androidIdSimulation && activeTarget.simulatedAndroidId != null) {
-                    return activeTarget.simulatedAndroidId;
-                }
-                if (!privacyEnabled || !activeTarget.privacy) return original;
-                try {
-                    return PrivacyIdentifier.forPackage(activePackage, (String) original);
-                } catch (Throwable t) {
-                    logFx(Log.WARN, "Android ID privacy transform fallback for " + activePackage);
-                    return original;
-                }
-            });
-            installTelephonyIdentifierPrivacyHooks(pkg);
-            privacyIdentifierHookInstalled = true;
-            logFx(Log.INFO, "process-scoped Android ID and telephony identifier privacy hooks installed for " + pkg);
-            return true;
-        } catch (Throwable t) {
-            logFx(Log.WARN, "Android ID privacy hook unavailable for " + pkg +
-                    ": " + t.getClass().getSimpleName());
-            return false;
-        }
-    }
-
-
-    /**
-     * Mask carrier/SIM subscriber identifiers for an opted-in target app.
-     * Null mirrors Android's ordinary unavailable/permission-denied result.
-     */
-    private synchronized boolean installTelephonyIdentifierPrivacyHooks(final String pkg) {
-        if (telephonyIdentifierHooksInstalled) return true;
-        int installed = 0;
-        try {
-            Class<?> type = Class.forName("android.telephony.TelephonyManager", false, null);
-            final Set<String> identifierMethods = new HashSet<>(Arrays.asList(
-                    "getDeviceId", "getImei", "getMeid", "getSubscriberId",
-                    "getSimSerialNumber", "getLine1Number", "getNai", "getGroupIdLevel1"));
-            for (final Method method : type.getDeclaredMethods()) {
-                if (!identifierMethods.contains(method.getName())
-                        || method.getReturnType() != String.class) continue;
-                try {
-                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                            .intercept(chain -> {
-                                Object original = chain.proceed();
-                                String activePackage = currentPackage;
-                                UnifiedHookConfigParser.Target active = targets.get(activePackage);
-                                if (active == null || NEVER.contains(activePackage)
-                                        || !privacyEnabled || !active.privacy) return original;
-                                return null;
-                            });
-                    installed++;
-                } catch (Throwable failure) {
-                    logFx(Log.DEBUG, "telephony identifier privacy hook unavailable: "
-                            + method.toGenericString());
-                }
-            }
-            telephonyIdentifierHooksInstalled = installed > 0;
-            logFx(installed > 0 ? Log.INFO : Log.WARN,
-                    "telephony subscriber/device identifier privacy hooks installed="
-                            + installed + " for " + pkg);
-            return telephonyIdentifierHooksInstalled;
-        } catch (Throwable failure) {
-            logFx(Log.WARN, "TelephonyManager identifier privacy hooks unavailable for " + pkg
-                    + ": " + failure.getClass().getSimpleName());
-            return false;
-        }
-    }
-
-    /** Install process-global framework observers once; resolve app scope per callback. */
-    private static final class DiaToastPayload {
-        final String packageName;
-        final CharSequence text;
-        final View view;
-        DiaToastPayload(String packageName, CharSequence text, View view) {
-            this.packageName = packageName;
-            this.text = text;
-            this.view = view;
-        }
-    }
-
-    private UnifiedHookConfigParser.Target toastRulesFor(String packageName) {
-        if (packageName == null || packageName.isEmpty() || NEVER.contains(packageName)
-                || packageName.startsWith("com.android.")) return null;
-        UnifiedHookConfigParser.Target target = targets.get(packageName);
-        return target == null || !target.toastFilterEnabled || target.toastTextTerms.isEmpty()
-                ? null : target;
-    }
-
-    private void rememberDiaToast(Toast toast, String packageName,
-                                  CharSequence text, View view) {
-        if (toast == null) return;
-        DiaToastPayload previous = diaToastPayloads.get(toast);
-        if ((packageName == null || packageName.isEmpty()) && previous != null) {
-            packageName = previous.packageName;
-        }
-        if ((packageName == null || packageName.isEmpty()) && processPackages.size() == 1) {
-            packageName = processPackages.iterator().next();
-        }
-        if (text == null && previous != null) text = previous.text;
-        if (view == null && previous != null) view = previous.view;
-        if (text != null) {
-            int count = Math.min(text.length(), FxDiaDialogMatchPolicy.MAX_TEXT_CHARS);
-            text = text.subSequence(0, count).toString();
-        }
-        diaToastPayloads.put(toast, new DiaToastPayload(packageName, text, view));
-    }
-
-    private String findToastTextMatch(View view, List<String> terms, int[] budget, int depth) {
-        if (view == null || terms == null || terms.isEmpty()
-                || budget[0]-- <= 0 || depth > 16) return null;
-        if (view instanceof TextView
-                && FxDiaDialogMatchPolicy.matchesText(((TextView) view).getText(), terms)) {
-            return "view";
-        }
-        if (view instanceof ViewGroup) {
-            ViewGroup group = (ViewGroup) view;
-            int children = Math.min(group.getChildCount(), Math.max(0, budget[0]));
-            for (int i = 0; i < children && budget[0] > 0; i++) {
-                String match = findToastTextMatch(group.getChildAt(i), terms, budget, depth + 1);
-                if (match != null) return match;
-            }
-        }
-        return null;
-    }
-
-    private android.content.Context resolveToastContext(Toast toast) {
-        if (toast == null) return null;
-        try {
-            Field contextField = Toast.class.getDeclaredField("mContext");
-            contextField.setAccessible(true);
-            Object context = contextField.get(toast);
-            if (context instanceof android.content.Context) return (android.content.Context) context;
-        } catch (Throwable ignored) {
-            // Newer Android releases may move or remove Toast's internal Context field.
-        }
-        return null;
-    }
-
-    private synchronized void installDiaToastHooks() {
-        if (diaToastHooksInstalled) return;
-        boolean showInstalled = false;
-        int captureHooksInstalled = 0;
-        try {
-            Method show = Toast.class.getDeclaredMethod("show");
-            if (!diaToastHookedMethods.contains(show)) {
-                hook(show).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
-                    Object instance = chain.getThisObject();
-                    if (instance instanceof Toast) {
-                        Toast toast = (Toast) instance;
-                        try {
-                            DiaToastPayload payload = diaToastPayloads.get(toast);
-                            View view = toast.getView();
-                            if (view == null && payload != null) view = payload.view;
-                            String packageName = payload == null ? null : payload.packageName;
-                            if ((packageName == null || packageName.isEmpty()) && view != null) {
-                                packageName = view.getContext().getPackageName();
-                            }
-                            if (packageName == null || packageName.isEmpty()) {
-                                android.content.Context context = resolveToastContext(toast);
-                                if (context != null) packageName = context.getPackageName();
-                            }
-                            if ((packageName == null || packageName.isEmpty())
-                                    && processPackages.size() == 1) {
-                                packageName = processPackages.iterator().next();
-                            }
-                            UnifiedHookConfigParser.Target rules = toastRulesFor(packageName);
-                            if (rules != null) {
-                                String matched = findToastTextMatch(view, rules.toastTextTerms,
-                                        new int[]{512}, 0);
-                                if (matched == null && payload != null
-                                        && FxDiaDialogMatchPolicy.matchesText(
-                                                payload.text, rules.toastTextTerms)) {
-                                    matched = "text";
-                                }
-                                if (matched != null) {
-                                    // Never log Toast text or matched rule contents.
-                                    logFx(Log.INFO, "dia-toast-block package=" + packageName
-                                            + " source=" + matched);
-                                    return null;
-                                }
-                            }
-                        } catch (Throwable failure) {
-                            // A failed or inaccessible Toast must never break its caller.
-                            logFx(Log.DEBUG, "Toast text filter failed open: "
-                                    + failure.getClass().getSimpleName());
-                        }
-                    }
-                    return chain.proceed();
-                });
-                diaToastHookedMethods.add(show);
-            }
-            showInstalled = diaToastHookedMethods.contains(show);
-
-            for (Method method : Toast.class.getDeclaredMethods()) {
+            for (Method method : PopupWindow.class.getDeclaredMethods()) {
                 String name = method.getName();
-                Class<?>[] types = method.getParameterTypes();
-                boolean isMakeText = "makeText".equals(name)
-                        && Modifier.isStatic(method.getModifiers())
-                        && Toast.class.isAssignableFrom(method.getReturnType())
-                        && types.length == 3
-                        && android.content.Context.class.isAssignableFrom(types[0])
-                        && (CharSequence.class.isAssignableFrom(types[1]) || types[1] == int.class)
-                        && types[2] == int.class;
-                boolean isSetText = "setText".equals(name) && types.length == 1
-                        && (CharSequence.class.isAssignableFrom(types[0]) || types[0] == int.class);
-                boolean isSetView = "setView".equals(name) && types.length == 1
-                        && View.class.isAssignableFrom(types[0]);
-                if (!isMakeText && !isSetText && !isSetView) continue;
-                if (diaToastHookedMethods.contains(method)) {
-                    captureHooksInstalled++;
-                    continue;
-                }
+                if (!("showAsDropDown".equals(name) || "showAtLocation".equals(name)) ||
+                        method.isSynthetic() || method.isBridge()) continue;
                 try {
                     hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
                         Object result = chain.proceed();
                         try {
-                            List<Object> args = chain.getArgs();
-                            if (isMakeText && result instanceof Toast && args.size() >= 3) {
-                                android.content.Context context =
-                                        args.get(0) instanceof android.content.Context
-                                                ? (android.content.Context) args.get(0) : null;
-                                CharSequence text = null;
-                                Object value = args.get(1);
-                                if (value instanceof CharSequence) text = (CharSequence) value;
-                                else if (value instanceof Integer && context != null) {
-                                    try { text = context.getText((Integer) value); }
-                                    catch (Throwable ignored) { }
-                                }
-                                rememberDiaToast((Toast) result,
-                                        context == null ? null : context.getPackageName(), text, null);
-                            } else if (chain.getThisObject() instanceof Toast && isSetText
-                                    && !args.isEmpty()) {
-                                Toast toast = (Toast) chain.getThisObject();
-                                CharSequence text = args.get(0) instanceof CharSequence
-                                        ? (CharSequence) args.get(0) : null;
-                                if (args.get(0) instanceof Integer) {
-                                    android.content.Context context = resolveToastContext(toast);
-                                    if (context != null) {
-                                        try { text = context.getText((Integer) args.get(0)); }
-                                        catch (Throwable ignored) { }
-                                    }
-                                }
-                                // A failed resource lookup must not retain text from a previous Toast.
-                                rememberDiaToast(toast, null, text == null ? "" : text, null);
-                            } else if (chain.getThisObject() instanceof Toast && isSetView
-                                    && !args.isEmpty() && args.get(0) instanceof View) {
-                                // Replacing the view invalidates any text captured from an earlier
-                                // makeText call on the same Toast instance.
-                                View view = (View) args.get(0);
-                                diaToastPayloads.put((Toast) chain.getThisObject(),
-                                        new DiaToastPayload(view.getContext().getPackageName(), null, view));
+                            Object object = chain.getThisObject();
+                            if (object instanceof PopupWindow) {
+                                View content = ((PopupWindow) object).getContentView();
+                                if (content != null) scheduleRootScans(content, target, pkg);
                             }
-                        } catch (Throwable failure) {
-                            logFx(Log.DEBUG, "Toast text capture unavailable: "
-                                    + failure.getClass().getSimpleName());
+                        } catch (Throwable t) {
+                            logFx(Log.WARN, "popup observer failed: " + t.getClass().getSimpleName());
                         }
                         return result;
                     });
-                    diaToastHookedMethods.add(method);
-                    captureHooksInstalled++;
-                } catch (Throwable failure) {
-                    logFx(Log.DEBUG, "Toast capture method unavailable: "
-                            + failure.getClass().getSimpleName());
-                }
+                    popupHooks++;
+                } catch (Throwable ignored) {}
             }
-            diaToastHooksInstalled = showInstalled && captureHooksInstalled > 0;
-            logFx(Log.INFO, "Dia Toast hooks installed capture=" + captureHooksInstalled
-                    + ", show=" + showInstalled);
-        } catch (Throwable failure) {
-            diaToastHooksInstalled = false;
-            logFx(Log.WARN, "Dia Toast hooks unavailable: "
-                    + failure.getClass().getSimpleName());
+        } catch (Throwable t) {
+            logFx(Log.WARN, "popup method enumeration failed: " + t.getClass().getSimpleName());
         }
-    }
-
-    private UnifiedHookConfigParser.Target diaKeyGestureRulesFor(String packageName) {
-        if (packageName == null || packageName.isEmpty() || NEVER.contains(packageName)
-                || !diaKeyGesturePackages.contains(packageName)) return null;
-        UnifiedHookConfigParser.Target target = targets.get(packageName);
-        return target == null || (target.keyFinishTrigger < 0 && target.keyDialogToggleTrigger < 0)
-                ? null : target;
-    }
-
-    private void handleDiaKeyGesture(Activity activity, String packageName, int trigger) {
-        UnifiedHookConfigParser.Target target = diaKeyGestureRulesFor(packageName);
-        if (target == null) return;
-        if (target.keyFinishTrigger == trigger) {
-            logFx(Log.INFO, "dia-key-action package=" + packageName
-                    + " action=finish-activity trigger=" + trigger);
-            activity.finish();
-        }
-        if (target.keyDialogToggleTrigger == trigger) {
-            boolean current = Boolean.TRUE.equals(diaKeyDialogActive.get(packageName));
-            boolean next = !current;
-            diaKeyDialogActive.put(packageName, next);
-            logFx(Log.INFO, "dia-key-action package=" + packageName
-                    + " action=dialog-rule-toggle enabled=" + next + " trigger=" + trigger);
-            try {
-                Toast.makeText(activity, next ? "FX Dialog 规则已恢复" : "FX Dialog 规则已暂停",
-                        Toast.LENGTH_SHORT).show();
-            } catch (Throwable failure) {
-                logFx(Log.DEBUG, "Dia key action feedback unavailable: "
-                        + failure.getClass().getSimpleName());
-            }
-        }
-    }
-
-    private synchronized void installDiaKeyGestureHooks() {
-        if (!diaKeyGestureDispatchHookInstalled) {
-            try {
-                Method dispatch = Activity.class.getDeclaredMethod("dispatchKeyEvent", KeyEvent.class);
-                hook(dispatch).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
-                    try {
-                        Object receiver = chain.getThisObject();
-                        Object argument = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
-                        if (receiver instanceof Activity && argument instanceof KeyEvent) {
-                            Activity activity = (Activity) receiver;
-                            KeyEvent event = (KeyEvent) argument;
-                            if (event.getAction() == KeyEvent.ACTION_DOWN) {
-                                String packageName = activity.getPackageName();
-                                UnifiedHookConfigParser.Target target = diaKeyGestureRulesFor(packageName);
-                                if (target != null) {
-                                    FxDiaKeyGesturePolicy gesturePolicy =
-                                            diaKeyGesturePolicies.forPackage(packageName);
-                                    if (gesturePolicy == null) return chain.proceed();
-                                    List<Integer> triggers = gesturePolicy.onKeyDown(
-                                            event.getKeyCode(), event.getEventTime(), event.getRepeatCount());
-                                    for (Integer trigger : triggers) {
-                                        handleDiaKeyGesture(activity, packageName, trigger);
-                                    }
-                                }
-                            }
-                        }
-                    } catch (Throwable failure) {
-                        // Key remapping is opt-in and must never prevent native key dispatch.
-                        logFx(Log.DEBUG, "Activity.dispatchKeyEvent gesture failed open: "
-                                + failure.getClass().getSimpleName());
-                    }
-                    return chain.proceed();
-                });
-                diaKeyGestureDispatchHookInstalled = true;
-            } catch (Throwable failure) {
-                logFx(Log.WARN, "Activity.dispatchKeyEvent key hook unavailable: "
-                        + failure.getClass().getSimpleName());
-            }
-        }
-        if (!diaKeyGestureLongPressHookInstalled) {
-            try {
-                Method longPress = Activity.class.getDeclaredMethod("onKeyLongPress",
-                        int.class, KeyEvent.class);
-                hook(longPress).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
-                    try {
-                        Object receiver = chain.getThisObject();
-                        List<Object> args = chain.getArgs();
-                        if (receiver instanceof Activity && args.size() >= 1
-                                && args.get(0) instanceof Integer
-                                && ((Integer) args.get(0)) == KeyEvent.KEYCODE_BACK) {
-                            Activity activity = (Activity) receiver;
-                            String packageName = activity.getPackageName();
-                            UnifiedHookConfigParser.Target target = diaKeyGestureRulesFor(packageName);
-                            if (target != null) {
-                                FxDiaKeyGesturePolicy gesturePolicy =
-                                        diaKeyGesturePolicies.forPackage(packageName);
-                                if (gesturePolicy != null) {
-                                    for (Integer trigger : gesturePolicy.onLongPress(
-                                            (Integer) args.get(0))) {
-                                        handleDiaKeyGesture(activity, packageName, trigger);
-                                    }
-                                }
-                            }
-                        }
-                    } catch (Throwable failure) {
-                        logFx(Log.DEBUG, "Activity.onKeyLongPress gesture failed open: "
-                                + failure.getClass().getSimpleName());
-                    }
-                    return chain.proceed();
-                });
-                diaKeyGestureLongPressHookInstalled = true;
-            } catch (Throwable failure) {
-                logFx(Log.WARN, "Activity.onKeyLongPress key hook unavailable: "
-                        + failure.getClass().getSimpleName());
-            }
-        }
-        if (diaKeyGestureDispatchHookInstalled || diaKeyGestureLongPressHookInstalled) {
-            logFx(Log.INFO, "Dia ActivityKey hooks installed dispatch="
-                    + diaKeyGestureDispatchHookInstalled + ", longPress="
-                    + diaKeyGestureLongPressHookInstalled);
-        }
-    }
-
-    private UnifiedHookConfigParser.Target dialogRulesFor(String packageName) {
-        if (packageName == null || packageName.isEmpty() || NEVER.contains(packageName)
-                || !debuggablePackages.contains(packageName)) return null;
-        UnifiedHookConfigParser.Target target = targets.get(packageName);
-        if (Boolean.FALSE.equals(diaKeyDialogActive.get(packageName))) return null;
-        if (target == null || !target.dialogMatchEnabled
-                || (target.dialogTextTerms.isEmpty() && target.dialogIdTerms.isEmpty())) return null;
-        return target;
-    }
-
-    /** Install bounded pre-addView checks for every WindowManagerImpl overload that accepts a View and LayoutParams. */
-    private synchronized void installDiaDialogWindowHooks() {
-        if (dialogWindowAddViewHooksInstalled) return;
-        try {
-            Class<?> windowManagerImpl = Class.forName("android.view.WindowManagerImpl",
-                    false, View.class.getClassLoader());
-            int eligible = 0;
-            int installed = 0;
-            for (Method method : windowManagerImpl.getDeclaredMethods()) {
-                if (!"addView".equals(method.getName()) || method.isSynthetic() || method.isBridge()) continue;
-                Class<?>[] types = method.getParameterTypes();
-                if (types.length < 2 || !View.class.isAssignableFrom(types[0])
-                        || !types[1].isAssignableFrom(WindowManager.LayoutParams.class)) continue;
-                eligible++;
-                String key = method.toGenericString();
-                if (dialogWindowAddViewMethods.contains(key)) continue;
-                try {
-                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
-                        try {
-                            if (chain.getArgs().size() >= 2
-                                    && chain.getArgs().get(0) instanceof View
-                                    && chain.getArgs().get(1) instanceof ViewGroup.LayoutParams) {
-                                View root = (View) chain.getArgs().get(0);
-                                ViewGroup.LayoutParams params =
-                                        (ViewGroup.LayoutParams) chain.getArgs().get(1);
-                                // Never remove an Activity-sized root. This guard also avoids
-                                // mistaking a full-screen app window for a transient Dialog.
-                                if (!(params.width == ViewGroup.LayoutParams.MATCH_PARENT
-                                        && params.height == ViewGroup.LayoutParams.MATCH_PARENT)) {
-                                    String pkg = root.getContext().getPackageName();
-                                    UnifiedHookConfigParser.Target target = dialogRulesFor(pkg);
-                                    String matched = target == null ? null
-                                            : findDialogRuleMatch(root, target, new int[]{512}, 0);
-                                    if (matched != null) {
-                                        logFx(Log.INFO, "dia-dialog-window-block package=" + pkg
-                                                + " kind=" + matched);
-                                        if (target.dialogNotify) showDialogSuppressionToast(root.getContext(), pkg);
-                                        return null;
-                                    }
-                                }
-                            }
-                        } catch (Throwable failure) {
-                            // Fail open: framework/layout inspection errors cannot break app windows.
-                            logFx(Log.DEBUG, "WindowManager.addView Dialog check failed open: "
-                                    + failure.getClass().getSimpleName());
-                        }
-                        return chain.proceed();
-                    });
-                    dialogWindowAddViewMethods.add(key);
-                    installed++;
-                } catch (Throwable failure) {
-                    logFx(Log.DEBUG, "WindowManager.addView overload unavailable: "
-                            + failure.getClass().getSimpleName());
-                }
-            }
-            dialogWindowAddViewHooksInstalled = eligible > 0
-                    && dialogWindowAddViewMethods.size() >= eligible;
-            logFx(Log.INFO, "Dia Dialog WindowManager hooks installed=" + installed
-                    + ", complete=" + dialogWindowAddViewHooksInstalled);
-        } catch (Throwable failure) {
-            logFx(Log.WARN, "Dia Dialog WindowManager hook unavailable: "
-                    + failure.getClass().getSimpleName());
-            dialogWindowAddViewHooksInstalled = false;
-        }
-    }
-
-    private void showDialogSuppressionToast(final android.content.Context context,
-                                            final String packageName) {
-        if (context == null || packageName == null) return;
-        long now = System.currentTimeMillis();
-        Long previous = dialogNotifyLastShown.put(packageName, now);
-        if (previous != null && now - previous < 3000L) return;
-        Runnable display = () -> {
-            try {
-                Toast.makeText(context, "FX 已按 Dialog 规则拦截", Toast.LENGTH_SHORT).show();
-            } catch (Throwable failure) {
-                logFx(Log.DEBUG, "Dialog feedback toast unavailable: "
-                        + failure.getClass().getSimpleName());
-            }
-        };
-        try {
-            if (Looper.myLooper() == Looper.getMainLooper()) display.run();
-            else new Handler(Looper.getMainLooper()).post(display);
-        } catch (Throwable failure) {
-            logFx(Log.DEBUG, "Dialog feedback dispatch unavailable: "
-                    + failure.getClass().getSimpleName());
-        }
-    }
-
-    private void scheduleDialogMatchScan(final Dialog dialog,
-                                         final UnifiedHookConfigParser.Target target,
-                                         final String packageName) {
-        try {
-            final Window window = dialog.getWindow();
-            final View decor = window == null ? null : window.getDecorView();
-            if (decor == null) return;
-            decor.postDelayed(() -> {
-                try {
-                    if (!dialog.isShowing()) return;
-                    String kind = findDialogRuleMatch(decor, target, new int[]{512}, 0);
-                    if (kind != null) {
-                        // Record only the match type and package. Dialog text may contain
-                        // private information, so it is never copied into logcat.
-                        logFx(Log.INFO, "dia-dialog-match package=" + packageName
-                                + " executable=dialog-match kind=" + kind);
-                    }
-                } catch (Throwable failure) {
-                    logFx(Log.DEBUG, "dialog match inspection failed: "
-                            + failure.getClass().getSimpleName());
-                }
-            }, 120L);
-        } catch (Throwable failure) {
-            logFx(Log.DEBUG, "dialog match scheduling unavailable: "
-                    + failure.getClass().getSimpleName());
-        }
-    }
-
-    private String findDialogRuleMatch(View view, UnifiedHookConfigParser.Target target,
-                                       int[] budget, int depth) {
-        if (view == null || target == null || budget[0]-- <= 0 || depth > 16) return null;
-        CharSequence text = view instanceof TextView ? ((TextView) view).getText() : null;
-        if (FxDiaDialogMatchPolicy.matchesText(text, target.dialogTextTerms)) return "text";
-        int id = view.getId();
-        if (id != View.NO_ID) {
-            String fullName = null;
-            String entryName = null;
-            try { fullName = view.getResources().getResourceName(id); }
-            catch (Resources.NotFoundException ignored) { }
-            try { entryName = view.getResources().getResourceEntryName(id); }
-            catch (Resources.NotFoundException ignored) { }
-            if (FxDiaDialogMatchPolicy.matchesResourceId(
-                    id, fullName, entryName, target.dialogIdTerms)) return "id";
-        }
-        if (view instanceof ViewGroup) {
-            ViewGroup group = (ViewGroup) view;
-            int childCount = Math.min(group.getChildCount(), Math.max(0, budget[0]));
-            for (int i = 0; i < childCount && budget[0] > 0; i++) {
-                String match = findDialogRuleMatch(group.getChildAt(i), target, budget, depth + 1);
-                if (match != null) return match;
-            }
-        }
-        return null;
-    }
-
-    private synchronized void installAdViewHooks() {
-        if (!activityObserverInstalled) try {
-            Method resume = Instrumentation.class.getDeclaredMethod("callActivityOnResume", Activity.class);
-            hook(resume).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
-                Object result = chain.proceed();
-                try {
-                    Object arg = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
-                    if (arg instanceof Activity) {
-                        Activity activity = (Activity) arg;
-                        UnifiedHookConfigParser.Target target = adTargetFor(activity.getPackageName());
-                        if (target != null) scheduleScans(activity, target);
-                    }
-                } catch (Throwable t) { logFx(Log.WARN, "activity observer failed: " + t.getClass().getSimpleName()); }
-                return result;
-            });
-            activityObserverInstalled = true;
-        } catch (Throwable t) { logFx(Log.WARN, "activity observer unavailable: " + t.getClass().getSimpleName()); }
-        if (!dialogObserverInstalled) try {
-            Method show = Dialog.class.getDeclaredMethod("show");
-            hook(show).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
-                Object object = chain.getThisObject();
-                Dialog dialog = object instanceof Dialog ? (Dialog) object : null;
-                String dialogPackage = null;
-                Window dialogWindow = null;
-                try {
-                    if (dialog != null) {
-                        dialogPackage = dialog.getContext().getPackageName();
-                        UnifiedHookConfigParser.Target dialogRules = dialogRulesFor(dialogPackage);
-                        dialogWindow = dialog.getWindow();
-                        View decor = dialogWindow == null ? null : dialogWindow.getDecorView();
-                        WindowManager.LayoutParams attributes = dialogWindow == null
-                                ? null : dialogWindow.getAttributes();
-                        boolean fullScreen = attributes != null
-                                && attributes.width == WindowManager.LayoutParams.MATCH_PARENT
-                                && attributes.height == WindowManager.LayoutParams.MATCH_PARENT;
-                        String matched = dialogRules == null || fullScreen ? null
-                                : findDialogRuleMatch(decor, dialogRules, new int[]{512}, 0);
-                        if (matched != null) {
-                            logFx(Log.INFO, "dia-dialog-block package=" + dialogPackage
-                                    + " kind=" + matched);
-                            if (dialogRules.dialogNotify) showDialogSuppressionToast(
-                                    dialog.getContext(), dialogPackage);
-                            return null;
-                        }
-                    }
-                } catch (Throwable failure) {
-                    // A malformed or inaccessible view tree must never block normal app UI.
-                    logFx(Log.DEBUG, "dialog pre-display match failed open: "
-                            + failure.getClass().getSimpleName());
-                }
-                Object result = chain.proceed();
-                try {
-                    if (dialog != null) {
-                        String pkg = dialogPackage == null
-                                ? dialog.getContext().getPackageName() : dialogPackage;
-                        UnifiedHookConfigParser.Target target = adTargetFor(pkg);
-                        Window window = dialogWindow == null ? dialog.getWindow() : dialogWindow;
-                        UnifiedHookConfigParser.Target dialogRules = dialogRulesFor(pkg);
-                        if (dialogRules != null && window != null) {
-                            scheduleDialogMatchScan(dialog, dialogRules, pkg);
-                        }
-                        if (target != null && window != null) scheduleRootScans(window.getDecorView(), target, pkg);
-                    }
-                } catch (Throwable t) { logFx(Log.WARN, "dialog observer failed: " + t.getClass().getSimpleName()); }
-                return result;
-            });
-            dialogObserverInstalled = true;
-        } catch (Throwable t) { logFx(Log.WARN, "dialog observer unavailable: " + t.getClass().getSimpleName()); }
-        if (!popupObserversInstalled) {
-            int eligible = 0;
-            int installedNow = 0;
-            try {
-                for (Method method : PopupWindow.class.getDeclaredMethods()) {
-                    String name = method.getName();
-                    if (!("showAsDropDown".equals(name) || "showAtLocation".equals(name)) || method.isSynthetic() || method.isBridge()) continue;
-                    eligible++;
-                    String key = method.toGenericString();
-                    if (popupObserverMethods.contains(key)) continue;
-                    try {
-                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
-                            Object result = chain.proceed();
-                            try {
-                                Object object = chain.getThisObject();
-                                if (object instanceof PopupWindow) {
-                                    View content = ((PopupWindow) object).getContentView();
-                                    if (content != null) {
-                                        String pkg = content.getContext().getPackageName();
-                                        UnifiedHookConfigParser.Target target = adTargetFor(pkg);
-                                        if (target != null) scheduleRootScans(content, target, pkg);
-                                    }
-                                }
-                            } catch (Throwable t) { logFx(Log.WARN, "popup observer failed: " + t.getClass().getSimpleName()); }
-                            return result;
-                        });
-                        popupObserverMethods.add(key);
-                        installedNow++;
-                    } catch (Throwable t) { logFx(Log.DEBUG, "popup overload unavailable: " + t.getClass().getSimpleName()); }
-                }
-            } catch (Throwable t) { logFx(Log.WARN, "popup observers unavailable: " + t.getClass().getSimpleName()); }
-            popupObserversInstalled = eligible > 0 && popupObserverMethods.size() >= eligible;
-            logFx(Log.INFO, "global popup observers newly installed=" + installedNow + ", complete=" + popupObserversInstalled);
-        }
-        if (!dynamicChildObserversInstalled) dynamicChildObserversInstalled = installDynamicAdChildHooks();
-    }
-
-    private UnifiedHookConfigParser.Target adTargetFor(String pkg) {
-        if (pkg == null || pkg.isEmpty() || !adsEnabled || NEVER.contains(pkg)) return null;
-        return AUTO_AD_TARGET;
+        logFx(Log.INFO, "popup observers installed=" + popupHooks + " for " + pkg);
+        installDynamicAdChildHooks(pkg, target);
     }
 
     /**
      * Ad SDKs often insert feed/native ad views after Activity.onResume and after
      * the first four delayed scans. Observe child insertion only inside processes
-     * in eligible app processes and check the inserted view with conservative markers. Child
+     * already explicitly scoped to a selected app, then check the inserted view itself with the same conservative markers. Child
      * insertions are also observed separately. This covers late-loading/scroll-loaded ads without polling
      * the entire view tree continuously.
      */
-    private boolean installDynamicAdChildHooks() {
-        int eligible = 0;
-        int installedNow = 0;
+    private void installDynamicAdChildHooks(final String pkg, final UnifiedHookConfigParser.Target target) {
+        int installed = 0;
+        Set<String> hooked = new HashSet<>();
+
+        // Some SDKs attach a prebuilt ad view later, or reparent it after the
+        // parent addView call. Observe the final attachment lifecycle as a second
+        // path; the delayed check runs on the main thread and uses the same
+        // conservative category markers, so unrelated views remain untouched.
+        try {
+            Method attached = View.class.getDeclaredMethod("onAttachedToWindow");
+            hook(attached).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                Object result = chain.proceed();
+                try {
+                    Object object = chain.getThisObject();
+                    if (object instanceof View) {
+                        scheduleAddedViewCheck((View) object, target, pkg);
+                    }
+                } catch (Throwable t) {
+                    logFx(Log.DEBUG, "view attachment observer failed: " + t.getClass().getSimpleName());
+                }
+                return result;
+            });
+            logFx(Log.INFO, "view attachment ad observer installed for " + pkg);
+        } catch (Throwable t) {
+            logFx(Log.WARN, "view attachment observer unavailable for " + pkg +
+                    ": " + t.getClass().getSimpleName());
+        }
         try {
             for (Method method : ViewGroup.class.getDeclaredMethods()) {
                 if (!"addView".equals(method.getName()) || method.isSynthetic() || method.isBridge()) continue;
                 if ((method.getModifiers() & java.lang.reflect.Modifier.PUBLIC) == 0) continue;
                 Class<?>[] types = method.getParameterTypes();
                 if (types.length == 0 || !View.class.isAssignableFrom(types[0])) continue;
-                eligible++;
-                String key = method.toGenericString();
-                if (dynamicChildObserverMethods.contains(key)) continue;
+                String signature = method.toGenericString();
+                if (!hooked.add(signature)) continue;
                 try {
                     hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
                         Object result = chain.proceed();
                         try {
                             Object arg = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
-                            if (arg instanceof View) {
-                                View added = (View) arg;
-                                String pkg = added.getContext().getPackageName();
-                                UnifiedHookConfigParser.Target target = adTargetFor(pkg);
-                                if (target != null) scheduleAddedViewCheck(added, target, pkg);
-                            }
-                        } catch (Throwable t) { logFx(Log.WARN, "dynamic child observer failed: " + t.getClass().getSimpleName()); }
+                            if (arg instanceof View) scheduleAddedViewCheck((View) arg, target, pkg);
+                        } catch (Throwable t) {
+                            logFx(Log.WARN, "dynamic child observer failed: " + t.getClass().getSimpleName());
+                        }
                         return result;
                     });
-                    dynamicChildObserverMethods.add(key);
-                    installedNow++;
-                } catch (Throwable t) { logFx(Log.DEBUG, "addView overload unavailable: " + t.getClass().getSimpleName()); }
+                    installed++;
+                } catch (Throwable t) {
+                    logFx(Log.DEBUG, "addView overload unavailable: " + t.getClass().getSimpleName());
+                }
             }
-        } catch (Throwable t) { logFx(Log.WARN, "dynamic addView hooks unavailable: " + t.getClass().getSimpleName()); }
-        boolean complete = eligible > 0 && dynamicChildObserverMethods.size() >= eligible;
-        logFx(Log.INFO, "global dynamic ad child observers installed; newly=" + installedNow + ", complete=" + complete);
-        return complete;
+        } catch (Throwable t) {
+            logFx(Log.WARN, "dynamic addView hooks unavailable: " + t.getClass().getSimpleName());
+        }
+        logFx(Log.INFO, "dynamic ad child observers installed=" + installed + " for " + pkg);
     }
 
     private void scheduleAddedViewCheck(final View added, final UnifiedHookConfigParser.Target target, final String pkg) {
         if (added == null) return;
-        // addView overloads can delegate to one another; avoid queuing the same
-        // inserted view several times for one logical attachment.
-        long now = System.currentTimeMillis();
-        synchronized (lastAddedViewScan) {
-            Long prior = lastAddedViewScan.get(added);
-            if (prior != null && now - prior < 300L) return;
-            lastAddedViewScan.put(added, now);
-        }
         final Handler handler;
         try { handler = new Handler(Looper.getMainLooper()); }
         catch (Throwable t) { return; }
@@ -2921,144 +3153,16 @@ private boolean targetDeveloperOptIn(String packageName) {
             handler.postDelayed(() -> {
                 try {
                     if (added.getParent() == null) return;
-                    // Inspect the inserted root itself, then recursively inspect its
-                    // descendants. SDKs commonly add a neutral container whose nested
-                    // child is the actual ad view; checking only the root misses it.
-                    scanAddedViewTree(added, target, pkg);
+                    // Inspect the added subtree, not only its outer wrapper. Apps often
+                    // insert a generic FrameLayout/RecyclerView holder that already
+                    // contains a strongly identified ad view. Passing null as the
+                    // scan root makes scanTree evaluate the added root itself as well.
+                    scanTree(added, null, 0, new int[]{0}, target, pkg);
                 } catch (Throwable t) {
                     logFx(Log.DEBUG, "dynamic ad subtree scan failed: " + t.getClass().getSimpleName());
                 }
             }, 80L);
         } catch (Throwable ignored) {}
-    }
-
-    private synchronized void installVisibilityMutationObserver() {
-        if (visibilityMutationObserverInstalled) return;
-        try {
-            Method setter = View.class.getDeclaredMethod("setVisibility", int.class);
-            hook(setter).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
-                Object receiver = chain.getThisObject();
-                if (receiver instanceof View && !fxVisibilityMutation.get()) {
-                    View changed = (View) receiver;
-                    synchronized (hiddenAdViews) {
-                        if (hiddenAdViews.containsKey(changed)) {
-                            externallyChangedAdViews.put(changed, Boolean.TRUE);
-                        }
-                    }
-                }
-                return chain.proceed();
-            });
-            visibilityMutationObserverInstalled = true;
-            logFx(Log.INFO, "ad visibility mutation observer installed");
-        } catch (Throwable failure) {
-            logFx(Log.WARN, "ad visibility mutation observer unavailable; automatic View hiding disabled for safety");
-        }
-    }
-
-    private void hideAdView(final View view, final String pkg, final String failureLabel) {
-        if (view == null || view.getVisibility() == View.GONE) return;
-        // Install only after a real Ad view is found; avoid intercepting every
-        // setVisibility call in apps that never contain a matched Ad view.
-        installVisibilityMutationObserver();
-        if (!visibilityMutationObserverInstalled) {
-            // Without ownership tracking, hiding could overwrite a later app-owned
-            // visibility change. Fail open rather than risk a stale recycled View.
-            return;
-        }
-        try {
-            synchronized (hiddenAdViews) {
-                if (!hiddenAdViews.containsKey(view)) {
-                    hiddenAdViews.put(view, view.getVisibility());
-                    View.OnAttachStateChangeListener listener = new View.OnAttachStateChangeListener() {
-                        @Override public void onViewAttachedToWindow(View attached) { }
-                        @Override public void onViewDetachedFromWindow(View detached) {
-                            restoreHiddenAdView(detached);
-                        }
-                    };
-                    hiddenAdViewListeners.put(view, listener);
-                    view.addOnAttachStateChangeListener(listener);
-                }
-            }
-            if (view.getVisibility() != View.GONE) {
-                fxVisibilityMutation.set(true);
-                try { view.setVisibility(View.GONE); }
-                finally { fxVisibilityMutation.set(false); }
-                logFx(Log.INFO, "hidden ad view in " + pkg
-                        + " class=" + shortName(view.getClass().getName()));
-            }
-        } catch (Throwable t) {
-            restoreHiddenAdView(view);
-            logFx(Log.DEBUG, failureLabel + ": " + t.getClass().getSimpleName());
-        }
-    }
-
-    private void restoreHiddenAdView(View view) {
-        if (view == null) return;
-        Integer original;
-        View.OnAttachStateChangeListener listener;
-        synchronized (hiddenAdViews) {
-            original = hiddenAdViews.remove(view);
-            listener = hiddenAdViewListeners.remove(view);
-        }
-        try {
-            if (listener != null) view.removeOnAttachStateChangeListener(listener);
-            boolean changedByTarget;
-            synchronized (hiddenAdViews) {
-                changedByTarget = externallyChangedAdViews.remove(view) != null;
-            }
-            // Restore only when no target-app setVisibility call occurred after FX hid it.
-            if (original != null && !changedByTarget && view.getVisibility() == View.GONE) {
-                fxVisibilityMutation.set(true);
-                try { view.setVisibility(original); }
-                finally { fxVisibilityMutation.set(false); }
-            }
-        } catch (Throwable t) {
-            logFx(Log.DEBUG, "ad view visibility restore failed: " + t.getClass().getSimpleName());
-        }
-    }
-
-    private void scanAddedViewTree(View added, UnifiedHookConfigParser.Target target, String pkg) {
-        if (added == null) return;
-        if (shouldHide(added, target)) {
-            hideAdView(added, pkg, "dynamic ad root hide failed");
-            return;
-        } else {
-            restoreHiddenAdView(added);
-        }
-        if (!(added instanceof ViewGroup)) return;
-        ViewGroup group = (ViewGroup) added;
-        int childCount;
-        try { childCount = Math.min(group.getChildCount(), MAX_DYNAMIC_AD_SCAN_NODES); }
-        catch (Throwable t) { return; }
-        int[] visited = new int[]{0};
-        for (int i = 0; i < childCount && visited[0] < MAX_DYNAMIC_AD_SCAN_NODES; i++) {
-            try {
-                View child = group.getChildAt(i);
-                if (child != null) scanDynamicTree(child, added, 1, visited, target, pkg);
-            } catch (Throwable ignored) { }
-        }
-    }
-
-    private void scanDynamicTree(View view, View root, int depth, int[] count,
-                                 UnifiedHookConfigParser.Target target, String pkg) {
-        if (view == null || depth > MAX_DYNAMIC_AD_SCAN_DEPTH
-                || count[0]++ >= MAX_DYNAMIC_AD_SCAN_NODES) return;
-        if (view != root && shouldHide(view, target)) {
-            hideAdView(view, pkg, "dynamic ad child hide failed");
-            return;
-        } else if (view != root) {
-            restoreHiddenAdView(view);
-        }
-        if (!(view instanceof ViewGroup)) return;
-        ViewGroup group = (ViewGroup) view;
-        int childCount;
-        try { childCount = Math.min(group.getChildCount(), MAX_DYNAMIC_AD_SCAN_NODES); }
-        catch (Throwable ignored) { return; }
-        for (int i = 0; i < childCount && count[0] < MAX_DYNAMIC_AD_SCAN_NODES; i++) {
-            try {
-                scanDynamicTree(group.getChildAt(i), root, depth + 1, count, target, pkg);
-            } catch (Throwable ignored) { }
-        }
     }
 
     private void scheduleScans(final Activity activity, final UnifiedHookConfigParser.Target target) {
@@ -3095,7 +3199,6 @@ private boolean targetDeveloperOptIn(String packageName) {
                     try {
                         View root = initialRoot.getRootView();
                         if (root == null) root = initialRoot;
-                        inspectMemberViewTree(root, pkg);
                         scanTree(root, root, 0, new int[]{0}, target, pkg);
                     } catch (Throwable t) {
                         logFx(Log.WARN, "bounded view scan failed: " + t.getClass().getSimpleName());
@@ -3108,10 +3211,19 @@ private boolean targetDeveloperOptIn(String packageName) {
     private void scanTree(View view, View root, int depth, int[] count, UnifiedHookConfigParser.Target target, String pkg) {
         if (view == null || depth > 20 || count[0]++ >= 1800) return;
         if (view != root && shouldHide(view, target)) {
-            hideAdView(view, pkg, "ad view hide failed");
-            return;
-        } else if (view != root) {
-            restoreHiddenAdView(view);
+            // Preserve a generic ad container when reward UI is nested inside it.
+            if (containsRewardedUiSignal(view, 100, 0)) {
+                recordRewardedAdEvidence("container " + shortName(view.getClass().getName())
+                        + " action=preserve-reward-flow");
+            } else {
+                try {
+                    if (view.getVisibility() != View.GONE) {
+                        view.setVisibility(View.GONE);
+                        logFx(Log.INFO, "hidden ad view in " + pkg + " class=" + shortName(view.getClass().getName()));
+                    }
+                    return;
+                } catch (Throwable ignored) {}
+            }
         }
         if (!(view instanceof ViewGroup)) return;
         ViewGroup group = (ViewGroup) view;
@@ -3125,23 +3237,22 @@ private boolean targetDeveloperOptIn(String packageName) {
     }
 
     private boolean shouldHide(View view, UnifiedHookConfigParser.Target target) {
-        if (view instanceof TextView && isRewardedFlowEvidence((TextView) view)) {
-            recordRewardedAdEvidence(view, "preserve-reward-flow");
-            return false; // preserve-reward-flow: keep rewarded video UI and callback path unchanged
-        }
         String cls = lower(view.getClass().getName());
         String id = resourceName(view);
         String evidence = cls + " " + id;
+        // Never hide a view identified as a rewarded/incentivized flow: removing it can
+        // interrupt the SDK callback chain and make legitimate rewards fail. Observe only.
+        if (isRewardedFlowEvidence(evidence)) {
+            recordRewardedAdEvidence("view " + shortName(cls) + (id.isEmpty() ? "" : " id=" + id));
+            return false;
+        }
+        if (BuiltInHookRules.matches(view.getContext().getPackageName(), evidence, target)) return true;
+        if (matchesCustomRule(evidence, target)) return true;
         boolean strong = hasAny(evidence, STRONG_AD_MARKERS);
         boolean sdkNamespace = hasAny(cls, AD_CLASS_MARKERS);
         // A SDK namespace alone is not proof that every custom View is an ad:
         // SDK packages may also contain controls, placeholders and telemetry views.
         boolean sdkAdView = sdkNamespace && hasAny(cls, STRONG_AD_MARKERS);
-        if ((strong || sdkNamespace) && view instanceof ViewGroup
-                && containsRewardedEvidenceInSubtree(view, 0, new int[]{0})) {
-            recordRewardedAdEvidence(view, "container-preserve-reward-flow");
-            return false;
-        }
         if (!strong && !sdkAdView) {
             if (view instanceof TextView && hasAdLabel((TextView) view)) {
                 ParentEvidence parent = findStrongAdParent(view);
@@ -3152,17 +3263,58 @@ private boolean targetDeveloperOptIn(String packageName) {
         return categoryMatches(evidence, target, sdkAdView);
     }
 
-    private boolean containsRewardedEvidenceInSubtree(View view, int depth, int[] count) {
-        if (view == null || depth > 8 || count[0]++ >= 240) return false;
-        if (view instanceof TextView && isRewardedFlowEvidence((TextView) view)) return true;
+    private static boolean isRewardedFlowEvidence(String evidence) {
+        return evidence != null && hasAny(lower(evidence), REWARDED_FLOW_MARKERS);
+    }
+
+    /**
+     * Bounded descendant inspection for reward-specific UI signals. Text is checked
+     * in memory only and is never logged; matching containers are preserved.
+     */
+    private static boolean containsRewardedUiSignal(View view, int budget, int depth) {
+        if (view == null || budget <= 0 || depth > 12) return false;
+        String evidence = lower(view.getClass().getName()) + " " + resourceName(view);
+        if (isRewardedFlowEvidence(evidence)) return true;
+        if (view instanceof TextView) {
+            try {
+                TextView text = (TextView) view;
+                if (isRewardedFlowEvidence(String.valueOf(text.getText()))
+                        || isRewardedFlowEvidence(String.valueOf(text.getContentDescription()))) return true;
+            } catch (Throwable ignored) {}
+        }
         if (!(view instanceof ViewGroup)) return false;
         ViewGroup group = (ViewGroup) view;
-        int n;
-        try { n = Math.min(group.getChildCount(), 80); } catch (Throwable ignored) { return false; }
-        for (int i = 0; i < n && count[0] < 240; i++) {
-            try {
-                if (containsRewardedEvidenceInSubtree(group.getChildAt(i), depth + 1, count)) return true;
-            } catch (Throwable ignored) {}
+        int count;
+        try { count = Math.min(group.getChildCount(), budget); }
+        catch (Throwable ignored) { return false; }
+        for (int i = 0; i < count; i++) {
+            if (containsRewardedUiSignal(group.getChildAt(i), budget - i - 1, depth + 1)) return true;
+        }
+        return false;
+    }
+
+    private void recordRewardedAdEvidence(String evidence) {
+        if (evidence == null || rewardedAdEvidence.size() >= MAX_REWARDED_AD_EVIDENCE) return;
+        if (rewardedAdEvidence.add(evidence)) {
+            logFx(Log.INFO, "rewarded-ad lifecycle candidate=" + evidence
+                    + " action=observe-only; reward callback/server validation unchanged");
+        }
+    }
+
+    private boolean matchesCustomRule(String evidence, UnifiedHookConfigParser.Target target) {
+        if (target == null || target.customRules.isEmpty()) return false;
+        for (Map.Entry<String, Set<String>> entry : target.customRules.entrySet()) {
+            boolean categoryEnabled;
+            switch (entry.getKey()) {
+                case "splash": categoryEnabled = target.splash; break;
+                case "feed": categoryEnabled = target.feed; break;
+                case "overlay": categoryEnabled = target.overlay; break;
+                default: categoryEnabled = false;
+            }
+            if (!categoryEnabled) continue;
+            for (String token : entry.getValue()) {
+                if (evidence.contains(token)) return true;
+            }
         }
         return false;
     }
@@ -3182,12 +3334,12 @@ private boolean targetDeveloperOptIn(String packageName) {
         if (hasAny(e, SPLASH_MARKERS)) return target.splash;
         if (hasAny(e, OVERLAY_MARKERS)) return target.overlay;
         if (hasAny(e, FEED_MARKERS)) return target.feed;
+        // Do not assign an unclassified ad marker to whichever category happens
+        // to be the only enabled one. That makes the category switches misleading
+        // and can hide unrelated UI. SDK-specific ad classes default to feed only
+        // when the feed category is enabled.
         if (sdkView) return target.feed;
-        int enabled = (target.splash ? 1 : 0) + (target.feed ? 1 : 0) + (target.overlay ? 1 : 0);
-        // With automatic recognition all three categories are enabled. Strong
-        // generic Ad markers (for example AdBannerView) must still match even
-        // when the class/resource name has no category-specific token.
-        return enabled > 0;
+        return false;
     }
 
     private static boolean hasAdLabel(TextView text) {
@@ -3210,309 +3362,383 @@ private boolean targetDeveloperOptIn(String packageName) {
         } catch (Throwable ignored) { return ""; }
     }
 
-
     /**
-     * Bounded, opt-in discovery of membership-state candidates. This is strictly
-     * observational: getter return values, purchase state and entitlements are
-     * never changed. Scanning is capped by APK count, class count, time and hook count.
+     * Runtime discovery for explicitly selected, developer-authorized targets.
+     * Records bounded class/method-name evidence from resumed Activities. It does not
+     * infer entitlement or modify results; candidates require evidence-driven review.
      */
-    private volatile ClassLoader targetMemberClassLoader;
-
-    private void installDynamicMemberClassDiscovery(final ClassLoader loader, final String pkg) {
-        if (loader == null) return;
-        targetMemberClassLoader = loader;
-        if (dynamicMemberDiscoveryInstalled) {
-            startBoundedMemberDexScan(loader, pkg);
-            return;
-        }
-        dynamicMemberDiscoveryInstalled = true;
-        int loaderHooks = 0;
+    private void installActivityResumeObserver(final String pkg,
+                                               final UnifiedHookConfigParser.Target target,
+                                               final boolean observeAds,
+                                               final boolean observeMemberFlow) {
         try {
-            Method loadClass = ClassLoader.class.getDeclaredMethod("loadClass", String.class);
-            hook(loadClass).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+            Method resume = Instrumentation.class.getDeclaredMethod("callActivityOnResume", Activity.class);
+            hook(resume).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
                 Object result = chain.proceed();
-                if (result instanceof Class<?>) {
-                    Class<?> candidate = (Class<?>) result;
-                    inspectDynamicallyLoadedMemberClass(candidate);
+                try {
+                    Object arg = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
+                    if (arg instanceof Activity) {
+                        Activity activity = (Activity) arg;
+                        if (pkg.equals(activity.getPackageName())) {
+                            if (observeAds) scheduleScans(activity, target);
+                            if (observeMemberFlow) {
+                                // Billing libraries may load after the package-ready callback.
+                                // Retry on resumed activities; successful hooks are de-duplicated.
+                                installReadOnlyBillingDiagnostics(activity.getClassLoader());
+                                discoverMemberFlowEvidence(activity);
+                                startBoundedMemberDexScan(activity, pkg);
+                            }
+                        }
+                    }
+                } catch (Throwable t) {
+                    logFx(Log.DEBUG, "activity resume observer failed=" + t.getClass().getSimpleName());
                 }
                 return result;
             });
-            loaderHooks++;
+            logFx(Log.INFO, "shared activity resume observer installed for " + pkg +
+                    " ads=" + observeAds + " memberDiagReadOnly=" + observeMemberFlow);
         } catch (Throwable t) {
-            logFx(Log.DEBUG, "member classloader observer unavailable=" + t.getClass().getSimpleName());
+            logFx(Log.WARN, "activity resume observer unavailable for " + pkg +
+                    " reason=" + t.getClass().getSimpleName());
         }
-        logFx(Log.INFO, "dynamic member class discovery installed; loaderHooks=" + loaderHooks
-                + "; member runtime discovery installed");
-        startBoundedMemberDexScan(loader, pkg);
     }
 
-    private void startBoundedMemberDexScan(final ClassLoader loader, final String pkg) {
+    private void installMemberFlowDiscovery(final String pkg) {
+        installDynamicMemberClassDiscovery(pkg);
+        logFx(Log.INFO, "member runtime discovery installed for " + pkg +
+                " mode=observe-only evidenceLimit=" + MAX_MEMBER_DISCOVERY_EVIDENCE);
+    }
+
+    /**
+     * Bounded, read-only candidate scan of the selected app's own APK DEX entries.
+     * It does not alter methods, purchase results, or server-side entitlements.
+     */
+    private void startBoundedMemberDexScan(final Activity activity, final String pkg) {
+        if (memberDiscoveryEvidence.size() >= MAX_MEMBER_DISCOVERY_EVIDENCE
+                || !memberDexScanStarted.add(pkg)) return;
+        final String[] apkPaths;
+        try {
+            android.content.pm.ApplicationInfo appInfo = activity.getApplicationInfo();
+            String[] splits = appInfo.splitSourceDirs;
+            int splitCount = splits == null ? 0 : splits.length;
+            apkPaths = new String[1 + splitCount];
+            apkPaths[0] = appInfo.sourceDir;
+            for (int i = 0; i < splitCount; i++) apkPaths[i + 1] = splits[i];
+        } catch (Throwable t) {
+            memberDexScanStarted.remove(pkg);
+            logFx(Log.DEBUG, "member DEX scan unavailable: APK paths inaccessible; retry allowed");
+            return;
+        }
         Thread worker = new Thread(() -> {
+            int inspected = 0;
             int apkFilesScanned = 0;
-            int classesScanned = 0;
-            long deadline = System.currentTimeMillis() + 6000L;
-            List<String> apkPaths = new ArrayList<>();
+            long deadline = System.nanoTime() + MAX_MEMBER_DEX_SCAN_MILLIS * 1_000_000L;
+            ClassLoader loader = activity.getClassLoader();
+            boolean bounded = false;
             try {
-                Class<?> activityThread = Class.forName("android.app.ActivityThread");
-                Method currentApplication = activityThread.getDeclaredMethod("currentApplication");
-                currentApplication.setAccessible(true);
-                Object appObject = currentApplication.invoke(null);
-                if (!(appObject instanceof Application)) {
-                    logFx(Log.WARN, "member DEX candidate scan skipped: application unavailable");
-                    return;
-                }
-                ApplicationInfo info = ((Application) appObject).getApplicationInfo();
-                if (info.packageName != null && !pkg.equals(info.packageName)) {
-                    logFx(Log.WARN, "member DEX scan package mismatch; refusing cross-package scan");
-                    return;
-                }
-                if (info.sourceDir != null) apkPaths.add(info.sourceDir);
-                String[] splitSourceDirs = info.splitSourceDirs;
-                if (splitSourceDirs != null) {
-                    for (String split : splitSourceDirs) if (split != null && !apkPaths.contains(split)) apkPaths.add(split);
-                }
-            } catch (Throwable t) {
-                logFx(Log.WARN, "member DEX candidate scan cannot enumerate APK paths=" + t.getClass().getSimpleName());
-                return;
-            }
-            for (String apkPath : apkPaths) {
-                if (apkFilesScanned >= 16 || memberClassesInspected.get() >= MAX_DYNAMIC_MEMBER_CLASSES
-                        || System.currentTimeMillis() > deadline) break;
-                DexFile dex = null;
-                try {
-                    dex = new DexFile(apkPath);
-                    apkFilesScanned++;
-                    Enumeration<String> entries = dex.entries();
-                    while (entries.hasMoreElements() && classesScanned < 24000
-                            && memberClassesInspected.get() < MAX_DYNAMIC_MEMBER_CLASSES
-                            && System.currentTimeMillis() <= deadline) {
-                        String name = entries.nextElement();
-                        classesScanned++;
-                        boolean namedCandidate = isMemberClassNameCandidate(name);
-                        // Sample metadata across the DEX rather than examining only
-                        // classes whose names already reveal "vip/member/premium".
-                        if (!namedCandidate && (classesScanned % 43 != 0
-                                || memberMetadataProbes.get() >= MAX_MEMBER_METADATA_PROBES)) continue;
-                        try {
-                            Class<?> candidate = Class.forName(name, false, loader);
-                            inspectDynamicallyLoadedMemberClass(candidate);
-                        } catch (Throwable ignored) { /* optional split/obfuscated classes may not resolve */ }
+                for (String apkPath : apkPaths) {
+                    if (apkPath == null || apkPath.isEmpty()
+                            || inspected >= MAX_MEMBER_DEX_CLASSES
+                            || System.nanoTime() >= deadline
+                            || memberDiscoveryEvidence.size() >= MAX_MEMBER_DISCOVERY_EVIDENCE) {
+                        bounded = true;
+                        break;
                     }
-                } catch (Throwable t) {
-                    logFx(Log.DEBUG, "member DEX path unavailable=" + t.getClass().getSimpleName());
-                } finally {
-                    if (dex != null) try { dex.close(); } catch (Throwable ignored) {}
+                    DexFile dex = null;
+                    try {
+                        dex = new DexFile(apkPath);
+                        apkFilesScanned++;
+                        Enumeration<String> names = dex.entries();
+                        while (names.hasMoreElements() && inspected < MAX_MEMBER_DEX_CLASSES
+                                && System.nanoTime() < deadline
+                                && memberDiscoveryEvidence.size() < MAX_MEMBER_DISCOVERY_EVIDENCE) {
+                            String name = names.nextElement();
+                            inspected++;
+                            if (name == null || !name.startsWith(pkg + ".")) continue;
+                            boolean classCandidate = containsMemberMarker(name);
+                            try {
+                                Class<?> candidate = Class.forName(name, false, loader);
+                                if (classCandidate) recordMemberEvidence("dex-class " + name);
+                                // Feed APK-scanned classes through the same bounded obfuscation-aware
+                                // path as classes observed at runtime, not only semantic-name matching.
+                                inspectDynamicallyLoadedMemberClass(candidate);
+                            } catch (Throwable ignored) {
+                                // Obfuscated, optional, or unavailable classes are skipped independently.
+                            }
+                        }
+                        if (names.hasMoreElements() || inspected >= MAX_MEMBER_DEX_CLASSES
+                                || System.nanoTime() >= deadline
+                                || memberDiscoveryEvidence.size() >= MAX_MEMBER_DISCOVERY_EVIDENCE) {
+                            bounded = true;
+                            break;
+                        }
+                    } catch (Throwable t) {
+                        logFx(Log.DEBUG, "member DEX file unavailable=" + t.getClass().getSimpleName());
+                    } finally {
+                        if (dex != null) {
+                            try {
+                                dex.close();
+                            } catch (Throwable ignored) {
+                                // Closing a read-only DEX handle is best-effort on older Android releases.
+                            }
+                        }
+                    }
                 }
+                logFx(Log.INFO, "member DEX candidate scan finished for " + pkg
+                        + " apkFilesScanned=" + apkFilesScanned
+                        + " classesInspected=" + inspected
+                        + " bounded=" + bounded
+                        + " evidenceCount=" + memberDiscoveryEvidence.size());
+            } catch (Throwable t) {
+                logFx(Log.DEBUG, "member DEX scan unavailable=" + t.getClass().getSimpleName());
             }
-            logFx(Log.INFO, "member DEX candidate scan finished; apkFilesScanned=" + apkFilesScanned
-                    + " classesScanned=" + classesScanned + " memberClassesInspected=" + memberClassesInspected.get()
-                    + " memberMethodsHooked=" + memberMethodsHooked.get());
         }, "FX-member-dex-scan");
         worker.setDaemon(true);
         worker.start();
     }
 
-    private boolean isMemberClassNameCandidate(String name) {
-        String n = lower(name);
-        return n.contains("member") || n.contains("vip") || n.contains("premium")
-                || n.contains("entitle") || n.contains("subscription") || n.contains("purchase")
-                || n.contains("billing") || n.contains("license") || n.contains("benefit")
-                || n.contains("privilege") || n.contains("order");
-    }
-
-    private void inspectDynamicallyLoadedMemberClass(Class<?> candidate) {
-        if (candidate == null || !belongsToTargetClassLoader(candidate, targetMemberClassLoader)) return;
-        String name = candidate.getName();
-        boolean namedCandidate = isMemberClassNameCandidate(name);
-        if (!namedCandidate) {
-            if (memberMetadataProbes.incrementAndGet() > MAX_MEMBER_METADATA_PROBES) return;
-        }
-        if (!memberMetadataInspectedClasses.add(name)) return;
-        observeLoadedMemberClass(candidate, namedCandidate);
-    }
-
-    private boolean belongsToTargetClassLoader(Class<?> candidate, ClassLoader targetLoader) {
-        if (candidate == null || targetLoader == null) return false;
-        ClassLoader current = candidate.getClassLoader();
-        while (current != null) {
-            if (current == targetLoader) return true;
-            current = current.getParent();
-        }
-        return false;
-    }
-
-    private void observeLoadedMemberClass(Class<?> candidate, boolean namedCandidate) {
-        if (candidate == null || memberClassesInspected.get() >= MAX_DYNAMIC_MEMBER_CLASSES) return;
-        String name = candidate.getName();
-        boolean fieldCandidate = hasMemberStateField(candidate);
-        boolean methodCandidate = hasMemberStateMethod(candidate);
-        boolean obfuscatedShapeCandidate = !namedCandidate && hasObfuscatedMemberStateShape(candidate);
-        if (!fieldCandidate && !methodCandidate && !obfuscatedShapeCandidate) return;
-        if (!memberCandidateClasses.add(name)) return;
-        int count = memberClassesInspected.incrementAndGet();
-        if (count > MAX_DYNAMIC_MEMBER_CLASSES) return;
-        logFx(Log.INFO, "member discovery candidate=" + shortName(name)
-                + " member-field-candidate=" + fieldCandidate
-                + " member-method-candidate=" + methodCandidate
-                + " obfuscated-shape-candidate=" + obfuscatedShapeCandidate
-                + " member-interface-candidate=" + candidate.isInterface()
-                + " obfuscated-status-candidate=" + !namedCandidate);
-        installReadOnlyMemberCandidateHook(candidate, namedCandidate, obfuscatedShapeCandidate);
-    }
-
     /**
-     * Conservative shape heuristic for obfuscated DTOs: require both a Boolean/Enum
-     * state-like value and a numeric/String descriptor. This only marks a candidate;
-     * unknown obfuscated methods are not automatically hooked or invoked.
+     * Observe classes as the selected app loads them, including secondary/dynamic
+     * loaders. Only classes in the opted-in app package are inspected; inspection
+     * and any method hooks are bounded and preserve every original return value.
      */
-    private boolean hasObfuscatedMemberStateShape(Class<?> candidate) {
-        return MemberCandidateClassifier.hasObfuscatedStateShape(candidate);
+    private void installDynamicMemberClassDiscovery(final String pkg) {
+        try {
+            Method loadClass = ClassLoader.class.getDeclaredMethod("loadClass", String.class);
+            hook(loadClass).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                Object result = chain.proceed();
+                observeLoadedMemberClass(result, pkg);
+                return result;
+            });
+            int hooksInstalled = 1;
+            try {
+                Method resolveLoadClass = ClassLoader.class.getDeclaredMethod(
+                        "loadClass", String.class, boolean.class);
+                hook(resolveLoadClass).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            Object result = chain.proceed();
+                            observeLoadedMemberClass(result, pkg);
+                            return result;
+                        });
+                hooksInstalled++;
+            } catch (Throwable optionalOverloadUnavailable) {
+                logFx(Log.DEBUG, "two-argument class loading observer unavailable");
+            }
+            logFx(Log.INFO, "dynamic member class discovery installed for " + pkg
+                    + " mode=observe-only classLimit=" + MAX_DYNAMIC_MEMBER_CLASSES
+                    + " loaderHooks=" + hooksInstalled);
+        } catch (Throwable t) {
+            logFx(Log.WARN, "dynamic member class discovery unavailable for " + pkg
+                    + " reason=" + t.getClass().getSimpleName());
+        }
     }
 
-    /** Inspect method metadata only; never invoke candidate methods during discovery. */
-    private boolean hasMemberStateMethod(Class<?> candidate) {
+    private void observeLoadedMemberClass(Object result, String pkg) {
+        if (!(result instanceof Class<?>)) return;
         try {
-            Method[] methods = candidate.getDeclaredMethods();
-            int limit = Math.min(methods.length, 128);
-            for (int i = 0; i < limit; i++) {
-                Method method = methods[i];
-                MemberCandidateClassifier.Candidate classification =
-                        MemberCandidateClassifier.inspect(method);
-                String methodName = lower(method.getName());
-                boolean getter = methodName.startsWith("get") || methodName.startsWith("is");
-                if (getter && classification.kind != MemberCandidateClassifier.Kind.UNKNOWN
-                        && classification.isWorthInspecting()) return true;
-                if (classification.kind == MemberCandidateClassifier.Kind.ASYNC_FLOW
-                        && method.getParameterTypes().length == 1) return true;
-            }
-        } catch (Throwable ignored) {}
-        return false;
+            Class<?> loaded = (Class<?>) result;
+            String name = loaded.getName();
+            if (name.startsWith(pkg + ".")) inspectDynamicallyLoadedMemberClass(loaded);
+        } catch (Throwable t) {
+            logFx(Log.DEBUG, "dynamic member class observation failed="
+                    + t.getClass().getSimpleName());
+        }
     }
 
-    private boolean hasMemberStateField(Class<?> candidate) {
+    private void inspectDynamicallyLoadedMemberClass(Class<?> type) {
+        if (type == null || memberClassesInspected.size() >= MAX_DYNAMIC_MEMBER_CLASSES) return;
+        String className = type.getName();
+        if (!className.startsWith(currentPackage + ".")) return;
+        if (!memberClassesInspected.add(className)) return;
+        inspectMemberCandidateClass(type);
+        boolean memberContext = containsMemberMarker(className) || hasMemberStateField(type)
+                || hasMemberStateType(type);
+        // Obfuscation can erase semantic names. Inspect compact methods only when
+        // their class has independent membership evidence, reducing false positives.
         try {
-            Field[] fields = candidate.getDeclaredFields();
-            int limit = Math.min(fields.length, 128);
-            for (int i = 0; i < limit; i++) {
-                Field field = fields[i];
-                String fieldName = lower(field.getName());
-                String typeName = lower(field.getType().getName());
-                if (hasAny(fieldName, MEMBER_STATE_FIELD_MARKERS)
-                        || hasMemberStateType(field.getType())) return true;
+            for (Method method : type.getDeclaredMethods()) {
+                if (memberMethodsHooked.size() >= MAX_AUTO_MEMBER_METHOD_HOOKS
+                        || memberDiscoveryEvidence.size() >= MAX_MEMBER_DISCOVERY_EVIDENCE) break;
+                String name = method.getName();
+                Class<?>[] params = method.getParameterTypes();
+                Class<?> result = method.getReturnType();
+                boolean primitiveStatus = params.length == 0
+                        && (result == boolean.class || result == Boolean.class
+                        || result == int.class || result == Integer.class);
+                boolean compactObfuscatedName = name.length() <= 2
+                        && name.matches("[a-zA-Z_$][a-zA-Z0-9_$]*");
+                if (primitiveStatus && compactObfuscatedName && memberContext) {
+                    recordMemberEvidence("obfuscated-status-candidate " + type.getName()
+                            + "#" + name + "(): " + result.getSimpleName());
+                    installReadOnlyMemberCandidateHook(type, method, true);
+                }
             }
-        } catch (Throwable ignored) {}
+        } catch (Throwable t) {
+            logFx(Log.DEBUG, "obfuscated member method inspection unavailable="
+                    + t.getClass().getSimpleName());
+        }
+    }
+
+    private boolean hasMemberStateField(Class<?> type) {
+        try {
+            for (java.lang.reflect.Field field : type.getDeclaredFields()) {
+                String name = lower(field.getName());
+                for (String marker : MEMBER_STATE_FIELD_MARKERS) {
+                    if (name.contains(marker)) {
+                        recordMemberEvidence("member-field-candidate " + type.getName()
+                                + "#" + field.getName() + ":" + field.getType().getSimpleName());
+                        return true;
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
+            // Field metadata may be hidden by the runtime or vendor policy.
+        }
         return false;
     }
 
     private boolean hasMemberStateType(Class<?> type) {
-        if (type == null) return false;
-        String name = lower(type.getName());
-        return hasAny(name, MEMBER_STATE_FIELD_MARKERS)
-                || type.isEnum() && hasAny(name, new String[]{"state", "status", "purchase", "member"});
+        try {
+            for (Class<?> iface : type.getInterfaces()) {
+                if (containsMemberMarker(iface.getName())) {
+                    recordMemberEvidence("member-interface-candidate " + type.getName()
+                            + " implements " + iface.getName());
+                    return true;
+                }
+            }
+            Class<?> parent = type.getSuperclass();
+            return parent != null && parent != Object.class && containsMemberMarker(parent.getName());
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
-    private void installReadOnlyMemberCandidateHook(Class<?> candidate, boolean namedCandidate,
-                                                    boolean obfuscatedShapeCandidate) {
-        int installed = 0;
+    private void discoverMemberFlowEvidence(Activity activity) {
+        if (memberDiscoveryEvidence.size() >= MAX_MEMBER_DISCOVERY_EVIDENCE) return;
+        Class<?> type = activity.getClass();
         int hierarchyDepth = 0;
-        // Membership state is frequently inherited from a shared account/base model.
-        // Walk only app-owned classes in this target loader; never hook framework
-        // ancestors or unrelated parent-loader methods.
-        for (Class<?> owner = candidate; owner != null && hierarchyDepth < 5
-                && installed < MAX_AUTO_MEMBER_METHOD_HOOKS
-                && memberMethodsHooked.get() < 128; owner = owner.getSuperclass(), hierarchyDepth++) {
-            if (!belongsToTargetClassLoader(owner, targetMemberClassLoader)) break;
-            try {
-                Method[] methods = owner.getDeclaredMethods();
-                int limit = Math.min(methods.length, 128);
-                for (int i = 0; i < limit && installed < MAX_AUTO_MEMBER_METHOD_HOOKS
-                        && memberMethodsHooked.get() < 128; i++) {
-                    Method method = methods[i];
-                    if (Modifier.isStatic(method.getModifiers())
-                            || method.isSynthetic() || method.isBridge()) continue;
-                    if (!MemberCandidateClassifier.shouldObserveMethod(
-                            method, namedCandidate, obfuscatedShapeCandidate)) continue;
-                    String key = method.toGenericString();
-                    if (!memberHookedMethods.add(key)) continue;
-                    try {
-                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
-                            Object result = chain.proceed();
-                            if (memberStateObservationCount.incrementAndGet() <= MAX_MEMBER_STATE_OBSERVATIONS) {
-                                MemberCandidateClassifier.Kind runtimeKind =
-                                        MemberCandidateClassifier.kindOfRuntimeValue(result);
-                                logFx(Log.DEBUG, "member state observation owner=" + shortName(method.getDeclaringClass().getName())
-                                        + " method=" + method.getName()
-                                        + " result-kind=" + runtimeKind.name()
-                                        + " mode=read-only");
-                            }
-                            return result;
-                        });
-                        installed++;
-                        memberMethodsHooked.incrementAndGet();
-                    } catch (Throwable ignored) {
-                        memberHookedMethods.remove(key);
-                    }
+        while (type != null && type != Activity.class && hierarchyDepth++ < 6
+                && memberDiscoveryEvidence.size() < MAX_MEMBER_DISCOVERY_EVIDENCE) {
+            inspectMemberCandidateClass(type);
+            type = type.getSuperclass();
+        }
+        // Inspect resource identifiers only, never visible text or input values.
+        // This gives the next analysis stage stable UI anchors without collecting personal data.
+        try {
+            View decor = activity.getWindow() == null ? null : activity.getWindow().getDecorView();
+            if (decor != null) inspectMemberViewTree(activity, decor, new int[]{0});
+        } catch (Throwable t) {
+            logFx(Log.DEBUG, "member resource inspection unavailable=" + t.getClass().getSimpleName());
+        }
+    }
+
+    private void inspectMemberViewTree(Activity activity, View view, int[] visited) {
+        if (view == null || visited[0] >= 160
+                || memberDiscoveryEvidence.size() >= MAX_MEMBER_DISCOVERY_EVIDENCE) return;
+        visited[0]++;
+        try {
+            int id = view.getId();
+            if (id != View.NO_ID) {
+                String entry = activity.getResources().getResourceEntryName(id);
+                if (containsMemberMarker(entry)) {
+                    recordMemberEvidence("resource " + activity.getPackageName() + ":id/" + entry
+                            + " view=" + view.getClass().getName());
                 }
-            } catch (Throwable t) {
-                logFx(Log.DEBUG, "member hierarchy metadata unavailable owner="
-                        + shortName(owner.getName()) + " reason=" + t.getClass().getSimpleName());
+            }
+        } catch (Resources.NotFoundException ignored) {
+            // Dynamically generated IDs have no stable resource entry name.
+        } catch (Throwable t) {
+            logFx(Log.DEBUG, "member resource name unavailable=" + t.getClass().getSimpleName());
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            int count = Math.min(group.getChildCount(), 160 - visited[0]);
+            for (int i = 0; i < count; i++) {
+                inspectMemberViewTree(activity, group.getChildAt(i), visited);
+                if (memberDiscoveryEvidence.size() >= MAX_MEMBER_DISCOVERY_EVIDENCE) return;
             }
         }
-        logFx(Log.INFO, "auto member candidate hooks installed=" + installed
-                + " class=" + shortName(candidate.getName())
-                + " hierarchyDepth=" + hierarchyDepth + " mode=read-only");
     }
 
-    private boolean containsRewardedUiSignal(String text) {
-        return text != null && hasAny(lower(text), REWARDED_FLOW_MARKERS);
-    }
-
-    private boolean isRewardedFlowEvidence(TextView textView) {
-        if (textView == null) return false;
+    private void inspectMemberCandidateClass(Class<?> type) {
+        String className = type.getName();
+        if (containsMemberMarker(className)) recordMemberEvidence("class " + className);
         try {
-            String text = String.valueOf(textView.getText());
-            String description = String.valueOf(textView.getContentDescription());
-            String resource = resourceName(textView);
-            return containsRewardedUiSignal(text) || containsRewardedUiSignal(description)
-                    || containsRewardedUiSignal(resource);
-        } catch (Throwable ignored) { return false; }
+            for (Method method : type.getDeclaredMethods()) {
+                if (memberDiscoveryEvidence.size() >= MAX_MEMBER_DISCOVERY_EVIDENCE) break;
+                String methodName = method.getName();
+                if (!containsMemberMarker(methodName)) continue;
+                StringBuilder signature = new StringBuilder("method ")
+                        .append(className).append("#").append(methodName).append("(");
+                Class<?>[] params = method.getParameterTypes();
+                for (int i = 0; i < params.length; i++) {
+                    if (i > 0) signature.append(",");
+                    signature.append(params[i].getSimpleName());
+                }
+                signature.append("):").append(method.getReturnType().getSimpleName());
+                recordMemberEvidence(signature.toString());
+                installReadOnlyMemberCandidateHook(type, method);
+            }
+        } catch (Throwable t) {
+            logFx(Log.DEBUG, "member method inspection unavailable for " + className +
+                    " reason=" + t.getClass().getSimpleName());
+        }
     }
 
-    private void recordRewardedAdEvidence(View view, String reason) {
-        if (view == null || rewardedEvidenceCount.get() >= MAX_REWARDED_AD_EVIDENCE) return;
-        String pkg = "";
-        String evidence = "";
+    /**
+     * Automatically hook candidate no-argument boolean member-state getters for
+     * observation only. This helps map app-side entitlement flow without changing
+     * VIP state, purchase results, network responses, or server-side authorization.
+     */
+    private void installReadOnlyMemberCandidateHook(Class<?> owner, Method method) {
+        installReadOnlyMemberCandidateHook(owner, method, false);
+    }
+
+    private void installReadOnlyMemberCandidateHook(Class<?> owner, Method method,
+                                                    boolean allowCompactObfuscatedName) {
+        if (owner == null || method == null
+                || memberMethodsHooked.size() >= MAX_AUTO_MEMBER_METHOD_HOOKS
+                || method.getParameterTypes().length != 0) return;
+        Class<?> resultType = method.getReturnType();
+        boolean booleanState = resultType == boolean.class || resultType == Boolean.class;
+        boolean integerState = resultType == int.class || resultType == Integer.class;
+        if (!booleanState && !(allowCompactObfuscatedName && integerState)) return;
+        String methodName = lower(method.getName());
+        boolean semanticCandidate = containsMemberMarker(methodName)
+                || methodName.startsWith("is") || methodName.startsWith("has")
+                || methodName.startsWith("can") || methodName.startsWith("get")
+                || methodName.startsWith("check");
+        boolean compactCandidate = allowCompactObfuscatedName && methodName.length() <= 2;
+        if (!semanticCandidate && !compactCandidate) return;
+        String key = owner.getName() + "#" + method.getName();
+        if (!memberMethodsHooked.add(key)) return;
         try {
-            pkg = view.getContext().getPackageName();
-            // Do not retain or log raw UI text; dedupe only on package, view class and resource id.
-            evidence = shortName(view.getClass().getName()) + " " + resourceName(view);
-        } catch (Throwable ignored) {}
-        String key = pkg + ":" + lower(evidence);
-        if (!rewardedEvidenceSeen.add(key)) return;
-        if (rewardedEvidenceCount.incrementAndGet() > MAX_REWARDED_AD_EVIDENCE) return;
-        logFx(Log.INFO, "rewarded-ad lifecycle candidate=" + pkg + " reason=" + reason
-                + " action=observe-only; reward callback/server validation unchanged");
+            hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                Object result = chain.proceed();
+                if (result instanceof Boolean || result instanceof Integer) {
+                    logFx(Log.INFO, "member state observation " + key + "="
+                            + result.toString() + " mode=read-only");
+                }
+                return result;
+            });
+            logFx(Log.INFO, "auto member candidate hook installed=" + key + " mode=read-only");
+        } catch (Throwable t) {
+            memberMethodsHooked.remove(key);
+            logFx(Log.DEBUG, "auto member candidate hook unavailable=" + shortName(key)
+                    + " reason=" + t.getClass().getSimpleName());
+        }
     }
 
-    private void inspectMemberViewTree(View root, String pkg) {
-        if (root == null) return;
-        int[] count = new int[]{0};
-        inspectMemberViewTreeBounded(root, pkg, 0, count);
+    private boolean containsMemberMarker(String value) {
+        String normalized = lower(value == null ? "" : value);
+        for (String marker : MEMBER_FLOW_MARKERS) if (normalized.contains(marker)) return true;
+        return false;
     }
 
-    private void inspectMemberViewTreeBounded(View view, String pkg, int depth, int[] count) {
-        if (view == null || depth > 10 || count[0]++ >= 400) return;
-        if (view instanceof TextView && isRewardedFlowEvidence((TextView) view)) {
-            recordRewardedAdEvidence(view, "view-tree-evidence");
-        }
-        if (!(view instanceof ViewGroup)) return;
-        ViewGroup group = (ViewGroup) view;
-        int n;
-        try { n = Math.min(group.getChildCount(), 200); } catch (Throwable ignored) { return; }
-        for (int i = 0; i < n && count[0] < 400; i++) {
-            try { inspectMemberViewTreeBounded(group.getChildAt(i), pkg, depth + 1, count); }
-            catch (Throwable ignored) {}
-        }
+    private void recordMemberEvidence(String evidence) {
+        if (evidence == null || evidence.length() > 512) return;
+        if (memberDiscoveryEvidence.size() >= MAX_MEMBER_DISCOVERY_EVIDENCE) return;
+        if (memberDiscoveryEvidence.add(evidence)) logFx(Log.INFO, "member discovery candidate=" + evidence);
     }
 
     private void installReadOnlyBillingDiagnostics(ClassLoader loader) {
@@ -3523,14 +3749,18 @@ private boolean targetDeveloperOptIn(String packageName) {
                 "getResponseCode", "billing responseCode")) installed++;
         if (installBillingValueDiagnostic(loader, "com.android.billingclient.api.Purchase",
                 "getPurchaseState", "billing purchaseState")) installed++;
+        // Additional read-only evidence helps distinguish a completed purchase from
+        // an unacknowledged/pending state without changing any entitlement or result.
         if (installBillingValueDiagnostic(loader, "com.android.billingclient.api.Purchase",
                 "isAcknowledged", "billing purchaseAcknowledged")) installed++;
         if (installBillingValueDiagnostic(loader, "com.android.billingclient.api.Purchase",
                 "isAutoRenewing", "billing purchaseAutoRenewing")) installed++;
-        if (installBillingValueDiagnostic(loader, "com.android.billingclient.api.BillingClient",
+        // BillingClient.isReady() is abstract in the public API. Observe the concrete
+        // implementation when present; never report an abstract declaration as active.
+        if (installBillingValueDiagnostic(loader, "com.android.billingclient.api.BillingClientImpl",
                 "isReady", "billing clientReady")) installed++;
         logFx(installed > 0 ? Log.INFO : Log.WARN,
-                "read-only concrete billing value diagnostics installed=" + installed + "/4; read-only billing diagnostics installed=" + installed);
+                "read-only billing diagnostics installed=" + installed + "/5");
     }
 
     /**
@@ -3542,13 +3772,33 @@ private boolean targetDeveloperOptIn(String packageName) {
         try {
             Class<?> type = Class.forName(className, false, loader);
             Method method = type.getMethod(methodName);
-            hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+            if (Modifier.isAbstract(method.getModifiers())) {
+                logFx(Log.DEBUG, "value diagnostic skipped abstract method=" + className + "#" + methodName);
+                return false;
+            }
+            String hookKey = System.identityHashCode(loader) + ":" + className + "#" + methodName;
+            if (billingDiagnosticHooksInstalled.contains(hookKey)) return true;
+            if (!billingDiagnosticHooksInstalled.add(hookKey)) return true;
+            try {
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                // Observe the real return value exactly once. Never replace, synthesize,
+                // or retain purchase objects/tokens; cap each signal to avoid log spam.
                 Object result = chain.proceed();
-                if (result instanceof Number) {
-                    logFx(Log.INFO, label + "=" + ((Number) result).intValue());
+                AtomicInteger counter = billingDiagnosticLogCounts.computeIfAbsent(
+                        label, ignored -> new AtomicInteger(0));
+                if (counter.incrementAndGet() <= MAX_BILLING_DIAGNOSTIC_LOGS) {
+                    if (result instanceof Number) {
+                        logFx(Log.INFO, label + "=" + ((Number) result).intValue());
+                    } else if (result instanceof Boolean) {
+                        logFx(Log.INFO, label + "=" + ((Boolean) result).booleanValue());
+                    }
                 }
-                return result;
-            });
+                    return result;
+                });
+            } catch (Throwable hookError) {
+                billingDiagnosticHooksInstalled.remove(hookKey);
+                throw hookError;
+            }
             logFx(Log.INFO, "read-only value diagnostic installed=" + label);
             return true;
         } catch (Throwable t) {
