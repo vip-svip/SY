@@ -1482,3 +1482,12 @@
 - The UI sends the setting through the existing transactional `unbound-runtime-set` path, so the existing apply/rollback lifecycle remains in use.
 - Reference: NLnet Labs Unbound manual documents `serve-expired-ttl-reset` as resetting the stale record age after an upstream refresh failure; default is `no`.
 - No build, tests, or device validation were run in this migration pass, per current migration-speed preference.
+
+
+## 2026-11-07 — Unbound serve-expired TTL reset runtime-render regression
+
+- Added `scripts/tests/fx-unbound-runtime-render-regression.sh`, which exercises the actual module `fx-module/scripts/unbound.sh render-config` path with an isolated fake Root settings adapter.
+- The regression checks that `UNBOUND_SERVE_EXPIRED_TTL_RESET=0/1` becomes explicit Unbound `serve-expired-ttl-reset: no/yes`, and that invalid, missing, or duplicate values fail closed.
+- Wired the regression into `.github/workflows/build-fx-kernelsu.yml` immediately after the Unbound package-staging regression so future packaging runs cover the runtime setting end-to-end at the renderer boundary.
+- Commits: `2ebfa75a7b13474d6b33ec29df7f21e7b9a17b9a` (regression), `907fbedd01d55e9d2a0d064d92c88bea8ff6e038` (workflow integration).
+- Validation status: source files were fetched before editing and both writes succeeded. The new shell regression, full workflow, Gradle build, and device tests were not executed in this turn; do not mark runtime behavior as device-verified.
