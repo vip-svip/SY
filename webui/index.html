@@ -1335,6 +1335,11 @@ html.pg-keyboard-open .phone>.navbar>.nav-item{pointer-events:auto!important}
 <div class="sp-sec">数据流拦截</div>
 <button class="setrow" data-media-edit="camNull"><span class="ricon">CM</span><span class="s-main"><div class="s-title">摄像头空数据模拟</div><div class="s-sub">Zygisk / 内核双方案，返回黑屏或假图片</div></span><span class="switch" data-key="cam_null" data-unavailable="1" aria-disabled="true" title="此旧版开关已停用；请使用统一 Hook 的受支持逐应用隐私设置"></span></button>
 <button class="setrow" data-media-edit="micBlock"><span class="ricon">MC</span><span class="s-main"><div class="s-title">麦克风拦截</div><div class="s-sub">返回静音 / 白噪音 / 空音频</div></span><span class="switch" data-key="mic_block" data-unavailable="1" aria-disabled="true" title="此旧版开关已停用；请使用统一 Hook 的受支持逐应用隐私设置"></span></button>
+<button class="setrow" data-media-edit="micSilence"><span class="ricon">MS</span><span class="s-main"><div class="s-title">麦克风采集静音</div><div class="s-sub">AudioRecord 回调返回全零样本，调用方流程不变</div></span><span class="switch" data-key="mic_silence"></span></button>
+<button class="setrow" data-media-edit="micAccess"><span class="ricon">MA</span><span class="s-main"><div class="s-title">阻断麦克风启动</div><div class="s-sub">拒绝 AudioRecord 初始化，APP 拿不到录音会话</div></span><span class="switch" data-key="mic_access_block"></span></button>
+<button class="setrow" data-media-edit="camAccess"><span class="ricon">CA</span><span class="s-main"><div class="s-title">阻断摄像头访问</div><div class="s-sub">拒绝相机设备打开，返回打开失败</div></span><span class="switch" data-key="camera_access_block"></span></button>
+<button class="setrow" data-media-edit="mediaStore"><span class="ricon">MS</span><span class="s-main"><div class="s-title">拦截媒体库查询</div><div class="s-sub">MediaStore 查询返回空游标，不泄漏相册内容</div></span><span class="switch" data-key="media_store_query_block"></span></button>
+<button class="setrow" data-media-edit="locAccess"><span class="ricon">LA</span><span class="s-main"><div class="s-title">阻断定位访问</div><div class="s-sub">位置读取返回空，配合自定义位置使用需互斥</div></span><span class="switch" data-key="location_access_block"></span></button>
 <div class="sp-sec">硬件存在性</div>
 <button class="setrow" data-media-edit="camHw"><span class="ricon">CH</span><span class="s-main"><div class="s-title">摄像头硬件存在性欺骗</div><div class="s-sub">APP 查询不到摄像头设备</div></span><span class="switch" data-key="cam_hw_hide" data-unavailable="1" aria-disabled="true" title="此旧版开关已停用；请使用统一 Hook 的受支持逐应用隐私设置"></span></button>
 <button class="setrow" data-media-edit="micHw"><span class="ricon">MH</span><span class="s-main"><div class="s-title">麦克风硬件存在欺骗</div><div class="s-sub">APP 查询不到麦克风设备</div></span><span class="switch" data-key="mic_hw_hide" data-unavailable="1" aria-disabled="true" title="此旧版开关已停用；请使用统一 Hook 的受支持逐应用隐私设置"></span></button>
@@ -4265,6 +4270,8 @@ var EDMAP={
   fingerprint:'spoof_fingerprint',hardware:'spoof_hardware',baseband:'spoof_baseband',
   btmac:'spoof_bt_mac',wifimac:'spoof_wifi_mac',storage:'spoof_storage',screen:'spoof_screen',battery:'spoof_battery',
   micBlock:'mic_block',exif:'exif_strip',
+  micSilence:'mic_silence',micAccess:'mic_access_block',camAccess:'camera_access_block',
+  mediaStore:'media_store_query_block',locAccess:'location_access_block',
   isolate:'fs_isolate',hide:'fs_hide',rootlist:'fs_rootlist',attrs:'fs_attrs',vfs:'fs_vfs',
   
   stack:'k_stack',netfilter:'k_netfilter',
