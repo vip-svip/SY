@@ -1126,10 +1126,48 @@ public final class MainActivity extends ComponentActivity {
         yulongActions.addView(nativeAction("分应用流量统计", () ->
                 startActivity(new Intent(this, de.privacyguard.adhook.imported.ad.FxYulongAppStatsActivity.class))));
         yulongActions.addView(nativeAction("应用网络防火墙", () ->
-                startActivity(new Intent(this, de.privacyguard.adhook.imported.ad.FxYulongFirewallActivity.class))));
+                openYulongSuitePage("应用网络拦截")));
+        // The firewall Activity serves several original suite pages; route each menu
+        // entry to the scope it names instead of falling back to the default tab.
+        yulongActions.addView(nativeAction("用户应用", () ->
+                openYulongSuitePage("用户应用")));
+        yulongActions.addView(nativeAction("系统应用", () ->
+                openYulongSuitePage("系统应用")));
+        yulongActions.addView(nativeAction("按应用设置", () ->
+                openYulongSuitePage("按应用设置")));
+        yulongActions.addView(nativeAction("应用白名单", () ->
+                openYulongSuitePage("应用白名单")));
         yulongActions.addView(nativeAction("应用广告过滤白名单", () ->
-                startActivity(new Intent(this, de.privacyguard.adhook.imported.ad.FxYulongAppWhitelistActivity.class))));
+                openYulongSuitePage("应用白名单")));
         addNativeActionGroup(yulongActions);
+    }
+
+    /**
+     * Route one Yulong suite page to the Activity that owns it.
+     *
+     * The original suite exposed separate pages for user apps, system apps, per-app
+     * rules, the network firewall and the ad-filter whitelist. They now live in two
+     * native Activities; this dispatch keeps every page reachable from the same
+     * navigation instead of collapsing them into a single default screen.
+     */
+    private void openYulongSuitePage(String page) {
+        Intent intent;
+        switch (page) {
+            case "应用白名单":
+                intent = new Intent(this,
+                        de.privacyguard.adhook.imported.ad.FxYulongAppWhitelistActivity.class);
+                break;
+            case "用户应用": case "系统应用": case "按应用设置": case "应用网络拦截":
+                intent = new Intent(this,
+                        de.privacyguard.adhook.imported.ad.FxYulongFirewallActivity.class);
+                intent.putExtra("suite_page", page);
+                break;
+            default:
+                intent = new Intent(this,
+                        de.privacyguard.adhook.imported.ad.FxYulongFirewallActivity.class);
+                break;
+        }
+        startActivity(intent);
     }
 
     private java.util.Map<String, String> parseNativeDnsState(String output) {
