@@ -146,7 +146,7 @@ public final class FxOpenSourceLicensesActivity extends Activity {
                     document.setTypeface(android.graphics.Typeface.MONOSPACE);
                     ScrollView viewer = new ScrollView(this);
                     viewer.addView(document);
-                    new AlertDialog.Builder(this)
+                    FxNativeSkin.builder(this)
                             .setTitle(title)
                             .setView(viewer)
                             .setPositiveButton("关闭", null)

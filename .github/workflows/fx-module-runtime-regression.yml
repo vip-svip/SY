@@ -63,6 +63,10 @@ jobs:
           module="$FX_MODULE_RUNTIME"
           install -D -m 0755 scripts/native-vpn-config.sh "$module/scripts/native-vpn-config.sh"
           install -D -m 0755 scripts/fx-vpn-coexistence-arbiter.sh "$module/scripts/fx-vpn-coexistence-arbiter.sh"
+          # The Release ZIP predates the FX Root controller; patch_yulong_dns_upstreams.py
+          # refuses to package a modern renderer next to a stale controller, so stage the
+          # canonical repository copy exactly like the APK lane does.
+          install -D -m 0755 scripts/yulong-ad-control.sh "$module/scripts/yulong-ad-control.sh"
           python3 fx-patches/patch_vpn_apps.py "$module"
           python3 fx-patches/patch_vpn_direct_core_stop_result.py "$module"
           python3 fx-patches/patch_vpn_core_stop_guard.py "$module"

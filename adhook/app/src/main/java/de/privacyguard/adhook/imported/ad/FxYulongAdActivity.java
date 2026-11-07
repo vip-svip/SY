@@ -1108,7 +1108,7 @@ refreshRootProxyStatus();}else if("计划任务".equals(page))renderSchedule();e
     int selected=-1;
     for(int i=0;i<values.length;i++)if(values[i].equals(selectedValue))selected=i;
     final String currentRetention=selectedValue;
-    new AlertDialog.Builder(this).setTitle("DNS 查询日志轮转周期")
+    fxDialogBuilder().setTitle("DNS 查询日志轮转周期")
       .setSingleChoiceItems(labels,selected,(dialog,which)->{
         dialog.dismiss();
         if(which>=values.length){
@@ -2706,7 +2706,7 @@ private void setDnsEngineProfile(boolean enabled){
   String command=enabled
       ?"dns-native-set-many dns_engine_adguardhome 1 dns_forward 1"
       :"dns-native-set-many dns_engine_adguardhome 0 dns_forward 0 vpn_external_dns_proxy 0";
-  new AlertDialog.Builder(this).setTitle(action+"本地 DNS 引擎组？")
+  fxDialogBuilder().setTitle(action+"本地 DNS 引擎组？")
       .setMessage("将通过原生 DNS 依赖管理器，在单次配置事务中调整 AdGuard Home、Unbound 与 Root Proxy 依赖；不会修改上游服务器、过滤规则或 VPN 节点。")
       .setNegativeButton("取消",null)
       .setPositiveButton("确认",(dialog,which)->root(command,r->{
@@ -2718,7 +2718,7 @@ private void applyDnsSecurityProfile(String mode,boolean strict,TextView state,
     android.widget.RadioGroup group,android.widget.RadioButton nx,
     android.widget.RadioButton refused,android.widget.RadioButton empty){
   String action=strict?"严格 DNS 保护":"基础 DNS 拦截";
-  new AlertDialog.Builder(this).setTitle("应用"+action+"？")
+  fxDialogBuilder().setTitle("应用"+action+"？")
       .setMessage(strict
           ?"统一设置为 NXDOMAIN，并同时启用 QUIC、DNS-over-TLS、明文 DNS、IPv6 与跟踪域名保护五项策略。"
           :"统一设置为 NXDOMAIN，并关闭上述五项附加过滤策略；域名名单与 DNS 上游保持不变。")
@@ -2736,7 +2736,7 @@ private void applyDnsSecurityProfile(String mode,boolean strict,TextView state,
 }
 private void setDnsFilterPolicy(boolean enabled){
   String action=enabled?"启用":"关闭";
-  new AlertDialog.Builder(this).setTitle(action+"全部 DNS 过滤策略？")
+  fxDialogBuilder().setTitle(action+"全部 DNS 过滤策略？")
       .setMessage("此操作将以单次配置事务同时"+action+" QUIC、DNS-over-TLS、明文 DNS、IPv6 与跟踪域名保护五项策略。")
       .setNegativeButton("取消",null)
       .setPositiveButton("确认", (dialog,which)->root("dns-filter-policy-set "+(enabled?"1":"0")+" "+(enabled?"1":"0")+" "+(enabled?"1":"0")+" "+(enabled?"1":"0")+" "+(enabled?"1":"0"),r->{
@@ -2749,7 +2749,7 @@ private void saveDnsServerLists(EditText custom,EditText global,EditText fallbac
   String globalValue=global.getText()==null?"":global.getText().toString().trim();
   String fallbackValue=fallback.getText()==null?"":fallback.getText().toString().trim();
   String command="dns-config-set-many "+q(customValue.isEmpty()?"-":customValue)+" "+q(globalValue.isEmpty()?"-":globalValue)+" "+q(fallbackValue.isEmpty()?"-":fallbackValue);
-  new AlertDialog.Builder(this).setTitle("一次性保存三组 DNS 上游")
+  fxDialogBuilder().setTitle("一次性保存三组 DNS 上游")
       .setMessage("三组服务器将先统一校验，再在同一配置事务中写入并应用。任一组留空表示清除该组服务器段；不会自动关闭对应开关。是否继续？")
       .setNegativeButton("取消",null)
       .setPositiveButton("保存",(dialog,which)->root(command,r->{
@@ -2871,7 +2871,7 @@ private void saveVpnDns(String key,EditText input){
 
  private void clearAllDomains(String kind){
   String label="allow".equals(kind)?"白名单":"黑名单";
-  new AlertDialog.Builder(this).setTitle("清空全部"+label+"？")
+  fxDialogBuilder().setTitle("清空全部"+label+"？")
       .setMessage("将移除当前 FX 用户"+label+"中的全部域名条目；此操作不影响另一份名单、内置规则源、DNS 上游或过滤策略。")
       .setNegativeButton("取消",null)
       .setPositiveButton("清空",(dialog,which)->root(kind+"-clear-all",r->{

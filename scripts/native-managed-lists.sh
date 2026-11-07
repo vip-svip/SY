@@ -122,7 +122,7 @@ list_rows() {
   awk -F'|' -v target="[list:$section]" -v kind="$section" '
     BEGIN { rownum=0; inlist=0; bad=0 }
     $0==target { inlist=1; next }
-    /^\\[/ { inlist=0 }
+    /^\[/ { inlist=0 }
     inlist && $0 !~ /^[[:space:]]*$/ && $0 !~ /^[[:space:]]*#/ {
       value=$1
       note=$2

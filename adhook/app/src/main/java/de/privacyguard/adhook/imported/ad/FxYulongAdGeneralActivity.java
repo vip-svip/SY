@@ -386,7 +386,7 @@ public final class FxYulongAdGeneralActivity extends de.privacyguard.adhook.FxNa
         }
         String[] labels = choices.keySet().toArray(new String[0]);
         String[] packages = choices.values().toArray(new String[0]);
-        new AlertDialog.Builder(this)
+        fxDialogBuilder()
                 .setTitle("选择自动化应用")
                 .setItems(labels, (dialog, which) -> {
                     if (which < 0 || which >= packages.length
@@ -531,7 +531,7 @@ public final class FxYulongAdGeneralActivity extends de.privacyguard.adhook.FxNa
     }
 
     private void confirmClearTaskerReceipt() {
-        new AlertDialog.Builder(this)
+        fxDialogBuilder()
                 .setTitle("清除自动化执行回执")
                 .setMessage("仅清除最近一次 Tasker / 自动化命令的本地执行记录，不会更改已固定的发送方、授权开关或任何 VPN / 广告过滤运行状态。此操作不可撤销。")
                 .setNegativeButton("取消", null)
@@ -602,7 +602,7 @@ public final class FxYulongAdGeneralActivity extends de.privacyguard.adhook.FxNa
         String message = label + "（" + serviceName + "）已在 FX 中注册。"
                 + "\n请下拉系统快捷设置面板，点“编辑 / 铅笔”，在可用磁贴中找到 FX 的"
                 + label + "并手动添加。添加完成后即可正常使用。";
-        new AlertDialog.Builder(this)
+        fxDialogBuilder()
                 .setTitle("添加快捷设置磁贴")
                 .setMessage(message)
                 .setPositiveButton("知道了", null)

@@ -196,7 +196,7 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
             renderRules();
             syncMasterSwitch();
             updateServiceState();
-            new AlertDialog.Builder(this)
+            fxDialogBuilder()
                     .setTitle("规则导入完成")
                     .setMessage("新增 " + result.getImported() + " 条，跳过 " + result.getSkipped()
                             + " 条。所有新导入规则均已关闭；请逐条检查后手动启用。")
@@ -302,7 +302,7 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
         cooldownInput.setInputType(InputType.TYPE_CLASS_NUMBER);
         form.addView(cooldownInput);
 
-        AlertDialog dialog = new AlertDialog.Builder(this)
+        AlertDialog dialog = fxDialogBuilder()
                 .setTitle("添加 GKD 本地规则")
                 .setView(form)
                 .setNegativeButton("取消", null)
@@ -377,7 +377,7 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
             ApplicationInfo info = candidates.get(index);
             labels[index] = getPackageManager().getApplicationLabel(info) + "\n" + info.packageName;
         }
-        new AlertDialog.Builder(this)
+        fxDialogBuilder()
                 .setTitle("选择 GKD 规则目标应用")
                 .setItems(labels, (dialog, which) ->
                         packageInput.setText(candidates.get(which).packageName))
@@ -455,7 +455,7 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
         cooldownInput.setText(String.valueOf(rule.getCooldownMillis() / 1000L));
         form.addView(cooldownInput);
 
-        AlertDialog dialog = new AlertDialog.Builder(this)
+        AlertDialog dialog = fxDialogBuilder()
                 .setTitle("编辑 GKD 规则")
                 .setView(form)
                 .setNegativeButton("取消", null)
@@ -730,7 +730,7 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
                 clipboard.setPrimaryClip(android.content.ClipData.newPlainText("FX GKD Rule JSON", json));
                 Toast.makeText(this, "单条规则 JSON 已复制；可粘贴到支持 FX-GKD-LOCAL-RULES 格式的文件中。", Toast.LENGTH_LONG).show();
             }));
-            actions.addView(action("删除", () -> new AlertDialog.Builder(this)
+            actions.addView(action("删除", () -> fxDialogBuilder()
                     .setMessage("删除这条本地 GKD 规则？")
                     .setNegativeButton("取消", null)
                     .setPositiveButton("删除", (d, which) -> {
@@ -759,7 +759,7 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
         input.setText(oldName);
         input.setSelection(input.getText().length());
         input.setHint("新分组名称（最多 40 字）");
-        new AlertDialog.Builder(this)
+        fxDialogBuilder()
                 .setTitle("重命名 GKD 规则组")
                 .setMessage("将当前分组内全部规则统一改名；规则顺序、选择器、动作、冷却时间及启用状态均保持不变。若目标名称已存在，将合并到同名分组。")
                 .setView(input)
@@ -821,7 +821,7 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
             Toast.makeText(this, "请先选择要删除的规则。", Toast.LENGTH_SHORT).show();
             return;
         }
-        new AlertDialog.Builder(this)
+        fxDialogBuilder()
                 .setTitle("批量删除规则")
                 .setMessage("确定删除已选择的 " + selectedRuleIds.size() + " 条规则？此操作不可撤销。")
                 .setNegativeButton("取消", null)
@@ -843,7 +843,7 @@ public final class FxGkdAutomationActivity extends FxNativeTabActivity {
     }
 
     private void confirmDuplicateCleanup() {
-        new AlertDialog.Builder(this)
+        fxDialogBuilder()
                 .setTitle("整理重复规则")
                 .setMessage("按目标包名 + 主选择器识别重复项，保留列表中最靠前的一条；其余重复项将被删除。")
                 .setNegativeButton("取消", null)

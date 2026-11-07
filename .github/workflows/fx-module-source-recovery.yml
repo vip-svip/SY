@@ -126,7 +126,11 @@ jobs:
               # The integration branch is authoritative for files it already
               # owns. Recovery import below is additive (cp -an), so retain ours
               # for overlapping module runtime and regression-test paths.
-              unexpected=$(printf '%s\n' "$unmerged" | grep -Ev '^(fx-module/|scripts/tests/|docs/fx-module-recovery/)' || :)
+              # The Root DNS controller and its summary helper exist in the
+              # released archive as root scripts/ copies; the integration branch
+              # owns their fixes, so an add/add conflict there must keep ours
+              # instead of blocking every recovery run.
+              unexpected=$(printf '%s\n' "$unmerged" | grep -Ev '^(fx-module/|scripts/tests/|docs/fx-module-recovery/|scripts/yulong-ad-control\.sh|scripts/yulong-ad-dns-summary\.sh)$' || :)
               if [[ -n "$unexpected" ]]; then
                 echo "::error::Unexpected source-import conflicts outside additive recovery paths:"
                 printf '%s\n' "$unexpected"
