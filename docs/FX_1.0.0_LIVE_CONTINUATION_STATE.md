@@ -1491,3 +1491,6 @@
 - Wired the regression into `.github/workflows/build-fx-kernelsu.yml` immediately after the Unbound package-staging regression so future packaging runs cover the runtime setting end-to-end at the renderer boundary.
 - Commits: `2ebfa75a7b13474d6b33ec29df7f21e7b9a17b9a` (regression), `907fbedd01d55e9d2a0d064d92c88bea8ff6e038` (workflow integration).
 - Validation status: source files were fetched before editing and both writes succeeded. The new shell regression, full workflow, Gradle build, and device tests were not executed in this turn; do not mark runtime behavior as device-verified.
+
+- Added `.github/workflows/fx-unbound-runtime-regression.yml`: push-triggered and manually dispatchable Host CI, independent of the final-package gate; it runs `sh -n` on the lifecycle/test scripts and executes the renderer regression. Workflow commit: `1e5ef31bf40a922ae1fae6a324bc18119674506c`.
+- CI execution has not yet been observed; the workflow file is committed and awaits GitHub Actions scheduling/result.
