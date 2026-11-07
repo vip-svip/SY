@@ -190,6 +190,7 @@ jobs:
           grep -q 'Android ARM64' "$destination/BUILD-INFO.txt"
           echo "PASS: checksum-verified Unbound 1.26.2 ARM64 daemon, checker, anchor, probe and root data staged at the exact runtime paths used by FX Root Proxy."
           sh scripts/tests/fx-unbound-package-staging-regression.sh
+          sh scripts/tests/fx-unbound-runtime-render-regression.sh
       - name: Stage checksum-pinned AdGuard Home Android ARM64 runtime
         shell: bash
         env:
