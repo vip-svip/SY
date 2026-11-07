@@ -264,9 +264,18 @@ chmod 0755 "$BIN"/* "$MOD/scripts/"*
 mkdir -p "$MOD/engines/unbound"
 cat > "$MOD/engines/unbound/fx-dns-probe" <<'PROBE'
 #!/bin/sh
-# Fixture for the native probe: server port timeout protocol
+# Fixture for the native probe: server port timeout protocol.
+# Consumers assert the probed server with `grep -Fxc <server>`, so each invocation
+# records the bare server address on its own line, with the protocol appended only
+# when MOCK_DNS_PROBE_VERBOSE is set.
 _server=${1:-127.0.0.1}
-[ -z "${MOCK_DNS_PROBE_LOG:-}" ] || printf '%s %s\n' "$_server" "${4:-udp}" >> "$MOCK_DNS_PROBE_LOG"
+if [ -n "${MOCK_DNS_PROBE_LOG:-}" ]; then
+  if [ "${MOCK_DNS_PROBE_VERBOSE:-0}" = 1 ]; then
+    printf '%s %s\n' "$_server" "${4:-udp}" >> "$MOCK_DNS_PROBE_LOG"
+  else
+    printf '%s\n' "$_server" >> "$MOCK_DNS_PROBE_LOG"
+  fi
+fi
 [ "${MOCK_DNS_PROBE_FAIL:-0}" = 0 ] || exit 1
 [ "${MOCK_DNS_PROBE_FAIL_IPV6:-0}" = 0 ] || [ "$_server" != "::1" ] || exit 1
 exit 0
