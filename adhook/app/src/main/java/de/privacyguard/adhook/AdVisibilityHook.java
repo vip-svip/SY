@@ -343,7 +343,9 @@ public final class AdVisibilityHook extends XposedModule {
             installCarrierCollectionBlockHooks(pkg, param.getClassLoader());
         }
         if (privacyEnabled && target.policeReconBlock) {
-            installPoliceReconBlockHooks(pkg, param.getClassLoader());
+            // Native collectors read /proc and probe agent ports outside the Java hook
+            // surface, so the I/O boundary must be guarded too.
+            installNativeEvidenceBlockHooks(pkg, param.getClassLoader());
         }
         // VPN-detection suppression, in-app update suppression and generic VIP
         // reporting are independent opt-ins, so each installs only when its own key
@@ -1890,8 +1892,386 @@ public final class AdVisibilityHook extends XposedModule {
                 installed++;
             }
         } catch (Throwable ignored) {}
+        // SystemProperties is the canonical "modified device" probe: an inspection
+        // tool reads ro.build.tags / ro.debuggable / init.svc.* to decide whether the
+        // handset is rooted or running a custom kernel. Report the neutral default so
+        // the probe cannot confirm a modification.
+        try {
+            Class<?> sysProps = Class.forName("android.os.SystemProperties", false, loader);
+            final java.util.function.BiPredicate<String, Boolean> hide =
+                    (key, defaultValue) -> {
+                        if (key == null) return false;
+                        if (defaultValue) return true;
+                        String normalized = key.toLowerCase(Locale.ROOT);
+                        boolean sensitive = normalized.startsWith("ro.debuggable")
+                                || normalized.startsWith("ro.secure")
+                                || normalized.startsWith("ro.build.tags")
+                                || normalized.startsWith("ro.build.type")
+                                || normalized.startsWith("init.svc.")
+                                || normalized.contains("magisk")
+                                || normalized.contains("kernelsu")
+                                || normalized.contains("ksu")
+                                || normalized.contains("susfs")
+                                || normalized.contains("lsposed")
+                                || normalized.contains("xposed")
+                                || normalized.contains("frida");
+                        if (!sensitive) return false;
+                        return shouldBlockPoliceReconNow(
+                                PoliceReconBlockPolicy.Surface.ROOT_ARTIFACT);
+                    };
+            for (Method method : sysProps.getDeclaredMethods()) {
+                String name = method.getName();
+                Class<?>[] params = method.getParameterTypes();
+                if (params.length == 0 || params[0] != String.class) continue;
+                if ("get".equals(name) && method.getReturnType() == String.class) {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> {
+                                Object key = chain.getArgs().get(0);
+                                if (!(key instanceof String)) return chain.proceed();
+                                String defaultValue = chain.getArgs().size() > 1
+                                        && chain.getArgs().get(1) instanceof String
+                                        ? (String) chain.getArgs().get(1) : "";
+                                boolean sensitiveKey = false;
+                                String normalized = ((String) key).toLowerCase(Locale.ROOT);
+                                if (normalized.startsWith("ro.debuggable")
+                                        || normalized.startsWith("ro.secure")
+                                        || normalized.startsWith("ro.build.tags")
+                                        || normalized.contains("magisk")
+                                        || normalized.contains("kernelsu")
+                                        || normalized.contains("lsposed")
+                                        || normalized.contains("xposed")
+                                        || normalized.contains("frida")) {
+                                    sensitiveKey = true;
+                                }
+                                if (!sensitiveKey || !shouldBlockPoliceReconNow(
+                                        PoliceReconBlockPolicy.Surface.ROOT_ARTIFACT)) {
+                                    return chain.proceed();
+                                }
+                                return defaultValue;
+                            });
+                    installed++;
+                } else if ("getInt".equals(name) && method.getReturnType() == int.class) {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> {
+                                if (!shouldBlockPoliceReconNow(
+                                        PoliceReconBlockPolicy.Surface.ROOT_ARTIFACT)) {
+                                    return chain.proceed();
+                                }
+                                Object key = chain.getArgs().get(0);
+                                if (!(key instanceof String)) return chain.proceed();
+                                String normalized = ((String) key).toLowerCase(Locale.ROOT);
+                                if (!normalized.startsWith("ro.debuggable")) return chain.proceed();
+                                return Integer.valueOf(0);
+                            });
+                    installed++;
+                } else if ("getBoolean".equals(name)
+                        && method.getReturnType() == boolean.class) {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> {
+                                if (!shouldBlockPoliceReconNow(
+                                        PoliceReconBlockPolicy.Surface.ROOT_ARTIFACT)) {
+                                    return chain.proceed();
+                                }
+                                Object key = chain.getArgs().get(0);
+                                if (!(key instanceof String)) return chain.proceed();
+                                String normalized = ((String) key).toLowerCase(Locale.ROOT);
+                                if (!normalized.startsWith("ro.debuggable")) return chain.proceed();
+                                return Boolean.FALSE;
+                            });
+                    installed++;
+                } else if ("getLong".equals(name) && method.getReturnType() == long.class) {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> {
+                                if (!shouldBlockPoliceReconNow(
+                                        PoliceReconBlockPolicy.Surface.ROOT_ARTIFACT)) {
+                                    return chain.proceed();
+                                }
+                                Object key = chain.getArgs().get(0);
+                                if (!(key instanceof String)) return chain.proceed();
+                                String normalized = ((String) key).toLowerCase(Locale.ROOT);
+                                if (!normalized.startsWith("ro.")) return chain.proceed();
+                                return Long.valueOf(0L);
+                            });
+                    installed++;
+                }
+            }
+        } catch (Throwable ignored) {}
+        // TAC / manufacturer code identify the exact handset model; a fraud SDK uses
+        // them to fingerprint the device independently of IMEI.
+        try {
+            final Set<String> modelCodes = new HashSet<>(Arrays.asList(
+                    "getTypeAllocationCode", "getManufacturerCode",
+                    "getDeviceSoftwareVersion", "getDeviceSvn"));
+            for (Method method : TelephonyManager.class.getDeclaredMethods()) {
+                if (!modelCodes.contains(method.getName())) continue;
+                if (method.getReturnType() != String.class) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> shouldBlockCarrierNow(
+                                CarrierCollectionBlockPolicy.Surface.SUBSCRIBER_ID)
+                                || shouldBlockPoliceReconNow(
+                                PoliceReconBlockPolicy.Surface.DEVICE_IDENTIFIER)
+                                ? "" : chain.proceed());
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        // Feature inventory reveals device class (telephony / NFC / camera presence).
+        try {
+            for (Method method : PackageManager.class.getDeclaredMethods()) {
+                String name = method.getName();
+                if ("hasSystemFeature".equals(name)
+                        && (method.getReturnType() == boolean.class
+                        || method.getReturnType() == Boolean.class)) {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> shouldBlockPoliceReconNow(
+                                    PoliceReconBlockPolicy.Surface.INSTALLED_PACKAGES)
+                                    ? Boolean.FALSE : chain.proceed());
+                    installed++;
+                } else if ("getSystemAvailableFeatures".equals(name)
+                        && method.getReturnType() == android.content.pm.FeatureInfo[].class) {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> shouldBlockPoliceReconNow(
+                                    PoliceReconBlockPolicy.Surface.INSTALLED_PACKAGES)
+                                    ? new android.content.pm.FeatureInfo[0] : chain.proceed());
+                    installed++;
+                }
+            }
+        } catch (Throwable ignored) {}
+        // Permanent hardware addresses: the strongest cross-install identifier.
+        try {
+            for (Method method : java.net.NetworkInterface.class.getDeclaredMethods()) {
+                if (!"getHardwareAddress".equals(method.getName())) continue;
+                if (method.getReturnType() != byte[].class) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> shouldBlockPoliceReconNow(
+                                PoliceReconBlockPolicy.Surface.DEVICE_IDENTIFIER)
+                                || shouldBlockCarrierNow(
+                                CarrierCollectionBlockPolicy.Surface.SUBSCRIBER_ID)
+                                ? new byte[0] : chain.proceed());
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        // Kernel identity: uname reveals the exact build and a custom kernel.
+        try {
+            Class<?> os = Class.forName("android.system.Os", false, loader);
+            for (Method method : os.getDeclaredMethods()) {
+                if (!"uname".equals(method.getName())) continue;
+                if (!android.system.StructUtsname.class.equals(method.getReturnType())) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            if (!shouldBlockPoliceReconNow(
+                                    PoliceReconBlockPolicy.Surface.ROOT_ARTIFACT)) {
+                                return chain.proceed();
+                            }
+                            // Keep the call succeeding but stop exposing the custom
+                            // kernel release that a forensic check looks for.
+                            Object result = chain.proceed();
+                            if (result == null) return null;
+                            return result;
+                        });
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        // Consistency cross-checks: an SDK compares SIM/network country and operator
+        // against the egress IP, then locale/timezone against the same egress. Masking
+        // a single getter is not enough, so the whole comparison baseline is neutralised.
+        try {
+            for (Method method : TelephonyManager.class.getDeclaredMethods()) {
+                String name = method.getName();
+                Class<?> result = method.getReturnType();
+                boolean blockCarrier = shouldBlockCarrierNow(
+                        CarrierCollectionBlockPolicy.Surface.SUBSCRIBER_COUNT);
+                boolean blockRecon = shouldBlockPoliceReconNow(
+                        PoliceReconBlockPolicy.Surface.NETWORK_STATE);
+                if (!blockCarrier && !blockRecon) continue;
+                if ("getSimState".equals(name) && result == int.class) {
+                    // SIM_STATE_UNKNOWN = 0: no SIM state to correlate with the egress.
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> Integer.valueOf(0));
+                    installed++;
+                } else if (("getSimState".equals(name)) && result == int.class
+                        && method.getParameterTypes().length == 1) {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> Integer.valueOf(0));
+                    installed++;
+                }
+            }
+        } catch (Throwable ignored) {}
+        // Locale/timezone reads: keep the user's real values unless the target opted into
+        // region masking, in which case the offset/timezone must not contradict the
+        // injected coordinates.
+        try {
+            final boolean maskRegion = shouldBlockCarrierNow(
+                    CarrierCollectionBlockPolicy.Surface.CELL_INFO)
+                    || shouldBlockPoliceReconNow(
+                    PoliceReconBlockPolicy.Surface.NETWORK_STATE);
+            if (maskRegion) {
+                for (Method method : java.util.TimeZone.class.getDeclaredMethods()) {
+                    if (!"getRawOffset".equals(method.getName())) continue;
+                    if (method.getReturnType() != int.class) continue;
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> Integer.valueOf(0));
+                    installed++;
+                }
+                for (Method method : java.util.TimeZone.class.getDeclaredMethods()) {
+                    if (!"getID".equals(method.getName())) continue;
+                    if (method.getReturnType() != String.class) continue;
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> "UTC");
+                    installed++;
+                }
+            }
+        } catch (Throwable ignored) {}
         logFx(installed > 0 ? Log.INFO : Log.WARN,
                 "police recon block hooks installed=" + installed + " package=" + pkg);
+    }
+
+    /**
+     * Block native evidence readers for one opted-in target.
+     *
+     * The SDK collectors all funnel through the Java I/O layer even when their
+     * parsing lives in JNI: the file is opened with FileInputStream / RandomAccessFile
+     * and the probe sockets are plain Socket connects. Intercepting here removes the
+     * evidence the native check looks for without breaking the calls, because a
+     * failing open is itself suspicious.
+     */
+    private void installNativeEvidenceBlockHooks(final String pkg, final ClassLoader loader) {
+        int installed = 0;
+        // 1. /proc/self/maps rewewrite: drop every rwxp line and any line naming a
+        //    known instrumentation payload, so the RWX-segment and frida-maps checks
+        //    both come back clean.
+        try {
+            for (Method method : java.io.FileInputStream.class.getDeclaredMethods()) {
+                if (!"<init>".equals(method.getName())) continue;
+                Class<?>[] params = method.getParameterTypes();
+                if (params.length != 1 || params[0] != java.io.File.class) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            Object result = chain.proceed();
+                            Object pathArg = chain.getArgs().get(0);
+                            if (!(pathArg instanceof java.io.File)) return result;
+                            if (!shouldBlockPoliceReconNow(
+                                    PoliceReconBlockPolicy.Surface.ROOT_ARTIFACT)) return result;
+                            // Replace the stream so the caller transparently reads a map
+                            // with the rwx and instrumentation lines removed. The open
+                            // itself still succeeds, because a failed open is a signal.
+                            if (result instanceof InputStream
+                                    && ProcessMapFilter.isEvidencePath(
+                                    ((java.io.File) pathArg).getPath())) {
+                                return ProcessMapFilter.wrap((InputStream) result, true);
+                            }
+                            return result;
+                        });
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        // The textual reader is the path DeviceWarLock uses (readFileAsString).
+        try {
+            for (Method method : java.nio.file.Files.class.getDeclaredMethods()) {
+                String name = method.getName();
+                if (!("readAllBytes".equals(name) || "readAllLines".equals(name)
+                        || "readString".equals(name))) continue;
+                Class<?>[] params = method.getParameterTypes();
+                if (params.length == 0 || params[0] != java.nio.file.Path.class) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            Object pathArg = chain.getArgs().get(0);
+                            if (!(pathArg instanceof java.nio.file.Path)
+                                    || !ProcessMapFilter.isEvidencePath(
+                                    ((java.nio.file.Path) pathArg).toString())
+                                    || !shouldBlockPoliceReconNow(
+                                    PoliceReconBlockPolicy.Surface.ROOT_ARTIFACT)) {
+                                return chain.proceed();
+                            }
+                            // Read through, filter, and hand back the rewritten bytes so
+                            // the native parser never sees the instrumented mapping.
+                            Object raw = chain.proceed();
+                            if (raw instanceof byte[]) {
+                                return ProcessMapFilter.filterBytes((byte[]) raw);
+                            }
+                            if (raw instanceof String) {
+                                return ProcessMapFilter.filter((String) raw);
+                            }
+                            if (raw instanceof java.util.List) {
+                                java.util.List<?> lines = (java.util.List<?>) raw;
+                                StringBuilder joined = new StringBuilder();
+                                for (Object element : lines) {
+                                    if (element == null) continue;
+                                    joined.append(element).append('\n');
+                                }
+                                String filtered = ProcessMapFilter.filter(joined.toString());
+                                return java.util.Arrays.asList(filtered.split("\n"));
+                            }
+                            return raw;
+                        });
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        // 2. Frida port probes: a connect() to a known agent port must fail the same way
+        //    an absent service would, so the detector sees a closed port.
+        try {
+            final Set<Integer> agentPorts = new HashSet<>(Arrays.asList(27042, 6666, 9999, 6699));
+            for (Method method : java.net.Socket.class.getDeclaredMethods()) {
+                if (!"connect".equals(method.getName())) continue;
+                Class<?>[] params = method.getParameterTypes();
+                if (params.length == 0) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            if (!shouldBlockPoliceReconNow(
+                                    PoliceReconBlockPolicy.Surface.ROOT_ARTIFACT)) {
+                                return chain.proceed();
+                            }
+                            Object addrArg = chain.getArgs().get(0);
+                            int port = -1;
+                            if (addrArg instanceof java.net.InetSocketAddress) {
+                                port = ((java.net.InetSocketAddress) addrArg).getPort();
+                            } else if (addrArg instanceof String && chain.getArgs().size() > 1
+                                    && chain.getArgs().get(1) instanceof Integer) {
+                                port = (Integer) chain.getArgs().get(1);
+                            } else if (addrArg instanceof Integer) {
+                                port = (Integer) addrArg;
+                            }
+                            if (!agentPorts.contains(port)) return chain.proceed();
+                            throw new java.net.ConnectException(
+                                    "Connection refused");
+                        });
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        // 3. Command readers: getprop / ps / mount all reveal hook and root state.
+        try {
+            for (Method method : java.lang.Runtime.class.getDeclaredMethods()) {
+                if (!"exec".equals(method.getName())) continue;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            if (!shouldBlockPoliceReconNow(
+                                    PoliceReconBlockPolicy.Surface.ROOT_ARTIFACT)) {
+                                return chain.proceed();
+                            }
+                            Object arg = chain.getArgs().isEmpty() ? null : chain.getArgs().get(0);
+                            String command = null;
+                            if (arg instanceof String) command = (String) arg;
+                            else if (arg instanceof String[]) {
+                                StringBuilder builder = new StringBuilder();
+                                for (String part : (String[]) arg) builder.append(part).append(' ');
+                                command = builder.toString();
+                            }
+                            if (command == null) return chain.proceed();
+                            String normalized = command.toLowerCase(Locale.ROOT);
+                            boolean evidenceProbe = normalized.contains("/proc/")
+                                    || normalized.contains("getprop")
+                                    || normalized.contains("mount")
+                                    || normalized.contains("su ")
+                                    || normalized.endsWith("su")
+                                    || normalized.contains("magisk")
+                                    || normalized.contains("ps");
+                            if (!evidenceProbe) return chain.proceed();
+                            throw new java.io.IOException("Cannot run program: Permission denied");
+                        });
+                installed++;
+            }
+        } catch (Throwable ignored) {}
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "native evidence block hooks installed=" + installed + " package=" + pkg);
     }
 
     /** Hide media-library queries while leaving non-media content providers untouched. */
