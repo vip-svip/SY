@@ -108,6 +108,8 @@ public final class AdVisibilityHook extends XposedModule {
     private final Set<Method> microphoneSilenceHookedMethods = ConcurrentHashMap.newKeySet();
     private final Set<Method> cameraAccessHookedMethods = ConcurrentHashMap.newKeySet();
     private final Set<Method> microphoneAccessHookedMethods = ConcurrentHashMap.newKeySet();
+    private final Set<Method> locationAccessHookedMethods = ConcurrentHashMap.newKeySet();
+    private final Set<Method> mediaStoreQueryHookedMethods = ConcurrentHashMap.newKeySet();
     private static final String CONFIG_NAME = "fx-hook-targets.conf";
     private static final String UI_CONFIG_NAME = "fx-hook-ui-targets.conf";
     private static final Set<String> NEVER = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
@@ -311,6 +313,8 @@ public final class AdVisibilityHook extends XposedModule {
             if (target.exifStrip) installExifPrivacyHooks(param.getClassLoader());
             if (target.adIdUnify) installAdvertisingIdIsolationHooks(pkg, param.getClassLoader());
             if (target.cameraAccessBlock) installCameraAccessBlockHooks(pkg);
+            if (target.locationAccessBlock) installLocationAccessBlockHooks(pkg);
+            if (target.mediaStoreQueryBlock) installMediaStoreQueryBlockHooks(pkg);
             if (target.microphoneAccessBlock) installMicrophoneAccessBlockHooks(pkg);
         }
         if (migratedPrivacyForPackage && target.clipboardReadBlock) installClipboardReadBlockHooks(pkg);
@@ -1369,12 +1373,8 @@ public final class AdVisibilityHook extends XposedModule {
     private void installBiometricPrivacyHooks(final String pkg, final ClassLoader loader) {
         int installed = 0;
         try {
-            // FingerprintManager is not a public SDK class on every compile target,
-            // so resolve it reflectively and skip cleanly when the framework dropped it.
-            Class<?> fingerprintManager =
-                    Class.forName("android.hardware.fingerprint.FingerprintManager",
-                            false, loader);
-            for (Method method : fingerprintManager.getDeclaredMethods()) {
+            for (Method method : android.hardware.fingerprint.FingerprintManager.class
+                    .getDeclaredMethods()) {
                 Class<?> result = method.getReturnType();
                 boolean booleanResult = result == boolean.class || result == Boolean.class;
                 if (booleanResult && ("isHardwareDetected".equals(method.getName())
@@ -3483,6 +3483,112 @@ public final class AdVisibilityHook extends XposedModule {
         if (!privacyEnabled || processPackages.size() != 1) return false;
         UnifiedHookConfigParser.Target selected = targets.get(processPackages.iterator().next());
         return selected != null && selected.cameraAccessBlock;
+    }
+
+    /** Per-target location read denial authorisation. */
+    private boolean isLocationAccessBlockAuthorized() {
+        if (!privacyEnabled || processPackages.size() != 1) return false;
+        UnifiedHookConfigParser.Target selected = targets.get(processPackages.iterator().next());
+        return selected != null && selected.locationAccessBlock;
+    }
+
+    /**
+     * Deny location reads for one opted-in target.
+     *
+     * Every read path a caller can use is covered: the one-shot getters, the callback
+     * registration (which would otherwise deliver a real fix later), and the legacy
+     * listener APIs. The denial is a SecurityException, matching what the platform
+     * throws when the app genuinely lacks the permission, so the app's own
+     * error handling runs instead of it seeing an empty fix.
+     */
+    private void installLocationAccessBlockHooks(String packageName) {
+        int installed = 0;
+        try {
+            for (Method method : LocationManager.class.getDeclaredMethods()) {
+                String name = method.getName();
+                boolean read = "getLastKnownLocation".equals(name)
+                        || "getCurrentLocation".equals(name)
+                        || "requestLocationUpdates".equals(name)
+                        || "requestSingleUpdate".equals(name)
+                        || "getCurrentLocation".equals(name);
+                if (!read || locationAccessHookedMethods.contains(method)) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PASSTHROUGH)
+                            .intercept(chain -> {
+                                if (isLocationAccessBlockAuthorized()) {
+                                    throw new SecurityException(
+                                            "Location access disabled by FX Hook privacy setting");
+                                }
+                                return chain.proceed();
+                            });
+                    locationAccessHookedMethods.add(method);
+                    installed++;
+                } catch (Throwable unavailable) {
+                    logFx(Log.WARN, "location read hook unavailable: " + method.toGenericString());
+                }
+            }
+        } catch (Throwable unavailable) {
+            logFx(Log.DEBUG, "LocationManager unavailable");
+        }
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "per-app location access denial hooks installed=" + installed
+                        + " package=" + packageName);
+    }
+
+    /** Per-target MediaStore query denial authorisation. */
+    private boolean isMediaStoreQueryBlockAuthorized() {
+        if (!privacyEnabled || processPackages.size() != 1) return false;
+        UnifiedHookConfigParser.Target selected = targets.get(processPackages.iterator().next());
+        return selected != null && selected.mediaStoreQueryBlock;
+    }
+
+    /**
+     * Deny MediaStore queries for one opted-in target.
+     *
+     * Only the media authority is gated: blocking every ContentResolver.query would
+     * break the app's own databases and settings providers. Callers receive an empty
+     * cursor with the requested projection so their cursor handling still works.
+     */
+    private void installMediaStoreQueryBlockHooks(String packageName) {
+        int installed = 0;
+        try {
+            for (Method method : ContentResolver.class.getDeclaredMethods()) {
+                if (!"query".equals(method.getName())) continue;
+                Class<?>[] params = method.getParameterTypes();
+                if (params.length == 0 || params[0] != Uri.class) continue;
+                if (!android.database.Cursor.class.isAssignableFrom(method.getReturnType())) continue;
+                if (mediaStoreQueryHookedMethods.contains(method)) continue;
+                try {
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PASSTHROUGH)
+                            .intercept(chain -> {
+                                Object first = chain.getArgs().isEmpty()
+                                        ? null : chain.getArgs().get(0);
+                                // Authority scope: only content://media is blocked, so the
+                                // app's own providers and unrelated authorities still work.
+                                if (!(first instanceof Uri)
+                                        || !"media".equals(((Uri) first).getAuthority())) {
+                                    return chain.proceed();
+                                }
+                                if (!isMediaStoreQueryBlockAuthorized()) return chain.proceed();
+                                String[] projection = chain.getArgs().size() > 1
+                                        && chain.getArgs().get(1) instanceof String[]
+                                        ? (String[]) chain.getArgs().get(1) : null;
+                                return new MatrixCursor(projection == null
+                                        ? new String[]{"_id"} : projection);
+                            });
+                    mediaStoreQueryHookedMethods.add(method);
+                    installed++;
+                } catch (Throwable unavailable) {
+                    logFx(Log.WARN, "MediaStore query hook unavailable: "
+                            + method.toGenericString());
+                }
+            }
+        } catch (Throwable unavailable) {
+            logFx(Log.DEBUG, "ContentResolver unavailable");
+        }
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "per-app MediaStore query privacy hooks installed=" + installed
+                        + " package=" + packageName);
     }
 
     private void installCameraAccessBlockHooks(String packageName) {
