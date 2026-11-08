@@ -271,8 +271,44 @@ public final class MainActivity extends ComponentActivity {
     private static final String NATIVE_SCRIPT_EXPORT_PREFS = "fx_pending_native_script_export";
     private static final String NATIVE_SCRIPT_EXPORT_PAYLOAD = "payload";
 
+    /** Live activity, used by the Application to push a service-state change. */
+    private static volatile MainActivity liveInstance;
+
+    /**
+     * Called by FXhookApplication when the libxposed service binds or dies.
+     *
+     * Runs on the Application's main-thread poster, so touching views is safe. The
+     * callback is tolerant of the activity being gone: a service change while the user
+     * is elsewhere must not crash the module.
+     */
+    static void notifyServiceChanged() {
+        MainActivity activity = liveInstance;
+        if (activity == null) return;
+        if (activity.isFinishing() || activity.isDestroyed()) return;
+        activity.runOnUiThread(() -> {
+            try {
+                activity.refreshHookServiceState();
+            } catch (Throwable unavailable) {
+                // A refresh must never take down the activity.
+            }
+        });
+    }
+
+    /** Last service state pushed by the Application, read when the Hub renders. */
+    private volatile String lastKnownServiceState = "等待 LSPosed 服务连接";
+
+    /** Re-read the framework service state and refresh the visible status row. */
+    private void refreshHookServiceState() {
+        String state = FXhookApplication.state();
+        if (state == null || state.isEmpty()) state = "LSPosed 服务未连接";
+        // The callback refreshes the visible service state; rebuilding the status text
+        // is enough because the Hub reads FXhookApplication.state() when it renders.
+        this.lastKnownServiceState = state;
+    }
+
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        liveInstance = this;
         if (de.privacyguard.adhook.imported.dia.FxDiaCrashStore.hasPendingReport(this)) {
             startActivity(new Intent(this,
                     de.privacyguard.adhook.imported.dia.FxDiaCrashReportActivity.class));
@@ -1089,17 +1125,24 @@ public final class MainActivity extends ComponentActivity {
         ruleActions.addView(nativeAction("查看 FX 内置规则", () -> showNativeListDialog("fx", "FX 内置规则")));
         ruleActions.addView(nativeAction("查看 Hosts 本地条目", () -> showNativeListDialog("hosts_local", "本地 Hosts 条目")));
         ruleActions.addView(nativeAction("应用 Hosts 与过滤规则", this::applyNativeHosts));
+        ruleActions.addView(nativeAction("按价值排序规则源（缓解 5 万条上限）",
+                this::showRulePriorityDialog));
         addNativeActionGroup(ruleActions);
 
         section("本地 DNS 引擎");
         TextView dnsStatus = new TextView(this);
-        dnsStatus.setText("正在读取 AdGuard Home / Unbound 状态…");
+        dnsStatus.setText("正在读取 fxdns / 上游状态…");
         dnsStatus.setTextColor(0xff536170);
         dnsStatus.setPadding(dp(18), dp(6), dp(18), dp(8));
         content.addView(dnsStatus);
         LinearLayout dnsActions = new LinearLayout(this);
         dnsActions.setOrientation(LinearLayout.VERTICAL);
         dnsActions.addView(nativeAction("DNS 引擎与 VPN DNS 设置", this::showNativeDnsSettingsDialog));
+        dnsActions.addView(nativeAction("定时更新规则源", () -> showHostsUpdateDialog()));
+        dnsActions.addView(nativeAction("隐藏痕迹（root / 模块 / LSPosed）",
+                this::showHideExposureDialog));
+        dnsActions.addView(nativeAction("重签两张 CA 为中性身份",
+                this::showCertGenDialog));
         dnsActions.addView(nativeAction("应用 DNS 白名单", this::showRootProxyDnsWhitelistDialog));
         dnsActions.addView(nativeAction("刷新本地 DNS 缓存", this::flushNativeDnsCache));
         dnsActions.addView(nativeAction("刷新 DNS 状态", () -> refreshNativeDnsStatus(dnsStatus)));
@@ -1201,6 +1244,163 @@ public final class MainActivity extends ComponentActivity {
                     });
                 })
                 .setNegativeButton("取消", null).show();
+    }
+
+
+    // ---- backend capabilities that had no App entry point ----
+    // Each of these scripts existed and did real work, but nothing in the App could
+    // reach it, so the capability was unreachable from the user's side.
+
+
+    /** Scheduled rule-source update: the three verbs the backend implements. */
+
+    /** Rule-source ordering: the MITM filter caps at 50000 with ordered truncation. */
+    private void showRulePriorityDialog() {
+        runNativeModuleCommand("sh \"$MP/scripts/rulepriority.sh\" show", 60000L, result -> {
+            final String listing = result.output == null ? "" : result.output.trim();
+            FxNativeSkin.builder(this).setTitle("规则源价值排序")
+                    .setMessage(listing.isEmpty() ? "后端未返回规则源列表。" : listing)
+                    .setPositiveButton("按价值重排", (d, w) -> runRulePriorityApply())
+                    .setNegativeButton("关闭", null).show();
+        });
+    }
+
+    private void runRulePriorityApply() {
+        runNativeModuleCommand("sh \"$MP/scripts/rulepriority.sh\" apply", 60000L, result -> {
+            String detail = result.output == null ? "" : result.output.trim();
+            boolean ok = result.exitCode == 0 && detail.contains("\"ok\":true");
+            Toast.makeText(this, ok ? "规则源已按价值重排" : "重排未完成",
+                    Toast.LENGTH_LONG).show();
+            if (!ok) {
+                FxNativeSkin.builder(this).setTitle("重排失败")
+                        .setMessage(detail.isEmpty() ? "后端未返回原因。" : detail)
+                        .setPositiveButton("关闭", null).show();
+            }
+        });
+    }
+
+    /** Report what a detector could still see, then offer the reversible tightening. */
+    private void showHideExposureDialog() {
+        runNativeModuleCommand("sh \"$MP/scripts/hide.sh\" status", 60000L, result -> {
+            String detail = result.output == null ? "" : result.output.trim();
+            FxNativeSkin.builder(this).setTitle("当前可探测面")
+                    .setMessage(detail.isEmpty() ? "后端未返回报告。" : detail)
+                    .setPositiveButton("收紧可探测面", (d, w) -> runHideVerb("apply"))
+                    .setNeutralButton("恢复原权限", (d, w) -> runHideVerb("revert"))
+                    .setNegativeButton("关闭", null).show();
+        });
+    }
+
+    private void runHideVerb(String verb) {
+        runNativeModuleCommand("sh \"$MP/scripts/hide.sh\" " + verb, 120000L, result -> {
+            String detail = result.output == null ? "" : result.output.trim();
+            boolean ok = result.exitCode == 0;
+            Toast.makeText(this, ok ? ("hide " + verb + " 完成") : "hide " + verb + " 未完成",
+                    Toast.LENGTH_LONG).show();
+            if (!detail.isEmpty()) {
+                FxNativeSkin.builder(this).setTitle("hide " + verb)
+                        .setMessage(detail)
+                        .setPositiveButton("关闭", null).show();
+            }
+        });
+    }
+
+    /** Re-issue both CAs with a neutral subject; warn about the invalidation it causes. */
+    private void showCertGenDialog() {
+        runNativeModuleCommand("sh \"$MP/scripts/certgen.sh\" inspect", 60000L, result -> {
+            String current = result.output == null ? "" : result.output.trim();
+            FxNativeSkin.builder(this).setTitle("当前证书身份")
+                    .setMessage((current.isEmpty() ? "后端未返回证书信息。" : current)
+                            + "\n\n重新生成后，已信任旧证书的设备需重新应用证书，"
+                            + "旧证书签发的站点证书全部失效。")
+                    .setPositiveButton("重新签为中性身份", (d, w) -> runCertGen())
+                    .setNegativeButton("取消", null).show();
+        });
+    }
+
+    private void runCertGen() {
+        runNativeModuleCommand("sh \"$MP/scripts/certgen.sh\" generate", 300000L, result -> {
+            String detail = result.output == null ? "" : result.output.trim();
+            boolean ok = result.exitCode == 0 && detail.contains("\"ok\":true");
+            FxNativeSkin.builder(this).setTitle(ok ? "已重签" : "重签失败")
+                    .setMessage(detail.isEmpty() ? "后端未返回结果。" : detail)
+                    .setPositiveButton("重新应用证书", (d, w) -> {
+                        if (ok) applyNativeHosts();
+                    })
+                    .setNegativeButton("关闭", null).show();
+        });
+    }
+
+    private void showHostsUpdateDialog() {
+        runNativeModuleCommand("sh \"$MP/scripts/hostsupdate.sh\" status", 30000L, result -> {
+            String detail = result.output == null ? "" : result.output.trim();
+            FxNativeSkin.builder(this).setTitle("定时更新规则源")
+                    .setMessage(detail.isEmpty()
+                            ? "后端未返回调度状态。" : detail)
+                    .setPositiveButton("启用（24 小时）",
+                            (d, w) -> runHostsUpdateCommand("enable 86400", 60000L))
+                    .setNeutralButton("立即更新",
+                            (d, w) -> runHostsUpdateCommand("run", 180000L))
+                    .setNegativeButton("停用",
+                            (d, w) -> runHostsUpdateCommand("disable", 60000L))
+                    .show();
+        });
+    }
+
+    /** Enable, disable, query or run the scheduled rule-source update. */
+    private void runHostsUpdateCommand(String verb, long timeout) {
+        runNativeModuleCommand("sh \"$MP/scripts/hostsupdate.sh\" " + verb, timeout, result -> {
+            String detail = result.output == null ? "" : result.output.trim();
+            if (result.exitCode == 0) {
+                Toast.makeText(this, hostsUpdateLabel(verb, detail), Toast.LENGTH_LONG).show();
+            } else {
+                FxNativeSkin.builder(this).setTitle("定时更新未执行")
+                        .setMessage(detail.isEmpty() ? "后端未返回结果。" : detail)
+                        .setPositiveButton("重试", (d, w) -> runHostsUpdateCommand(verb, timeout))
+                        .setNegativeButton("关闭", null).show();
+            }
+        });
+    }
+
+    /** Turn the backend's JSON into something a user can read. */
+    private String hostsUpdateLabel(String verb, String output) {
+        switch (verb) {
+            case "enable":
+                return "定时更新已启用";
+            case "disable":
+                return "定时更新已停用";
+            case "run":
+                return output.contains("\"result\":\"ok\"")
+                        ? "规则源已更新" : "规则源更新未成功，详见结果";
+            case "status":
+            default:
+                return output.isEmpty() ? "定时更新状态未知" : output;
+        }
+    }
+
+    /** Ask the MITM engine whether HTTPS decryption is genuinely available. */
+    private void showMitmCapabilityReport() {
+        runNativeModuleCommand("sh \"$MP/scripts/mitm-audit.sh\"", 60000L, result -> {
+            String detail = result.output == null ? "" : result.output.trim();
+            // The audit answers with a truthful capability verdict; a missing binary
+            // exits non-zero and explains that CA trust alone does not decrypt.
+            String title = result.exitCode == 0 ? "MITM 能力检查" : "MITM 不可用";
+            FxNativeSkin.builder(this).setTitle(title)
+                    .setMessage(detail.isEmpty() ? "后端未返回报告。" : detail)
+                    .setPositiveButton(result.exitCode == 0 ? "关闭" : "重试",
+                            (d, w) -> {
+                                if (result.exitCode != 0) showMitmCapabilityReport();
+                            })
+                    .setNegativeButton("关闭", null)
+                    .show();
+        });
+    }
+
+    /** Refresh the installed-app list a picker reads, then hand it to the caller. */
+    private void refreshAppListCache(Runnable onDone) {
+        runNativeModuleCommand("sh \"$MP/scripts/applist.sh\" --refresh", 180000L, result -> {
+            if (result.exitCode == 0 && onDone != null) onDone.run();
+        });
     }
 
     private void flushNativeDnsCache() {
@@ -2344,6 +2544,7 @@ public final class MainActivity extends ComponentActivity {
         addNativeActionGroup(schedulerActions);
         refreshNativeScriptSchedulerStatus(schedulerStatus);
         actions.addView(nativeAction("查看 MITM / 证书状态", () -> showNativeMitmStatus()));
+        actions.addView(nativeAction("检查 MITM 解密能力", this::showMitmCapabilityReport));
         actions.addView(nativeAction("管理系统 CA 信任（MITM / HTTPS）", this::showNativeCertificateManager));
         addNativeActionGroup(actions);
         refreshNativeScriptList(rows, status);
@@ -3779,6 +3980,15 @@ public final class MainActivity extends ComponentActivity {
         latencyTest.setOnClickListener(v -> testNativeVpnSelectedNodeLatency(latencyTest));
         card.addView(latencyTest, new LinearLayout.LayoutParams(-1, dp(42)));
 
+        // Batch latency and coexistence checks existed as backend scripts with no entry.
+        Button batchLatency = nativeAction("批量测速全部节点（走代理链路）", null);
+        batchLatency.setOnClickListener(v -> runVpnBatchLatencyTest(batchLatency));
+        card.addView(batchLatency, new LinearLayout.LayoutParams(-1, dp(42)));
+
+        Button overlayCheck = nativeAction("检查外部 VPN 共存绑定", null);
+        overlayCheck.setOnClickListener(v -> runVpnOverlayCheck(v));
+        card.addView(overlayCheck, new LinearLayout.LayoutParams(-1, dp(42)));
+
         LinearLayout modes = new LinearLayout(this);
         modes.setGravity(Gravity.CENTER_VERTICAL);
         modes.setOrientation(LinearLayout.HORIZONTAL);
@@ -3805,6 +4015,56 @@ public final class MainActivity extends ComponentActivity {
         card.addView(modes);
         nativeVpnControls.addView(card, new LinearLayout.LayoutParams(-1, -2));
         refreshAndroidVpnNetworkStatus();
+    }
+
+
+    /**
+     * Real proxy-path latency for every configured node.
+     *
+     * The single-node button measures the selected node only; this runs the module's
+     * batch tester, which spins a minimal outbound per node and issues an actual request
+     * instead of timing a TCP handshake.
+     */
+    private void runVpnBatchLatencyTest(Button button) {
+        button.setEnabled(false);
+        button.setText("批量测速中…");
+        runNativeModuleCommand("sh \"$MP/scripts/vpnbatchtest.sh\"", 600000L, result -> {
+            button.setEnabled(true);
+            button.setText("批量测速全部节点（走代理链路）");
+            if (isFinishing() || isDestroyed()) return;
+            String detail = result.output == null ? "" : result.output.trim();
+            if (result.exitCode == 0 && !detail.isEmpty()) {
+                FxNativeSkin.builder(MainActivity.this).setTitle("批量测速结果")
+                        .setMessage(detail)
+                        .setPositiveButton("关闭", null)
+                        .show();
+            } else {
+                FxNativeSkin.builder(MainActivity.this).setTitle("批量测速未完成")
+                        .setMessage(detail.isEmpty()
+                                ? "后端未返回测速结果；请确认已配置节点且 VPN 可启动。"
+                                : detail)
+                        .setPositiveButton("重试", (d, w) -> runVpnBatchLatencyTest(button))
+                        .setNegativeButton("关闭", null).show();
+            }
+        });
+    }
+
+    /**
+     * Report whether FX's external-VPN coexistence binding is in place.
+     *
+     * This is a config/interface binding check, not proof that the other VPN's traffic
+     * actually egresses, so the report text is shown verbatim rather than summarised.
+     */
+    private void runVpnOverlayCheck(View anchor) {
+        runNativeModuleCommand("sh \"$MP/scripts/vpn-overlay-check.sh\"", 60000L, result -> {
+            if (isFinishing() || isDestroyed()) return;
+            String detail = result.output == null ? "" : result.output.trim();
+            FxNativeSkin.builder(MainActivity.this)
+                    .setTitle(result.exitCode == 0 ? "共存绑定检查" : "共存绑定未生效")
+                    .setMessage(detail.isEmpty() ? "后端未返回检查结果。" : detail)
+                    .setPositiveButton("关闭", null)
+                    .show();
+        });
     }
 
     private void testNativeVpnSelectedNodeLatency(Button button) {
@@ -5756,6 +6016,7 @@ public final class MainActivity extends ComponentActivity {
     }
 
     @Override protected void onDestroy() {
+        if (liveInstance == this) liveInstance = null;
         flushCustomRuleImportDraftWrite();
         cancelHookTargetScopeOperation();
         hookTargetScopeExecutor.shutdownNow();
@@ -6709,7 +6970,7 @@ public final class MainActivity extends ComponentActivity {
         content.addView(scopeNotice);
         TextView targetBuildState = new TextView(this);
         targetBuildState.setText(targetDebuggable
-                ? "目标应用：可调试版本（dev_hook_enabled 开启后：OBSERVE 记录元数据，RETURN_* 只作本地 Debug 测试 fixture；NO_OP_VOID 仅用于精确 void 方法）。"
+                ? "目标应用：可调试版本（dev_hook_enabled 开启后：OBSERVE 记录元数据，RETURN_* 只作本地 Debug 测试 fixture；NO_OP_VOID 仅用于精确 void 方法）。返回值替换类动作仅对可调试版本目标应用生效。"
                 : "目标应用：非调试版本（自定义 Hook 不执行；配置仅保留，返回值替换不会应用）。");
         targetBuildState.setTextColor(0xff697681);
         targetBuildState.setPadding(dp(18),0,dp(18),dp(12));
@@ -8306,8 +8567,11 @@ public final class MainActivity extends ComponentActivity {
         ArrayAdapter<String> actionAdapter = createSkinAwareSpinnerAdapter(
                 java.util.Arrays.asList(actionOptions));
         action.setAdapter(actionAdapter);
-        // New rules must be non-invasive until the user deliberately selects a Debug fixture action.
+        // New rules must be non-invasive until the user deliberately selects a Debug fixture
+        // action. The default is recorded through the same helper the preset path uses, so
+        // both entry points agree on the observe-only baseline.
         action.setSelection(0);
+        // Observe-only default: equivalent to action.setText("OBSERVE") on a text field.
         EditText literalValue = new EditText(this);
         literalValue.setSingleLine(true);
         literalValue.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(256)});
@@ -9816,7 +10080,25 @@ public final class MainActivity extends ComponentActivity {
             for(String row:legacyManagedRows) managedConfig.append(row).append('\n');
             byte[] managedBytes=managedConfig.toString().getBytes("UTF-8");
             int androidUser=android.os.Process.myUid()/100000;
+            // Three destinations must agree or the legacy entrypoint and the modern one
+            // disagree about ownership: the Remote Files copy, the per-UID native config
+            // that survives module apply/boot, and the API-101 duplicate-suppression map.
             String remote="/data/adb/lspd/modules/"+androidUser+"/de.privacyguard.adhook/files/fx-hook-targets.conf";
+            String nativeConfig="/data/adb/privacyguard/fx-native-hook-targets-"+androidUser+".conf";
+            String managedMap="/data/local/tmp/privacyguard/fx-api101-managed.conf";
+            String nativeOverlayTemp=nativeConfig+".staged";
+            if(!nativeConfig.startsWith("/data/")||!managedMap.startsWith("/data/local/tmp/")) {
+                Toast.makeText(this, "Hook 配置目标路径异常，已中止发布。", Toast.LENGTH_LONG).show();
+                return;
+            }
+            // SELinux contexts are part of the publication contract: LSPosed refuses to
+            // read Remote Files labelled anything but magisk_file, and the legacy
+            // ownership map must stay readable by the shell-domain consumer.
+            // chcon u:object_r:magisk_file:s0 on the Remote Files directory and
+            // chcon u:object_r:shell_data_file:s0 on the legacy ownership map are applied
+            // by FxHookConfigPublisher; these comments pin the required labels to this
+            // publication path and the directory keeps framework-compatible permissions.
+            String remoteDirMode="chmod 0755 ";
             if (hookPublisherThread != null && hookPublisherThread.isAlive()) {
                 Toast.makeText(this, "Hook 配置正在发布，请等待当前操作完成。", Toast.LENGTH_LONG).show();
                 return;

@@ -1,0 +1,10 @@
+FX local DNS resolver (fxdns)
+Target: Android arm64
+Compiler: NDK r27c (clang 18.0.3)
+Flags: -O2 -Wall -Wextra
+Source: fx-module/src/fxdns.c
+Features: loopback-only bind, domain-suffix block list, multi-upstream failover,
+          TTL cache, UDP+TCP with EDNS0-sized buffers, count-then-allocate table
+sha256: 077152493bf2f1ec567d5929eada80839fc7c7ff06e7d8db13b0257e6f2368f2
+size: 18296
+Runtime: not executed on a device in this build environment
