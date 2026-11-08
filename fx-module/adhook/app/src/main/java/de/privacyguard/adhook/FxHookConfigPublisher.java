@@ -69,7 +69,11 @@ final class FxHookConfigPublisher {
         final String privacyDir;
 
         Layout(String dataRoot, int androidUser) {
-            if (dataRoot == null || !dataRoot.startsWith("/") || androidUser < 0) {
+            // The root must be absolute. Production always passes /data through
+            // forUser(); the host regression passes a temporary directory, which is
+            // absolute on every platform but does not start with "/" on Windows.
+            if (dataRoot == null || dataRoot.isEmpty()
+                    || !java.nio.file.Paths.get(dataRoot).isAbsolute() || androidUser < 0) {
                 throw new IllegalArgumentException("invalid Hook publication layout");
             }
             this.dataRoot = dataRoot;

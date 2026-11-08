@@ -224,14 +224,24 @@ public final class HookConfigParserHostTest {
     }
 }
 JAVA
+# The parser collaborates with every policy helper in its own package, so compile the
+# package's sources by glob instead of a hand-maintained list: a fixed list silently
+# goes stale the moment the parser starts calling a new collaborator (AppUpdatePolicy
+# was exactly that). Files outside the package are listed explicitly.
+PKG="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook"
+parser_sources=()
+while IFS= read -r src; do
+  case "$(basename "$src")" in
+    # Skip the activities/services: they depend on the Android framework which the
+    # host compile does not have.
+    Fx*.java|*Activity.java|*Service.java|*Application.java|MainActivity.java) continue ;;
+  esac
+  parser_sources+=("$src")
+done < <(find "$PKG" -maxdepth 1 -name '*.java' -print | sort)
+
 javac -d "$T/parser-classes" \
-  "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/DeveloperHookRule.java" \
-  "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/DeveloperExecutableDescriptor.java" \
-  "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/SensorPrivacyPolicy.java" \
+  "${parser_sources[@]}" \
   "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaKeyGesturePolicy.java" \
   "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaDialogMatchPolicy.java" \
-  "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigParser.java" \
-  "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/UnifiedHookConfigSerializer.java" \
-  "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/HookTargetConfigParser.java" \
   "$T/HookConfigParserHostTest.java"
 java -cp "$T/parser-classes" de.privacyguard.adhook.HookConfigParserHostTest
