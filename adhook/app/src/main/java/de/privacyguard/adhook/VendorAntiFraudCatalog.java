@@ -108,6 +108,16 @@ public final class VendorAntiFraudCatalog {
             "com.lge.security",
             "com.asus.sarprotection",
             "com.scorpio.securitycom",
+            // ---- installer / app-detail components that report installs ----
+            // Published anti-fraud rule sets name these as the packages that inspect what
+            // the user is installing; they belong in the catalogue so the Hook layer gates
+            // them the same way it gates the security centres.
+            "com.miui.packageinstaller",
+            "com.android.packageinstaller",
+            "com.oplus.appdetail",
+            "com.iqoo.secure",
+            "com.vivo.sdkplugin",
+            "webapp.pingbiceshi",
             // ---- AOSP / Google Safety Center ----
             "com.android.safetycenter",
             "com.google.android.safetycenter",
