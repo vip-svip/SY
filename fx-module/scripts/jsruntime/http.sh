@@ -1,5 +1,9 @@
 #!/system/bin/sh
 # HTTP bridge for QuickJS scripts; no eval or shell interpolation of user values.
+# Redirects are intentionally returned to the script instead of auto-followed:
+# curl forwards caller-supplied custom headers across redirects, which can leak
+# Authorization/cookies/tokens to another HTTPS origin. A script may inspect
+# Location and explicitly issue a new request with an origin-appropriate header set.
 set -u
 [ "$#" -eq 6 ] || exit 64
 url=$1 method=$2 bodyfile=$3 outbody=$4 headersfile=$5 timeout=$6
@@ -8,12 +12,11 @@ case "$timeout" in ''|*[!0-9]*) timeout=20 ;; esac
 [ "$timeout" -ge 1 ] 2>/dev/null || timeout=20
 [ "$timeout" -le 120 ] 2>/dev/null || timeout=120
 : > "$outbody" || exit 73
-# Keep script-controlled uploads within the same bounded payload budget as responses.
+# Validate the staged request body metadata without imposing a product-level byte ceiling.
 body_size=$(wc -c < "$bodyfile" 2>/dev/null | tr -d " ")
 case "$body_size" in ''|*[!0-9]*) echo "unable to determine HTTP request body size" >&2; exit 74 ;; esac
-[ "$body_size" -le 8388608 ] || { echo "HTTP request body exceeds 8 MiB" >&2; exit 75; }
 if command -v curl >/dev/null 2>&1; then
-  set -- curl -sS -L --max-redirs 5 --proto '=http,https' --proto-redir '=https' --max-filesize 8388608 --max-time "$timeout" --connect-timeout 8 -X "$method" -D "$outbody.headers" -o "$outbody" -w '%{http_code}'
+  set -- curl -sS --max-redirs 0 --max-time "$timeout" --connect-timeout 8 -X "$method" -D "$outbody.headers" -o "$outbody" -w '%{http_code}'
   if [ -s "$bodyfile" ]; then set -- "$@" --data-binary "@$bodyfile"; fi
   while IFS= read -r h || [ -n "$h" ]; do
     [ -n "$h" ] || continue
@@ -24,12 +27,11 @@ if command -v curl >/dev/null 2>&1; then
   code=$("$@") || exit $?
   size=$(wc -c < "$outbody" 2>/dev/null | tr -d ' ')
   case "$size" in ''|*[!0-9]*) exit 74 ;; esac
-  [ "$size" -le 8388608 ] || { echo 'HTTP response exceeds 8 MiB' >&2; exit 75; }
   printf '%s\n' "$code" > "$headersfile.status"
   exit 0
 fi
 # Do not fall back to wget: device/busybox wget variants do not expose a
-# consistently portable redirect-protocol restriction, so an HTTPS request
-# could be downgraded to HTTP after a redirect. Script HTTP APIs require curl.
+# consistently portable redirect restriction. Script HTTP APIs require curl.
+# Redirects are not followed automatically, preventing secret-header forwarding.
 echo 'curl is required for safe HTTP bridge requests (wget fallback disabled)' >&2
 exit 69

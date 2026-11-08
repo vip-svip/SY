@@ -291,6 +291,7 @@ status() {
   _root_redirects=unknown
   _root_dns_probe=unavailable
   _root_route=unknown
+  _root_adguard_upstream_route=unknown
   if [ -f "$CONF" ] && [ ! -L "$CONF" ] && [ -r "$CONF" ]; then
     _rule_rows=
     if [ -f "$MP/scripts/native-managed-lists.sh" ] && [ ! -L "$MP/scripts/native-managed-lists.sh" ]; then
@@ -343,6 +344,8 @@ status() {
       case "$_probe" in passed|failed|unavailable) _root_dns_probe=$_probe ;; esac
       _route=$(printf '%s\n' "$_root_output" | sed -n 's/^route=//p' | head -1)
       case "$_route" in verified|unavailable|not_applicable) _root_route=$_route ;; esac
+      _upstream_route=$(printf '%s\n' "$_root_output" | sed -n 's/^adguard_upstream_route=//p' | head -1)
+      case "$_upstream_route" in unbound_pinned|unverified|unknown) _root_adguard_upstream_route=$_upstream_route ;; esac
 
       _mode=$(printf '%s\n' "$_root_output" | sed -n 's/^private_dns_mode=//p' | head -1)
       case "$_mode" in off|opportunistic|hostname) _private_dns_mode=$_mode ;; esac
@@ -353,9 +356,9 @@ status() {
   if [ -f "$MP/scripts/fx-vpn-coexistence-arbiter.sh" ] && [ ! -L "$MP/scripts/fx-vpn-coexistence-arbiter.sh" ]; then
     _coexistence=$(MP="$MP" PG="$PG" sh "$MP/scripts/fx-vpn-coexistence-arbiter.sh" 2>/dev/null || :)
     _verdict=$(printf '%s\n' "$_coexistence" | sed -n 's/.*"verdict":"\([^"]*\)".*/\1/p' | head -1)
-    case "$_verdict" in compatible|incompatible|unknown) _coexistence_verdict=$_verdict ;; esac
+    case "$_verdict" in kernel_only|full_parallel|chained|partial|compatible|incompatible|unknown) _coexistence_verdict=$_verdict ;; esac
     _route_probe=$(printf '%s\n' "$_coexistence" | sed -n 's/.*"route_probe":"\([^"]*\)".*/\1/p' | head -1)
-    case "$_route_probe" in passed|failed|unavailable|not_applicable) _coexistence_route_probe=$_route_probe ;; esac
+    case "$_route_probe" in passed|failed|unavailable|not_applicable|unknown|unverified|dns_route_verified|dns_chain_verified|dns_upstream_route_unverified) _coexistence_route_probe=$_route_probe ;; esac
   fi
   _agh_enabled=$(read_flag dns_engine_adguardhome)
   _unbound_enabled=$(read_flag dns_forward)
@@ -575,6 +578,7 @@ status() {
   printf 'rootproxy_redirects|%s\n' "$_root_redirects"
   printf 'rootproxy_dns_probe|%s\n' "$_root_dns_probe"
   printf 'rootproxy_route|%s\n' "$_root_route"
+  printf 'rootproxy_adguard_upstream_route|%s\n' "$_root_adguard_upstream_route"
   printf 'rootproxy_whitelist_count|%s\n' "$_whitelist_count"
   printf 'dns_filter_sources_total|%s\n' "$_filter_total"
   printf 'dns_filter_sources_enabled|%s\n' "$_filter_enabled"
@@ -759,7 +763,7 @@ with_lock() {
     [ ! -L "$LOCK" ] || { echo "unsafe FX DNS settings lock" >&2; return 22; }
     if mkdir "$LOCK" 2>/dev/null; then
       _lock_owner="$LOCK/owner"
-      if (umask 077; set -C; printf '%s\\n' "$_lock_pid" > "$_lock_owner") 2>/dev/null; then
+      if (umask 077; set -C; printf '%s\n' "$_lock_pid" > "$_lock_owner") 2>/dev/null; then
         _lock_release() {
           if [ ! -L "$LOCK" ] && [ -d "$LOCK" ] &&
               [ ! -L "$_lock_owner" ] && [ -f "$_lock_owner" ] &&

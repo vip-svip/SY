@@ -421,11 +421,11 @@ assert "无法按文本读取" in warning_page, \
 assert "FxYulongWhitelistPolicy.isWellFormed(storedWhitelist)" in warning_page, \
     "Risk detail whitelist action must reject malformed original data through the shared parser"
 assert "FxYulongWhitelistPolicy.serialize(packages)" in warning_page, \
-    "Risk detail whitelist action must use the shared bounded serializer"
+    "Risk detail whitelist action must use the shared canonical serializer"
 assert "if (serialized == null)" in warning_page, \
-    "Risk detail whitelist action must reject additions above the shared entry/size limits"
-assert "白名单已达到安全上限" in warning_page, \
-    "Risk detail page must explain why an over-limit whitelist addition was rejected"
+    "Risk detail whitelist action must reject malformed package data atomically"
+assert "目标包名不符合格式要求" in warning_page, \
+    "Risk detail page must explain invalid package-name rejection"
 assert '.putString(WHITELIST_KEY, serialized)' in warning_page, \
     "Risk detail page must only commit the validated canonical whitelist string"
 assert "本次没有修改任何白名单数据" in warning_page, \
@@ -445,12 +445,10 @@ assert "whitelistDataCorrupt = !raw.isEmpty() && !FxYulongWhitelistPolicy.isWell
 # Batch cleanup must reject malformed or truncated queue payloads atomically.
 for token in (
     "inputPackages == null || inputLabels == null || inputReasons == null",
-    "inputPackages.size() > MAX_QUEUE_ITEMS",
     "inputLabels.size() != inputPackages.size()",
     "inputReasons.size() != inputPackages.size()",
     "!uniquePackages.add(pkg)",
     "!uniquePackages.contains(pkg)",
-    "restoredIndex < 0 || restoredIndex > inputPackages.size()",
     "STATE_QUEUE_INVALID",
     "if (queueInvalid) return;",
     "if (queueInvalid) {",
@@ -458,8 +456,11 @@ for token in (
     "next.setEnabled(false);",
 ):
     assert token in batch_cleanup, f"Batch cleanup queue integrity guard missing: {token}"
-assert "Math.min(Math.min(inputPackages.size(), inputLabels.size()), MAX_QUEUE_ITEMS)" not in batch_cleanup, \
-    "Batch cleanup must not silently truncate mismatched queue fields"
+assert "MAX_QUEUE_ITEMS" not in batch_cleanup, "Batch cleanup must not impose a fixed queue-size cap"
+assert "label.length() > 1024" not in batch_cleanup and "reason.length() > 1024" not in batch_cleanup, "Batch cleanup must preserve complete labels and reasons"
+assert "FxYulongCleanupQueueStore.load(this, queueId)" in batch_cleanup, "Batch cleanup must load full queue data from private storage"
+assert "FxYulongCleanupQueueStore.save(this, queueId, data)" in batch_cleanup, "Batch cleanup progress must persist outside the Activity Bundle"
+assert "outState.putString(STATE_QUEUE_ID, queueId)" in batch_cleanup, "Activity state must carry only a queue identifier"
 assert "pm uninstall" not in engine and "su -c" not in engine
 assert "private LinearLayout body" in scan_page and "private LinearLayout resultRows" in scan_page
 assert 'STATE_SCAN_SCROLL_Y = "fx_shield_scan_scroll_y"' in scan_page, "Shield scan result list must have an explicit scroll restoration key"
@@ -494,9 +495,10 @@ assert "RootAccess" not in white and "yulong-stellar-control.sh" not in white \
 assert '"blacklist_pkgs"' in black, "Blacklist manager must preserve the original blacklist key"
 assert "StellarUtils" not in white and "syncToStellar" not in picker
 
-# Blacklist CSV is bounded and all-or-nothing; the live service and UI share the policy.
-assert "MAX_RAW_CHARS = 1024 * 1024" in blacklist_policy
-assert "MAX_ENTRIES = 10000" in blacklist_policy
+# Blacklist and whitelist CSV parsers are all-or-nothing and have no business count/size caps.
+for source in (blacklist_policy, whitelist_policy):
+    assert "MAX_RAW_CHARS" not in source and "MAX_ENTRIES" not in source
+    assert "raw.length() >" not in source and "packages.size() >" not in source
 assert "public static boolean isWellFormed(String raw)" in blacklist_policy, "Blacklist policy must expose its full-input validator"
 assert "if (!isWellFormed(raw)) return Collections.emptySet();" in blacklist_policy
 assert "serialize(Iterable<String> packageNames)" in blacklist_policy
@@ -555,10 +557,9 @@ assert "outState.putInt(STATE_PAGE" in black and "outState.putInt(STATE_SCROLL_Y
 assert black.index("blacklistSearchInput.setText(blacklistQuery)") < black.rindex("blacklistPage = Math.max(1, savedInstanceState.getInt(STATE_PAGE, 1))")
 assert "savedInstanceState.getInt(STATE_PAGE, 1)" in black
 assert "blacklistScroll.scrollTo(0, restoreY)" in black
-assert "MAX_PICKER_STAGED = 100" in black, "Blacklist picker must cap staged selections to the Bundle-restorable limit"
-assert "staged.size() >= MAX_PICKER_STAGED" in black, "Blacklist picker must reject selections beyond the saved-state cap"
-assert "单次最多选择 " in black, "Blacklist picker must explain its explicit selection limit"
-assert "outState.putStringArrayList(STATE_PICKER_STAGED" in black, "Blacklist staged selection must be persisted during Activity recreation"
+assert "MAX_PICKER_STAGED" not in black and "单次最多选择" not in black, "Blacklist picker must not impose an arbitrary staged-selection cap"
+assert "PREF_PICKER_STAGED" in black and "putStringSet(PREF_PICKER_STAGED" in black, "Unlimited staged selections must persist outside the Activity Bundle"
+assert "getStringSet(PREF_PICKER_STAGED" in black, "Blacklist picker must restore the complete staged selection"
 assert "if (pickerDialogOpen) showAppPicker(true);" in black, "Blacklist picker must reopen after asynchronous app inventory restoration"
 picker = shield["WhitelistPickerActivity.java"]
 assert 'STATE_QUERY = "fx_shield_whitelist_picker_query"' in picker
@@ -618,9 +619,13 @@ assert "if (!saveBlacklist())" in blacklist_activity, \
     "Blacklist add/remove/clear flows must roll back in-memory state on failed writes"
 assert "public MatchEvidence matchCertain(String pkg, String label)" in virus_db, "certain match evidence missing"
 assert "matchSuspectEvidence(String pkg, String label)" in virus_db, "suspect match evidence missing"
-assert "STATE_FINDING_SOURCES" in scan_activity and "STATE_FINDING_MATCHES" in scan_activity, "scan evidence is not persisted across recreation"
+assert "STATE_SCAN_STATE_ID" in scan_activity and "FxYulongScanStateStore.load(this, scanStateId)" in scan_activity, "complete scan evidence must restore from private storage"
+assert "FxYulongScanStateStore.save(this, scanStateId, data)" in scan_activity, "complete scan evidence must persist outside the Activity Bundle"
+assert "MAX_SAVED_FINDINGS" not in scan_activity and "MAX_BATCH_SELECTION" not in scan_activity, "scan findings and batch selections must not have arbitrary count caps"
+assert "FxYulongCleanupQueueStore.create(this, packages, labels, reasons)" in scan_activity, "batch launch must persist its full queue and pass an ID"
+assert "putStringArrayListExtra(\"packages\"" not in scan_activity, "large batch queues must not be placed in Binder extras"
 assert 'putExtra("matched_entry", finding.matchedEntry)' in scan_activity, "warning detail route drops match evidence"
 assert "匹配条目 / 特征族：" in warning_activity, "risk detail does not show evidence"
 assert "certainMatchesExposeTheirRealListAndMatchedEntry" in virus_db_test, "virus DB evidence tests missing"
-print("PASS: Shield native UI/database/scanner, safe removal, no second VPN, bounded whitelist app/icon workers and lifecycle cleanup and foreground/install risk scanning")
+print("PASS: Shield native UI/database/scanner, safe removal, no second VPN, uncapped Shield lists, private-file scan/queue state and lifecycle cleanup and foreground/install risk scanning")
 PY

@@ -105,7 +105,7 @@ trap 'exit 143' TERM
 fetch_script_https() {
   # Scripts execute with module privileges; require curl so HTTPS redirects can be pinned.
   command -v curl >/dev/null 2>&1 || { pg_log "js-sub: curl required for HTTPS-only script downloads; refusing wget redirect downgrade risk"; return 1; }
-  curl -fsSL --proto '=https' --proto-redir '=https' --connect-timeout 6 --max-time 15 --max-filesize 1048576 -o "$2" "$1" 2>>"$PG/apply.log"
+  curl -fsSL --proto '=https' --proto-redir '=https' --connect-timeout 6 --max-time 15 -o "$2" "$1" 2>>"$PG/apply.log"
 }
 ok=0; skipped=0; failed=0
 while IFS='|' read -r url note enabled; do
@@ -134,8 +134,8 @@ while IFS='|' read -r url note enabled; do
   fi
   size=$(wc -c < "$tmp" 2>/dev/null | tr -d ' ')
   case "$size" in ''|*[!0-9]*) size=0 ;; esac
-  if [ "$size" -gt 1048576 ] || [ "$size" -lt 16 ]; then
-    rm -f "$tmp"; FETCH_TMP=; pg_log "js-sub: rejected invalid size for [subscription URL redacted] ($size bytes)"; failed=$((failed+1)); continue
+  if [ "$size" -eq 0 ]; then
+    rm -f "$tmp"; FETCH_TMP=; pg_log "js-sub: rejected empty script for [subscription URL redacted]"; failed=$((failed+1)); continue
   fi
   case "$note" in
     FXMETA_B64:*)
@@ -150,30 +150,18 @@ while IFS='|' read -r url note enabled; do
       case "$meta_type" in request|response|both) ;; *) meta_type='' ;; esac
       case "$meta_match" in ''|*"$(printf '\r')"*) meta_match='' ;; esac
       case "$meta_requires_body" in ''|0) meta_requires_body=0 ;; 1) ;; *) meta_requires_body='' ;; esac
-      case "$meta_display_name" in *"$(printf '\r')"*) meta_display_name='' ;; esac
-      meta_name_length=$(printf '%s' "$meta_display_name" | wc -c | tr -d ' ')
-      case "$meta_name_length" in ''|*[!0-9]*) meta_display_name='' ;; esac
-      [ "$meta_name_length" -le 512 ] 2>/dev/null || meta_display_name=''
-      case "$meta_env_json" in *"$(printf '\r')"*) meta_env_json='' ;; esac
-      meta_env_length=$(printf '%s' "$meta_env_json" | wc -c | tr -d ' ')
-      case "$meta_env_length" in ''|*[!0-9]*) meta_env_json='' ;; esac
-      if [ "$meta_env_length" -gt 2048 ] 2>/dev/null; then meta_env_json=''; fi
+      if printf '%s' "$meta_display_name" | LC_ALL=C grep -q '[[:cntrl:]]'; then meta_display_name=''; fi
+      if printf '%s' "$meta_env_json" | LC_ALL=C grep -q '[[:cntrl:]]'; then meta_env_json=''; fi
       if [ -n "$meta_env_json" ]; then
         case "$meta_env_json" in \{*\}) ;; *) meta_env_json='' ;; esac
       fi
       meta_argument_invalid=0
-      meta_argument_length=$(printf '%s' "$meta_argument" | wc -c | tr -d ' ')
-      case "$meta_argument_length" in ''|*[!0-9]*) meta_argument_invalid=1 ;; esac
-      [ "$meta_argument_length" -le 512 ] 2>/dev/null || meta_argument_invalid=1
       case "$meta_argument" in *"$(printf '\r')"*) meta_argument_invalid=1 ;; esac
       if printf '%s' "$meta_argument" | LC_ALL=C grep -q '[[:cntrl:]]'; then meta_argument_invalid=1; fi
       [ -z "$meta_extra" ] || meta_argument_invalid=1
       # Stash's per-script argument is carried as field 6. Strip control bytes
       # before writing a source header so metadata cannot inject extra directives.
       meta_argument=$(printf '%s' "$meta_argument" | tr '\r\n' '  ' | sed 's/[[:cntrl:]]/ /g')
-      meta_argument_length=$(printf '%s' "$meta_argument" | wc -c | tr -d ' ')
-      case "$meta_argument_length" in ''|*[!0-9]*) meta_argument='' ;; esac
-      [ "$meta_argument_length" -le 512 ] 2>/dev/null || meta_argument=''
       if [ -z "$meta_type" ] || [ -z "$meta_match" ] || [ -z "$meta_requires_body" ] || [ "$meta_argument_invalid" -eq 1 ]; then
         rm -f "$tmp"; pg_log "js-sub: invalid encoded trigger metadata for [subscription URL redacted]"; failed=$((failed+1)); continue
       fi
@@ -218,7 +206,6 @@ while IFS='|' read -r url note enabled; do
   fi
   size=$(wc -c < "$tmp" 2>/dev/null | tr -d ' ')
   case "$size" in ''|*[!0-9]*) size=0 ;; esac
-  if [ "$size" -gt 1048576 ]; then rm -f "$tmp"; pg_log "js-sub: metadata-wrapped script exceeds 1 MiB: [subscription URL redacted]"; failed=$((failed+1)); continue; fi
   # SHA-256 records the exact accepted bytes; verify the committed file before reporting success.
   hashline=$(sha256sum "$tmp" 2>/dev/null) || { rm -f "$tmp"; FETCH_TMP=; failed=$((failed+1)); continue; }
   hash=${hashline%% *}

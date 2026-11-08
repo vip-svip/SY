@@ -224,24 +224,62 @@ public final class HookConfigParserHostTest {
     }
 }
 JAVA
-# The parser collaborates with every policy helper in its own package, so compile the
-# package's sources by glob instead of a hand-maintained list: a fixed list silently
-# goes stale the moment the parser starts calling a new collaborator (AppUpdatePolicy
-# was exactly that). Files outside the package are listed explicitly.
+# Walk the parser's in-package dependencies and keep only framework-free files. A fixed
+# list goes stale the moment the parser calls a new collaborator (AppUpdatePolicy was
+# exactly that); a blanket glob instead drags in android/org.json importers that cannot
+# compile on a plain JVM.
 PKG="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook"
 parser_sources=()
-while IFS= read -r src; do
-  case "$(basename "$src")" in
-    # Skip the activities/services: they depend on the Android framework which the
-    # host compile does not have.
-    Fx*.java|*Activity.java|*Service.java|*Application.java|MainActivity.java) continue ;;
-  esac
+seen=""
+queue="UnifiedHookConfigParser UnifiedHookConfigSerializer HookTargetConfigParser DeveloperHookRule"
+while [ -n "$queue" ]; do
+  set -- $queue
+  name="$1"
+  shift
+  queue="$*"
+  src="$PKG/$name.java"
+  [ -f "$src" ] || continue
+  case " $seen " in *" $name "*) continue ;; esac
+  seen="$seen $name"
+  # Framework-dependent sources cannot compile without the Android SDK.
+  if grep -qE '^[[:space:]]*import[[:space:]]+(android\.|androidx\.|org\.json\.|com\.android\.)' "$src"; then
+    continue
+  fi
   parser_sources+=("$src")
-done < <(find "$PKG" -maxdepth 1 -name '*.java' -print | sort)
+  # Any sibling type this file mentions is a further dependency.
+  #
+  # Guarded narrowly: a bare file name also appears inside larger identifiers, string
+  # literals and comments, and queuing such a match drags in Android-dependent classes
+  # that cannot compile here (EgernScriptYamlImporter produced 1483 errors that way).
+  # Only queue a plausible Java type name, and only when the reference looks like a type
+  # use rather than prose.
+  for cand in "$PKG"/*.java; do
+    base="$(basename "$cand" .java)"
+    case " $seen " in *" $base "*) continue ;; esac
+    # A Java type name starts with a capital letter and contains only word characters.
+    case "$base" in
+      [A-Z]*) : ;;
+      *) continue ;;
+    esac
+    case "$base" in
+      *[!A-Za-z0-9_]*) continue ;;
+    esac
+    # Require a type-reference shape: the identifier must not be glued to a preceding
+    # word character, and must be followed by something a type use can precede.
+    if grep -qE "(^|[^A-Za-z0-9_\$])${base}([^A-Za-z0-9_\$]|\$)" "$src"; then
+      queue="$queue $base"
+    fi
+  done
+done
+# Framework-free collaborators that live in a sub-package.
+for extra in imported/dia/FxDiaKeyGesturePolicy imported/dia/FxDiaDialogMatchPolicy; do
+  [ -f "$PKG/$extra.java" ] && parser_sources+=("$PKG/$extra.java")
+done
+# Guard the exact regression: the parser references AppUpdatePolicy, so it must be here.
+printf '%s\n' "${parser_sources[@]}" | grep -q 'AppUpdatePolicy\.java$' \
+  || fail "AppUpdatePolicy must be part of the host parser compile"
 
 javac -d "$T/parser-classes" \
   "${parser_sources[@]}" \
-  "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaKeyGesturePolicy.java" \
-  "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaDialogMatchPolicy.java" \
   "$T/HookConfigParserHostTest.java"
 java -cp "$T/parser-classes" de.privacyguard.adhook.HookConfigParserHostTest

@@ -73,7 +73,7 @@ read_rows() {
       inlist=1
       next
     }
-    /^\\[/ {inlist=0}
+    /^\[/ {inlist=0}
     inlist && $0 !~ /^[[:space:]]*$/ && $0 !~ /^[[:space:]]*#/ {
       if(NF!=3 ||
          $1 !~ /^[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+$/ ||
@@ -182,7 +182,7 @@ with_lock() {
     # Release only the exact private lock directory whose owner is still us.
     if [ ! -L "$LOCK" ] && [ -d "$LOCK" ] &&
         [ ! -L "$LOCK/pid" ] && [ -f "$LOCK/pid" ] &&
-        [ "$(cat "$LOCK/pid" 2>/dev/null || true)" = "$" ]; then
+        [ "$(cat "$LOCK/pid" 2>/dev/null || true)" = "$$" ]; then
       rm -f "$LOCK/pid" 2>/dev/null || :
       rmdir "$LOCK" 2>/dev/null || :
     fi
@@ -356,21 +356,30 @@ mutate_batch_transaction() {
 
 prune_transaction() {
   [ -f "$CONF" ] && [ ! -L "$CONF" ] || { echo "FX settings.conf missing or unsafe" >&2; return 21; }
+  read_rows >/dev/null || {
+    echo "app whitelist settings are malformed or ambiguous; whitelist unchanged" >&2
+    return 22
+  }
   _snapshot=$(cmd package list packages -U 2>/dev/null) || {
     echo "cannot read PackageManager snapshot; app whitelist unchanged" >&2; return 1;
   }
   [ -n "$_snapshot" ] || { echo "PackageManager returned an empty snapshot; app whitelist unchanged" >&2; return 1; }
   _YW_PACKAGES=$(mktemp "$PG/yulong-app-whitelist-packages.XXXXXX") || return 1
   if ! printf '%s\n' "$_snapshot" | awk '
-    $1 ~ /^package:[A-Za-z0-9_.-]+$/ {
-      pkg=substr($1,9); uid_ok=0
-      for(i=2;i<=NF;i++) if($i ~ /^uid:[0-9]+$/) {uid_ok=1; break}
-      if(uid_ok && pkg ~ /^[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+$/) {
-        if(!seen[pkg]++) print pkg
-        valid++
+    NF==0 {next}
+    $1 ~ /^package:/ {
+      pkg=substr($1,9); uid_count=0
+      for(i=2;i<=NF;i++) if($i ~ /^uid:[0-9]+$/) uid_count++
+      if(pkg !~ /^[A-Za-z0-9_]+([.][A-Za-z0-9_-]+)+$/ || uid_count!=1) {
+        bad=1
+        next
       }
+      if(!seen[pkg]++) print pkg
+      valid++
+      next
     }
-    END {exit !valid}
+    {bad=1}
+    END {if(bad || !valid) exit 1}
   ' > "$_YW_PACKAGES"; then
     rm -f "$_YW_PACKAGES"; _YW_PACKAGES=
     echo "PackageManager snapshot is malformed; app whitelist unchanged" >&2
@@ -445,8 +454,9 @@ prune_transaction() {
     return 0
   fi
   _YW_RESTORE=$(mktemp "$CONF.restore.XXXXXX") || {
-    rm -f "$_YW_BACKUP"; _YW_BACKUP=
-    echo "unable to create app whitelist prune rollback file" >&2
+    _YW_RECOVERY_BACKUP=$_YW_BACKUP
+    _YW_BACKUP=
+    echo "unable to create app whitelist prune rollback file; recovery copy retained at $_YW_RECOVERY_BACKUP" >&2
     return 11
   }
   if cat "$_YW_BACKUP" > "$_YW_RESTORE" && chmod 600 "$_YW_RESTORE" \
@@ -455,9 +465,11 @@ prune_transaction() {
       && mv -f "$_YW_RESTORE" "$CONF"; then
     _YW_RESTORE=
   else
-    rm -f "$_YW_RESTORE" "$_YW_BACKUP"
-    _YW_RESTORE=; _YW_BACKUP=
-    echo "app whitelist prune rollback failed" >&2
+    rm -f "$_YW_RESTORE"
+    _YW_RESTORE=
+    _YW_RECOVERY_BACKUP=$_YW_BACKUP
+    _YW_BACKUP=
+    echo "app whitelist prune rollback failed; recovery copy retained at $_YW_RECOVERY_BACKUP" >&2
     return 11
   fi
   sh "$MP/scripts/apply.sh" fast >/dev/null 2>&1 || echo "previous whitelist restored; runtime reconcile failed" >&2

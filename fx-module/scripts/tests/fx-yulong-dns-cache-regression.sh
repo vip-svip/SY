@@ -14,13 +14,9 @@ from pathlib import Path
 import sys
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
 helper = Path(sys.argv[2]).read_text(encoding="utf-8")
-assert 'button("刷新全部本地 DNS 缓存", () -> confirmCacheFlush("all", "全部本地 DNS"))' in source, \
+assert 'button("重启本地 DNS 并清理缓存", this::confirmCacheFlush)' in source, \
     "DNS page has no native cache flush control"
-assert 'button("仅刷新 AdGuard Home", () -> confirmCacheFlush("adguardhome", "AdGuard Home"))' in source, \
-    "DNS page cannot flush only the AdGuard Home cache"
-assert 'button("仅刷新 Unbound", () -> confirmCacheFlush("unbound", "Unbound"))' in source, \
-    "DNS page cannot flush only the Unbound cache"
-assert 'private void confirmCacheFlush(String target, String label)' in source, "cache flush has no explicit confirmation flow"
+assert 'private void confirmCacheFlush()' in source, "cache flush has no explicit confirmation flow"
 assert "ROW_PAGE_SIZE = 50" in source, "DNS log list must use bounded 50-row pages"
 assert "STATE_PAGE = \"fx_dns_page\"" in source, "DNS log page state key missing"
 assert 'button("加载更多（剩余 "' in source, "DNS log list has no progressive pagination"
@@ -29,9 +25,9 @@ search_listener = source.split("search.addTextChangedListener", 1)[1].split("loa
 assert "pendingScrollY = 0;" in search_listener and "pendingScrollRestore = false;" in search_listener, "user search must cancel a stale pre-rotation scroll restore"
 assert "outState.putInt(STATE_PAGE, Math.max(1, page))" in source, "DNS log page depth is not restored"
 assert "匹配 " in source and "已显示 " in source, "DNS list does not show filtered/visible counts"
-assert 'root(shell("cache-flush " + target), 120000L' in source, "cache flush does not use an adequate Root timeout"
-assert "相关 DNS 查询可能短暂中断" in source, "the UI must disclose local DNS restart interruption"
-assert "不会操作第三方 VPN、Android 系统 DNS 缓存" in source, "the UI must not imply system-wide cache clearing"
+assert 'root(shell("cache-flush"), 120000L' in source, "cache flush does not use an adequate Root timeout"
+assert "DNS 可能短暂中断" in source, "the UI must disclose local DNS restart interruption"
+assert "不会清理 Android 系统 DNS 缓存" in source, "the UI must not imply system-wide cache clearing"
 assert 'output.contains("cache=flushed")' in source, "success UI is not bound to the backend result"
 assert 'output.contains("dns-engine-disabled")' in source, "disabled-engine state is not reported separately"
 module_start = source.index("private String shell(")

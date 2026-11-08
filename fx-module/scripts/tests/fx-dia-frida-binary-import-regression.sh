@@ -10,7 +10,12 @@ import sys
 
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
 required = {
-    "unique app-private upload temp": 'File.createTempFile(server ? "server-" : "inject-", ".upload", staging)',
+    "unique app-private upload temp": 'File.createTempFile(server ? "server-" : (injector ? "inject-" : "gadget-"), ".upload", staging)',
+    "Gadget import action is reachable": 'button("从文件选择并导入 Gadget 动态库", () -> pickBinary(7107))',
+    "Gadget picker result is routed": "requestCode == 7107",
+    "Gadget imports are ELF ET_DYN": "(gadget && ((header[16] & 0xff) != 3 || (header[17] & 0xff) != 0))",
+    "Gadget is installed to deployment path": '"/data/local/tmp/fx-frida/libgadget.so"',
+    "Gadget import digest is persisted": '"gadget_sha256"',
     "reject staging symlink": "Files.isSymbolicLink(staging.toPath())",
     "reject source symlink": "Files.isSymbolicLink(source.toPath())",
     "same-directory random Root temp": ".fx-frida-import.XXXXXX",

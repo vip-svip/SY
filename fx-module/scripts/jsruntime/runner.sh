@@ -20,7 +20,7 @@ if [ -n "$EVENT" ] && [ -f "$EVENT" ]; then cp "$EVENT" "$EV" || exit 74; else p
 chmod 600 "$EV" 2>/dev/null || :
 # FX_EGERN_SCRIPT_ENTRY_V2_BEGIN
 EXEC_SCRIPT=$SCRIPT
-EGERN_SCRIPT="$STATE/egern-$$.js"
+EGERN_SCRIPT="$STATE/egern-$.js"
 if grep -Eq '^[[:space:]]*export[[:space:]]+default[[:space:]]+(async[[:space:]]+)?function([[:space:]]+[A-Za-z_$][A-Za-z0-9_$]*)?[[:space:]]*\(' "$SCRIPT"; then
   if ! sed -E \
       -e 's/^([[:space:]]*)export[[:space:]]+default[[:space:]]+async[[:space:]]+function([[:space:]]+[A-Za-z_$][A-Za-z0-9_$]*)?[[:space:]]*\(/\1globalThis.__fxEgernMain = async function\2(/' \
@@ -48,12 +48,26 @@ FX_EGERN_ENTRY
   EXEC_SCRIPT=$EGERN_SCRIPT
 fi
 # FX_EGERN_SCRIPT_ENTRY_V2_END
-# Bound the JS heap and recursion stack per script. Third-party modules can run
-# on every matching request, so malformed/hostile scripts must not exhaust the
-# entire MITM process through runaway allocation or recursion.
-"$QJS" --std --stack-size 1024 -C -I "$HOST" "$EXEC_SCRIPT" "$EV" "$STATE" "$HTTP" "$RESULT" >"$OUT" 2>"$ERR"
+
+# Bound both memory and wall-clock execution. The MITM caller has a 30-second
+# aggregate deadline and a single HTTP bridge request may take up to 20 seconds;
+# a 12-second runner limit killed valid requests before the bridge could return.
+# Keep a small cleanup margin beyond the caller deadline. Tests can override the
+# limit; clamp it to 1..60 seconds.
+limit=${FX_JS_TIMEOUT_SECONDS:-32}
+case "$limit" in ''|*[!0-9]*) limit=32 ;; esac
+[ "$limit" -ge 1 ] 2>/dev/null || limit=32
+[ "$limit" -le 60 ] 2>/dev/null || limit=60
+command -v timeout >/dev/null 2>&1 || {
+  rm -f "$EV" "$OUT" "$ERR" "$RESULT" "$EGERN_SCRIPT"
+  echo '{"ok":false,"done":false,"error":"timeout utility unavailable; script not executed"}'
+  exit 69
+}
+timeout -k 2 "$limit" "$QJS" --std --memory-limit 65536 --stack-size 1024 -C -I "$HOST" "$EXEC_SCRIPT" "$EV" "$STATE" "$HTTP" "$RESULT" >"$OUT" 2>"$ERR"
 rc=$?
-if [ "$rc" -eq 0 ]; then
+if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+  echo '{"ok":false,"done":false,"error":"JavaScript execution timed out; no changes were applied"}'
+elif [ "$rc" -eq 0 ]; then
   if [ -s "$RESULT" ]; then
     cat "$RESULT"
   else

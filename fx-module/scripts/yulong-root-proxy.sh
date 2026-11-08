@@ -470,10 +470,29 @@ _activate_chains() {
   _current=$(awk 'NR==1 {print $1}' "$ACTIVE" 2>/dev/null)
   case "$_current" in FXYRP4_A) _n4=FXYRP4_B; _o4=FXYRP4_A;; FXYRP4_B) _n4=FXYRP4_A; _o4=FXYRP4_B;; *) _n4=FXYRP4_A; _o4=FXYRP4_B;; esac
   case "$_current" in FXYRP4_A) _n6=FXYRP6_B; _o6=FXYRP6_A;; FXYRP4_B) _n6=FXYRP6_A; _o6=FXYRP6_B;; *) _n6=FXYRP6_A; _o6=FXYRP6_B;; esac
+  # A crash can leave an OUTPUT jump to the would-be next generation while
+  # its ACTIVE marker is missing/stale. Detach that candidate before -N/-F:
+  # flushing a chain that OUTPUT still references exposes a partially rebuilt
+  # DNS policy to live traffic. Never begin rebuilding until both families are
+  # positively detached from their candidate generations.
+  if ! _remove_hook iptables "$_n4" || ! _remove_hook ip6tables "$_n6"; then
+    _log "unable to detach candidate DNS generation before rebuild; refusing activation"
+    return 1
+  fi
   _build_chain4 "$_n4" "$_uid" "$_whitelist_uids" || { _clear_chain iptables "$_n4"; _log "IPv4 DNS chain build failed"; return 1; }
   _build_chain6 "$_n6" "$_uid" "$_whitelist_uids" || {
     _clear_chain iptables "$_n4"; _clear_chain ip6tables "$_n6"; _log "IPv6 NAT chain build failed"; return 1;
   }
+  # Validate the full ordered rule sets while both candidate chains are still
+  # detached. If the kernel accepted only a partial/altered sequence, discard
+  # the candidates before any app packet can enter either generation.
+  if ! _root_proxy_chain_contract 4 "$_n4" "$_uid" "$_whitelist_uids" || \
+     ! _root_proxy_chain_contract 6 "$_n6" "$_uid" "$_whitelist_uids"; then
+    _clear_chain iptables "$_n4"
+    _clear_chain ip6tables "$_n6"
+    _log "exact dual-stack DNS chain contract check failed before OUTPUT attachment"
+    return 1
+  fi
   iptables -t nat -I OUTPUT 1 -j "$_n4" || { _clear_chain iptables "$_n4"; _clear_chain ip6tables "$_n6"; return 1; }
   ip6tables -t nat -I OUTPUT 1 -j "$_n6" || {
     _remove_hook iptables "$_n4"; _clear_chain iptables "$_n4"; _clear_chain ip6tables "$_n6"; return 1;
@@ -554,6 +573,15 @@ _ensure_locked() {
   if ! sh "$MP/scripts/adguardhome.sh" ensure "$MP" "$PG" >> "$LOG" 2>&1; then
     _stop_locked; _log "AdGuard Home failed local DNS health checks; fail-open"; return 1;
   fi
+  # Root Proxy can prove Unbound's egress through the external VPN, but it
+  # cannot prove that AdGuard's separate custom/global/fallback/bootstrap
+  # sockets use that same tunnel. Require every AdGuard DNS upstream path to
+  # be the VPN-bound local Unbound listener before attaching app DNS redirects.
+  if ! _adguard_upstreams_use_vpn_bound_unbound; then
+    _stop_locked
+    _log "AdGuard Home has a custom/global or non-local fallback/bootstrap upstream; refusing Root Proxy activation because its external-VPN egress is unproven (fail-open)"
+    return 1
+  fi
   if ! _local_dns_probe; then
     _stop_locked; _log "post-start DNS probe failed; fail-open"; return 1;
   fi
@@ -589,6 +617,15 @@ _ensure_locked() {
     _log "VPN egress changed during DNS redirect activation ($_egress -> $_post_activation_egress); fail-open"
     return 1
   fi
+  # The AdGuard config is a separate atomic file from Root Proxy's firewall
+  # transaction. Re-read it after both OUTPUT hooks are installed and before
+  # active metadata is committed, so a concurrent config replacement cannot
+  # turn an initially safe local-Unbound chain into an unpinned upstream route.
+  if ! _adguard_upstreams_use_vpn_bound_unbound; then
+    _stop_locked
+    _log "AdGuard upstream route changed during DNS redirect activation; rolled back both OUTPUT hooks (fail-open)"
+    return 1
+  fi
   _meta_tmp=$(mktemp "$ACTIVE_META.tmp.XXXXXX") || {
     _stop_locked
     _log "unable to create Root Proxy active metadata temp; fail-open"
@@ -608,6 +645,14 @@ _ensure_locked() {
     rm -f "$_meta_tmp" 2>/dev/null || :
     _stop_locked
     _log "failed to commit Root Proxy active state; rolled back DNS redirects (fail-open)"
+    return 1
+  fi
+  # Close the final config-writer race: an AdGuard lifecycle update may replace
+  # its YAML while ACTIVE_META is being atomically published. Recheck after
+  # the commit too; on drift, remove the just-published state and both hooks.
+  if ! _adguard_upstreams_use_vpn_bound_unbound; then
+    _stop_locked
+    _log "AdGuard upstream route changed while committing Root Proxy active metadata; rolled back both OUTPUT hooks (fail-open)"
     return 1
   fi
   _log "active: AdGuard DNS filtering is local; Unbound egress is pinned to $_egress on $_iface; VPN owner UID $_uid bypasses redirect"
@@ -867,6 +912,10 @@ _status_fail_open() {
   fi
   echo "active=0"
   echo "reason=$_reason"
+  case "$_reason" in
+    adguard_upstream_unpinned) echo "adguard_upstream_route=unverified" ;;
+    *) echo "adguard_upstream_route=unknown" ;;
+  esac
   echo "cleanup=complete"
 }
 _status_locked() {
@@ -928,6 +977,9 @@ _status_locked() {
   if ! _local_dns_probe; then
     _status_fail_open local_dns_probe_failed; return $?
   fi
+  if ! _adguard_upstreams_use_vpn_bound_unbound; then
+    _status_fail_open adguard_upstream_unpinned; return $?
+  fi
   echo "interface=$_iface"
   echo "vpn_uid=$_uid"
   echo "egress_ipv4=$_meta_egress"
@@ -935,6 +987,7 @@ _status_locked() {
   echo "redirects=attached"
   echo "route=verified"
   echo "dns_probe=passed"
+  echo "adguard_upstream_route=unbound_pinned"
   echo "active=1"
 }
 _reconcile_locked() {
@@ -963,6 +1016,80 @@ _reconcile_locked() {
   _valid_if "$_iface" && _valid_uid "$_uid" || { _stop_locked; _log "invalid active metadata during package event"; return 1; }
   _ensure_locked "$_iface" "$_uid"
 }
+# AdGuard Home can send explicitly configured custom/global upstreams and
+# fallback servers directly, bypassing the VPN-bound Unbound process. Root
+# Proxy may still redirect client port-53 packets to AdGuard, but that is not
+# proof the resolver's outbound sockets use the same validated VPN egress.
+_adguard_upstreams_use_vpn_bound_unbound() {
+  _custom_dns_flag=$(pg_get custom_dns 0 2>/dev/null) || return 1
+  _global_dns_flag=$(pg_get global_dns 0 2>/dev/null) || return 1
+  [ "$_custom_dns_flag" = 0 ] && [ "$_global_dns_flag" = 0 ] || return 1
+  _adguard_cfg="$PG/adguardhome/AdGuardHome.yaml"
+  _reject_symlink_components "$_adguard_cfg" || return 1
+  [ -f "$_adguard_cfg" ] && [ ! -L "$_adguard_cfg" ] && [ -r "$_adguard_cfg" ] || return 1
+  awk '
+    /^dns:[[:space:]]*$/ {dns_sections++; inside=1; section=""; next}
+    inside && /^[^[:space:]]/ {inside=0; section=""}
+    inside && /^  upstream_dns_file:/ {
+      upstream_file_sections++
+      value=$0; sub(/^  upstream_dns_file:[[:space:]]*/,"",value)
+      if (value!="\"\"") unsafe=1
+      section=""; next
+    }
+    inside && /^  use_private_ptr_resolvers:/ {
+      private_ptr_sections++
+      value=$0; sub(/^  use_private_ptr_resolvers:[[:space:]]*/,"",value)
+      if (value!="false") unsafe=1
+      section=""; next
+    }
+    inside && /^  local_ptr_upstreams:/ {
+      local_ptr_sections++
+      rest=$0; sub(/^  local_ptr_upstreams:/,"",rest)
+      if (rest !~ /^[[:space:]]*\[\][[:space:]]*$/) unsafe=1
+      section=""; next
+    }
+    inside && /^  upstream_dns:[[:space:]]*$/ {
+      upstream_sections++; section="upstream"; next
+    }
+    inside && /^  fallback_dns:/ {
+      fallback_sections++
+      rest=$0; sub(/^  fallback_dns:/,"",rest)
+      if (rest ~ /^[[:space:]]*\[\][[:space:]]*$/) {section=""; next}
+      if (rest !~ /^[[:space:]]*$/) {unsafe=1; section=""; next}
+      section="fallback"; next
+    }
+    inside && /^  bootstrap_dns:/ {
+      bootstrap_sections++
+      rest=$0; sub(/^  bootstrap_dns:/,"",rest)
+      if (rest ~ /^[[:space:]]*\[\][[:space:]]*$/) {section=""; next}
+      if (rest !~ /^[[:space:]]*$/) {unsafe=1; section=""; next}
+      section="bootstrap"; next
+    }
+    inside && /^  [A-Za-z_][A-Za-z0-9_-]*:/ {section=""; next}
+    inside && section!="" && /^[[:space:]]*#/ {next}
+    inside && section!="" && /^[[:space:]]+- / {
+      if ($0 !~ /^  - /) {unsafe=1; next}
+      server=substr($0,5)
+      sub(/^"/,"",server); sub(/"$/,"",server)
+      counts[section]++
+      if(server!="127.0.0.1:5353") unsafe=1
+      else local_counts[section]++
+      next
+    }
+    inside && section!="" && /^[[:space:]]/ {unsafe=1; section=""; next}
+    END {
+      if(dns_sections!=1 || upstream_sections!=1 ||
+         upstream_file_sections!=1 || private_ptr_sections!=1 ||
+         local_ptr_sections!=1 || counts["upstream"]!=1 ||
+         local_counts["upstream"]!=1 ||
+         fallback_sections>1 || bootstrap_sections>1 || unsafe ||
+         counts["fallback"]!=local_counts["fallback"] ||
+         counts["bootstrap"]!=local_counts["bootstrap"]) exit 1
+      exit 0
+    }
+  ' "$_adguard_cfg"
+}
+
 _root_proxy_chain_contract() {
   _family=$1; _chain=$2; _uid=$3; _whitelist_uids=$4
   if [ "$_family" = 4 ]; then
@@ -972,18 +1099,125 @@ _root_proxy_chain_contract() {
     _bin=ip6tables; _loopback=::1/128
     _udp_destination='[::1]:53'; _tcp_destination='[::1]:53'
   fi
-  "$_bin" -t nat -C "$_chain" -m owner --uid-owner 0 -j RETURN >/dev/null 2>&1 || return 1
-  "$_bin" -t nat -C "$_chain" -m owner --uid-owner "$_uid" -j RETURN >/dev/null 2>&1 || return 1
-  while IFS= read -r _whitelist_uid; do
-    [ -n "$_whitelist_uid" ] || continue
-    _valid_uid "$_whitelist_uid" || return 1
-    "$_bin" -t nat -C "$_chain" -m owner --uid-owner "$_whitelist_uid" -j RETURN >/dev/null 2>&1 || return 1
-  done <<EOF_ROOT_PROXY_UIDS
+  _valid_uid "$_uid" || return 1
+
+  # Presence-only -C checks are insufficient: an earlier broad rule can
+  # shadow the whitelist/loopback exceptions, and an extra DNAT can capture
+  # packets before the intended policy. Enumerate the entire owned chain and
+  # require the exact ordered rule set that _build_chain{4,6} publishes.
+  _actual=$("$_bin" -t nat -S "$_chain" 2>/dev/null) || return 1
+  _actual_rules=$(printf '%s\n' "$_actual" | awk -v chain="$_chain" '
+    $1=="-N" && $2==chain {next}
+    $1=="-A" && $2==chain {print; count++; next}
+    {bad=1}
+    END {if (bad || count==0) exit 1}
+  ') || return 1
+  _expected_rules=$(
+    printf '%s\n' \
+      "-A $_chain -m owner --uid-owner 0 -j RETURN" \
+      "-A $_chain -m owner --uid-owner $_uid -j RETURN"
+    while IFS= read -r _whitelist_uid; do
+      [ -n "$_whitelist_uid" ] || continue
+      _valid_uid "$_whitelist_uid" || exit 1
+      printf '%s\n' "-A $_chain -m owner --uid-owner $_whitelist_uid -j RETURN"
+    done <<EOF_ROOT_PROXY_UIDS
 $_whitelist_uids
 EOF_ROOT_PROXY_UIDS
-  "$_bin" -t nat -C "$_chain" -d "$_loopback" -j RETURN >/dev/null 2>&1 || return 1
-  "$_bin" -t nat -C "$_chain" -p udp --dport 53 -j DNAT --to-destination "$_udp_destination" >/dev/null 2>&1 || return 1
-  "$_bin" -t nat -C "$_chain" -p tcp --dport 53 -j DNAT --to-destination "$_tcp_destination" >/dev/null 2>&1 || return 1
+    printf '%s\n' \
+      "-A $_chain -d $_loopback -j RETURN" \
+      "-A $_chain -p udp --dport 53 -j DNAT --to-destination $_udp_destination" \
+      "-A $_chain -p tcp --dport 53 -j DNAT --to-destination $_tcp_destination"
+  ) || return 1
+  [ "$_actual_rules" = "$_expected_rules" ]
+}
+
+# Read-only Root Proxy proof used by the VPN coexistence arbiter.
+# Unlike "status", this command never invokes _stop_locked or repairs rules:
+# a diagnostic must not change a user's active network path. It validates the
+# committed VPN identity/egress, current source-specific routes to the
+# authoritative resolver probes, both OUTPUT jumps, the complete owned chain
+# contracts and the live dual-stack DNS health probe.
+_observe_locked() {
+  _observe_fail() {
+    echo "active=0"
+    echo "dns_chain=unverified"
+    echo "reason=$1"
+    return 1
+  }
+  _is_enabled || { _observe_fail disabled; return 1; }
+  for _state_file in "$ACTIVE_META" "$ACTIVE" "$EGRESS"; do
+    [ -f "$_state_file" ] && [ ! -L "$_state_file" ] || {
+      _observe_fail invalid_or_missing_state; return 1;
+    }
+  done
+  _iface=$(sed -n '1p' "$ACTIVE_META" 2>/dev/null || :)
+  _uid=$(sed -n '2p' "$ACTIVE_META" 2>/dev/null || :)
+  _meta_egress=$(sed -n '3p' "$ACTIVE_META" 2>/dev/null || :)
+  _active4=$(sed -n '1p' "$ACTIVE" 2>/dev/null || :)
+  _active6=$(sed -n '2p' "$ACTIVE" 2>/dev/null || :)
+  case "$_active4" in FXYRP4_A|FXYRP4_B) : ;; *) _observe_fail invalid_ipv4_chain; return 1 ;; esac
+  case "$_active6" in FXYRP6_A|FXYRP6_B) : ;; *) _observe_fail invalid_ipv6_chain; return 1 ;; esac
+  _valid_if "$_iface" && _valid_uid "$_uid" && _valid_ipv4 "$_meta_egress" || {
+    _observe_fail invalid_active_metadata; return 1;
+  }
+  _stored_egress=$(tr -d '\r\n' < "$EGRESS" 2>/dev/null || :)
+  [ "$_stored_egress" = "$_meta_egress" ] || {
+    _observe_fail egress_marker_mismatch; return 1;
+  }
+  _current_egress=$(_resolve_vpn_egress "$_iface" 2>/dev/null) || {
+    _observe_fail vpn_route_unavailable; return 1;
+  }
+  [ "$_current_egress" = "$_meta_egress" ] || {
+    _observe_fail vpn_egress_changed; return 1;
+  }
+  iptables -t nat -C OUTPUT -j "$_active4" >/dev/null 2>&1 || {
+    _observe_fail ipv4_redirect_missing; return 1;
+  }
+  ip6tables -t nat -C OUTPUT -j "$_active6" >/dev/null 2>&1 || {
+    _observe_fail ipv6_redirect_missing; return 1;
+  }
+  _whitelist_uids=$(_resolve_whitelist_uids 2>/dev/null) || {
+    _observe_fail whitelist_uid_snapshot_unavailable; return 1;
+  }
+  _root_proxy_chain_contract 4 "$_active4" "$_uid" "$_whitelist_uids" || {
+    _observe_fail ipv4_chain_contract_mismatch; return 1;
+  }
+  _root_proxy_chain_contract 6 "$_active6" "$_uid" "$_whitelist_uids" || {
+    _observe_fail ipv6_chain_contract_mismatch; return 1;
+  }
+  _local_dns_probe || {
+    _observe_fail local_dns_probe_failed; return 1;
+  }
+  _private_dns_mode=$(settings get global private_dns_mode 2>/dev/null || printf unknown)
+  case "$_private_dns_mode" in off|opportunistic|hostname) : ;; *) _private_dns_mode=unknown ;; esac
+  case "$_private_dns_mode" in
+    off) _coverage=port53_redirect_active; _dns_chain=verified ;;
+    opportunistic) _coverage=opportunistic_private_dns_may_bypass_redirect; _dns_chain=partial ;;
+    hostname) _coverage=strict_private_dns_bypasses_redirect; _dns_chain=partial ;;
+    *) _coverage=unknown; _dns_chain=unverified ;;
+  esac
+  _adguard_upstream_route=unverified
+  if _adguard_upstreams_use_vpn_bound_unbound; then
+    _adguard_upstream_route=unbound_pinned
+  fi
+  # Port-53 interception and a successful Unbound probe do not prove that
+  # AdGuard's primary/fallback upstream sockets use Unbound. Custom/global
+  # upstreams are direct AdGuard sockets and remain unverified against the
+  # third-party VPN's per-app routing policy.
+  if [ "$_adguard_upstream_route" != unbound_pinned ]; then
+    _dns_chain=partial
+  fi
+  echo "active=1"
+  echo "interface=$_iface"
+  echo "vpn_uid=$_uid"
+  echo "egress_ipv4=$_meta_egress"
+  echo "redirects=attached"
+  echo "route=verified"
+  echo "dns_probe=passed"
+  echo "private_dns_mode=$_private_dns_mode"
+  echo "dns_filter_coverage=$_coverage"
+  echo "adguard_upstream_route=$_adguard_upstream_route"
+  echo "dns_chain=$_dns_chain"
   return 0
 }
 _reconcile_route_locked() {
@@ -1013,6 +1247,18 @@ _reconcile_route_locked() {
     _log "route reconcile: active VPN identity is invalid; fail-open"
     return 1
   }
+  if ! _adguard_upstreams_use_vpn_bound_unbound; then
+    _log "route reconcile: AdGuard upstream/fallback/bootstrap is no longer pinned to FX Unbound; removing Root Proxy redirects (fail-open)"
+    if ! _stop_locked; then
+      echo "active=0"
+      echo "reason=adguard_upstream_unpinned"
+      echo "cleanup=failed"
+      return 1
+    fi
+    echo "active=0"
+    echo "reason=adguard_upstream_unpinned"
+    return 0
+  fi
   _current_egress=$(_resolve_vpn_egress "$_iface") || {
     _log "route reconcile: stored VPN interface $_iface no longer proves a valid egress; fail-open cleanup"
     _ensure_locked "$_iface" "$_uid"
@@ -1085,6 +1331,9 @@ case "$cmd" in
   status)
     with_lock _status_locked
     ;;
+  observe)
+    with_lock _observe_locked
+    ;;
   whitelist-list)
     echo "FXYRPWHITELIST1"
     _list_whitelist_packages | while IFS= read -r _package; do
@@ -1113,5 +1362,5 @@ case "$cmd" in
   uninstall)
     with_lock _stop_locked
     ;;
-  *) echo 'usage: yulong-root-proxy.sh {ensure|stop|enable|disable|status|whitelist-list|whitelist-set|whitelist-prune|reconcile|reconcile-route|uninstall}' >&2; exit 64 ;;
+  *) echo 'usage: yulong-root-proxy.sh {ensure|stop|enable|disable|status|observe|whitelist-list|whitelist-set|whitelist-prune|reconcile|reconcile-route|uninstall}' >&2; exit 64 ;;
 esac

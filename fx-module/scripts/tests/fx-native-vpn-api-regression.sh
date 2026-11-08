@@ -5,6 +5,44 @@ HTML="${1:-$ROOT/fx-module/webroot/index.html}"
 ACTIVITY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
 MANIFEST="$ROOT/adhook/app/src/main/AndroidManifest.xml"
 fail(){ echo "FAIL: $*" >&2; exit 1; }
+MODULE_ACTIVITY="$ROOT/fx-module/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeVpnActivity.java"
+NATIVE_ACTIVITY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeVpnActivity.java"
+MODULE_NATIVE_ACTIVITY="$ROOT/fx-module/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeVpnActivity.java"
+cmp -s "$NATIVE_ACTIVITY" "$MODULE_NATIVE_ACTIVITY" || fail "root/module native VPN Activity sources differ"
+cmp -s "$ACTIVITY" "$MODULE_ACTIVITY" || fail "root/module native VPN Activity sources differ"
+for token in \
+  'title.setTag("fx-title:24")' \
+  'root.setTag("fx-page-root")' \
+  'status.setTag("fx-loading-state")' \
+  'status.setTag("fx-success-state")' \
+  'status.setTag("fx-error-state")' \
+  'status.setTag("fx-empty-state")' \
+  'subscriptionStatus.setTag("fx-loading-state")' \
+  'subscriptionStatus.setTag("fx-success-state")' \
+  'subscriptionStatus.setTag("fx-error-state")' \
+  'subscriptionStatus.setTag("fx-empty-state")' \
+  'privateDnsStatus.setTag("fx-loading-state")' \
+  'privateDnsStatus.setTag("fx-success-state")' \
+  'privateDnsStatus.setTag("fx-error-state")' \
+  'subscriptionsTitle.setTag("fx-section:订阅与节点")' \
+  'detail.setTag("fx-card-detail")' \
+  'mode.setTag("fx-select-input")' \
+  'nodeSelection.setTag("fx-select-input")' \
+  'applyMode.setTag("fx-primary-action")' \
+  'start.setTag("fx-primary-action")' \
+  'stop.setTag("fx-action-row")' \
+  'remoteDnsInput.setTag("fx-form-input")' \
+  'directDnsInput.setTag("fx-form-input")' \
+  'proxyDnsInput.setTag("fx-form-input")' \
+  'fallbackDnsInput.setTag("fx-form-input")' \
+  'fallbackSystemCheck.setTag("fx-switch-row")' \
+  'directSystemCheck.setTag("fx-switch-row")' \
+  'directFallbackProxyCheck.setTag("fx-switch-row")' \
+  'applyPrivateDns.setTag("fx-primary-action")' \
+  'url.setTag("fx-form-input")' \
+  'name.setTag("fx-form-input")'; do
+  grep -Fq "$token" "$ACTIVITY" || fail "native VPN page missing six-mode component role: $token"
+done
 # The Host lane can see the historical Release WebUI before the package
 # workflow applies the current native-VPN API migration. Only an explicitly
 # supplied HTML path is a strict package-lane assertion; the default Host path
@@ -21,9 +59,8 @@ if [ "$_check_html" = 1 ]; then
   grep -Fq 'applyVpnModeSelection(mode)' "$HTML" || fail "native API does not call validated mode transaction"
   grep -Fq 'function selectNode(index)' "$HTML" || fail "native node selection API missing"
   grep -Fq 'Promise.resolve(pgPersistNow())' "$HTML" || fail "native node selection does not await config persistence"
-  grep -Fq 'liveKnown:window.__pgVpnRuntimeKnown===true' "$HTML" || fail "native state snapshot omits backend-confirmed live state"
-  grep -Fq 'liveOn:window.__pgVpnRuntimeOn===true' "$HTML" || fail "native state snapshot omits the backend-confirmed runtime bit"
-  grep -Fq 'window.__pgVpnRuntimeKnown=true;' "$HTML" || fail "native API does not publish backend-confirmed live state"
+  grep -Fq 'liveKnown:window.__pgVpnLiveKnown===true' "$HTML" || fail "native state snapshot omits backend-confirmed live state"
+  grep -Fq "window.__pgVpnLiveKnown=!!s;window.__pgVpnLiveOn=!!(s&&(s.vpn_on===true||s.vpn_on===1))" "$HTML" || fail "WebUI live-state patch is missing from standalone/native build"
   grep -Fq 'window.__vpnFillStatus=function(status)' "$HTML" || fail "native API does not bridge the actual status.sh callback"
   grep -Fq "typeof status.vpn_on!=='undefined'" "$HTML" || fail "native API does not use status.sh vpn_on"
   grep -Fq 'window.vpnStatus();' "$HTML" || fail "native API does not request a backend status refresh"

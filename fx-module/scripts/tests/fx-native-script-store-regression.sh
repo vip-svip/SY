@@ -8,10 +8,10 @@ MOD="$T/module"
 PG="$T/pg"
 mkdir -p "$MOD/scripts/jsruntime" "$MOD/webroot" "$PG"
 printf 'id=privacyguard\nversion=1.0.0\n' > "$MOD/module.prop"
-cp "$ROOT/fx-patches/native-script-list.sh" "$MOD/scripts/jsruntime/native-list.sh"
+cp "$ROOT/../fx-patches/native-script-list.sh" "$MOD/scripts/jsruntime/native-list.sh"
 chmod 755 "$MOD/scripts/jsruntime/native-list.sh"
-if [ -s "$ROOT/fx-module/scripts/util.sh" ]; then
-  cp "$ROOT/fx-module/scripts/util.sh" "$MOD/scripts/util.sh"
+if [ -s "$ROOT/scripts/util.sh" ]; then
+  cp "$ROOT/scripts/util.sh" "$MOD/scripts/util.sh"
 else
   # The targeted Host lane does not unpack the release module archive.
   # Supply only the pg_list contract used by this isolated store fixture.
@@ -55,6 +55,10 @@ updated_note64=$(printf '%s' 'Updated' | base64 | tr -d '\n')
 sh "$SCRIPT" list | grep -q "$(printf '%s' 'https://three.example/updated.js' | base64 | tr -d '\n')" || fail "updated value missing"
 [ "$(sh "$SCRIPT" toggle 3 0)" = "OK" ] || fail "toggle failed"
 sh "$SCRIPT" list | grep -q "$(printf '%s' 'https://three.example/updated.js' | base64 | tr -d '\n')|$(printf '%s' 'Updated' | base64 | tr -d '\n')|0" || fail "toggle state not persisted"
+[ "$(sh "$SCRIPT" toggle-all 1)" = "OK" ] || fail "bulk enable failed"
+sh "$SCRIPT" list | awk -F'|' 'index($0,"|") && $3 != "1" {bad=1} END {exit bad}' || fail "bulk enable was not persisted for every script"
+[ "$(sh "$SCRIPT" toggle-all 0)" = "OK" ] || fail "bulk disable failed"
+sh "$SCRIPT" list | awk -F'|' 'index($0,"|") && $3 != "0" {bad=1} END {exit bad}' || fail "bulk disable was not persisted for every script"
 [ "$(sh "$SCRIPT" delete 2)" = "OK" ] || fail "delete failed"
 [ "$(CONF="$PG/settings.conf" sh -c '. "$1/scripts/util.sh"; pg_list script | grep -v "^[[:space:]]*#" | grep -c .' sh "$MOD")" -eq 2 ] || fail "delete did not remove exactly one script"
 grep -qx 'mode=direct' "$PG/settings.conf" || fail "global settings were lost"
@@ -83,10 +87,8 @@ large64=$(printf '%s' "$large_source" | base64 | tr -d '\n')
 [ "$(sh "$SCRIPT" list | grep -c '|')" -eq 4 ] || fail "large script was not retained"
 i=1
 while [ "$i" -le 8 ]; do
-  # Distinct sources: an identical (value, note) pair is intentionally deduped,
-  # so the aggregate check must add real variants instead of repeating one row.
-  variant64=$(printf '%s\n// aggregate entry %s' "$large_source" "$i" | base64 | tr -d '\n')
-  [ "$(sh "$SCRIPT" add "$variant64" "$multi_note" 1)" = "OK" ] || fail "large aggregate entry $i was rejected"
+  large_note=$(printf 'Large source %s' "$i" | base64 | tr -d '\n')
+  [ "$(sh "$SCRIPT" add "$large64" "$large_note" 1)" = "OK" ] || fail "large aggregate entry $i was rejected"
   i=$((i+1))
 done
 i=1
@@ -98,14 +100,40 @@ done
 [ "$(sh "$SCRIPT" list | grep -c '|')" -eq 152 ] || fail "catalog truncated above 128 entries or former aggregate limit"
 mkdir -p "$PG/jsruntime/staging"
 staged="$PG/jsruntime/staging/fx-native-script-regression"
-# Distinct content: re-importing the exact (value, note) pair is deduped by design.
-printf '%s\n// file-backed variant' "$large_source" > "$staged"
-[ "$(sh "$SCRIPT" add-file "$staged" "$multi_note" 1)" = "OK" ] || fail "file-backed large script import was rejected"
+printf '%s' "$large_source" > "$staged"
+staged_note=$(printf '%s' 'Large file-backed source' | base64 | tr -d '\n')
+[ "$(sh "$SCRIPT" add-file "$staged" "$staged_note" 1)" = "OK" ] || fail "file-backed large script import was rejected"
 [ "$(sh "$SCRIPT" list | grep -c '|')" -eq 153 ] || fail "file-backed large script was not retained"
+# The backend accepts batches larger than the former 512-row ceiling. The
+# manifest is staged in the private FX state directory for this host fixture.
+batch_manifest="$PG/jsruntime/staging/fx-native-script-batch-over-512"
+batch_note64=$(printf '%s' 'Batch item' | base64 | tr -d '\n')
+: > "$batch_manifest"
+i=1
+while [ "$i" -le 520 ]; do
+  encoded=$(printf 'https://batch.example/%s.js' "$i" | base64 | tr -d '\n')
+  printf 'URL|%s|%s|1\n' "$encoded" "$batch_note64" >> "$batch_manifest"
+  i=$((i+1))
+done
+batch_result=$(sh "$SCRIPT" add-batch "$batch_manifest") || fail "520-row script batch failed: $batch_result"
+[ "$batch_result" = "OK added=520 duplicate=0 failed=0" ] || fail "520-row script batch was truncated or rejected: $batch_result"
+[ "$(sh "$SCRIPT" list | grep -c '|')" -eq 673 ] || fail "batch entries above the former 512-row ceiling were not retained"
+# File-backed import must accept a multi-megabyte local source without moving
+# the entire payload through a shell argument or an application-sized ceiling.
+large_staged="$PG/jsruntime/staging/fx-native-script-large"
+awk 'BEGIN { for (i=0; i<2200000; i++) printf "x" }' > "$large_staged"
+large_size=$(wc -c < "$large_staged" | tr -d ' ')
+[ "$large_size" -gt 1048576 ] || fail "large-source fixture did not exceed the former 1 MiB ceiling"
+[ "$(sh "$SCRIPT" add-file "$large_staged" "$multi_note" 1)" = "OK" ] || fail "multi-megabyte file-backed source was rejected"
+[ "$(sh "$SCRIPT" list | grep -c '|')" -eq 674 ] || fail "multi-megabyte source was not retained"
+if grep -Fq '8388608' "$SCRIPT" || grep -Fq '1048576' "$SCRIPT" ||
+   grep -Fq 'batch_lines" -gt 512' "$SCRIPT" || grep -Fq 'note_length" -le 4096' "$SCRIPT"; then
+  fail "native script backend still contains an arbitrary size or batch-count ceiling"
+fi
 # The parser/serializer must decode FXSRC_B64 rows while keeping HTTPS URLs readable.
 # The targeted Host lane has no release archive; use a minimal canonical parser fixture.
-if [ -s "$ROOT/fx-module/webroot/index.html" ]; then
-  cp "$ROOT/fx-module/webroot/index.html" "$MOD/webroot/index.html"
+if [ -s "$ROOT/webroot/index.html" ]; then
+  cp "$ROOT/webroot/index.html" "$MOD/webroot/index.html"
 else
   cat > "$MOD/webroot/index.html" <<'HTML'
 var v=(p[0]||'').replace(/\\n/g,'\n');
@@ -113,33 +141,32 @@ out.push(pgSan(e.v)+'|'+pgSan(e.note)+'|'+(e.on?1:0))
 function pgParse(text){
 HTML
 fi
-python3 "$ROOT/fx-patches/patch_native_script_store.py" "$MOD" >/dev/null
+python3 "$ROOT/../fx-patches/patch_native_script_store.py" "$MOD" >/dev/null
 grep -Fq 'function pgDecodeScriptValue(s)' "$MOD/webroot/index.html" || fail "WebUI parser lacks local-source decoder"
 grep -Fq "FXSRC_B64:'+pgB64(e.v)" "$MOD/webroot/index.html" || fail "WebUI serializer does not preserve local JS source"
 before_patch=$(sha256sum "$MOD/webroot/index.html" | awk '{print $1}')
-python3 "$ROOT/fx-patches/patch_native_script_store.py" "$MOD" >/dev/null
+python3 "$ROOT/../fx-patches/patch_native_script_store.py" "$MOD" >/dev/null
 after_patch=$(sha256sum "$MOD/webroot/index.html" | awk '{print $1}')
 [ "$before_patch" = "$after_patch" ] || fail "native script patcher is not idempotent"
 [ -x "$MOD/scripts/jsruntime/local-run.sh" ] || fail "native QuickJS local runner was not installed"
-cmp -s "$ROOT/fx-patches/native-script-run.sh" "$MOD/scripts/jsruntime/local-run.sh" || fail "installed local runner differs from canonical source"
-MAIN="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/MainActivity.java"
-grep -Fq 'nativeScriptStoreCommand("add-file"' "$MAIN" || fail "Android script storage still transports source bytes in shell arguments"
-grep -Fq 'storeNativeScriptFile(staged, displayName, "1"' "$MAIN" || fail "file imports do not use the file-backed store transport"
-grep -Fq 'private void storeNativeScriptValue(' "$MAIN" || fail "JSON imports do not use the file-backed store transport"
-grep -Fq 'storeNativeScriptFile(staged, note, enabled, callback);' "$MAIN" || fail "JSON imports do not spool payloads through a staged file"
-if grep -Fq 'total > 1024 * 1024' "$MAIN"; then fail "Android file import still has a 1 MiB cap"; fi
-if grep -Fq 'MAX_NATIVE_SCRIPT_EXPORT_BYTES' "$MAIN"; then fail "Android script export still has a fixed payload cap"; fi
+cmp -s "$ROOT/../fx-patches/native-script-run.sh" "$MOD/scripts/jsruntime/local-run.sh" || fail "installed local runner differs from canonical source"
+SCRIPT_ACTIVITY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxQuickJsScriptActivity.java"
+grep -Fq 'command("add-file", staged.getAbsolutePath(), note64, "1")' "$SCRIPT_ACTIVITY" || fail "Android QuickJS import does not use the file-backed store transport"
+grep -Fq 'byte[] buffer = new byte[64 * 1024]' "$SCRIPT_ACTIVITY" || fail "Android QuickJS file import is not chunk-read from the selected document"
+if grep -Eq '1048576|1024[[:space:]]*\*[[:space:]]*1024|MAX_NATIVE_SCRIPT_EXPORT_BYTES' "$SCRIPT_ACTIVITY"; then
+  fail "Android QuickJS file import still has an arbitrary size ceiling"
+fi
 python3 - "$SCRIPT" <<'PY'
 from pathlib import Path
 import sys
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
-assert "add|add-file|add-batch|update|toggle|delete)" in source, "file-backed action is not routed through the locked store"
+assert "add|add-file|add-batch|update|toggle|toggle-all|delete)" in source, "file-backed CRUD/bulk actions are not routed through the locked store"
+assert "      toggle-all)" in source, "bulk script enable/disable action is missing"
 start = source.index("      add-file)")
 end = source.index("\n      update)", start)
 branch = source[start:end]
 assert 'first_line=$(sed -n \'1{p;q;}\' "$VALUE_FILE")' in branch, "file import must classify using a bounded first-line read"
-assert 'base64 < "$VALUE_FILE" | tr -d \'\\n\'' in branch, "local source must stream from the staged file into the config row"
-assert '} >> "$ROWS"' in branch, "local source row must be appended to the staged config rows"
+assert 'base64 < "$VALUE_FILE" | tr -d \'\\n\' >> "$ROWS"' in branch, "local source must stream from the staged file into the config row"
 local_start = branch.index('          *)', branch.index('case "$first_line" in'))
 local_end = branch.index("\n        esac", local_start)
 local_branch = branch[local_start:local_end]

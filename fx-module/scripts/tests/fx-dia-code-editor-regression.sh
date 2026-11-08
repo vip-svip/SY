@@ -22,6 +22,11 @@ grep -Fq 'setEditorLanguage(new JavaLanguage())' "$EDITOR" || fail "Java syntax 
 grep -Fq 'EXTRA_LANGUAGE = "language"' "$EDITOR" || fail "editor language selector missing"
 grep -Fq 'getStringExtra(EXTRA_LANGUAGE)' "$EDITOR" || fail "editor does not restore selected source language"
 grep -Fq 'if (!javascriptMode) editor.setEditorLanguage(new JavaLanguage())' "$EDITOR" || fail "Java tokenizer is incorrectly applied to Frida JavaScript"
+grep -Fq 'FxNativeSkin.applyCodeEditorSkin(this, editor)' "$EDITOR" || fail "Sora editor does not consume the active six-mode FX palette"
+grep -Fq 'editor.release();' "$EDITOR" || fail "Sora editor resources are not released with the Activity"
+grep -Fq 'Class.forName(' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeSkin.java" || fail "six-mode Sora color scheme adapter is missing"
+grep -Fq 'getMethod("setColorScheme", schemeType)' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeSkin.java" || fail "Sora per-editor color scheme isolation is missing"
+grep -Fq 'getMethod("setColor", int.class, int.class)' "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeSkin.java" || fail "Sora syntax token palette mapping is missing"
 grep -Fq 'EXTRA_LANGUAGE, "javascript"' "$FRIDA" || fail "Frida caller does not select JavaScript source mode"
 grep -Fq '纯文本编辑' "$EDITOR" || fail "JavaScript editor does not disclose its plain-text mode"
 grep -Fq 'EXTRA_CODE = "code"' "$EDITOR" || fail "original code input/output extra changed"
@@ -49,4 +54,7 @@ grep -Fq 'FxDiaCodeEditorTransfer.delete(this, editorSourceFile)' "$APP/java/de/
 grep -Fq 'if (requestCode == REQUEST_EDITOR)' "$APP/java/de/privacyguard/adhook/imported/dia/FxDiaScriptLibraryActivity.java" || fail "script library does not reconcile the full-screen editor result"
 grep -Fq 'FxDiaCodeEditorTransfer.delete(this, resultFile)' "$APP/java/de/privacyguard/adhook/imported/dia/FxDiaScriptLibraryActivity.java" || fail "temporary editor result file is not cleaned after processing"
 
-echo "PASS: Dia Sora CodeEditor page, JavaLanguage, 0x3039 result contract, unsaved-change flow, source fingerprint and target ownership"
+cmp -s "$EDITOR" "$ROOT/fx-module/adhook/app/src/main/java/de/privacyguard/adhook/imported/dia/FxDiaCodeEditorActivity.java" || fail "Sora editor root/module sources differ"
+cmp -s "$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeSkin.java" "$ROOT/fx-module/adhook/app/src/main/java/de/privacyguard/adhook/FxNativeSkin.java" || fail "Sora skin adapter root/module sources differ"
+
+echo "PASS: Dia Sora CodeEditor page, six-mode syntax colors, JavaLanguage, isolated color scheme, 0x3039 result contract, unsaved-change flow, source fingerprint and target ownership"

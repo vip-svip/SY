@@ -2676,6 +2676,19 @@ valid_days() {
     END {exit bad ? 1 : 0}
   '
 }
+schedule_process_start_time() {
+  _sp_pid=$1
+  case "$_sp_pid" in ''|*[!0-9]*) return 1 ;; esac
+  [ "$_sp_pid" -gt 1 ] 2>/dev/null || return 1
+  _sp_stat=$(cat "/proc/$_sp_pid/stat" 2>/dev/null) || return 1
+  _sp_tail=$(printf '%s\n' "$_sp_stat" | sed 's/^.*) //') || return 1
+  _sp_state=$(printf '%s\n' "$_sp_tail" | awk '{print $1}')
+  case "$_sp_state" in Z|X|'') return 1 ;; esac
+  _sp_start=$(printf '%s\n' "$_sp_tail" | awk '{print $20}')
+  case "$_sp_start" in ''|*[!0-9]*) return 1 ;; esac
+  printf '%s\n' "$_sp_start"
+}
+
 schedule_get() {
   file="$PG/yulong-ad-schedule.conf"
   enabled=0; start=22:00; end=07:00; days=1,2,3,4,5,6,7
@@ -2698,18 +2711,24 @@ schedule_get() {
   watcher=0
   pidfile="$PG/yulong-ad-schedule.pid"
   if [ -f "$pidfile" ] && [ ! -L "$pidfile" ]; then
-    pid=$(cat "$pidfile" 2>/dev/null)
+    pid=$(sed -n '1p' "$pidfile" 2>/dev/null)
+    expected_start=$(sed -n '2p' "$pidfile" 2>/dev/null)
+    extra_record=$(sed -n '3p' "$pidfile" 2>/dev/null)
     case "$pid" in ''|*[!0-9]*) pid= ;; esac
-    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null && [ -r "/proc/$pid/cmdline" ]; then
-      proc_state=$(awk '{print $3}' "/proc/$pid/stat" 2>/dev/null || :)
+    case "$expected_start" in ''|*[!0-9]*) [ -z "$expected_start" ] || expected_start=invalid ;; esac
+    if [ -n "$pid" ] && [ -z "$extra_record" ] && [ -r "/proc/$pid/cmdline" ]; then
+      proc_start=$(schedule_process_start_time "$pid" 2>/dev/null || :)
       proc_cmd=$(tr '\000' ' ' < "/proc/$pid/cmdline" 2>/dev/null || :)
-      case "$proc_cmd" in
-        *"yulong-ad-schedule.sh"*' watch '*) [ "$proc_state" = Z ] || watcher=1 ;;
-      esac
+      if [ -n "$proc_start" ] && { [ -z "$expected_start" ] || [ "$proc_start" = "$expected_start" ]; }; then
+        case "$proc_cmd" in
+          *"yulong-ad-schedule.sh"*' watch '*) watcher=1 ;;
+        esac
+      fi
     fi
   fi
   echo "watcher=$watcher"
-}schedule_set() {
+}
+schedule_set() {
   enabled=$1; start=$2; end=$3; days=$4
   { [ "$enabled" = 0 ] || [ "$enabled" = 1 ]; } || return 2
   valid_time "$start" && valid_time "$end" && valid_days "$days" || {
@@ -3113,8 +3132,15 @@ case "$cmd" in
   unbound_runtime_get
   ;;
  unbound-runtime-set)
-  [ "$#" -eq 16 ] || { echo "usage: $0 unbound-runtime-set CACHE_MAX_TTL CACHE_MIN_TTL SERVE_EXPIRED SERVE_EXPIRED_TTL REPLY_TTL CLIENT_TIMEOUT_MS TTL_RESET PREFETCH PREFETCH_KEY QNAME_MINIMISATION MSG_CACHE_SIZE RRSET_CACHE_SIZE KEY_CACHE_SIZE NEG_CACHE_SIZE NUM_THREADS" >&2; exit 2; }
-  shift
+  case "$#" in
+   15)
+    # Backward compatibility with callers that predate the TTL-reset field.
+    shift
+    set -- "$1" "$2" "$3" "$4" "$5" "$6" 0 "$7" "$8" "$9" "${10}" "${11}" "${12}" "${13}" "${14}"
+    ;;
+   16) shift ;;
+   *) echo "usage: $0 unbound-runtime-set CACHE_MAX_TTL CACHE_MIN_TTL SERVE_EXPIRED SERVE_EXPIRED_TTL REPLY_TTL CLIENT_TIMEOUT_MS TTL_RESET PREFETCH PREFETCH_KEY QNAME_MINIMISATION MSG_CACHE_SIZE RRSET_CACHE_SIZE KEY_CACHE_SIZE NEG_CACHE_SIZE NUM_THREADS" >&2; exit 2 ;;
+  esac
   with_lock transaction unbound_runtime_set "$@"
   ;;
  unbound-anchor-status)
@@ -3135,6 +3161,10 @@ case "$cmd" in
  dns-profile-get)
   [ "$#" -eq 1 ] || exit 2
   dns_profile_get
+  ;;
+ dns-profile-restore)
+  [ "$#" -eq 2 ] || { echo "usage: $0 dns-profile-restore base64-profile" >&2; exit 2; }
+  with_lock dns_profile_transaction "$2"
   ;;
  dns-native-set-many)
   [ "$#" -ge 3 ] || { echo "usage: $0 dns-native-set-many KEY 0|1 [KEY 0|1 ...]" >&2; exit 2; }
@@ -3171,12 +3201,14 @@ case "$cmd" in
   _diag_watchdog=$(_diag_value "$_diag_status" localdns_watchdog 2>/dev/null) || _diag_watchdog=unknown
   _diag_coexist=$(_diag_value "$_diag_status" vpn_coexistence_verdict 2>/dev/null) || _diag_coexist=unknown
   _diag_route=$(_diag_value "$_diag_status" vpn_route_probe 2>/dev/null) || _diag_route=unknown
+  _diag_rootproxy_adguard_upstream_route=$(_diag_value "$_diag_status" rootproxy_adguard_upstream_route 2>/dev/null) || _diag_rootproxy_adguard_upstream_route=unknown
   _diag_private_dns=$(_diag_value "$_diag_status" private_dns_mode 2>/dev/null) || _diag_private_dns=unknown
   case "$_diag_ready" in 0|1) : ;; *) _diag_ready=unknown ;; esac
   case "$_diag_reason" in ''|*[!A-Za-z0-9_.:-]*) _diag_reason=unknown ;; esac
   case "$_diag_watchdog" in running|stopped|invalid|unsafe|identity_unknown|unknown|unavailable) : ;; *) _diag_watchdog=unknown ;; esac
-  case "$_diag_coexist" in compatible|incompatible|unknown) : ;; *) _diag_coexist=unknown ;; esac
-  case "$_diag_route" in passed|failed|unavailable|not_applicable|unknown) : ;; *) _diag_route=unknown ;; esac
+  case "$_diag_coexist" in kernel_only|full_parallel|chained|partial|compatible|incompatible|unknown) : ;; *) _diag_coexist=unknown ;; esac
+  case "$_diag_route" in passed|failed|unavailable|not_applicable|unknown|unverified|dns_route_verified|dns_chain_verified|dns_upstream_route_unverified) : ;; *) _diag_route=unknown ;; esac
+  case "$_diag_rootproxy_adguard_upstream_route" in unbound_pinned|unverified|unknown) : ;; *) _diag_rootproxy_adguard_upstream_route=unknown ;; esac
   case "$_diag_private_dns" in off|opportunistic|hostname|unknown) : ;; *) _diag_private_dns=unknown ;; esac
   _diag_probe="$MP/engines/unbound/fx-dns-probe"
   _diag_probe_available=0
@@ -3334,6 +3366,7 @@ case "$cmd" in
   _diag_unbound_cache_min_ttl=unknown
   _diag_unbound_serve_expired=unknown
   _diag_unbound_serve_expired_ttl=unknown
+  _diag_unbound_serve_expired_ttl_reset=unknown
   _diag_unbound_serve_expired_reply_ttl=unknown
   _diag_unbound_serve_expired_client_timeout=unknown
   _diag_unbound_prefetch=unknown
@@ -3398,6 +3431,7 @@ case "$cmd" in
   printf 'localdns_watchdog=%s\n' "$_diag_watchdog"
   printf 'vpn_coexistence_verdict=%s\n' "$_diag_coexist"
   printf 'vpn_route_probe=%s\n' "$_diag_route"
+  printf 'rootproxy_adguard_upstream_route=%s\n' "$_diag_rootproxy_adguard_upstream_route"
   printf 'private_dns_mode=%s\n' "$_diag_private_dns"
   printf 'dns_upstream_mode=%s\n' "$_diag_upstream_mode"
   printf 'dns_upstream_state=%s\n' "$_diag_upstream_state"

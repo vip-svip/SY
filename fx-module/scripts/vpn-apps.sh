@@ -84,6 +84,9 @@ atomic_list_update() {
     valid_enabled "$_enabled" || { echo "invalid enabled state" >&2; return 2; }
   fi
   require_safe_config || return 1
+  # Resolve once per insert: name_of() inside applist.sh caches, so repeat toggles stay
+  # fast. An unresolvable package keeps its own name so the row remains usable.
+  _label=$(pg_app_label "$_pkg")
   _tmp=$(mktemp "$CONF.vpn-apps.XXXXXX") || {
     echo "unable to create private VPN app-list candidate" >&2
     return 1

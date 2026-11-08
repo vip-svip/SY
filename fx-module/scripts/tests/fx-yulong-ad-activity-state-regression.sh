@@ -114,6 +114,16 @@ load = s.index("load();", create)
 assert create < render_call < restore < load, \
     "onCreate must build page controls before restoring drafts and refreshing data"
 general = (ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdGeneralActivity.java").read_text(encoding="utf-8")
+for token in (
+    'pageTitle.setTag("fx-title:18")',
+    'batteryStatus.setTag("fx-card-detail")',
+    'operationStatus.setTag("fx-card-detail")',
+    'taskerSenderPackageInput.setTag("fx-form-input")',
+    'taskerExternalControl.setTag("fx-switch-row")',
+    'taskerSecurityStatus.setTag("fx-card-detail")',
+    'taskerResultStatus.setTag("fx-card-detail")',
+):
+    assert token in general, f"Ad General page is missing six-mode component role: {token}"
 dns = (ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongDnsActivity.java").read_text(encoding="utf-8")
 summary = (ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/shield/FxYulongDailySummaryActivity.java").read_text(encoding="utf-8")
 ad_summary = (ROOT / "adhook/app/src/main/java/de/privacyguard/adhook/imported/ad/FxYulongAdSummaryActivity.java").read_text(encoding="utf-8")
@@ -137,6 +147,21 @@ dns_required = [
 ]
 for token in dns_required:
     assert token in dns, f"missing DNS page state/lifecycle invariant: {token}"
+for token in (
+    'b.setTag("fx-action-row")',
+    'c.setTag("fx-card")',
+    'heading.setTag("fx-card-title")',
+    'description.setTag("fx-card-detail")',
+    'pageTitle.setTag("fx-title:18")',
+    'search.setTag("fx-search-input")',
+    'rows.setTag("fx-card-group")',
+    'row.setTag("fx-list-row")',
+    'domainTitle.setTag("fx-list-title")',
+    'detail.setTag("fx-list-subtitle")',
+    'matchSummary.setTag("fx-card-detail")',
+    'actions.setTag("fx-card-group")',
+):
+    assert token in dns, f"DNS query-log page is missing six-mode component role: {token}"
 destroy_start = dns.index("@Override protected void onDestroy()")
 destroy_end = dns.index("\n    }", destroy_start)
 destroy_body = dns[destroy_start:destroy_end]

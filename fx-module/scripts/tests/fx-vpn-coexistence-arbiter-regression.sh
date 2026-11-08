@@ -111,7 +111,7 @@ for f in tcp tcp6 udp6; do printf '%s\n' "$HDR" > "$TMP/net_partial/$f"; done
 # run_arb <link-output> <vpinfo> <procnet> <modroot> [extra env...]
 # prints "<exit>|<json>"
 run_arb() {
-  _links=$1; _info=$2; _net=$3; _mod=$4
+  _links=$1; _info=$2; _net=$3; _mod=$4; _root_observer=${5:-}
   printf '%s\n' "$_links" > "$TMP/links.txt"
   if [ -n "$_info" ]; then printf '%s\n' "$_info" > "$TMP/info.txt"; else : > "$TMP/info.txt"; fi
   _out=$(
@@ -120,6 +120,7 @@ run_arb() {
     FX_ARB_SELF_UID=10000 \
     FX_ARB_PROC_NET_DIR="$_net" \
     FX_ARB_MODULE_ROOT="$_mod" \
+    FX_ARB_ROOT_PROXY_OBSERVE_FILE="$_root_observer" \
     sh "$ARB" 2>&1
   )
   _rc=$?
@@ -307,6 +308,86 @@ rc=${r%%|*}; out=${r#*|}
 [ "$(field "$out" "['external_if']")" = "tun0" ] || fail "external_if mismatch"
 [ "$(field "$out" "['external_uid']")" = "10123" ] || fail "external_uid mismatch"
 pass "owner UID is observed without overstating data-plane proof"
+
+echo "== case 2a: matching Root Proxy proves only the DNS chain, not all FX traffic =="
+cat > "$TMP/root-proxy-observe.txt" <<'ROOT_PROXY'
+active=1
+interface=tun0
+vpn_uid=10123
+egress_ipv4=10.23.4.5
+route=verified
+redirects=attached
+dns_probe=passed
+dns_chain=verified
+private_dns_mode=off
+dns_filter_coverage=port53_redirect_active
+adguard_upstream_route=unbound_pinned
+ROOT_PROXY
+r=$(run_arb "$LINKS_TUN" "tun0|10123" "$TMP/net_free" "$TMP/mod_clean" "$TMP/root-proxy-observe.txt")
+rc=${r%%|*}; out=${r#*|}
+[ "$rc" -eq 0 ] || fail "verified DNS-chain evidence must not fail the VPN probe: $out"
+[ "$(field "$out" "['verdict']")" = "partial" ] || fail "DNS-only proof must not certify all FX proxy traffic"
+[ "$(field "$out" "['route_probe']")" = "dns_chain_verified" ] || fail "matching Root Proxy chain was not exposed as verified"
+[ "$(field "$out" "['root_proxy']['state']")" = "active" ] || fail "active Root Proxy state missing"
+[ "$(field "$out" "['root_proxy']['interface']")" = "tun0" ] || fail "Root Proxy interface missing"
+[ "$(field "$out" "['root_proxy']['vpn_uid']")" = "10123" ] || fail "Root Proxy UID missing"
+[ "$(field "$out" "['root_proxy']['dns_chain']")" = "verified" ] || fail "DNS chain was not verified"
+case "$(field "$out" "['reasons']")" in *"non-DNS FX proxy traffic path remains unverified"*) : ;; *) fail "reason overstated the DNS-only proof: $out" ;; esac
+pass "current VpnInfo identity plus Root Proxy route/redirect/DNS evidence proves DNS chain only"
+
+echo "== case 2b: strict Private DNS preserves tunnel route proof but degrades DNS filtering =="
+cat > "$TMP/root-proxy-observe.txt" <<'ROOT_PROXY'
+active=1
+interface=tun0
+vpn_uid=10123
+egress_ipv4=10.23.4.5
+route=verified
+redirects=attached
+dns_probe=passed
+dns_chain=partial
+private_dns_mode=hostname
+dns_filter_coverage=strict_private_dns_bypasses_redirect
+adguard_upstream_route=unbound_pinned
+ROOT_PROXY
+r=$(run_arb "$LINKS_TUN" "tun0|10123" "$TMP/net_free" "$TMP/mod_clean" "$TMP/root-proxy-observe.txt")
+rc=${r%%|*}; out=${r#*|}
+[ "$rc" -eq 0 ] || fail "strict Private DNS probe unexpectedly failed: $out"
+[ "$(field "$out" "['root_proxy']['state']")" = "active" ] || fail "Root Proxy route should remain active"
+[ "$(field "$out" "['route_probe']")" = "dns_route_verified" ] || fail "strict Private DNS should expose route-only evidence"
+[ "$(field "$out" "['root_proxy']['dns_chain']")" = "partial" ] || fail "strict Private DNS must not be graded as complete DNS chaining"
+[ "$(field "$out" "['root_proxy']['dns_filter_coverage']")" = "strict_private_dns_bypasses_redirect" ] || fail "strict Private DNS bypass coverage missing"
+pass "strict Private DNS correctly degrades filtering without hiding tunnel route"
+
+echo "== case 2d: AdGuard direct custom upstream is not proven VPN-pinned == "
+cat > "$TMP/root-proxy-observe.txt" <<'ROOT_PROXY'
+active=1
+interface=tun0
+vpn_uid=10123
+egress_ipv4=10.23.4.5
+route=verified
+redirects=attached
+dns_probe=passed
+dns_chain=partial
+private_dns_mode=off
+dns_filter_coverage=port53_redirect_active
+adguard_upstream_route=unverified
+ROOT_PROXY
+r=$(run_arb "$LINKS_TUN" "tun0|10123" "$TMP/net_free" "$TMP/mod_clean" "$TMP/root-proxy-observe.txt")
+rc=${r%%|*}; out=${r#*|}
+[ "$rc" -eq 0 ] || fail "unverified AdGuard upstream should remain a conservative partial result: $out"
+[ "$(field "$out" "['route_probe']")" = "dns_upstream_route_unverified" ] || fail "direct AdGuard upstream was incorrectly treated as an Unbound-only DNS route"
+[ "$(field "$out" "['root_proxy']['adguard_upstream_route']")" = "unverified" ] || fail "AdGuard upstream proof state was lost"
+case "$(field "$out" "['reasons']")" in *"AdGuard Home custom/global upstream or fallback sockets are not proven"*) : ;; *) fail "partial reason omitted the unpinned AdGuard upstream boundary: $out" ;; esac
+pass "custom/global AdGuard upstream and fallback routes cannot inherit Unbound VPN proof"
+
+echo "== case 2c: Root Proxy VPN identity must match current Android VpnInfo =="
+sed 's/^vpn_uid=10123$/vpn_uid=10124/' "$TMP/root-proxy-observe.txt" > "$TMP/root-proxy-mismatch.txt"
+r=$(run_arb "$LINKS_TUN" "tun0|10123" "$TMP/net_free" "$TMP/mod_clean" "$TMP/root-proxy-mismatch.txt")
+rc=${r%%|*}; out=${r#*|}
+[ "$rc" -eq 0 ] || fail "mismatched Root Proxy UID should remain a conservative result: $out"
+[ "$(field "$out" "['root_proxy']['state']")" = "mismatch" ] || fail "Root Proxy owner UID mismatch was not detected"
+[ "$(field "$out" "['route_probe']")" = "unverified" ] || fail "mismatched tunnel identity must not certify the route"
+pass "stale Root Proxy metadata cannot be attributed to a different active VPN"
 
 echo "== case 3: active VPN without owner UID -> unknown, never guess third-party =="
 r=$(run_arb "$LINKS_TUN" "tun0|" "$TMP/net_free" "$TMP/mod_clean")

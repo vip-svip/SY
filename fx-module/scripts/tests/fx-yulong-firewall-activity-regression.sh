@@ -39,6 +39,28 @@ if source.count("if (!parseList(result.output))") != 2:
     raise SystemExit("FAIL: initial and refresh list reads must both fail closed")
 require("private void card(String title, String detail, View... children)", "firewall cards must support multiple child controls")
 require("for (View child : children) if (child != null) card.addView(child);", "all card child controls must be attached")
+for token in (
+    'pageTitle.setTag("fx-title:18")',
+    'intro.setTag("fx-card-body")',
+    'status.setTag("fx-card-detail")',
+    'master.setTag("fx-switch-row")',
+    'query.setTag("fx-search-input")',
+    'scopeStatus.setTag("fx-card-detail")',
+    'item.setTag("fx-list-row")',
+    'name.setTag("fx-list-title")',
+    'packageText.setTag("fx-list-subtitle")',
+    'traffic.setTag("fx-card-detail")',
+    'detail.setTag("fx-card-detail")',
+    'enabled.setTag("fx-switch-row")',
+    'panel.setTag("fx-card")',
+    'wifi.setTag("fx-switch-row")',
+    'mobile.setTag("fx-switch-row")',
+    'schedule.setTag("fx-switch-row")',
+    'start.setTag("fx-card-detail")',
+    'end.setTag("fx-card-detail")',
+):
+    require(token, "firewall page is missing six-mode component role: " + token)
+require("showFxDialog(dialog);", "rule editor must retain the shared six-mode dialog presentation host")
 require('return FxYulongRootModuleCommand.command("yulong-app-firewall.sh", args);',
         "firewall must delegate module lookup to the shared allowlisted resolver")
 require("private final ThreadPoolExecutor appWorker =", "bounded app inventory worker is missing")

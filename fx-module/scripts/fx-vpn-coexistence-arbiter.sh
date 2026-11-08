@@ -357,6 +357,139 @@ fx_arb_probe_external() {
   return 0
 }
 
+# Root Proxy's observe command is deliberately read-only. It proves only the
+# DNS fallback chain: Unbound egress bound to the current external VPN tunnel,
+# source-specific route consistency to authoritative resolver addresses, both
+# FX-owned DNS redirects, exact chain contracts and live dual-stack DNS health.
+# It does not prove non-DNS proxy traffic or full device-wide traffic chaining.
+FX_ARB_ROOT_PROXY_STATE="unavailable"
+FX_ARB_ROUTE_PROBE="unverified"
+FX_ARB_RP_IF=""
+FX_ARB_RP_UID=""
+FX_ARB_RP_EGRESS=""
+FX_ARB_RP_ROUTE="unknown"
+FX_ARB_RP_REDIRECTS="unknown"
+FX_ARB_RP_DNS_PROBE="unknown"
+FX_ARB_ROOT_PROXY_DNS_CHAIN="unverified"
+FX_ARB_RP_PRIVATE_DNS_MODE="unknown"
+FX_ARB_RP_DNS_FILTER_COVERAGE="unknown"
+FX_ARB_RP_ADGUARD_UPSTREAM_ROUTE="unknown"
+FX_ARB_ROOT_PROXY_OUTPUT=""
+
+fx_arb_root_proxy_field() {
+  _key=$1
+  printf '%s\n' "$FX_ARB_ROOT_PROXY_OUTPUT" | awk -F= -v key="$_key" '
+    $1==key {
+      if (NF!=2 || seen) bad=1
+      seen++
+      value=$2
+    }
+    END {
+      if (bad || seen!=1) exit 1
+      print value
+    }
+  '
+}
+
+fx_arb_valid_ipv4() {
+  printf '%s\n' "$1" | awk -F. '
+    NF!=4 {bad=1; exit}
+    {
+      for(i=1;i<=4;i++)
+        if($i=="" || $i!~/^[0-9]+$/ || length($i)>3 || $i+0>255 ||
+           ($i!="0" && $i~/^0/)) bad=1
+      first=$1+0; second=$2+0
+      if(first==0 || first==127 || first>=224 ||
+         (first==169 && second==254)) bad=1
+    }
+    END {exit bad}
+  '
+}
+
+fx_arb_probe_root_proxy_dns() {
+  [ -n "$FX_ARB_EXT_IF" ] && [ -n "$FX_ARB_EXT_UID" ] || return 0
+  _out=""
+  _rc=1
+  if [ "${FX_ARB_TESTING:-0}" = "1" ] && [ -n "${FX_ARB_ROOT_PROXY_OBSERVE_FILE:-}" ]; then
+    _fixture=$FX_ARB_ROOT_PROXY_OBSERVE_FILE
+    [ -f "$_fixture" ] && [ ! -L "$_fixture" ] && [ -r "$_fixture" ] || {
+      FX_ARB_ROOT_PROXY_STATE="unknown"; return 0;
+    }
+    _out=$(cat "$_fixture" 2>/dev/null) || {
+      FX_ARB_ROOT_PROXY_STATE="unknown"; return 0;
+    }
+    _rc=0
+  else
+    _script="${FX_ARB_MODULE_ROOT:-}/scripts/yulong-root-proxy.sh"
+    if [ -n "$FX_ARB_MODULE_ROOT" ] && [ -f "$_script" ] && [ ! -L "$_script" ] && [ -r "$_script" ]; then
+      if _out=$(MP="$FX_ARB_MODULE_ROOT" PG=/data/adb/privacyguard CONF=/data/adb/privacyguard/settings.conf sh "$_script" observe 2>/dev/null); then
+        _rc=0
+      else
+        _rc=$?
+      fi
+    else
+      FX_ARB_ROOT_PROXY_STATE="unavailable"
+      return 0
+    fi
+  fi
+  FX_ARB_ROOT_PROXY_OUTPUT=$_out
+  if [ "$_rc" -ne 0 ]; then
+    _active=$(fx_arb_root_proxy_field active 2>/dev/null || :)
+    case "$_active" in 0) FX_ARB_ROOT_PROXY_STATE="inactive" ;; *) FX_ARB_ROOT_PROXY_STATE="unavailable" ;; esac
+    return 0
+  fi
+  _active=$(fx_arb_root_proxy_field active 2>/dev/null || :)
+  case "$_active" in 0) FX_ARB_ROOT_PROXY_STATE="inactive"; return 0 ;; 1) : ;; *) FX_ARB_ROOT_PROXY_STATE="unknown"; return 0 ;; esac
+  _iface=$(fx_arb_root_proxy_field interface 2>/dev/null || :)
+  _uid=$(fx_arb_root_proxy_field vpn_uid 2>/dev/null || :)
+  _egress=$(fx_arb_root_proxy_field egress_ipv4 2>/dev/null || :)
+  _route=$(fx_arb_root_proxy_field route 2>/dev/null || :)
+  _redirects=$(fx_arb_root_proxy_field redirects 2>/dev/null || :)
+  _dns_probe=$(fx_arb_root_proxy_field dns_probe 2>/dev/null || :)
+  _dns_chain=$(fx_arb_root_proxy_field dns_chain 2>/dev/null || :)
+  _private_dns=$(fx_arb_root_proxy_field private_dns_mode 2>/dev/null || :)
+  _coverage=$(fx_arb_root_proxy_field dns_filter_coverage 2>/dev/null || :)
+  _adguard_upstream_route=$(fx_arb_root_proxy_field adguard_upstream_route 2>/dev/null || :)
+  _uid=$(fx_arb_normalize_uid "$_uid" 2>/dev/null) || {
+    FX_ARB_ROOT_PROXY_STATE="mismatch"; return 0;
+  }
+  if [ "$_iface" != "$FX_ARB_EXT_IF" ] || [ "$_uid" != "$FX_ARB_EXT_UID" ] ||
+      ! fx_arb_valid_ipv4 "$_egress"; then
+    FX_ARB_ROOT_PROXY_STATE="mismatch"
+    return 0
+  fi
+  case "$_route" in verified) ;; *) FX_ARB_ROOT_PROXY_STATE="unverified"; return 0 ;; esac
+  case "$_redirects" in attached) ;; *) FX_ARB_ROOT_PROXY_STATE="unverified"; return 0 ;; esac
+  case "$_dns_probe" in passed) ;; *) FX_ARB_ROOT_PROXY_STATE="unverified"; return 0 ;; esac
+  case "$_dns_chain" in verified|partial) ;; *) FX_ARB_ROOT_PROXY_STATE="unverified"; return 0 ;; esac
+  case "$_private_dns" in off|opportunistic|hostname|unknown) ;; *) FX_ARB_ROOT_PROXY_STATE="unverified"; return 0 ;; esac
+  case "$_coverage" in port53_redirect_active|opportunistic_private_dns_may_bypass_redirect|strict_private_dns_bypasses_redirect|unknown) ;; *) FX_ARB_ROOT_PROXY_STATE="unverified"; return 0 ;; esac
+  case "$_adguard_upstream_route" in unbound_pinned|unverified|unknown) ;; *) _adguard_upstream_route=unknown ;; esac
+  if [ "$_dns_chain" = verified ] && [ "$_private_dns" = off ] &&
+      [ "$_coverage" = port53_redirect_active ] &&
+      [ "$_adguard_upstream_route" = unbound_pinned ]; then
+    FX_ARB_ROUTE_PROBE="dns_chain_verified"
+    FX_ARB_ROOT_PROXY_DNS_CHAIN="verified"
+  else
+    if [ "$_adguard_upstream_route" = unbound_pinned ]; then
+      FX_ARB_ROUTE_PROBE="dns_route_verified"
+    else
+      FX_ARB_ROUTE_PROBE="dns_upstream_route_unverified"
+    fi
+    FX_ARB_ROOT_PROXY_DNS_CHAIN="partial"
+  fi
+  FX_ARB_ROOT_PROXY_STATE="active"
+  FX_ARB_RP_IF=$_iface
+  FX_ARB_RP_UID=$_uid
+  FX_ARB_RP_EGRESS=$_egress
+  FX_ARB_RP_ROUTE=$_route
+  FX_ARB_RP_REDIRECTS=$_redirects
+  FX_ARB_RP_DNS_PROBE=$_dns_probe
+  FX_ARB_RP_PRIVATE_DNS_MODE=$_private_dns
+  FX_ARB_RP_DNS_FILTER_COVERAGE=$_coverage
+  FX_ARB_RP_ADGUARD_UPSTREAM_ROUTE=$_adguard_upstream_route
+}
+
 # --- 裁决 -------------------------------------------------------------------
 # 分级：kernel_only(内核级独立) / full_parallel(完全并行) / chained(受支持链式)
 #       / partial(部分兼容) / incompatible(不兼容) / unknown(探测不可用)
@@ -454,10 +587,18 @@ fx_arb_decide() {
   # Until an end-to-end data-plane probe exists, never certify parallel/chained.
   FX_ARB_VERDICT="partial"
   FX_ARB_GRADE_CN="部分兼容"
-  if [ -n "$FX_ARB_EXT_UID" ]; then
-    FX_ARB_REASONS="external VPN ${FX_ARB_EXT_IF} (uid ${FX_ARB_EXT_UID}) detected; route and return-path behavior are unverified"
+  if [ "$FX_ARB_ROOT_PROXY_STATE" = "active" ]; then
+    if [ "$FX_ARB_ROOT_PROXY_DNS_CHAIN" = "verified" ]; then
+      FX_ARB_REASONS="external VPN ${FX_ARB_EXT_IF} (uid ${FX_ARB_EXT_UID}) verified for the Root Proxy DNS chain; non-DNS FX proxy traffic path remains unverified"
+    elif [ "$FX_ARB_RP_ADGUARD_UPSTREAM_ROUTE" != "unbound_pinned" ]; then
+      FX_ARB_REASONS="external VPN ${FX_ARB_EXT_IF} (uid ${FX_ARB_EXT_UID}) route is verified for Unbound, but AdGuard Home custom/global upstream or fallback sockets are not proven to use the VPN-bound Unbound resolver; DNS chain and non-DNS FX proxy traffic remain partial"
+    else
+      FX_ARB_REASONS="external VPN ${FX_ARB_EXT_IF} (uid ${FX_ARB_EXT_UID}) verified for Unbound DNS egress; Android Private DNS may bypass port-53 filtering and non-DNS FX proxy traffic remains unverified"
+    fi
+  elif [ "$FX_ARB_ROOT_PROXY_STATE" = "mismatch" ]; then
+    FX_ARB_REASONS="Root Proxy active VPN interface/UID does not match the current Android VpnInfo; refusing to claim a verified DNS chain"
   else
-    FX_ARB_REASONS="external VPN ${FX_ARB_EXT_IF} detected without owner uid; route and outer-tunnel binding are unverified"
+    FX_ARB_REASONS="external VPN ${FX_ARB_EXT_IF} (uid ${FX_ARB_EXT_UID}) detected; route and return-path behavior remain unverified"
   fi
   return 0
 }
@@ -474,7 +615,8 @@ fx_arb_json() {
   printf '"vpn_service_slot_used":%s,' "$_slot_json"
   printf '"dns":{"port":%s,"owner":"%s"},"dns_filter":{"port":%s,"owner":"%s"},"proxy":{"port":%s,"owner":"%s"},' "$(fx_arb_json_port "$FX_ARB_DNS_PORT")" "$FX_ARB_DNS_OWNER" "$(fx_arb_json_port "$FX_ARB_FILTER_DNS_PORT")" "$FX_ARB_FILTER_DNS_OWNER" "$(fx_arb_json_port "$FX_ARB_PROXY_PORT")" "$FX_ARB_PROXY_OWNER"
   printf '"config_conflicts":"%s",' "$FX_ARB_CONFIG_CONFLICTS"
-  printf '"dataplane":"kernel","route_probe":"unverified","reasons":"%s"}\n' "$_san"
+  printf '"root_proxy":{"state":"%s","interface":"%s","vpn_uid":"%s","egress_ipv4":"%s","route":"%s","redirects":"%s","dns_probe":"%s","dns_chain":"%s","private_dns_mode":"%s","dns_filter_coverage":"%s","adguard_upstream_route":"%s"},' "$FX_ARB_ROOT_PROXY_STATE" "$FX_ARB_RP_IF" "$FX_ARB_RP_UID" "$FX_ARB_RP_EGRESS" "$FX_ARB_RP_ROUTE" "$FX_ARB_RP_REDIRECTS" "$FX_ARB_RP_DNS_PROBE" "$FX_ARB_ROOT_PROXY_DNS_CHAIN" "$FX_ARB_RP_PRIVATE_DNS_MODE" "$FX_ARB_RP_DNS_FILTER_COVERAGE" "$FX_ARB_RP_ADGUARD_UPSTREAM_ROUTE"
+  printf '"dataplane":"kernel","route_probe":"%s","reasons":"%s"}\n' "$FX_ARB_ROUTE_PROBE" "$_san"
 }
 
 fx_arb_text() {
@@ -490,6 +632,8 @@ fx_arb_text() {
   echo "  dns upstream : port $(fx_arb_display_port "$FX_ARB_DNS_PORT") owner=$FX_ARB_DNS_OWNER"
   echo "  dns filter   : port $(fx_arb_display_port "$FX_ARB_FILTER_DNS_PORT") owner=$FX_ARB_FILTER_DNS_OWNER"
   echo "  proxy        : port $(fx_arb_display_port "$FX_ARB_PROXY_PORT") owner=$FX_ARB_PROXY_OWNER"
+  echo "  Root Proxy DNS chain: state=$FX_ARB_ROOT_PROXY_STATE route=$FX_ARB_RP_ROUTE dns=$FX_ARB_ROOT_PROXY_DNS_CHAIN coverage=$FX_ARB_RP_DNS_FILTER_COVERAGE AdGuard-upstream=$FX_ARB_RP_ADGUARD_UPSTREAM_ROUTE"
+  echo "  route probe : $FX_ARB_ROUTE_PROBE"
   echo "  reasons : $FX_ARB_REASONS"
 }
 
@@ -503,6 +647,7 @@ main() {
   esac
 
   fx_arb_probe_external
+  fx_arb_probe_root_proxy_dns
   fx_arb_decide
 
   if [ "$_mode" = "text" ]; then fx_arb_text; else fx_arb_json; fi

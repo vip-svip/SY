@@ -5,7 +5,11 @@ SOURCE="$ROOT/scripts/yulong-ad-schedule.sh"
 CONTROL="$ROOT/scripts/yulong-ad-control.sh"
 [ -s "$SOURCE" ] || { echo "FAIL: Yulong schedule runtime missing" >&2; exit 1; }
 sh -n "$SOURCE" || { echo "FAIL: Yulong schedule script has invalid shell syntax" >&2; exit 1; }
+grep -Fq "process_start_time() {" "$SOURCE" || { echo "FAIL: scheduler does not bind watcher PID to process start time" >&2; exit 1; }
+grep -Fq "read_watcher_record() {" "$SOURCE" || { echo "FAIL: scheduler ownership record reader missing" >&2; exit 1; }
+grep -Fq "schedule_process_start_time \"$pid\"" "$CONTROL" || { echo "FAIL: schedule status does not validate recorded process start time" >&2; exit 1; }
 [ -s "$CONTROL" ] || { echo "FAIL: Yulong control backend missing" >&2; exit 1; }
+[ ! -s "$ROOT/fx-module/scripts/yulong-ad-schedule.sh" ] || cmp -s "$SOURCE" "$ROOT/fx-module/scripts/yulong-ad-schedule.sh" || { echo "FAIL: packaged Yulong schedule runtime differs from canonical source" >&2; exit 1; }
 TMP=$(mktemp -d "/tmp/fx-yulong-schedule-lock.XXXXXX")
 MOD="$TMP/module"
 PG="$TMP/state"
@@ -14,7 +18,7 @@ SLEEP_PID=
 mkdir -p "$MOD/scripts" "$PG"
 cleanup() {
   if [ -s "$PG/yulong-ad-schedule.pid" ] && [ ! -L "$PG/yulong-ad-schedule.pid" ]; then
-    p=$(cat "$PG/yulong-ad-schedule.pid" 2>/dev/null || :)
+    p=$(sed -n '1p' "$PG/yulong-ad-schedule.pid" 2>/dev/null || :)
     case "$p" in ''|*[!0-9]*) p= ;; esac
     if [ -n "$p" ] && [ -r "/proc/$p/cmdline" ]; then
       cmd=$(tr '\000' ' ' < "/proc/$p/cmdline" 2>/dev/null || :)
@@ -122,8 +126,12 @@ watchers=$(ps -eo pid=,args= | awk -v script="$SCHEDULE" 'index($0,script) && in
   cat "$TMP"/start.*.log >&2
   exit 1
 }
-pid=$(cat "$PG/yulong-ad-schedule.pid")
-case "$pid" in ''|*[!0-9]*) echo "FAIL: PID file is not a numeric PID" >&2; exit 1 ;; esac
+pid=$(sed -n '1p' "$PG/yulong-ad-schedule.pid")
+start_time=$(sed -n '2p' "$PG/yulong-ad-schedule.pid")
+case "$pid" in ''|*[!0-9]*) echo "FAIL: PID file first line is not numeric" >&2; exit 1 ;; esac
+case "$start_time" in ''|*[!0-9]*) echo "FAIL: PID file second line is not a numeric process start time" >&2; exit 1 ;; esac
+actual_start=$(sed 's/^.*) //' "/proc/$pid/stat" | awk '{print $20}')
+[ "$actual_start" = "$start_time" ] || { echo "FAIL: PID file start time does not match the live watcher identity" >&2; exit 1; }
 {
   grep -Fq "started pid=$pid" "$TMP"/start.*.log 2>/dev/null ||
   grep -Fq "already-running pid=$pid" "$TMP"/start.*.log 2>/dev/null

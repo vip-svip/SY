@@ -58,7 +58,7 @@ validate_config() {
       }
       value=$0
       sub(/^[^=]*=/,"",value)
-      if(value ~ /[[:cntrl:]|]/ || length(value)>1024) bad=1
+      if(value ~ /[[:cntrl:]|]/ || (($1!="remote_dns" && $1!="cn_dns" && $1!="fallback_dns_server" && $1!="proxy_dns_server") && length(value)>1024)) bad=1
     }
     END {
       if(sections!=1 || bad) exit 1
@@ -68,7 +68,7 @@ validate_config() {
 
 valid_key() {
   case "$1" in
-    local_ip|local_port|remote_dns|cn_dns|test_url|auto_update_h|chnroute_url|app_mode|core_ver|core_auto|core_bin|mixed_port|log_level|hosts_cache_min|pick_min_ms|pick_test_timeout|pick_max_nodes|hide_level|hide_mtu_clamp|hide_udp_block_all|hide_icmp_block_all|hide_dot_block) return 0 ;;
+    local_ip|local_port|remote_dns|cn_dns|fallback_dns_server|proxy_dns_server|dns_fallback_system|dns_direct_system|dns_direct_fallback_proxy|test_url|auto_update_h|chnroute_url|app_mode|core_ver|core_auto|core_bin|mixed_port|log_level|hosts_cache_min|pick_min_ms|pick_test_timeout|pick_max_nodes|hide_level|hide_mtu_clamp|hide_udp_block_all|hide_icmp_block_all|hide_dot_block) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -110,9 +110,20 @@ valid_ipv4() {
     END { exit bad ? 1 : 0 }
   '
 }
+valid_dns_endpoint_list() {
+  _dns_value=$1
+  _allow_empty=${2:-0}
+  if [ -z "$_dns_value" ]; then [ "$_allow_empty" = 1 ]; return $?; fi
+  case "$_dns_value" in ,*|*,|*,,*) return 1 ;; esac
+  _dns_check=$(printf '%s' "$_dns_value" | sed 's/\[[0-9A-Fa-f:]*\]//g')
+  printf '%s' "$_dns_check" | grep -Eq '^[A-Za-z0-9._:/?%&=+#,-]+$'
+}
 validate_value() {
-  key="$1"; value="$2"
-  [ "${#value}" -le 1024 ] || return 1
+  key=$1; value=$2
+  case "$key" in
+    remote_dns|cn_dns|proxy_dns_server|fallback_dns_server) : ;;
+    *) [ "${#value}" -le 1024 ] || return 1 ;;
+  esac
   if printf '%s' "$value" | grep -q '[[:cntrl:]]'; then return 1; fi
   case "$value" in *'|'*) return 1 ;; esac
   case "$key" in
@@ -130,7 +141,13 @@ validate_value() {
       [ -z "$value" ] || [ "$value" != "$_local" ] || return 1
       ;;
     remote_dns|cn_dns)
-      case "$value" in ''|*[!A-Za-z0-9_.:-]*) return 1 ;; esac
+      valid_dns_endpoint_list "$value" || return 1
+      ;;
+    proxy_dns_server|fallback_dns_server)
+      valid_dns_endpoint_list "$value" 1 || return 1
+      ;;
+    dns_fallback_system|dns_direct_system|dns_direct_fallback_proxy)
+      case "$value" in 0|1) : ;; *) return 1 ;; esac
       ;;
     test_url|chnroute_url)
       case "$value" in http://*|https://*) : ;; *) return 1 ;; esac
@@ -171,12 +188,84 @@ validate_value() {
     hide_level)
       range "$key" "$value" 0 2 || return 1
       ;;
-    *)
-      return 1
-      ;;
+    *) return 1 ;;
   esac
 }
 
+write_many() {
+  _pairs=$1
+  [ -f "$_pairs" ] && [ ! -L "$_pairs" ] && [ -r "$_pairs" ] || return 1
+  _tmp=$(mktemp "$CONF.native-vpn-batch.XXXXXX") || return 1
+  if ! awk -v pairs="$_pairs" '
+    function emit_missing(i,key) {
+      for(i=1;i<=count;i++) {
+        key=order[i]
+        if(!written[key]) {
+          print key "=" replacement[key]
+          written[key]=1
+        }
+      }
+    }
+    BEGIN {
+      while((getline line < pairs)>0) {
+        split_at=index(line,"|")
+        if(split_at<2) {bad=1; break}
+        key=substr(line,1,split_at-1)
+        value=substr(line,split_at+1)
+        if(key !~ /^[a-z][a-z0-9_]*$/ || (key in replacement)) {bad=1; break}
+        replacement[key]=value
+        order[++count]=key
+      }
+      close(pairs)
+      if(bad || count==0) exit 2
+    }
+    $0=="[conf:vpn]" {
+      if(in_section && !section_emitted) {
+        emit_missing()
+        section_emitted=1
+      }
+      in_section=1
+      section_seen=1
+      print
+      next
+    }
+    /^\[/ {
+      if(in_section && !section_emitted) {
+        emit_missing()
+        section_emitted=1
+      }
+      in_section=0
+      print
+      next
+    }
+    in_section && index($0,"=")>0 {
+      key=substr($0,1,index($0,"=")-1)
+      if(key in replacement) {
+        if(!written[key]) print key "=" replacement[key]
+        written[key]=1
+        next
+      }
+    }
+    {print}
+    END {
+      if(in_section && !section_emitted) emit_missing()
+      if(!section_seen) {
+        print ""
+        print "[conf:vpn]"
+        emit_missing()
+      }
+    }
+  ' "$CONF" > "$_tmp"; then
+    rm -f "$_tmp"
+    return 1
+  fi
+  [ -s "$_tmp" ] || { rm -f "$_tmp"; return 1; }
+  chmod 600 "$_tmp" && mv -f "$_tmp" "$CONF" || {
+    rm -f "$_tmp"
+    return 1
+  }
+  return 0
+}
 write_value() {
   key="$1"; value="$2"; tmp=$(mktemp "$CONF.native-vpn.XXXXXX") || return 1
   awk -v key="$key" -v value="$value" '
@@ -244,6 +333,46 @@ mutate() {
   echo "apply failed; previous VPN config restored" >&2
   return 1
 }
+mutate_many() {
+  [ "$#" -ge 2 ] && [ "$(($# % 2))" -eq 0 ] || {
+    echo "usage: $0 set-many KEY VALUE [KEY VALUE ...]" >&2
+    return 2
+  }
+  validate_config || { echo "existing VPN config is malformed; refusing batch update" >&2; return 2; }
+  _many_pairs=$(mktemp "$PG/native-vpn-pairs.XXXXXX") || return 1
+  chmod 600 "$_many_pairs" || { rm -f "$_many_pairs"; return 1; }
+  _many_seen='|'
+  while [ "$#" -gt 0 ]; do
+    _many_key=$1; _many_value=$2; shift 2
+    valid_key "$_many_key" || { rm -f "$_many_pairs"; echo "invalid VPN config key: $_many_key" >&2; return 2; }
+    case "$_many_seen" in *"|$_many_key|"*) rm -f "$_many_pairs"; echo "duplicate VPN config key: $_many_key" >&2; return 2 ;; esac
+    _many_seen="$_many_seen$_many_key|"
+    validate_value "$_many_key" "$_many_value" || { rm -f "$_many_pairs"; echo "invalid value for $_many_key" >&2; return 2; }
+    printf '%s|%s\n' "$_many_key" "$_many_value" >> "$_many_pairs" || { rm -f "$_many_pairs"; return 1; }
+  done
+  backup=$(mktemp "$CONF.native-vpn-rollback.XXXXXX") || { rm -f "$_many_pairs"; return 1; }
+  cp -p "$CONF" "$backup" || { rm -f "$_many_pairs" "$backup"; return 1; }
+  if ! write_many "$_many_pairs"; then
+    rm -f "$_many_pairs"
+    mv -f "$backup" "$CONF" || { echo "VPN config rollback failed" >&2; return 11; }
+    echo "unable to stage VPN config batch; previous settings restored" >&2
+    return 1
+  fi
+  rm -f "$_many_pairs"
+  if sh "$MP/scripts/apply.sh" fast; then
+    rm -f "$backup"
+    echo "applied=1"
+    return 0
+  fi
+  if ! mv -f "$backup" "$CONF"; then
+    echo "VPN config rollback failed" >&2
+    return 11
+  fi
+  sh "$MP/scripts/apply.sh" fast >/dev/null 2>&1 || echo "previous VPN config restored; runtime reconcile failed" >&2
+  echo "apply failed; previous VPN config restored" >&2
+  return 1
+}
+
 cmd=${1:-list}
 case "$cmd" in
   list)
@@ -257,6 +386,11 @@ case "$cmd" in
   set)
     [ "$#" -eq 3 ] && valid_key "$2" || { echo "usage: $0 set KEY VALUE" >&2; exit 2; }
     with_lock mutate "$2" "$3"
+    ;;
+  set-many)
+    [ "$#" -ge 3 ] || { echo "usage: $0 set-many KEY VALUE [KEY VALUE ...]" >&2; exit 2; }
+    shift
+    with_lock mutate_many "$@"
     ;;
   *)
     echo "usage: $0 list|get KEY|set KEY VALUE" >&2

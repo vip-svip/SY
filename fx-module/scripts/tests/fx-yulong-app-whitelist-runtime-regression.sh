@@ -48,6 +48,23 @@ chmod 0600 "$STATE/settings.conf"
 export FX_TEST_APPLY_LOG="$TMP/apply.log"
 export FX_TEST_APPLY_FAIL=0 FX_TEST_VERIFY_LOCK_PID=1
 export MP="$MODULE" PG="$STATE" CONF="$STATE/settings.conf" LOCK="$STATE/whitelist.lock"
+mkdir -p "$TMP/bin"
+cat > "$TMP/bin/cmd" <<'CMD'
+#!/system/bin/sh
+[ "$*" = "package list packages -U" ] || exit 64
+case "${FX_TEST_PACKAGE_MODE:-good}" in
+  good) printf '%s\n' "package:com.example.installed uid:10101" ;;
+  empty) : ;;
+  fail) exit 71 ;;
+  malformed)
+    printf '%s\n' "package:com.example.installed uid:10101" "partial package-manager output"
+    ;;
+  *) exit 72 ;;
+esac
+CMD
+chmod 0755 "$TMP/bin/cmd"
+PATH="$TMP/bin:$PATH"
+export PATH FX_TEST_PACKAGE_MODE=good
 
 # The state-directory leaf and every ancestor must be real directories.
 mkdir "$TMP/external-state"
@@ -90,6 +107,14 @@ if sh "$SCRIPT" list >/dev/null 2>&1; then
   echo "FAIL: whitelist accepted a symlinked lock path" >&2; exit 1
 fi
 rm "$LOCK"
+
+grep -Fq '    /^\[/ {inlist=0}' "$SCRIPT" || {
+  echo "FAIL: whitelist read_rows AWK section-boundary regex is malformed" >&2; exit 1;
+}
+if grep -Fq '    /^\\[/ {inlist=0}' "$SCRIPT"; then
+  echo "FAIL: whitelist read_rows has a double-escaped AWK section-boundary regex" >&2
+  exit 1
+fi
 
 # Environment overrides must be expanded by the shell, not treated as literal text.
 LIST=$(sh "$SCRIPT" list)
@@ -231,6 +256,41 @@ for template in 'mktemp "$CONF.yulong-white.XXXXXX"' \
   }
 done
 
+# The UI's prune command must remove only packages absent from one complete PackageManager snapshot.
+sh "$SCRIPT" add com.example.installed
+printf '%s\n' "com.example.retired|retired selection|0" >> "$CONF"
+BEFORE_PRUNE=$(cksum "$CONF")
+PRUNE_OUTPUT=$(sh "$SCRIPT" prune)
+case "$PRUNE_OUTPUT" in *"removed=3 applied=1"*) ;; *) echo "FAIL: prune did not report the three uninstalled whitelist entries: $PRUNE_OUTPUT" >&2; exit 1 ;; esac
+grep -Fqx 'com.example.installed|com.example.installed|1' "$CONF"
+! grep -Fq 'com.example.stale|' "$CONF"
+! grep -Fq 'com.example.atomic|' "$CONF"
+! grep -Fq 'com.example.retired|' "$CONF"
+grep -Fqx '[conf:general]' "$CONF"
+
+# A clean snapshot is a no-op: no config change and no unnecessary apply.
+BEFORE_PRUNE=$(cksum "$CONF")
+PRUNE_OUTPUT=$(sh "$SCRIPT" prune)
+[ "$PRUNE_OUTPUT" = "removed=0 applied=0" ] || { echo "FAIL: clean whitelist prune was not a no-op: $PRUNE_OUTPUT" >&2; exit 1; }
+[ "$BEFORE_PRUNE" = "$(cksum "$CONF")" ] || { echo "FAIL: no-op prune changed settings" >&2; exit 1; }
+
+# Empty, failed or partially malformed PackageManager snapshots must fail closed.
+for mode in empty fail malformed; do
+  BEFORE_PRUNE=$(cksum "$CONF")
+  export FX_TEST_PACKAGE_MODE="$mode"
+  if sh "$SCRIPT" prune >/dev/null 2>&1; then echo "FAIL: prune accepted $mode PackageManager snapshot" >&2; exit 1; fi
+  [ "$BEFORE_PRUNE" = "$(cksum "$CONF")" ] || { echo "FAIL: $mode snapshot changed the whitelist" >&2; exit 1; }
+done
+export FX_TEST_PACKAGE_MODE=good
+
+# A failed runtime apply must restore the exact previous whitelist selection.
+sh "$SCRIPT" add com.example.retired-again
+BEFORE_PRUNE=$(cksum "$CONF")
+export FX_TEST_APPLY_FAIL=1
+if sh "$SCRIPT" prune >/dev/null 2>&1; then echo "FAIL: prune succeeded despite apply failure" >&2; exit 1; fi
+export FX_TEST_APPLY_FAIL=0
+[ "$BEFORE_PRUNE" = "$(cksum "$CONF")" ] || { echo "FAIL: failed prune did not restore the exact whitelist" >&2; exit 1; }
+! grep -Fq 'com.example.retired-again|' "$CONF"
 # Unsafe settings.conf symlink is rejected without following its target.
 mv "$CONF" "$STATE/settings.real"
 ln -s "$STATE/settings.real" "$CONF"

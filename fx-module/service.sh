@@ -148,7 +148,7 @@ if [ ! -e "$_pg_settings" ]; then
   }
   if ! cat "$_pg_defaults" > "$_pg_settings_tmp" ||
       [ ! -s "$_pg_settings_tmp" ] ||
-      ! chmod 660 "$_pg_settings_tmp"; then
+      ! chmod 600 "$_pg_settings_tmp"; then
     rm -f "$_pg_settings_tmp" 2>/dev/null
     echo "[$(date '+%m-%d %H:%M:%S')] boot: default config staging failed" >> "$PG/boot.log"
     exit 1
@@ -166,6 +166,17 @@ if [ -L "$_pg_settings" ] || [ ! -f "$_pg_settings" ] || [ ! -s "$_pg_settings" 
   echo "[$(date '+%m-%d %H:%M:%S')] boot: settings.conf is unavailable or unsafe; refusing runtime apply" >> "$PG/boot.log"
   exit 1
 fi
+# settings.conf holds the user's rule lists and network preferences. Re-harden it on
+# every boot: an earlier install (or a crash mid-write) may have left it group-readable,
+# which would let any app UID read the filtering profile.
+chown 0:0 "$PG/settings.conf" 2>/dev/null || true
+# boot.log records interface names, rule decisions and failures; keep it
+# private so another app UID cannot read the filtering profile.
+chmod 600 "$PG/boot.log" 2>/dev/null || true
+chmod 600 "$PG/settings.conf" 2>/dev/null || {
+  echo "[$(date '+%m-%d %H:%M:%S')] boot: cannot harden settings.conf permissions" >> "$PG/boot.log"
+  exit 1
+}
 
 if [ -f "$PG/ca-trust-optin" ] && [ -f "$MODDIR/scripts/certmgr.sh" ]; then
   if [ "$_PG_CA_SYNC_EARLY_OK" = 1 ] || pg_ca_synced_this_boot; then
@@ -208,11 +219,11 @@ fi
 if [ -f "$MODDIR/scripts/vpn-external-watchdog.sh" ]; then
   sh "$MODDIR/scripts/vpn-external-watchdog.sh" start "$MODDIR" "$PG" >> "$PG/boot.log" 2>&1 || echo "[$(date '+%m-%d %H:%M:%S')] external VPN watcher failed to start" >> "$PG/boot.log"
 fi
-# Recover FX-owned DNS engines after crashes or transient resolver failures.
-if [ -f "$MODDIR/scripts/localdns-watchdog.sh" ] && [ ! -L "$MODDIR/scripts/localdns-watchdog.sh" ]; then
-  sh "$MODDIR/scripts/localdns-watchdog.sh" start "$MODDIR" "$PG" >> "$PG/localdns-watchdog.log" 2>&1 || \
-    echo "[$(date '+%m-%d %H:%M:%S')] local DNS recovery watchdog failed to start" >> "$PG/boot.log"
-fi
+# apply.sh owns the local-DNS watchdog lifecycle. It starts the watcher only
+# after both DNS engines and the complete DNS interception path are ready, and
+# stops it before engines when policy disables DNS or a family fallback fails.
+# Do not start it again here: that would resurrect a watcher just stopped by
+# apply.sh for an intentionally ineligible local-DNS configuration.
 if [ -x "$MODDIR/scripts/yulong-trusted-network.sh" ]; then
   sh "$MODDIR/scripts/yulong-trusted-network.sh" start >> "$PG/boot.log" 2>&1 || echo "[$(date '+%m-%d %H:%M:%S')] Yulong trusted-network watcher failed to start" >> "$PG/boot.log"
 fi

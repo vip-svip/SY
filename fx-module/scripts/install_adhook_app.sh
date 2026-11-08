@@ -1,32 +1,42 @@
 #!/system/bin/sh
 # Verify the unified FX Hook system-app overlay; only overlay-less legacy modules use ordinary-app fallback.
 set -u
-MODDIR=${1:-}
-if [ -z "$MODDIR" ]; then _d=$(dirname "$0" 2>/dev/null); MODDIR=$(cd "$_d/.." 2>/dev/null && pwd); fi
-STATE_DIR=${FX_ADHOOK_STATE_DIR:-/data/adb/privacyguard}
-TMP_DIR=${FX_ADHOOK_TMP_DIR:-/data/local/tmp}
-LOG=${FX_ADHOOK_LOG:-$STATE_DIR/adhook-install.log}
+
 # Do not let Root installer state or logs traverse attacker-controlled symlinks.
 # Check every lexical path component before mkdir/open, then re-check after creation.
 path_components_are_safe() {
   _pc_path=$1
-  case "$_pc_path" in /*) ;; *) return 1 ;; esac
+  case "$_pc_path" in /*) : ;; *) return 1 ;; esac
+  case "$_pc_path" in *//*|*/../*|*/..|*/./*|*/.) return 1 ;; esac
   _pc_rest=${_pc_path#/}
-  _pc_current=''
+  _pc_current=
   while [ -n "$_pc_rest" ]; do
     case "$_pc_rest" in
       */*) _pc_part=${_pc_rest%%/*}; _pc_rest=${_pc_rest#*/} ;;
-      *) _pc_part=$_pc_rest; _pc_rest='' ;;
+      *) _pc_part=$_pc_rest; _pc_rest= ;;
     esac
-    case "$_pc_part" in
-      ''|.) continue ;;
-      ..) return 1 ;;
-    esac
+    case "$_pc_part" in ''|.|..) return 1 ;; esac
     _pc_current="$_pc_current/$_pc_part"
     [ ! -L "$_pc_current" ] || return 1
   done
   return 0
 }
+file_path_is_safe_or_absent() {
+  _safe_file=$1
+  path_components_are_safe "$_safe_file" || return 1
+  [ ! -L "$_safe_file" ] || return 1
+  [ ! -e "$_safe_file" ] || [ -f "$_safe_file" ]
+}
+
+MODDIR=${1:-}
+if [ -z "$MODDIR" ]; then _d=$(dirname "$0" 2>/dev/null); MODDIR=$(cd "$_d/.." 2>/dev/null && pwd); fi
+if ! path_components_are_safe "$MODDIR" || [ ! -d "$MODDIR" ] || [ -L "$MODDIR" ]; then
+  printf "%s\\n" "ERROR: unsafe or missing FX module directory." >&2
+  exit 1
+fi
+STATE_DIR=${FX_ADHOOK_STATE_DIR:-/data/adb/privacyguard}
+TMP_DIR=${FX_ADHOOK_TMP_DIR:-/data/local/tmp}
+LOG=${FX_ADHOOK_LOG:-$STATE_DIR/adhook-install.log}
 if ! path_components_are_safe "$STATE_DIR" || ! path_components_are_safe "$TMP_DIR"; then
   printf '%s\n' "ERROR: installer state/temp path contains a symlink, relative component, or parent traversal; refusing Root installation." >&2
   exit 1
@@ -43,8 +53,7 @@ if [ ! -d "$STATE_DIR" ] || [ -L "$STATE_DIR" ] ||
   exit 1
 fi
 LOG_DIR=$(dirname "$LOG" 2>/dev/null) || exit 1
-if ! path_components_are_safe "$LOG_DIR" || [ -L "$LOG" ] ||
-   { [ -e "$LOG" ] && [ ! -f "$LOG" ]; }; then
+if ! path_components_are_safe "$LOG_DIR" || ! file_path_is_safe_or_absent "$LOG"; then
   printf '%s\n' "ERROR: installer log path is unsafe; refusing Root installation." >&2
   exit 1
 fi
@@ -60,44 +69,72 @@ package_is_system(){
   pm list packages -s "$1" 2>/dev/null | grep -Fqx "package:$1"
 }
 retire_legacy_standalone(){
-  # Remove the legacy app only when FX ownership and the exact installed APK
-  # digest prove it is the old FX-managed package. Never uninstall a user app.
+  # Retire only when both the FX owner token and the exact installed APK digest match.
+  # -k intentionally preserves old package data for the user.
   _legacy_pkg=de.privacyguard.hook
   _legacy_marker="$STATE_DIR/adhook-apk-privacyguardhook.sha256"
   _legacy_owned="$STATE_DIR/adhook-apk-privacyguardhook.fx-owned"
-  if ! package_present "$_legacy_pkg"; then
-    rm -f "$_legacy_marker" "$_legacy_owned"
+  file_path_is_safe_or_absent "$_legacy_marker" && file_path_is_safe_or_absent "$_legacy_owned" || {
+    log_msg "WARN: unsafe legacy Hook ownership metadata; preserving package and data"
+    return 0
+  }
+  if ! package_present "$_legacy_pkg"; then rm -f "$_legacy_marker" "$_legacy_owned"; return 0; fi
+  if [ ! -f "$_legacy_marker" ] || [ ! -f "$_legacy_owned" ]; then
+    log_msg "WARN: legacy Hook package has no FX ownership proof; preserving package and data"
     return 0
   fi
-  if [ ! -s "$_legacy_marker" ] || [ ! -s "$_legacy_owned" ]; then
-    log_msg "WARN: legacy Hook package has no FX ownership proof; preserving it. Remove it manually if it is an old FX copy."
-    return 0
-  fi
+  _legacy_owner=$(cat "$_legacy_owned" 2>/dev/null) || _legacy_owner=
   _legacy_path=$(pm path "$_legacy_pkg" 2>/dev/null | awk 'NR==1 {sub(/^package:/, ""); print; exit}')
   _legacy_expected=$(awk 'NR==1 {print $1}' "$_legacy_marker" 2>/dev/null)
-  _legacy_actual=$(sha256sum "$_legacy_path" 2>/dev/null | awk 'NR==1 {print $1}')
-  if [ -z "$_legacy_path" ] || [ -z "$_legacy_expected" ] ||
+  case "$_legacy_expected" in *[!0-9a-fA-F]*|'') _legacy_expected= ;; esac
+  _legacy_actual=
+  if file_path_is_safe_or_absent "$_legacy_path" && [ -f "$_legacy_path" ] && [ ! -L "$_legacy_path" ]; then
+    _legacy_actual=$(sha256sum "$_legacy_path" 2>/dev/null | awk 'NR==1 {print $1}')
+  fi
+  if [ "$_legacy_owner" != "fx-managed-v1" ] || [ "${#_legacy_expected}" -ne 64 ] ||
      [ -z "$_legacy_actual" ] || [ "$_legacy_actual" != "$_legacy_expected" ]; then
-    log_msg "WARN: legacy Hook digest does not prove FX ownership; preserving package"
+    log_msg "WARN: legacy Hook ownership/digest proof does not match; preserving package and data"
     return 0
   fi
-  if pm uninstall "$_legacy_pkg" >> "$LOG" 2>&1; then
+  if pm uninstall -k "$_legacy_pkg" >> "$LOG" 2>&1 && ! package_present "$_legacy_pkg"; then
     rm -f "$_legacy_marker" "$_legacy_owned"
-    log_msg "removed FX-managed legacy standalone Hook; FX Hook is the only FX app"
-  else
-    log_msg "ERROR: could not remove FX-managed legacy Hook package"
+    log_msg "retired FX-owned legacy Hook package with -k; legacy app data retained"
+    return 0
+  fi
+  log_msg "ERROR: could not retire FX-owned legacy Hook package; legacy data retained"
+  return 1
+}
+write_private_record() {
+  _record_path=$1
+  _record_value=$2
+  file_path_is_safe_or_absent "$_record_path" || return 1
+  _record_dir=$(dirname "$_record_path" 2>/dev/null) || return 1
+  [ -d "$_record_dir" ] && [ ! -L "$_record_dir" ] && path_components_are_safe "$_record_dir" || return 1
+
+  # mktemp creates the file exclusively. A PID-derived redirection path can
+  # be pre-planted as a symlink by another process with write access to state.
+  _record_tmp=$(umask 077; mktemp "${_record_path}.tmp.XXXXXX") || return 1
+  if ! path_components_are_safe "$_record_tmp" || [ ! -f "$_record_tmp" ] || [ -L "$_record_tmp" ]; then
+    [ -f "$_record_tmp" ] && [ ! -L "$_record_tmp" ] && rm -f "$_record_tmp" 2>/dev/null || :
     return 1
   fi
-  return 0
+  if ! ( umask 077; printf '%s\n' "$_record_value" > "$_record_tmp" ) 2>/dev/null ||
+     ! chmod 0600 "$_record_tmp" 2>/dev/null ||
+     ! mv -f "$_record_tmp" "$_record_path" 2>/dev/null; then
+    [ -f "$_record_tmp" ] && [ ! -L "$_record_tmp" ] && rm -f "$_record_tmp" 2>/dev/null || :
+    return 1
+  fi
+  [ -f "$_record_path" ] && [ ! -L "$_record_path" ] &&
+    [ "$(cat "$_record_path" 2>/dev/null)" = "$_record_value" ]
 }
+
 force_replace_signature_mismatch(){
   _pkg=$1; _new_apk=$2; _log_lines=$3
-  _backup_dir="$TMP_DIR/.fx-hook-rollback-$$"
-  rm -rf "$_backup_dir" 2>/dev/null
-  mkdir -p "$_backup_dir" || {
+  _backup_dir=$(umask 077; mktemp -d "$TMP_DIR/.fx-hook-rollback.XXXXXX") || _backup_dir=
+  if [ -z "$_backup_dir" ] || [ ! -d "$_backup_dir" ] || [ -L "$_backup_dir" ] || ! path_components_are_safe "$_backup_dir"; then
     log_msg "ERROR: cannot create rollback directory; preserving old installation"
     return 1
-  }
+  fi
   _paths=$(pm path "$_pkg" 2>/dev/null | sed -n 's/^package://p')
   [ -n "$_paths" ] || {
     log_msg "ERROR: signature conflict but installed APK paths are unavailable; preserving old installation"
@@ -142,26 +179,61 @@ force_replace_signature_mismatch(){
 }
 install_one(){
   _pkg=de.privacyguard.adhook; _slug=fxunifiedhook
-  # New module archives carry a systemless /system/app overlay. The optional
-  # payload is only a compatibility fallback for legacy archives without it.
+  # A present-but-damaged overlay must never be treated as an overlay-less legacy archive.
   _overlay_apk="$MODDIR/system/app/FX/FX.apk"
-  if [ -s "$_overlay_apk" ]; then _apk="$_overlay_apk"; else _apk="$MODDIR/optional/FXUnifiedHook.apk"; fi
+  file_path_is_safe_or_absent "$_overlay_apk" || { log_msg "ERROR: unsafe FX system-app overlay path; refusing fallback"; return 1; }
+  # A pending overlay retry means the systemless mount or its SELinux label is still
+  # unresolved; falling back to /data/app here would silently ship an ordinary app
+  # where the module promised a recognized system app.
+  _retry_marker="$STATE_DIR/system-app-retry"
+  if ! file_path_is_safe_or_absent "$_retry_marker"; then
+    log_msg "ERROR: unsafe system-app retry marker; refusing ordinary-app fallback"
+    return 1
+  fi
+  if [ ! -e "$_overlay_apk" ] && [ -s "$_retry_marker" ]; then
+    log_msg "ERROR: system-app overlay deployment is still pending retry; refusing ordinary-app fallback"
+    return 1
+  fi
+  _is_overlay=0
+  if [ -e "$_overlay_apk" ]; then
+    [ -f "$_overlay_apk" ] && [ -s "$_overlay_apk" ] && [ ! -L "$_overlay_apk" ] || { log_msg "ERROR: system-app overlay exists but is empty or non-regular; refusing ordinary-app fallback"; return 1; }
+    _apk="$_overlay_apk"; _is_overlay=1
+  else
+    _apk="$MODDIR/optional/FXUnifiedHook.apk"
+  fi
   _marker="$STATE_DIR/adhook-apk-$_slug.sha256"; _owned="$STATE_DIR/adhook-apk-$_slug.fx-owned"
+  if ! file_path_is_safe_or_absent "$_apk" || [ ! -f "$_apk" ] || [ ! -s "$_apk" ] || [ -L "$_apk" ] ||
+     ! file_path_is_safe_or_absent "$_apk.sha256" || [ ! -f "$_apk.sha256" ] || [ ! -s "$_apk.sha256" ] || [ -L "$_apk.sha256" ]; then
+    log_msg "ERROR: unified Hook APK or required SHA-256 sidecar is missing or unsafe"
+    return 1
+  fi
   [ -s "$_apk" ] || { log_msg "ERROR: unified Hook APK missing: $_apk"; return 1; }
   command -v pm >/dev/null 2>&1 || { log_msg "WARN: pm unavailable; defer Hook installation"; return 1; }
   _actual=$(sha256sum "$_apk" 2>/dev/null | awk 'NR==1 {print $1}')
   [ -n "$_actual" ] || { log_msg "ERROR: cannot calculate unified APK digest"; return 1; }
-  # The system-app overlay is a release payload: require its checksum sidecar.
-  # Legacy optional APK payloads remain compatible with older module archives.
-  if [ -s "$_overlay_apk" ] && [ ! -s "$_apk.sha256" ]; then
-    log_msg "ERROR: system-app overlay checksum sidecar is missing; refusing deployment"
+  if ! file_path_is_safe_or_absent "$_apk" || [ ! -f "$_apk" ] || [ ! -s "$_apk" ] || [ -L "$_apk" ] ||
+     ! file_path_is_safe_or_absent "$_apk.sha256" || [ ! -f "$_apk.sha256" ] || [ ! -s "$_apk.sha256" ] || [ -L "$_apk.sha256" ]; then
+    log_msg "ERROR: unified Hook APK or required SHA-256 sidecar is missing or unsafe"
     return 1
   fi
-  if [ -s "$_apk.sha256" ]; then
-    _expected=$(awk 'NR==1 {print $1}' "$_apk.sha256")
-    case "$_expected" in *[!0-9a-fA-F]*|'') log_msg "ERROR: invalid unified APK checksum format"; return 1 ;; esac
-    [ "${#_expected}" -eq 64 ] || { log_msg "ERROR: invalid unified APK checksum length"; return 1; }
-    [ "$_expected" = "$_actual" ] || { log_msg "ERROR: unified APK checksum mismatch; refusing install"; return 1; }
+  _actual=$(sha256sum "$_apk" 2>/dev/null | awk 'NR==1 {print $1}')
+  _expected=$(awk 'NR==1 {print $1}' "$_apk.sha256" 2>/dev/null)
+  case "$_expected" in *[!0-9a-fA-F]*|'') _expected= ;; esac
+  [ "${#_actual}" -eq 64 ] && [ "${#_expected}" -eq 64 ] && [ "$_expected" = "$_actual" ] || {
+    log_msg "ERROR: unified APK SHA-256 sidecar is invalid or does not match; refusing install"
+    return 1
+  }
+  if [ "$_is_overlay" = 1 ]; then
+    _build_info="$MODDIR/optional/FXUnifiedHook-BUILD-INFO.txt"
+    if ! file_path_is_safe_or_absent "$_build_info" || [ ! -f "$_build_info" ] || [ -L "$_build_info" ] ||
+       ! grep -Fqx "Deployment: systemless /system/app/FX/FX.apk overlay; PackageManager fallback only when overlay is unavailable" "$_build_info"; then
+      log_msg "ERROR: FX system-app build provenance is missing or inconsistent; refusing deployment"
+      return 1
+    fi
+  fi
+  if ! file_path_is_safe_or_absent "$_marker" || ! file_path_is_safe_or_absent "$_owned"; then
+    log_msg "ERROR: Hook ownership state path is unsafe"
+    return 1
   fi
   _is_system_app=0
   if package_present "$_pkg"; then
@@ -193,11 +265,31 @@ install_one(){
     log_msg "ERROR: FX system-app overlay is present but PackageManager does not classify the package as a system app; refusing ordinary-app fallback. Check KernelSU overlay mount, post-fs-data SELinux labeling and reboot."
     return 1
   fi
-  _prior=$(cat "$_marker" 2>/dev/null); _was_present=0; package_present "$_pkg" && _was_present=1
-  if [ "$_was_present" = 1 ] && [ "$_prior" = "$_actual" ]; then
-    retire_legacy_standalone || return 1
-    log_msg "FX Hook already installed and unchanged; obsolete standalone app removed"
-    return 0
+  _prior=; _was_present=0; _was_fx_owned=0; _installed_path=; _installed_digest=
+  if package_present "$_pkg"; then
+    _was_present=1
+    _installed_path=$(pm path "$_pkg" 2>/dev/null | sed -n "s/^package://p" | awk "NR==1 {print; exit}")
+    if file_path_is_safe_or_absent "$_installed_path" && [ -f "$_installed_path" ] && [ ! -L "$_installed_path" ]; then
+      _installed_digest=$(sha256sum "$_installed_path" 2>/dev/null | awk 'NR==1 {print $1}')
+    fi
+    _prior=$(cat "$_marker" 2>/dev/null) || _prior=
+    _owner_value=$(cat "$_owned" 2>/dev/null) || _owner_value=
+    case "$_prior" in *[!0-9a-fA-F]*|'') _prior= ;; esac
+    if [ "$_owner_value" = "fx-managed-v1" ] && [ "${#_prior}" -eq 64 ] &&
+       [ -n "$_installed_digest" ] && [ "$_installed_digest" = "$_prior" ]; then
+      _was_fx_owned=1
+    else
+      # Stale ownership records are not authority over the current installed app.
+      rm -f "$_marker" "$_owned"
+      _prior=
+    fi
+    if [ "$_installed_digest" = "$_actual" ]; then
+      log_msg "verified existing FX Hook APK digest; PackageManager reinstall not required"
+      retire_legacy_standalone || return 1
+      return 0
+    fi
+  else
+    rm -f "$_marker" "$_owned"
   fi
   # /data/local/tmp is shared and writable by other apps. Use an atomically
   # created private directory rather than a predictable staging-file path.
@@ -230,7 +322,7 @@ install_one(){
   # Otherwise a failed first install can leave a stale marker that later removes
   # an unrelated user-installed package with the same applicationId.
   if [ "$_was_present" = 0 ]; then
-    rm -f "$_marker" "$_owned" "$_marker.tmp.$$" "$_owned.tmp.$$" 2>/dev/null
+    rm -f "$_marker" "$_owned" 2>/dev/null
   fi
   chmod 0644 "$_stage" 2>/dev/null || :; chown shell:shell "$_stage" 2>/dev/null || :
   command -v restorecon >/dev/null 2>&1 && restorecon "$_stage" 2>/dev/null || :
@@ -238,21 +330,14 @@ install_one(){
   while [ "$_attempt" -le 3 ]; do
     _log_lines=$(wc -l < "$LOG" 2>/dev/null || echo 0)
     if pm install -r "$_stage" >> "$LOG" 2>&1 && package_present "$_pkg"; then
-      if ! (umask 077; printf '%s\n' "$_actual" > "$_marker.tmp.$$") ||
-         ! chmod 0600 "$_marker.tmp.$$" 2>/dev/null ||
-         ! mv -f "$_marker.tmp.$$" "$_marker" 2>/dev/null ||
-         [ "$(cat "$_marker" 2>/dev/null)" != "$_actual" ]; then
-        rm -f "$_marker.tmp.$" 2>/dev/null
+      if ! write_private_record "$_marker" "$_actual"; then
         cleanup_stage
         log_msg "ERROR: APK installed but its digest ownership record could not be committed"
         return 1
       fi
       if [ "$_was_present" = 0 ]; then
-        if ! (umask 077; printf 'fx-managed-v1\n' > "$_owned.tmp.$$") ||
-           ! chmod 0600 "$_owned.tmp.$$" 2>/dev/null ||
-           ! mv -f "$_owned.tmp.$$" "$_owned" 2>/dev/null ||
-           [ "$(cat "$_owned" 2>/dev/null)" != "fx-managed-v1" ]; then
-          rm -f "$_owned.tmp.$" "$_marker" 2>/dev/null
+        if ! write_private_record "$_owned" "fx-managed-v1"; then
+          rm -f "$_marker" 2>/dev/null
           cleanup_stage
           log_msg "ERROR: APK installed but FX ownership record could not be committed; leaving package untouched"
           return 1
@@ -263,11 +348,16 @@ install_one(){
     fi
     if tail -n "+$((_log_lines+1))" "$LOG" 2>/dev/null | grep -Eqi 'INSTALL_FAILED_UPDATE_INCOMPATIBLE|signatures do not match|signing certificate'; then
       if [ "$_is_system_app" = 1 ]; then
-        log_msg "ERROR: signing certificate changed for a system app; refusing uninstall/migration to protect the system package and app data. Build with the stable FX signing identity."
+        log_msg "ERROR: signing certificate changed for a system app; refusing uninstall/migration to protect the system package and app data."
         cleanup_stage
         return 1
       fi
-      log_msg "WARN: Android rejected in-place update because the APK signing certificate changed; attempting data-preserving migration"
+      if [ "$_was_fx_owned" != 1 ]; then
+        log_msg "ERROR: signing certificate differs for a package not proven FX-owned; preserving the existing app and its data."
+        cleanup_stage
+        return 1
+      fi
+      log_msg "WARN: Android rejected in-place update for an FX-owned ordinary Hook; attempting data-preserving migration"
       if force_replace_signature_mismatch "$_pkg" "$_stage" "$_log_lines"; then
         _installed=1
         break
@@ -282,10 +372,20 @@ install_one(){
   done
   cleanup_stage
   [ "$_installed" = 1 ] || { log_msg "ERROR: unable to install unified Hook; core FX installation continues"; return 1; }
-  if [ -s "$_overlay_apk" ]; then
-    log_msg "WARN: systemless overlay is not visible to PackageManager; installed compatibility copy as an ordinary app"
+  _post_paths=$(pm path "$_pkg" 2>/dev/null | sed -n 's/^package://p')
+  _post_system_path=$(printf '%s\n' "$_post_paths" | awk '/^\/system\// || /^\/product\// || /^\/vendor\// {print; exit}')
+  _post_pm_system=0
+  package_is_system "$_pkg" && _post_pm_system=1
+  if [ "$_is_overlay" = 1 ]; then
+    if [ -z "$_post_system_path" ] && [ "$_post_pm_system" != 1 ]; then
+      log_msg "ERROR: PackageManager did not retain system-app classification after the overlay update; refusing success"
+      return 1
+    fi
+    log_msg "verified FX Hook remains a PackageManager system app after the systemless overlay update"
+  elif [ -n "$_post_system_path" ] || [ "$_post_pm_system" = 1 ]; then
+    log_msg "updated an existing Android system app from an overlay-less legacy archive; PackageManager system classification is preserved"
   else
-    log_msg "installed unified Hook APK from legacy optional payload as an ordinary app"
+    log_msg "installed unified Hook APK from an overlay-less legacy archive as an ordinary /data/app compatibility app"
   fi
   log_msg "configure LSPosed module and target scope, then reboot"
   retire_legacy_standalone || return 1

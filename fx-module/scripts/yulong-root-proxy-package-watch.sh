@@ -2,10 +2,10 @@
 # Module-owned PackageManager watcher for Root Proxy DNS whitelist reconciliation.
 # Calls the existing atomic package-event handler only when package/UID state changes.
 set -u
-CMD=\${1:-status}
-MP=\${2:-\${MP:-}}
-PG=\${3:-\${PG:-/data/adb/privacyguard}}
-case "$0" in */scripts/yulong-root-proxy-package-watch.sh) SCRIPT=$0 ;; *) SCRIPT=\${SCRIPT:-} ;; esac
+CMD=${1:-status}
+MP=${2:-${MP:-}}
+PG=${3:-${PG:-/data/adb/privacyguard}}
+case "$0" in */scripts/yulong-root-proxy-package-watch.sh) SCRIPT=$0 ;; *) SCRIPT=${SCRIPT:-} ;; esac
 if [ -z "$MP" ]; then
   for _candidate in /data/adb/modules/privacyguard /data/adb/modules_update/privacyguard; do
     if [ -f "$_candidate/module.prop" ] && grep -q '^id=privacyguard$' "$_candidate/module.prop" 2>/dev/null; then
@@ -14,31 +14,57 @@ if [ -z "$MP" ]; then
     fi
   done
 fi
-[ -n "$MP" ] && [ -f "$MP/module.prop" ] || { echo "FX module directory unavailable" >&2; exit 20; }
+[ -n "$MP" ] && path_components_safe "$MP" && [ -d "$MP" ] && [ ! -L "$MP" ] \
+  && [ -f "$MP/module.prop" ] && [ ! -L "$MP/module.prop" ] \
+  || { echo "FX module directory unavailable or unsafe" >&2; exit 20; }
 [ -n "$SCRIPT" ] || SCRIPT="$MP/scripts/yulong-root-proxy-package-watch.sh"
+path_components_safe "$SCRIPT" && [ -f "$SCRIPT" ] && [ ! -L "$SCRIPT" ] \
+  || { echo "Root Proxy package watcher script is missing or unsafe" >&2; exit 20; }
 ROOT_PROXY="$MP/scripts/yulong-root-proxy.sh"
-[ -f "$ROOT_PROXY" ] && [ ! -L "$ROOT_PROXY" ] || { echo "Root Proxy helper is missing or unsafe" >&2; exit 20; }
-[ -d "$PG" ] && [ ! -L "$PG" ] || { echo "FX state directory is missing or unsafe" >&2; exit 21; }
+path_components_safe "$ROOT_PROXY" && [ -f "$ROOT_PROXY" ] && [ ! -L "$ROOT_PROXY" ] \
+  || { echo "Root Proxy helper is missing or unsafe" >&2; exit 20; }
+path_components_safe "$PG" && [ -d "$PG" ] && [ ! -L "$PG" ] \
+  || { echo "FX state directory is missing or unsafe" >&2; exit 21; }
 
 PIDFILE="$PG/yulong-root-proxy-package-watch.pid"
 SNAPSHOT="$PG/yulong-root-proxy-package-watch.snapshot"
 LOCK="$PG/yulong-root-proxy-package-watch.lock"
 LOG="$PG/yulong-root-proxy-package-watch.log"
-INTERVAL=\${FX_ROOT_PROXY_PACKAGE_WATCH_INTERVAL:-30}
+INTERVAL=${FX_ROOT_PROXY_PACKAGE_WATCH_INTERVAL:-30}
 case "$INTERVAL" in ''|*[!0-9]*) INTERVAL=30 ;; esac
 [ "$INTERVAL" -ge 10 ] || INTERVAL=10
 [ "$INTERVAL" -le 300 ] || INTERVAL=300
 umask 077
 
-reject_unsafe_path() {
-  _path=$1
-  [ ! -L "$_path" ] || return 1
-  [ ! -e "$_path" ] || [ -f "$_path" ] || [ -d "$_path" ] || return 1
+path_components_safe() {
+  _candidate=$1
+  case "$_candidate" in /*) : ;; *) return 1 ;; esac
+  case "$_candidate" in *//*|*/../*|*/..|*/./*|*/.) return 1 ;; esac
+  _rest=${_candidate#/}
+  _walk=
+  while [ -n "$_rest" ]; do
+    case "$_rest" in
+      */*) _part=${_rest%%/*}; _rest=${_rest#*/} ;;
+      *) _part=$_rest; _rest= ;;
+    esac
+    case "$_part" in ''|.|..) return 1 ;; esac
+    _walk="$_walk/$_part"
+    [ ! -L "$_walk" ] || return 1
+  done
   return 0
 }
-for _path in "$PIDFILE" "$SNAPSHOT" "$LOCK" "$LOG"; do
+reject_unsafe_path() {
+  _path=$1
+  path_components_safe "$_path" || return 1
+  [ ! -L "$_path" ] || return 1
+  [ ! -e "$_path" ] || [ -f "$_path" ] || [ -d "$_path" ]
+}
+for _path in "$PIDFILE" "$SNAPSHOT" "$LOG"; do
   reject_unsafe_path "$_path" || { echo "unsafe Root Proxy package watcher state path: $_path" >&2; exit 21; }
+  [ ! -e "$_path" ] || [ -f "$_path" ] || { echo "Root Proxy package watcher state file is not regular: $_path" >&2; exit 21; }
 done
+reject_unsafe_path "$LOCK" || { echo "unsafe Root Proxy package watcher lock path" >&2; exit 21; }
+[ ! -e "$LOCK" ] || [ -d "$LOCK" ] || { echo "Root Proxy package watcher lock path is not a directory" >&2; exit 21; }
 
 log() {
   printf '[%s] root-proxy-package-watch: %s\n' \
@@ -137,9 +163,9 @@ package_snapshot_hash() {
   ' | LC_ALL=C sort) || return 1
   [ -n "$_rows" ] || return 1
   _hashline=$(printf '%s\n' "$_rows" | cksum 2>/dev/null) || return 1
-  _hash=\${_hashline%% *}
-  _rest=\${_hashline#* }
-  _bytes=\${_rest%% *}
+  _hash=${_hashline%% *}
+  _rest=${_hashline#* }
+  _bytes=${_rest%% *}
   case "$_hash:$_bytes" in ''|*[!0-9:]*) return 1 ;; esac
   printf '%s:%s\n' "$_hash" "$_bytes"
 }

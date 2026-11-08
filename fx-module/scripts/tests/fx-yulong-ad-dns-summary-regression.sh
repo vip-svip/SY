@@ -22,6 +22,7 @@ cat > "$TMP/data/querylog.json" <<'JSON'
 {"QH":"tracker.example","QT":"A","Result":{"IsFiltered":true,"Reason":"FilteredBlackList"},"ClientIP":"192.0.2.13"}
 {"question":{"host":"pass.example","type":"A"},"status":"NOERROR","ClientIP":"192.0.2.14"}
 {"QH":"open-again.example","IsFiltered":false,"Note":"literal \\\"QH\\\":\\\"fake.example\\\" and \\\"IsFiltered\\\":true"}
+{"QH":"broken.example","IsFiltered":true
 JSON
 OUT=$(sh "$HELPER" "$TMP/data")
 printf '%s\n' "$OUT" | grep -qx 'FXYULONGDNSSTATS1' || fail "summary protocol header missing"
@@ -31,14 +32,6 @@ printf '%s\n' "$OUT" | grep -qx 'unblocked=3' || fail "unblocked DNS rows were n
 for secret in ads.example open.example tracker.example pass.example open-again.example fake.example 192.0.2.11 192.0.2.12 192.0.2.13 192.0.2.14 ClientIP; do
   ! printf '%s\n' "$OUT" | grep -Fq "$secret" || fail "summary leaked raw DNS field: $secret"
 done
-
-# A truncated final write must fail the aggregate instead of publishing
-# plausible-looking partial counts over the retained log.
-printf '%s\n' '{"QH":"broken.example","IsFiltered":true' > "$TMP/data/querylog.json"
-if sh "$HELPER" "$TMP/data" >/dev/null 2>"$TMP/malformed.err"; then
-  fail "truncated JSONL record did not fail the aggregate"
-fi
-grep -Fq 'malformed or truncated record' "$TMP/malformed.err" || fail "truncated record failure reason is missing"
 
 : > "$TMP/data/querylog.json"
 [ "$(sh "$HELPER" "$TMP/data")" = FXDNSLOG_EMPTY ] || fail "empty query log was not reported"

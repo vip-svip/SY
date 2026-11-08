@@ -150,6 +150,29 @@ assert "FxGkdRuleStore.exportJson(this)" in activity
 assert "所有新导入规则均已关闭" in activity
 assert 'setText("启用 GKD 本地规则自动化")' in activity
 assert 'setPositiveButton("校验并保存"' in activity
+for token in (
+    'title.setTag("fx-title:20")',
+    'body = new LinearLayout(this); body.setTag("fx-card-group")',
+    'serviceState = text("", 0xff536170, 13); serviceState.setTag("fx-card-detail")',
+    'masterSwitch = new Switch(this); masterSwitch.setTag("fx-switch-row")',
+    'addRuleAction.setTag("fx-primary-action")',
+    'panel.setTag("fx-card")',
+    'button.setTag("fx-action-row")',
+    'packageInput.setTag("fx-form-input")',
+    'selectorInput.setTag("fx-form-input")',
+    'actionInput.setTag("fx-select-input")',
+    'excludeInput.setTag("fx-form-input")',
+    'groupInput.setTag("fx-form-input")',
+    'cooldownInput.setTag("fx-form-input")',
+    'groupFilter.setTag("fx-select-input")',
+    'statusFilter.setTag("fx-select-input")',
+    'searchInput.setTag("fx-search-input")',
+    'row.setTag("fx-list-row")',
+    'selected.setTag("fx-switch-row")',
+    'enabled.setTag("fx-switch-row")',
+):
+    assert token in activity, f"GKD UI is missing six-mode component role: {token}"
+assert activity.count('setTag("fx-form-input")') >= 9, "both new/edit GKD forms need all text fields tagged"
 assert "showPackagePicker(EditText packageInput)" in activity
 assert "candidates.size() >= 500" not in activity, "app picker must enumerate all installed user apps"
 assert "规则状态保存失败，已恢复原状态。" in activity

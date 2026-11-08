@@ -110,7 +110,6 @@ case "$ACTION" in
         enabled=$3
         case "$enabled" in 0|1) ;; *) echo "ERROR enabled must be 0 or 1"; exit 64 ;; esac
         [ -n "$value" ] || { echo "ERROR script value is empty"; exit 64; }
-        [ "${#note}" -le 4096 ] || { echo "ERROR script metadata exceeds 4096 characters"; exit 65; }
         value=$(encode_script_value "$value") || { echo "ERROR only HTTPS URLs or local JS source are supported"; exit 65; }; note=$(sanitize_field "$note")
         [ -n "$note" ] || note=$(printf '%s' "$value" | cut -c1-80)
         if is_duplicate_pair "$value" "$note"; then
@@ -123,13 +122,10 @@ case "$ACTION" in
         [ "$#" -eq 1 ] || { echo "ERROR add-batch expects manifest_path"; exit 64; }
         manifest=$1
         case "$manifest" in
-          /data/user/[0-9]*/de.privacyguard.adhook/cache/fx-native-script-batch-*|/data/data/de.privacyguard.adhook/cache/fx-native-script-batch-*) ;;
-          *) echo "ERROR batch manifest is outside the approved app cache"; exit 65 ;;
+          /data/user/[0-9]*/de.privacyguard.adhook/cache/fx-native-script-batch-*|/data/data/de.privacyguard.adhook/cache/fx-native-script-batch-*|"$PG"/jsruntime/staging/fx-native-script-batch-*) ;;
+          *) echo "ERROR batch manifest is outside the approved app cache or FX staging directory"; exit 65 ;;
         esac
         [ -f "$manifest" ] && [ ! -L "$manifest" ] || { echo "ERROR batch manifest is missing or unsafe"; exit 65; }
-        manifest_size=$(wc -c < "$manifest" 2>/dev/null | tr -d ' ')
-        case "$manifest_size" in ''|*[!0-9]*) manifest_size=0 ;; esac
-        [ "$manifest_size" -le 8388608 ] || { echo "ERROR batch manifest exceeds 8 MiB"; exit 65; }
         batch_added=0
         batch_duplicate=0
         batch_failed=0
@@ -137,7 +133,7 @@ case "$ACTION" in
         while IFS='|' read -r kind value64 note64 enabled extra; do
           [ -n "$kind" ] || continue
           batch_lines=$((batch_lines+1))
-          if [ "$batch_lines" -gt 512 ] || [ -n "$extra" ]; then
+          if [ -n "$extra" ]; then
             batch_failed=$((batch_failed+1))
             continue
           fi
@@ -146,7 +142,7 @@ case "$ACTION" in
             URL)
               url=$(decode_b64 "$value64") || { batch_failed=$((batch_failed+1)); continue; }
               note=$(decode_b64 "$note64") || { batch_failed=$((batch_failed+1)); continue; }
-              [ -n "$url" ] && [ "${#note}" -le 4096 ] || { batch_failed=$((batch_failed+1)); continue; }
+              [ -n "$url" ] || { batch_failed=$((batch_failed+1)); continue; }
               case "$url" in
                 https://*) ;;
                 *) batch_failed=$((batch_failed+1)); continue ;;
@@ -166,12 +162,11 @@ case "$ACTION" in
               ;;
             SOURCE)
               note=$(decode_b64 "$note64") || { batch_failed=$((batch_failed+1)); continue; }
-              [ "${#note}" -le 4096 ] || { batch_failed=$((batch_failed+1)); continue; }
               : > "$VALUE_FILE"
               decode_b64 "$value64" > "$VALUE_FILE" || { batch_failed=$((batch_failed+1)); continue; }
               source_size=$(wc -c < "$VALUE_FILE" 2>/dev/null | tr -d ' ')
               case "$source_size" in ''|*[!0-9]*) source_size=0 ;; esac
-              [ "$source_size" -gt 0 ] && [ "$source_size" -le 1048576 ] || {
+              [ "$source_size" -gt 0 ] || {
                 batch_failed=$((batch_failed+1)); continue;
               }
               first_line=$(sed -n '1{p;q;}' "$VALUE_FILE")
@@ -218,13 +213,10 @@ case "$ACTION" in
         note=$(decode_b64 "$2") || { echo "ERROR invalid note encoding"; exit 64; }
         enabled=$3
         case "$enabled" in 0|1) ;; *) echo "ERROR enabled must be 0 or 1"; exit 64 ;; esac
-        note_length=$(printf '%s' "$note" | wc -c | tr -d ' ')
-        case "$note_length" in ''|*[!0-9]*) note_length=4097 ;; esac
-        [ "$note_length" -le 4096 ] || { echo "ERROR script metadata exceeds 4096 bytes"; exit 65; }
         cp "$source_path" "$VALUE_FILE" || { echo "ERROR unable to snapshot staged script"; exit 1; }
         [ -s "$VALUE_FILE" ] || { echo "ERROR script value is empty"; exit 64; }
         # Read only the first line for transport classification. Keep local JS
-        # bytes file-backed until base64 encoding, rather than shell-expanding 1 MiB.
+        # bytes file-backed until base64 encoding, rather than shell-expanding source data.
         first_line=$(sed -n '1{p;q;}' "$VALUE_FILE")
         case "$first_line" in
           https://*)
@@ -247,8 +239,8 @@ case "$ACTION" in
             fi
             source_size=$(wc -c < "$VALUE_FILE" | tr -d ' ')
             case "$source_size" in ''|*[!0-9]*) source_size=0 ;; esac
-            [ "$source_size" -gt 0 ] && [ "$source_size" -le 1048576 ] || {
-              echo "ERROR local JS source must be between 1 byte and 1 MiB"
+            [ "$source_size" -gt 0 ] || {
+              echo "ERROR local JS source must not be empty"
               exit 65
             }
             note=$(sanitize_field "$note")
@@ -273,9 +265,6 @@ case "$ACTION" in
         index=$1; case "$index" in ''|*[!0-9]*|0) echo "ERROR invalid index"; exit 64 ;; esac
         value=$(decode_b64 "$2") || { echo "ERROR invalid value encoding"; exit 64; }
         note=$(decode_b64 "$3") || { echo "ERROR invalid note encoding"; exit 64; }
-        note_length=$(printf '%s' "$note" | wc -c | tr -d ' ')
-        case "$note_length" in ''|*[!0-9]*) note_length=4097 ;; esac
-        [ "$note_length" -le 4096 ] || { echo "ERROR script metadata exceeds 4096 bytes"; exit 65; }
         value=$(encode_script_value "$value") || { echo "ERROR only HTTPS URLs or local JS source are supported"; exit 65; }; note=$(sanitize_field "$note")
         [ -n "$note" ] || note=$(printf '%s' "$value" | cut -c1-80)
         printf '%s' "$value" > "$VALUE_FILE"; printf '%s' "$note" > "$NOTE_FILE"

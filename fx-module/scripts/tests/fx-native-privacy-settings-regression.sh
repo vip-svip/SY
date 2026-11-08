@@ -30,6 +30,20 @@ assert 'json.optBoolean("root", false) ? "已授权" : "未授权"' in method, \
 print("PASS: privacy authorization summary distinguishes unknown Root state and reports system-enabled/FX-connected Accessibility state")
 PY
 
+PRIVACY_ACTIVITY="$ROOT/adhook/app/src/main/java/de/privacyguard/adhook/FxNativePrivacySettingsActivity.java"
+for token in \
+  'content.setTag("fx-card-group")' \
+  'title.setTag("fx-title:24")' \
+  'note.setTag("fx-card-detail")' \
+  'status.setTag("fx-card-detail")' \
+  'refresh.setTag("fx-action-row")' \
+  'scroll.setTag("fx-page-root")' \
+  'heading.setTag("fx-section:" + panelTitle)' \
+  'box.setTag("fx-switch-row")' \
+  'detail.setTag("fx-card-detail")'; do
+  grep -Fq "$token" "$PRIVACY_ACTIVITY" || fail "native privacy six-mode component role missing: $token"
+done
+
 if [ ! -s "$MODULE/webroot/index.html" ] || [ ! -s "$MODULE/scripts/default.conf" ]; then
   echo "SKIP: module-backed privacy writer checks require restored FX module archive; app-side status contract passed."
   exit 0

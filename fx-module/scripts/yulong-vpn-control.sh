@@ -2,10 +2,17 @@
 # Yulong Tasker/widget compatibility controller; only updates FX's canonical VPN route.
 set -eu
 umask 077
-[ "$#" -eq 3 ] || { echo "usage: $0 MODULE_DIR STATE_DIR {status|start|stop|toggle}" >&2; exit 64; }
+[ "$#" -ge 3 ] && [ "$#" -le 4 ] || { echo "usage: $0 MODULE_DIR STATE_DIR {status|start|stop|toggle|set-mode [direct|global|rule|tun]}" >&2; exit 64; }
 MP=$1
 PG=$2
 CMD=$3
+MODE=${4:-}
+if [ "$CMD" = "set-mode" ]; then
+  [ "$#" -eq 4 ] || { echo "usage: $0 MODULE_DIR STATE_DIR set-mode {direct|global|rule|tun}" >&2; exit 64; }
+  case "$MODE" in direct|global|rule|tun) : ;; *) echo "invalid VPN mode" >&2; exit 2 ;; esac
+else
+  [ "$#" -eq 3 ] || { echo "unexpected VPN control argument" >&2; exit 64; }
+fi
 [ "$MP" = "-" ] && MP=""
 [ "$PG" = "-" ] && PG=/data/adb/privacyguard
 if [ -z "$MP" ]; then
@@ -280,10 +287,56 @@ stop_vpn() {
   fi
   echo "vpn_stopped=1"
 }
+
+set_mode() {
+  target=$1
+  case "$target" in direct|global|rule|tun) : ;; *) echo "invalid VPN mode" >&2; return 2 ;; esac
+  # Direct mode is the canonical stop operation; reuse its route verification
+  # and rollback handling rather than maintaining a second stop implementation.
+  [ "$target" != "direct" ] || { stop_vpn; return $?; }
+  lock_acquire || return $?
+  old_mode=$(pg_get vpn_mode direct 2>/dev/null || echo direct)
+  case "$old_mode" in direct|global|rule|tun) : ;; *) echo "invalid saved VPN mode; no change was applied" >&2; return 22 ;; esac
+  if ! state=$(status_json 2>/dev/null); then
+    echo "VPN_STATUS_UNAVAILABLE: route status could not be verified; no change was applied" >&2
+    return 35
+  fi
+  node=$(pg_get vpn_node "" 2>/dev/null || true)
+  if [ -z "$node" ]; then
+    echo "VPN_NO_NODE_SELECTED: select an FX node before applying global/rule/TUN mode" >&2
+    return 32
+  fi
+  [ "$old_mode" = "$target" ] && is_vpn_running "$state" && {
+    echo "vpn_mode=$target"
+    echo "vpn_already_running=1"
+    return 0
+  }
+  pg_set vpn_mode "$target" || return 31
+  if ! apply_mode "$target"; then
+    restore_mode "$old_mode" >/dev/null 2>&1 || echo "VPN mode rollback apply failed" >> "$LOG"
+    echo "VPN_MODE_APPLY_FAILED: previous route mode restored" >&2
+    return 1
+  fi
+  if ! state=$(status_json 2>/dev/null); then
+    restore_mode "$old_mode" >/dev/null 2>&1 || echo "VPN mode rollback failed after status read error" >> "$LOG"
+    echo "VPN_MODE_NOT_CONFIRMED: route status is unavailable after apply" >&2
+    return 33
+  fi
+  actual_mode=$(mode_from_status "$state")
+  if [ "$actual_mode" != "$target" ] || ! is_vpn_running "$state"; then
+    restore_mode "$old_mode" >/dev/null 2>&1 || echo "VPN mode rollback apply failed" >> "$LOG"
+    echo "VPN_MODE_NOT_CONFIRMED: status.sh did not confirm the requested route" >&2
+    return 33
+  fi
+  echo "vpn_mode=$target"
+  echo "vpn_mode_applied=1"
+}
+
 case "$CMD" in
   status) status_json ;;
   start) start_vpn ;;
   stop) stop_vpn ;;
+  set-mode) set_mode "$MODE" ;;
   toggle)
     state=$(status_json 2>/dev/null) || {
       echo "VPN_STATUS_UNAVAILABLE: toggle refused to mutate an unknown route" >&2

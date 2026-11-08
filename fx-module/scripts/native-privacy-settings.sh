@@ -37,6 +37,43 @@ case "${1:-}" in
     # Return only top-level boolean flags; never expose subscriptions or script bodies to the app.
     awk 'BEGIN{FS="="} /^\[/ {exit} /^[A-Za-z0-9_.-]+=[01]$/ {print}' "$CONF"
     ;;
+
+
+  show-target)
+    _pkg=${2:-}
+    case "$_pkg" in ''|*[!A-Za-z0-9_.-]*) echo "invalid package" >&2; exit 2 ;; esac
+    pg_target_show_location "$_pkg"
+    ;;
+  clear-target)
+    _pkg=${2:-}
+    case "$_pkg" in ''|*[!A-Za-z0-9_.-]*) echo "invalid package" >&2; exit 2 ;; esac
+    pg_target_clear_location "$_pkg" || { echo "failed to clear target coordinates" >&2; exit 1; }
+    echo "cleared=1"
+    ;;
+  set-target)
+    # set-target <package> <lat> <lon> [accuracy]
+    # Coordinates are per-target target-list features, not global 0/1 settings: the
+    # module's target row already carries location_lat/location_lon/location_accuracy.
+    _pkg=${2:-}
+    _lat=${3:-}
+    _lon=${4:-}
+    _acc=${5:-}
+    case "$_pkg" in ''|*[!A-Za-z0-9_.-]*) echo "invalid package" >&2; exit 2 ;; esac
+    _ok=$(
+      awk -v p="$_pkg" -v lat="$_lat" -v lon="$_lon" -v acc="$_acc" '
+        BEGIN {
+          if (lat+0 != lat || lat < -90 || lat > 90) exit 1
+          if (lon+0 != lon || lon < -180 || lon > 180) exit 1
+          if (acc != "" && (acc+0 != acc || acc < 0 || acc > 1000)) exit 1
+          print "ok"
+        }'
+    ) || { echo "invalid coordinate" >&2; exit 2; }
+    [ "$_ok" = ok ] || { echo "invalid coordinate" >&2; exit 2; }
+    if ! pg_target_set_location "$_pkg" "$_lat" "$_lon" "$_acc"; then
+      echo "failed to persist target coordinates" >&2; exit 1
+    fi
+    echo "saved=1"
+    ;;
   set)
     key=${2:-}; value=${3:-}
     case "$key" in ''|*[!A-Za-z0-9_.-]*) echo "invalid setting key" >&2; exit 2 ;; esac
