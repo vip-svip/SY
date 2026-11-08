@@ -1,0 +1,6 @@
+Build variant: release (unsigned in this tree; the CI workflow signs it)
+Signing mode: release-signed by workflow when FX_ANDROID_KEYSTORE_PATH is set
+Dual entrypoints: legacy Xposed API 93+ and modern libxposed API 101
+Deployment: one ordinary application package; the module stages it as system/app/FX
+sha256: 491762cb85b7bd1c0a9d63e6d0613082416bc04abde7109ba1f0940605efbc60
+size: 13622808
