@@ -242,7 +242,7 @@ _build_filter_sources() {
       if (name=="") name=url
       # Stable URL-derived IDs survive subscription reordering. Resolve rare
       # hash collisions deterministically within this render.
-      alphabet="0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._~:/?#@!$&\047()*+,;=%"
+      alphabet="0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._~:/?#@!$&\\()*+,;=%"
       id=0
       for (i=1; i<=length(url); i++)
         id=(id*131+index(alphabet,substr(url,i,1)))%2147483000
@@ -872,10 +872,44 @@ _install_config() {
   _log 'published loopback-only config with current Yulong and managed allow/block DNS rules'
 }
 
+_auxiliary_dns_routes_safe() {
+  # The FX runtime template must keep all alternate AdGuard resolver routes
+  # disabled. upstream_dns_file overrides upstream_dns; private PTR resolvers
+  # may use OS DNS or a separate local_ptr_upstreams list outside Unbound.
+  awk '
+    /^dns:[[:space:]]*$/ {dns_sections++; inside=1; next}
+    inside && /^[^[:space:]]/ {inside=0}
+    inside && /^  upstream_dns_file:/ {
+      file_count++
+      value=$0; sub(/^  upstream_dns_file:[[:space:]]*/,"",value)
+      if (value!="\"\"") bad=1
+    }
+    inside && /^  use_private_ptr_resolvers:/ {
+      private_ptr_count++
+      value=$0; sub(/^  use_private_ptr_resolvers:[[:space:]]*/,"",value)
+      if (value!="false") bad=1
+    }
+    inside && /^  local_ptr_upstreams:/ {
+      local_ptr_count++
+      value=$0; sub(/^  local_ptr_upstreams:[[:space:]]*/,"",value)
+      if (value!="[]") bad=1
+    }
+    END {
+      if (dns_sections!=1 || file_count!=1 || private_ptr_count!=1 ||
+          local_ptr_count!=1 || bad) exit 1
+      exit 0
+    }
+  ' "$CFG"
+}
+
 _config_contract() {
   # The DNS listener/admin interface remain loopback-only. Upstream lists may
   # be the local recursive Unbound listener or a validated FX custom/global list.
   [ -f "$PG/settings.conf" ] && [ ! -L "$PG/settings.conf" ] && [ -r "$PG/settings.conf" ] || return 1
+  if ! _auxiliary_dns_routes_safe; then
+    _log 'AdGuard upstream_dns_file/private PTR resolver routes are not pinned to FX local Unbound; refusing runtime config'
+    return 1
+  fi
   _profile_safe_search=$(awk -F= '$1=="yulong_safe_search_enabled" {count++; value=$2} END {if(count>1 || (count==1 && value!~/^[01]$/)) exit 1; print count==0 ? "0" : value}' "$PG/settings.conf") || return 1
   _profile_youtube_restricted=$(awk -F= '$1=="yulong_youtube_restricted_mode" {count++; value=$2} END {if(count>1 || (count==1 && value!~/^[01]$/)) exit 1; print count==0 ? "0" : value}' "$PG/settings.conf") || return 1
   _expected_profile_safe_search=false
@@ -1443,6 +1477,8 @@ _valid_ipv4() {
 }
 _probe() {
   # Require fresh recursive replies over both transports on both IP families.
+  # The probe uses a random transaction/query label, so cached replies cannot
+  # mask a broken listener or selected upstream/fallback path.
   # A UDP-only listener must not be reported ready.
   for _probe_server in 127.0.0.1 ::1; do
     for _probe_transport in udp tcp; do

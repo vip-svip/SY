@@ -78,10 +78,10 @@ function scan_record(line,    i,n,c,j,k,key,value,stack,valid,first,last,nextc,e
   current_line=line; n=length(line); first=1; last=n
   while (first<=n && substr(line,first,1) ~ /[[:space:]]/) first++
   while (last>=first && substr(line,last,1) ~ /[[:space:]]/) last--
-  # Every non-empty JSONL row in AdGuard Home's query log must be an
+  # Every non-empty JSONL row in AdGuard Home query log must be an
   # object. Treat arrays, scalars and truncated wrappers as malformed rather
   # than silently classifying them as harmless non-query records.
-  if (first>last || substr(line,first,1)!="{" || substr(line,last,1)!="}") return -1
+  if (first>last || substr(line,first,1) != sprintf("%c",123) || substr(line,last,1) != sprintf("%c",125)) return -1
   query=0; filtered=0; stack=""; valid=1
   for (i=first; i<=last; i++) {
     c=substr(line,i,1)

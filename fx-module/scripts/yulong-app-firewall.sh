@@ -237,22 +237,32 @@ validate_package_uid() {
   }
   printf '%s\n' "$current_uid"
 }
-
 resolve_uid() {
   pkg="$1"
   snapshot="$2"
   found="$(printf '%s\n' "$snapshot" | awk -v wanted="package:$pkg" '
-    BEGIN {seen=0}
     $1==wanted {
-      seen=1
-      for(i=2;i<=NF;i++) if($i ~ /^uid:[0-9]+$/) {
-        sub(/^uid:/,"",$i); print $i; exit
+      seen++
+      uid_count=0
+      uid_value=""
+      for (i=2;i<=NF;i++) if (substr($i,1,4)=="uid:") {
+        uid_count++
+        if ($i ~ /^uid:[0-9]+$/) uid_value=substr($i,5)
+        else uid_value="__INVALID__"
       }
+      if (seen>1 || uid_count!=1 || uid_value !~ /^[1-9][0-9]*$/)
+        result="__INVALID__"
+      else
+        result=uid_value
     }
-    END {if(!seen) print "__MISSING__"}
+    END {
+      if (seen==0) print "__MISSING__"
+      else if (seen!=1 || result=="__INVALID__") print "__INVALID__"
+      else print result
+    }
   ')"
   [ "$found" = "__MISSING__" ] && return 2
-  case "$found" in ''|*[!0-9]*) return 1 ;; esac
+  case "$found" in ''|0|*[!0-9]*) return 1 ;; esac
   printf '%s\n' "$found"
 }
 
@@ -378,8 +388,7 @@ apply_rules() {
   case "$current" in FXYUL_A) next=FXYUL_B; old=FXYUL_A ;; FXYUL_B) next=FXYUL_A; old=FXYUL_B ;; *) clear_all || return 12; next=FXYUL_A; old=FXYUL_B ;; esac
   resolved=""
   # Join selected firewall rows with one PackageManager snapshot in a single
-  # AWK pass. The previous implementation rescanned the complete package
-  # inventory for every selected app.
+  # AWK pass. Reject duplicate package records and ambiguous UID fields.
   resolved_map=$(
     {
       printf '%s\n' "$rows"
@@ -405,13 +414,22 @@ apply_rules() {
           snapshot_rows++
           package=substr(field[1],9)
           if (package in wanted) {
-            snapshot_seen[package]=1
-            for (i=2;i<=n;i++) if (field[i] ~ /^uid:[0-9]+$/) {
-              uid=substr(field[i],5)
-              if (uid ~ /^[0-9]+$/ && uid!="0") package_uid[package]=uid
-              else package_uid[package]="__INVALID__"
-              break
+            snapshot_seen[package]++
+            if (snapshot_seen[package] > 1) {
+              package_uid[package]="__INVALID__"
+              next
             }
+            uid_count=0
+            uid_value=""
+            for (i=2;i<=n;i++) if (substr(field[i],1,4)=="uid:") {
+              uid_count++
+              if (field[i] ~ /^uid:[0-9]+$/) uid_value=substr(field[i],5)
+              else uid_value="__INVALID__"
+            }
+            if (uid_count!=1 || uid_value !~ /^[1-9][0-9]*$/)
+              package_uid[package]="__INVALID__"
+            else
+              package_uid[package]=uid_value
           }
         }
       }
@@ -420,9 +438,10 @@ apply_rules() {
         for (i=1;i<=count;i++) {
           package=row_pkg[i]
           if (!(package in snapshot_seen)) print package "|__MISSING__"
-          else if (!(package in package_uid) || package_uid[package]=="") print package "|__INVALID__"
-          else if (package_uid[package]=="__INVALID__") print package "|__INVALID__"
-          else print package "|" package_uid[package] "|" row_data[i]
+          else if (snapshot_seen[package]!=1 || !(package in package_uid) || package_uid[package]=="__INVALID__")
+            print package "|__INVALID__"
+          else
+            print package "|" package_uid[package] "|" row_data[i]
         }
       }
     '
@@ -438,7 +457,7 @@ apply_rules() {
         continue
         ;;
       __INVALID__|'')
-        echo "cannot resolve current UID for $pkg; old firewall kept" >&2
+        echo "cannot resolve current UID for package: $pkg; old firewall kept" >&2
         return 5
         ;;
     esac
@@ -448,6 +467,7 @@ apply_rules() {
   done <<EOF
 $resolved_map
 EOF
+
   if [ -z "$resolved" ]; then
     clear_all || return 12; echo "firewall=1"; echo "blocked_packages=0"
     echo "no selected package is currently installed; saved selections retained"
@@ -515,13 +535,15 @@ with_lock() {
     shift
   fi
   while ! mkdir "$LOCK" 2>/dev/null; do
+    [ ! -L "$LOCK" ] && [ -d "$LOCK" ] || { echo "unsafe firewall lock path" >&2; return 10; }
     tries=$((tries + 1))
     [ "$tries" -lt "$max_tries" ] || { echo "firewall update is busy" >&2; return 10; }
     sleep 1
   done
+  [ ! -L "$LOCK" ] && [ -d "$LOCK" ] || { echo "firewall lock path changed during acquisition" >&2; return 10; }
   _fw_lock_owner="$LOCK/owner"
-  if ! (umask 077; set -C; printf '%s\\n' "$" > "$_fw_lock_owner") 2>/dev/null; then
-    rmdir "$LOCK" 2>/dev/null || :
+  if ! (umask 077; set -C; printf '%s\n' "$$" > "$_fw_lock_owner") 2>/dev/null; then
+    if [ ! -L "$LOCK" ] && [ -d "$LOCK" ] && [ ! -e "$_fw_lock_owner" ]; then rmdir "$LOCK" 2>/dev/null || :; fi
     echo "cannot record firewall transaction lock owner" >&2
     return 10
   fi
@@ -529,11 +551,10 @@ with_lock() {
     [ -z "$_FW_TEMP" ] || rm -f "$_FW_TEMP" 2>/dev/null || :
     [ -z "$_FW_BACKUP" ] || rm -f "$_FW_BACKUP" 2>/dev/null || :
     [ -z "$_FW_RESTORE" ] || rm -f "$_FW_RESTORE" 2>/dev/null || :
-    # Never remove a lock directory that was replaced while this transaction
-    # was running; release only the exact owner record created above.
+    # Release only the exact owner record published by this transaction.
     if [ ! -L "$LOCK" ] && [ -d "$LOCK" ] &&
         [ ! -L "$_fw_lock_owner" ] && [ -f "$_fw_lock_owner" ] &&
-        [ "$(cat "$_fw_lock_owner" 2>/dev/null || true)" = "$" ]; then
+        [ "$(cat "$_fw_lock_owner" 2>/dev/null || true)" = "$$" ]; then
       rm -f "$_fw_lock_owner" 2>/dev/null || :
       rmdir "$LOCK" 2>/dev/null || :
     fi
@@ -546,9 +567,9 @@ with_lock() {
 }
 mutate_transaction() {
   op="$1"; shift
-  # Re-resolve package ownership after acquiring the firewall lock. The CLI's
-  # earlier check is a fast-fail only; PackageManager state may change while
-  # this request waits behind another firewall transaction.
+  # Re-resolve package ownership after acquiring the firewall lock.
+  # The UI's earlier UID check is only a fast-fail; package state may change
+  # while this operation waits behind another firewall transaction.
   case "$op" in
     set_item_value|set_rule_value)
       [ "$#" -ge 2 ] || return 2
@@ -1039,13 +1060,19 @@ reconcile_watch_lifecycle() {
 cmd="${1:-list}"
 case "$cmd" in
   list)
-    echo "FXYULONGFW2"
-    echo "master=$(read_master)"
-    list_rows
+    _master=$(read_master) || {
+      echo "firewall master configuration is missing, duplicated or invalid" >&2
+      exit 2
+    }
+    printf 'FXYULONGFW2\nmaster=%s\n' "$_master"
+    list_rows || {
+      echo "firewall rule configuration is malformed or duplicated" >&2
+      exit 2
+    }
     ;;
   master)
     [ "$#" -eq 2 ] && valid_state "$2" || { echo "usage: $0 master 0|1" >&2; exit 2; }
-    with_lock mutate_transaction set_master_value "$2"
+    with_lock mutate_transaction set_master_value "$2" || exit $?
     reconcile_watch_lifecycle
     ;;
   set)
@@ -1066,7 +1093,7 @@ case "$cmd" in
     ;;
   remove)
     [ "$#" -eq 2 ] && valid_package "$2" || { echo "usage: $0 remove package" >&2; exit 2; }
-    with_lock mutate_transaction remove_item_value "$2"
+    with_lock mutate_transaction remove_item_value "$2" || exit $?
     reconcile_watch_lifecycle
     ;;
   apply) with_lock apply_rules ;;
