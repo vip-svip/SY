@@ -1,0 +1,37 @@
+# FX built-in optional **厂商安全组件上报** domain set (independent category).
+#
+# Blocks the telemetry/report hosts of each vendor security centre (MIUI/HyperOS,
+# Huawei/Honor, ColorOS/realme/OnePlus, vivo, Samsung, plus the remaining OEMs).
+# Only reporting endpoints are listed: the vendor store and OTA update stay reachable.
+#
+# Format: hosts. Disabled by default. Independent of every other privacy list.
+
+0.0.0.0 api.sec.hihonor.com
+0.0.0.0 api.sec.huawei.com
+0.0.0.0 api.sec.miui.com
+0.0.0.0 api.sec.oppo.com
+0.0.0.0 api.sec.vivo.com.cn
+0.0.0.0 data.mistat.xiaomi.com
+0.0.0.0 fp.miui.com
+0.0.0.0 risk.huawei.com
+0.0.0.0 risk.oplus.com
+0.0.0.0 sec.asus.com
+0.0.0.0 sec.bbk.com
+0.0.0.0 sec.coloros.com
+0.0.0.0 sec.hihonor.com
+0.0.0.0 sec.huawei.com
+0.0.0.0 sec.lge.com
+0.0.0.0 sec.meizu.com
+0.0.0.0 sec.miui.com
+0.0.0.0 sec.motorola.com
+0.0.0.0 sec.nubia.com
+0.0.0.0 sec.oplus.com
+0.0.0.0 sec.oppo.com
+0.0.0.0 sec.samsung.com
+0.0.0.0 sec.samsungandroid.com
+0.0.0.0 sec.sonymobile.com
+0.0.0.0 sec.tcl.com
+0.0.0.0 sec.transsion.com
+0.0.0.0 sec.vivo.com.cn
+0.0.0.0 sec.zui.com
+0.0.0.0 tracking.miui.com

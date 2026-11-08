@@ -1,0 +1,59 @@
+# FX built-in optional **去水印** domain set (independent category).
+#
+# Blocks hosts that serve watermark artwork, badge templates and viewer-ID overlays.
+# A watermark already burned into exported JPEG/PNG/MP4 pixels is not a network fetch;
+# removing that class needs image inpainting, tracked separately from this rule set.
+#
+# Format: hosts. Disabled by default. Independent of every other list.
+
+0.0.0.0 watermark.adobe.com
+0.0.0.0 watermark.alamy.com
+0.0.0.0 watermark.amemv.com
+0.0.0.0 watermark.bilibili.com
+0.0.0.0 watermark.bilivideo.com
+0.0.0.0 watermark.bytedance.com
+0.0.0.0 watermark.canva.com
+0.0.0.0 watermark.chuangkit.com
+0.0.0.0 watermark.dingtalk.com
+0.0.0.0 watermark.docer.com
+0.0.0.0 watermark.douyin.com
+0.0.0.0 watermark.douyu.com
+0.0.0.0 watermark.feishu.cn
+0.0.0.0 watermark.figma.com
+0.0.0.0 watermark.foxitsoftware.com
+0.0.0.0 watermark.gaoding.com
+0.0.0.0 watermark.gettyimages.com
+0.0.0.0 watermark.gifshow.com
+0.0.0.0 watermark.huya.com
+0.0.0.0 watermark.imgur.com
+0.0.0.0 watermark.iqiyi.com
+0.0.0.0 watermark.istockphoto.com
+0.0.0.0 watermark.ixigua.com
+0.0.0.0 watermark.kingsoft.com
+0.0.0.0 watermark.kuaishou.com
+0.0.0.0 watermark.larksuite.com
+0.0.0.0 watermark.meeting.tencent.com
+0.0.0.0 watermark.mgtv.com
+0.0.0.0 watermark.pexels.com
+0.0.0.0 watermark.pixabay.com
+0.0.0.0 watermark.qpic.cn
+0.0.0.0 watermark.shutterstock.com
+0.0.0.0 watermark.sm.ms
+0.0.0.0 watermark.snssdk.com
+0.0.0.0 watermark.tencentcloud.com
+0.0.0.0 watermark.toutiao.com
+0.0.0.0 watermark.unsplash.com
+0.0.0.0 watermark.v.qq.com
+0.0.0.0 watermark.vmeeting.tencent.com
+0.0.0.0 watermark.weibo.cn
+0.0.0.0 watermark.weibo.com
+0.0.0.0 watermark.welink.com
+0.0.0.0 watermark.wps.cn
+0.0.0.0 watermark.wps.com
+0.0.0.0 watermark.wsm.mgtv.com
+0.0.0.0 watermark.xhs.cn
+0.0.0.0 watermark.xiaohongshu.com
+0.0.0.0 watermark.youku.com
+0.0.0.0 watermark.zhihu.com
+0.0.0.0 watermark.zoom.com
+0.0.0.0 watermark.zoom.us

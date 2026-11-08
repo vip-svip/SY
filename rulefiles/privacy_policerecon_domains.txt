@@ -1,36 +1,35 @@
 # FX built-in optional **网警侦察 / 设备取证** domain set (independent category).
 #
-# Blocks device-fingerprint and risk-scoring backends: the endpoints an inspection
-# tool posts its collected inventory to. Independent of the anti-fraud and carrier
-# lists.
+# Blocks device-fingerprint and risk-scoring backends: where an inspection tool posts
+# its collected inventory. Includes the Chinese device-fingerprint vendors and the
+# tracking backends their SDKs share.
 #
-# Format: hosts. Disabled by default.
-# Device-fingerprint and risk-scoring backends. These are the endpoints an
-# inspection tool posts its collected inventory to.
-0.0.0.0 risk.chinaprivacy.com
+# Format: hosts. Disabled by default. Independent of every other privacy list.
+
+0.0.0.0 api.bugly.qq.com
 0.0.0.0 api.chinaprivacy.com
+0.0.0.0 api.dingxiang-inc.com
+0.0.0.0 api.geetest.com
+0.0.0.0 api.jpush.cn
+0.0.0.0 api.mob.com
+0.0.0.0 api.riskstorm.com
+0.0.0.0 api.secapi.io
+0.0.0.0 api.tongdun.cn
+0.0.0.0 api.trustdecision.com
+0.0.0.0 api.umeng.com
+0.0.0.0 api.yidun.yidun.com
+0.0.0.0 api4.geetest.com
+0.0.0.0 fp.dingxiang-inc.com
+0.0.0.0 fp.mob.com
 0.0.0.0 fp.tongdun.cn
 0.0.0.0 fp.tongdun.net
-0.0.0.0 api.tongdun.cn
-0.0.0.0 static.tongdun.cn
-0.0.0.0 risk.tongdun.cn
-0.0.0.0 api.trustdecision.com
 0.0.0.0 fp.trustdecision.com
-0.0.0.0 api.riskstorm.com
-0.0.0.0 api.geetest.com
-0.0.0.0 api4.geetest.com
-0.0.0.0 static.geetest.com
-0.0.0.0 api.yidun.yidun.com
-0.0.0.0 fp.yidun.com
-0.0.0.0 api.secapi.io
-0.0.0.0 api.dingxiang-inc.com
-0.0.0.0 fp.dingxiang-inc.com
-0.0.0.0 api.mob.com
-0.0.0.0 fp.mob.com
-0.0.0.0 sdk.mob.com
-0.0.0.0 api.umeng.com
-0.0.0.0 ulogs.umeng.com
 0.0.0.0 fp.umeng.com
-0.0.0.0 api.bugly.qq.com
-0.0.0.0 api.jpush.cn
+0.0.0.0 fp.yidun.com
 0.0.0.0 report.jpush.cn
+0.0.0.0 risk.chinaprivacy.com
+0.0.0.0 risk.tongdun.cn
+0.0.0.0 sdk.mob.com
+0.0.0.0 static.geetest.com
+0.0.0.0 static.tongdun.cn
+0.0.0.0 ulogs.umeng.com

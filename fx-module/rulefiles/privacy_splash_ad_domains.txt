@@ -1,0 +1,55 @@
+# FX built-in optional **开屏广告** domain set (independent category).
+#
+# Blocks the cold-start ad fetch. Only creatives and their configuration are listed;
+# the app's own launch API is deliberately absent so the real first screen still renders.
+#
+# Format: hosts. Disabled by default. Independent of every other list.
+
+0.0.0.0 splash-cdn.ad.huawei.com
+0.0.0.0 splash-cdn.ad.mi.com
+0.0.0.0 splash-cdn.ad.vivo.com.cn
+0.0.0.0 splash-cdn.ad.xiaomi.com
+0.0.0.0 splash-cdn.ads.heytapmobi.com
+0.0.0.0 splash-cdn.alimama.com
+0.0.0.0 splash-cdn.gdt.qq.com
+0.0.0.0 splash-cdn.mobads.baidu.com
+0.0.0.0 splash-cdn.pangolin-sdk-toutiao.com
+0.0.0.0 splash-img.pangolin-sdk-toutiao.com
+0.0.0.0 splash.ad.12306.cn
+0.0.0.0 splash.ad.alibaba.com
+0.0.0.0 splash.ad.baidu.com
+0.0.0.0 splash.ad.bilibili.com
+0.0.0.0 splash.ad.ctrip.com
+0.0.0.0 splash.ad.dianping.com
+0.0.0.0 splash.ad.honor.com
+0.0.0.0 splash.ad.huawei.com
+0.0.0.0 splash.ad.iqiyi.com
+0.0.0.0 splash.ad.jd.com
+0.0.0.0 splash.ad.meituan.com
+0.0.0.0 splash.ad.mgtv.com
+0.0.0.0 splash.ad.mi.com
+0.0.0.0 splash.ad.miui.com
+0.0.0.0 splash.ad.oppomobile.com
+0.0.0.0 splash.ad.pinduoduo.com
+0.0.0.0 splash.ad.qq.com
+0.0.0.0 splash.ad.qunar.com
+0.0.0.0 splash.ad.samsung.com
+0.0.0.0 splash.ad.taobao.com
+0.0.0.0 splash.ad.v.qq.com
+0.0.0.0 splash.ad.vivo.com.cn
+0.0.0.0 splash.ad.weibo.com
+0.0.0.0 splash.ad.xiaomi.com
+0.0.0.0 splash.ad.youku.com
+0.0.0.0 splash.ad.zhihu.com
+0.0.0.0 splash.adnet.vivo.com.cn
+0.0.0.0 splash.ads.heytapmobi.com
+0.0.0.0 splash.ads.huawei.com
+0.0.0.0 splash.ads.oppomobile.com
+0.0.0.0 splash.ads.samsung.com
+0.0.0.0 splash.alimama.com
+0.0.0.0 splash.cpro.baidu.com
+0.0.0.0 splash.gdt.qq.com
+0.0.0.0 splash.mobads.baidu.com
+0.0.0.0 splash.pangolin-sdk-toutiao-b.com
+0.0.0.0 splash.pangolin-sdk-toutiao.com
+0.0.0.0 splash.tanx.com

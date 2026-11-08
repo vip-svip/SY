@@ -2,20 +2,20 @@
 #
 # Blocks the network side of state anti-fraud reporting: the official app's risk-query,
 # report upload and device scoring endpoints, plus the public-security risk interface.
-# The in-process collection is stopped by the anti_fraud_block LSPosed hooks; this list
-# stops the upload that a system component or an unhookable process would still do.
+# In-process collection is stopped by the anti_fraud_block LSPosed hooks; this list stops
+# the upload an unhookable system component would still perform.
 #
-# Format: hosts. Disabled by default. Independent of the carrier and recon lists.
+# Format: hosts. Disabled by default. Independent of every other privacy list.
 
+0.0.0.0 96110.cn
+0.0.0.0 anti-fraud.mps.gov.cn
+0.0.0.0 api.96110.cn
 0.0.0.0 api.hicorenational.com
 0.0.0.0 app.hicorenational.com
 0.0.0.0 data.hicorenational.com
+0.0.0.0 dsp.96110.cn
+0.0.0.0 fanzha.mps.gov.cn
+0.0.0.0 fz.96110.cn
 0.0.0.0 log.hicorenational.com
 0.0.0.0 report.hicorenational.com
-0.0.0.0 96110.cn
 0.0.0.0 www.96110.cn
-0.0.0.0 api.96110.cn
-0.0.0.0 fz.96110.cn
-0.0.0.0 dsp.96110.cn
-0.0.0.0 anti-fraud.mps.gov.cn
-0.0.0.0 fanzha.mps.gov.cn

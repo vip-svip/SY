@@ -1,0 +1,28 @@
+# FX built-in optional **运营商采集** domain set (independent category).
+#
+# Blocks carrier-side identity/risk endpoints: the hosts a carrier SDK posts SIM, IMEI,
+# cell and traffic records to. Billing, balance and SMS gateways are NOT listed.
+#
+# Format: hosts. Disabled by default. Independent of every other privacy list.
+
+0.0.0.0 dpi.10010.com
+0.0.0.0 dpi.189.cn
+0.0.0.0 dpi.chinamobile.com
+0.0.0.0 dpi.cmcc.cn
+0.0.0.0 dpi.wo.cn
+0.0.0.0 log.10010.com
+0.0.0.0 log.10086.cn
+0.0.0.0 log.189.cn
+0.0.0.0 msg.wo.cn
+0.0.0.0 report.10010.com
+0.0.0.0 report.10086.cn
+0.0.0.0 report.189.cn
+0.0.0.0 risk.10010.com
+0.0.0.0 risk.10086.cn
+0.0.0.0 risk.189.cn
+0.0.0.0 risk.chinamobile.com
+0.0.0.0 riskgate.wo.cn
+0.0.0.0 sec.10010.com
+0.0.0.0 sec.189.cn
+0.0.0.0 sec.chinamobile.com
+0.0.0.0 uap.chinamobile.com

@@ -1,0 +1,17 @@
+# FX built-in optional **反诈/风控 SDK 上报** domain set (independent category).
+#
+# Blocks third-party SDKs inside consumer apps that upload contacts, SMS, call-log and
+# installed-app data under an anti-fraud or risk-control label.
+#
+# Format: hosts. Disabled by default. Independent of every other privacy list.
+
+0.0.0.0 api.forter.com
+0.0.0.0 api.fraudlabs.com
+0.0.0.0 api.incognia.com
+0.0.0.0 api.kount.com
+0.0.0.0 api.riskified.com
+0.0.0.0 api.rush.ai
+0.0.0.0 api.seon.io
+0.0.0.0 api.sift.com
+0.0.0.0 fp.fraudlabs.com
+0.0.0.0 fp.seon.io
