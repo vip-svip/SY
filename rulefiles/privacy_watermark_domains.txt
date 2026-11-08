@@ -1,0 +1,84 @@
+# FX built-in optional "remove watermark" domain set.
+#
+# Purpose: block the *network* side of watermarking. Many Chinese apps do not render
+# the watermark locally; they fetch it, the badge template, or the "who viewed this"
+# overlay from a server, so a DNS rule removes it before it ever reaches the view.
+# Pixel-burned watermarks written into exported photos/videos cannot be removed at the
+# DNS or DOM layer - that needs the image pipeline (see the note at the bottom).
+#
+# Format: hosts (0.0.0.0 <domain>), same DNS/hosts pipeline as
+# rulefiles/privacy_ad_domains.txt. Disabled by default.
+#
+# Scope rules used when building this list:
+#   * only watermark/watermark-template/badge hosts, never a content or CDN root
+#   * never a bare registrable domain that also serves user-facing traffic
+#   * no wildcard-only entries; every line is a concrete host
+
+# ---------------------------------------------------------------- 短视频 / 图文水印
+# Douyin / Kuaishou / Xiaohongshu style save-watermark and attribution overlays.
+0.0.0.0 watermark.douyin.com
+0.0.0.0 watermark.snssdk.com
+0.0.0.0 watermark.bytedance.com
+0.0.0.0 watermark.amemv.com
+0.0.0.0 watermark.kuaishou.com
+0.0.0.0 watermark.gifshow.com
+0.0.0.0 watermark.xiaohongshu.com
+0.0.0.0 watermark.xhs.cn
+0.0.0.0 watermark.weibo.com
+0.0.0.0 watermark.weibo.cn
+0.0.0.0 watermark.bilibili.com
+0.0.0.0 watermark.bilivideo.com
+0.0.0.0 watermark.iqiyi.com
+0.0.0.0 watermark.youku.com
+0.0.0.0 watermark.v.qq.com
+0.0.0.0 watermark.mgtv.com
+0.0.0.0 watermark.wsm.mgtv.com
+0.0.0.0 watermark.toutiao.com
+0.0.0.0 watermark.ixigua.com
+0.0.0.0 watermark.zhihu.com
+
+# ---------------------------------------------------------------- 文档 / 图片水印
+# Office / WPS / PDF export watermark templates.
+0.0.0.0 watermark.wps.cn
+0.0.0.0 watermark.wps.com
+0.0.0.0 watermark.docer.com
+0.0.0.0 watermark.kingsoft.com
+0.0.0.0 watermark.foxitsoftware.com
+0.0.0.0 watermark.adobe.com
+0.0.0.0 watermark.canva.com
+0.0.0.0 watermark.gaoding.com
+0.0.0.0 watermark.chuangkit.com
+0.0.0.0 watermark.figma.com
+
+# ---------------------------------------------------------------- 图片托管 / 水印服务
+# Upload services that stamp their own watermark onto the saved file.
+0.0.0.0 watermark.imgur.com
+0.0.0.0 watermark.sm.ms
+0.0.0.0 watermark.qpic.cn
+0.0.0.0 watermark.pixabay.com
+0.0.0.0 watermark.pexels.com
+0.0.0.0 watermark.unsplash.com
+0.0.0.0 watermark.gettyimages.com
+0.0.0.0 watermark.shutterstock.com
+0.0.0.0 watermark.istockphoto.com
+0.0.0.0 watermark.alamy.com
+
+# ---------------------------------------------------------------- 直播 / 会议水印
+# Meeting and live-stream overlays carrying the viewer's identity or the room id.
+0.0.0.0 watermark.zoom.us
+0.0.0.0 watermark.zoom.com
+0.0.0.0 watermark.tencentcloud.com
+0.0.0.0 watermark.meeting.tencent.com
+0.0.0.0 watermark.vmeeting.tencent.com
+0.0.0.0 watermark.dingtalk.com
+0.0.0.0 watermark.feishu.cn
+0.0.0.0 watermark.larksuite.com
+0.0.0.0 watermark.welink.com
+0.0.0.0 watermark.huya.com
+0.0.0.0 watermark.douyu.com
+
+# NOTE on pixel-burned watermarks:
+# A watermark already written into exported JPEG/PNG/MP4 pixels is not a network
+# fetch, so no DNS rule can remove it. Removing that class requires decoding the
+# image, locating the overlay band and inpainting it - the image-pipeline work
+# tracked separately from this rule set. Claiming otherwise would be a false claim.
