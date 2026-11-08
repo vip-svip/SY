@@ -64,7 +64,10 @@ public final class VipUnlockAndLocationInjectionTest {
                 "isTrial", "isFree", "isAdFree", "isNotVip"}) {
             assertFalse(name, VipUnlockPolicy.isEntitlementGetter(name));
         }
-        assertTrue("compact obfuscated getter", VipUnlockPolicy.isEntitlementGetter("a"));
+        // A length-1/2 name is not evidence of an entitlement: matching on name length
+        // treated every compact boolean getter as premium. Obfuscation is handled by the
+        // per-target opt-in, not by a length heuristic.
+        assertFalse("compact name is not an entitlement", VipUnlockPolicy.isEntitlementGetter("a"));
         assertFalse(VipUnlockPolicy.isEntitlementGetter(null));
         assertFalse(VipUnlockPolicy.isEntitlementGetter(""));
     }

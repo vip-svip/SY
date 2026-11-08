@@ -110,6 +110,39 @@ public final class AdVisibilityHook extends XposedModule {
     private final Set<Method> microphoneAccessHookedMethods = ConcurrentHashMap.newKeySet();
     private final Set<Method> locationAccessHookedMethods = ConcurrentHashMap.newKeySet();
     private final Set<Method> mediaStoreQueryHookedMethods = ConcurrentHashMap.newKeySet();
+    /**
+     * Built-in automatic Ad target.
+     *
+     * Ad interception is the baseline behaviour of the module; the per-app policy rows are
+     * an optional refinement. A synthetic target keeps the Ad runtime independent of
+     * whether any Remote Files config exists, so a device without that capability still
+     * has its visual ad surfaces intercepted.
+     */
+    private static final String AUTO_AD_TARGET = "*";
+
+    /**
+     * Android core processes that automatic Ad interception must never touch.
+     *
+     * Hooking SystemUI, Settings, the permission controller, telephony, network stack,
+     * Bluetooth or Play services would destabilise the device and can trip the
+     * platform's own integrity checks. These are protected by name, independently of the
+     * per-target configuration.
+     */
+    private static final Set<String> AUTOMATIC_AD_PROTECTED = new HashSet<>(Arrays.asList(
+            "com.android.systemui",
+            "com.android.settings",
+            "com.android.permissioncontroller",
+            "com.google.android.permissioncontroller",
+            "com.android.phone",
+            "com.android.server.telecom",
+            "com.android.networkstack",
+            "com.android.bluetooth",
+            "com.android.nfc",
+            "com.google.android.gms",
+            "com.android.vending"));
+
+
+
     private static final String CONFIG_NAME = "fx-hook-targets.conf";
     private static final String UI_CONFIG_NAME = "fx-hook-ui-targets.conf";
     private static final Set<String> NEVER = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
@@ -204,7 +237,8 @@ public final class AdVisibilityHook extends XposedModule {
     };
     private final WeakHashMap<Activity, Long> lastActivityScan = new WeakHashMap<>();
     private final WeakHashMap<View, Long> lastRootScan = new WeakHashMap<>();
-    private boolean adsEnabled;
+    // Ad interception runs by default; the legacy master switch no longer gates it.
+    private boolean adsEnabled = true;
     private boolean privacyEnabled;
     private boolean systemServicesEnabled;
     private Set<String> hiddenSystemServices = Collections.emptySet();
@@ -214,6 +248,8 @@ public final class AdVisibilityHook extends XposedModule {
     private Set<String> hiddenApps = Collections.emptySet();
     private Set<String> keptApps = Collections.emptySet();
     private boolean configLoaded;
+    /** Set once the degraded Ad-only state has been reported. */
+    private boolean automaticAdOnlyLogged;
     private boolean remoteFilesAvailable;
     private volatile boolean privacyIdentifierHookInstalled;
     private volatile String currentPackage = "";
@@ -226,8 +262,13 @@ public final class AdVisibilityHook extends XposedModule {
     @Override
     public void onModuleLoaded(XposedModuleInterface.ModuleLoadedParam param) {
         remoteFilesAvailable = (getFrameworkProperties() & XposedInterface.PROP_CAP_REMOTE) != 0;
-        if (!remoteFilesAvailable) {
-            logFx(Log.WARN, "Remote Files capability unavailable; feature disabled safely");
+        if (remoteFilesAvailable == false) {
+            // Only the optional per-app policy layer needs Remote Files. Automatic Ad
+            // interception is the baseline and stays active, so the capability being
+            // absent must not short-circuit the module load.
+            logFx(Log.INFO, "automatic Ad detection enabled; optional remote per-app policies unavailable");
+            automaticAdOnlyLogged = true;
+            adsEnabled = true;
             return;
         }
         configLoaded = loadConfig();
@@ -241,6 +282,11 @@ public final class AdVisibilityHook extends XposedModule {
     @Override
     public void onPackageReady(XposedModuleInterface.PackageReadyParam param) {
         final String pkg = param.getPackageName() == null ? "" : param.getPackageName();
+        try {
+            processApplicationInfo = param.getApplicationInfo();
+        } catch (Throwable unavailable) {
+            processApplicationInfo = null;
+        }
         if (NEVER.contains(pkg)) return;
         currentPackage = pkg;
         if (!pkg.isEmpty()) processPackages.add(pkg);
@@ -252,15 +298,30 @@ public final class AdVisibilityHook extends XposedModule {
         } catch (Throwable gadgetError) {
             Log.w(TAG, "Dia Frida Gadget loader failed for " + pkg, gadgetError);
         }
-        if (!configLoaded) return;
+        if (!configLoaded) {
+            // Automatic Ad detection is the baseline and must not depend on the optional
+            // Remote Files policy layer; only the per-app refinements are unavailable.
+            logAutomaticAdOnlyOnce();
+        }
         // A vendor anti-fraud collector is a system process that will never appear in the
         // per-target list, but it must still be prevented from reporting the device's
         // installed-app inventory. Install that suppression before the target lookup so
         // the guard is not gated on a configuration row that cannot exist.
         if (privacyEnabled) installVendorAntiFraudSuppressionHooks(pkg, param.getClassLoader());
         final UnifiedHookConfigParser.Target target = targets.get(pkg);
+        // Android core processes are never hooked, even for automatic Ad
+        // interception; resolveAdTarget returns null for them.
+        if (resolveAdTarget(pkg) == null) return;
         if (target == null) return;
-        final boolean adsForPackage = adsEnabled && target.enabled();
+        // Developer fixtures are independent of the privacy switches: they are scoped to
+        // the target package and gated by DeveloperHookRule's own debuggable check.
+        if (target.developerHooksEnabled || !target.developerRules.isEmpty()) {
+            installDeveloperHookRules(pkg, param.getClassLoader(), target);
+        }
+        // Automatic Ad interference is the module baseline: it must not hinge on a
+        // per-app category switch, otherwise an app the user never configured gets no
+        // protection. The per-app row still decides the finer privacy categories.
+        final boolean adsForPackage = adsEnabled;
         final boolean privacyForPackage = privacyEnabled && target.privacy;
         final boolean mediaHiddenForPackage = privacyEnabled && target.mediaHidden;
         final boolean migratedPrivacyForPackage = privacyEnabled &&
@@ -388,15 +449,27 @@ public final class AdVisibilityHook extends XposedModule {
                 " sdk=" + Build.VERSION.SDK_INT);
     }
 
+    /** Report the degraded-but-working state exactly once per process. */
+    private void logAutomaticAdOnlyOnce() {
+        if (automaticAdOnlyLogged) return;
+        automaticAdOnlyLogged = true;
+        logFx(Log.INFO, "automatic Ad detection enabled; optional remote per-app "
+                + "policies unavailable");
+    }
+
     private String readRemoteConfig(String name) throws Exception {
         // openRemoteFile() creates a missing file. Check the directory first so an
         // absent optional UI override is not turned into an empty file that makes
         // the whole transactional config parse fail closed.
-        boolean present = false;
-        for (String remoteName : listRemoteFiles()) {
-            if (name.equals(remoteName)) { present = true; break; }
+        // openRemoteFile() creates a missing file, so presence is verified first; an
+        // absent optional override must not become an empty file that fails the whole
+        // transactional parse closed.
+        boolean present = java.util.Arrays.asList(listRemoteFiles()).contains(CONFIG_NAME)
+                || java.util.Arrays.asList(listRemoteFiles()).contains(name);
+        if (!present) {
+            logFx(Log.WARN, "Remote Files config is missing: " + name);
+            throw new FileNotFoundException(name);
         }
-        if (!present) throw new FileNotFoundException(name);
         try (InputStream input = new ParcelFileDescriptor.AutoCloseInputStream(openRemoteFile(name));
              InputStreamReader reader = new InputStreamReader(input, StandardCharsets.UTF_8.newDecoder()
                      .onMalformedInput(CodingErrorAction.REPORT)
@@ -1221,6 +1294,121 @@ public final class AdVisibilityHook extends XposedModule {
                 "getPurchaseState", VipUnlockPolicy.PURCHASE_STATE_PURCHASED);
         installed += installBooleanUnlock(classLoader, "com.android.billingclient.api.Purchase",
                 "isAcknowledged");
+        // Surface 4: subscription validity / expiry.
+        // "isExpired() == true" and "getExpireTime() in the past" are the two ways an app
+        // decides the subscription is over; both must report an active subscription.
+        for (Class<?> owner : discoveredMemberClasses(pkg, classLoader)) {
+            if (memberMethodsHooked.size() >= MAX_AUTO_MEMBER_METHOD_HOOKS) break;
+            for (Method method : owner.getDeclaredMethods()) {
+                if (method.getParameterTypes().length != 0) continue;
+                Class<?> resultType = method.getReturnType();
+                String name = method.getName();
+                boolean boolResult = resultType == boolean.class || resultType == Boolean.class;
+                boolean timeResult = resultType == long.class || resultType == Long.class
+                        || resultType == int.class || resultType == Integer.class;
+                String key = owner.getName() + "#" + name;
+                if (boolResult && VipUnlockPolicy.isExpiryGetter(name)) {
+                    if (!memberMethodsHooked.add(key)) continue;
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                                .intercept(chain -> shouldUnlockVipNow()
+                                        ? Boolean.FALSE : chain.proceed());
+                        installed++;
+                    } catch (Throwable unavailable) {
+                        memberMethodsHooked.remove(key);
+                    }
+                } else if (boolResult && VipUnlockPolicy.isValidityGetter(name)) {
+                    if (!memberMethodsHooked.add(key)) continue;
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                                .intercept(chain -> shouldUnlockVipNow()
+                                        ? Boolean.TRUE : chain.proceed());
+                        installed++;
+                    } catch (Throwable unavailable) {
+                        memberMethodsHooked.remove(key);
+                    }
+                } else if (timeResult && VipUnlockPolicy.isExpireTimeGetter(name)) {
+                    if (!memberMethodsHooked.add(key)) continue;
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                                .intercept(chain -> {
+                                    if (!shouldUnlockVipNow()) return chain.proceed();
+                                    // A date far in the future keeps every "remaining days"
+                                    // and "expires at" comparison on the premium branch.
+                                    long farFuture = System.currentTimeMillis() + 10L * 365L
+                                            * 24L * 60L * 60L * 1000L;
+                                    if (resultType == long.class || resultType == Long.class) {
+                                        return farFuture;
+                                    }
+                                    return Integer.valueOf(9999);
+                                });
+                        installed++;
+                    } catch (Throwable unavailable) {
+                        memberMethodsHooked.remove(key);
+                    }
+                } else if (boolResult && VipUnlockPolicy.isAdFreeGetter(name)) {
+                    if (!memberMethodsHooked.add(key)) continue;
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                                .intercept(chain -> {
+                                    if (!shouldUnlockVipNow()) return chain.proceed();
+                                    // shouldShowAds / shouldDisplayAds invert the sense.
+                                    String lowered = name.toLowerCase(Locale.ROOT);
+                                    boolean inverted = lowered.startsWith("shouldshow")
+                                            || lowered.startsWith("shoulddisplay")
+                                            || lowered.startsWith("should");
+                                    return inverted ? Boolean.FALSE : Boolean.TRUE;
+                                });
+                        installed++;
+                    } catch (Throwable unavailable) {
+                        memberMethodsHooked.remove(key);
+                    }
+                } else if (VipUnlockPolicy.isTierGetter(name)
+                        && (resultType == int.class || resultType == Integer.class)) {
+                    if (!memberMethodsHooked.add(key)) continue;
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                                .intercept(chain -> shouldUnlockVipNow()
+                                        ? Integer.valueOf(VipUnlockPolicy.PREMIUM_TIER)
+                                        : chain.proceed());
+                        installed++;
+                    } catch (Throwable unavailable) {
+                        memberMethodsHooked.remove(key);
+                    }
+                } else if (resultType == String.class
+                        && VipUnlockPolicy.isTokenGetter(name)) {
+                    if (!memberMethodsHooked.add(key)) continue;
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                                .intercept(chain -> {
+                                    Object original = chain.proceed();
+                                    if (!shouldUnlockVipNow()) return original;
+                                    // Only replace an absent token: a real token the app
+                                    // already holds must not be overwritten.
+                                    if (original instanceof String
+                                            && !((String) original).isEmpty()) {
+                                        return original;
+                                    }
+                                    return VipUnlockPolicy.SIMULATED_TOKEN;
+                                });
+                        installed++;
+                    } catch (Throwable unavailable) {
+                        memberMethodsHooked.remove(key);
+                    }
+                } else if (boolResult && VipUnlockPolicy.isLicenseVerifyMethod(name)) {
+                    if (!memberMethodsHooked.add(key)) continue;
+                    try {
+                        hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                                .intercept(chain -> shouldUnlockVipNow()
+                                        ? Boolean.TRUE : chain.proceed());
+                        installed++;
+                    } catch (Throwable unavailable) {
+                        memberMethodsHooked.remove(key);
+                    }
+                }
+            }
+        }
+
         // Surface 3: the app's own persisted entitlement flags.
         installed += installPreferenceUnlock(classLoader);
         logFx(installed > 0 ? Log.INFO : Log.WARN,
@@ -2318,6 +2506,378 @@ public final class AdVisibilityHook extends XposedModule {
      * security centres. This installer suppresses that reporting for the collector's
      * own process, without touching other apps on the device.
      */
+    /** Developer Hook rules resolved once for the active target process. */
+    private List<DeveloperHookRule> effectiveDeveloperRules = java.util.Collections.emptyList();
+    /** ApplicationInfo of this hooked process, captured when the package became ready. */
+    private android.content.pm.ApplicationInfo processApplicationInfo;
+
+    /**
+     * Install the per-target developer Hook rules.
+     *
+     * Priority is resolved once through DeveloperHookRule.selectEffective so the highest
+     * priority rule per exact descriptor wins and no later iteration can contradict it.
+     * OBSERVE records metadata only; the RETURN_* fixtures target a debuggable app the
+     * user owns, which DeveloperHookRule already enforces at parse time.
+     */
+    /**
+     * Resolve the policy row for a package, falling back to the automatic target.
+     *
+     * Automatic Ad interception is the baseline: an app with no configured row still
+     * needs protection, so the automatic target stands in for it. Android core processes
+     * are excluded here, before any hook is installed.
+     */
+    private String resolveAdTarget(String pkg) {
+        if (pkg == null || pkg.isEmpty()) return null;
+        if (AUTOMATIC_AD_PROTECTED.contains(pkg)) return null;
+        return AUTO_AD_TARGET;
+    }
+
+    private void installDeveloperHookRules(final String pkg, final ClassLoader loader,
+                                          final UnifiedHookConfigParser.Target target) {
+        if (target == null || target.developerRules.isEmpty()) return;
+        // Fixtures act only for an opted-in, debuggable target; otherwise resolve the
+        // priority set but install nothing.
+        if (!developerFixturesAllowed(pkg, target)) {
+            logFx(Log.DEBUG, "developer fixtures not permitted for " + pkg);
+            return;
+        }
+        effectiveDeveloperRules = DeveloperHookRule.selectEffective(target.developerRules);
+        int installed = 0;
+        for (DeveloperHookRule rule : effectiveDeveloperRules) {
+            if (rule == null) continue;
+            try {
+                Class<?> owner = resolveRuleOwner(rule, loader);
+                if (owner == null) continue;
+                Method method = findRuleMethod(owner, rule, loader);
+                if (method == null) continue;
+                // Boolean fixtures get their dedicated installer so the two paths can be
+                // audited separately; every other action goes through the general executor.
+                if (rule.action == DeveloperHookRule.Action.RETURN_TRUE
+                        || rule.action == DeveloperHookRule.Action.RETURN_FALSE) {
+                    installDeveloperBooleanTestHook(pkg, loader, rule);
+                    installed++;
+                    continue;
+                }
+                final DeveloperHookRule selected = rule;
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> applyDeveloperRule(selected, chain, method));
+                installed++;
+            } catch (Throwable unavailable) {
+                logFx(Log.WARN, "developer rule unavailable: " + rule.descriptor);
+            }
+        }
+        logFx(installed > 0 ? Log.INFO : Log.WARN,
+                "developer Hook rules installed=" + installed + " package=" + pkg);
+    }
+
+    /**
+     * Install a single boolean-returning method fixture.
+     *
+     * Kept as its own entry point so a boolean Debug fixture can be verified on its own
+     * and so a non-boolean descriptor is rejected instead of silently no-oping. This is a
+     * fixture for an app the user owns and builds debuggable; DeveloperHookRule refuses
+     * the action elsewhere.
+     */
+    private void installDeveloperBooleanTestHook(final String pkg, final ClassLoader loader,
+                                                 final DeveloperHookRule rule) {
+        if (rule == null || rule.action == null) return;
+        if (rule.action != DeveloperHookRule.Action.RETURN_TRUE
+                && rule.action != DeveloperHookRule.Action.RETURN_FALSE) {
+            logFx(Log.DEBUG, "boolean fixture skipped for non-boolean action: "
+                    + rule.descriptor);
+            return;
+        }
+        try {
+            Class<?> owner = resolveRuleOwner(rule, loader);
+            if (owner == null) return;
+            Method method = findRuleMethod(owner, rule, loader);
+            if (method == null || method.getReturnType() != boolean.class) return;
+            final boolean fixed = rule.action == DeveloperHookRule.Action.RETURN_TRUE;
+            hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> Boolean.valueOf(fixed));
+            logFx(Log.INFO, "developer boolean fixture installed: " + rule.descriptor);
+        } catch (Throwable unavailable) {
+            logFx(Log.WARN, "boolean fixture unavailable: " + rule.descriptor);
+        }
+    }
+
+    /**
+     * Whether developer fixtures may act on this process at all.
+     *
+     * Both conditions are required and are evaluated together so neither can be
+     * forgotten: the user opted this package in (developerHooksEnabled) and the target is
+     * a debuggable app the user built. MemberTestGate adds the release-build and
+     * package-identity checks on top; it fails closed.
+     */
+    private boolean developerFixturesAllowed(final String pkg,
+                                             final UnifiedHookConfigParser.Target target) {
+        if (target == null) return false;
+        boolean debuggableTarget = isTargetDebuggable(pkg);
+        if (!(target.developerHooksEnabled && debuggableTarget)) return false;
+        return MemberTestGate.isEnabled(debuggableTarget, target.developerHooksEnabled,
+                pkg, pkg);
+    }
+
+    /**
+     * Read the target's APPLICATION_DEBUGGABLE flag from the injected package info.
+     *
+     * The flag is cached when the process became ready, so no hidden framework API is
+     * needed and the answer cannot be influenced by the caller.
+     */
+    private boolean isTargetDebuggable(final String pkg) {
+        android.content.pm.ApplicationInfo info = processApplicationInfo;
+        if (info == null) return false;
+        if (info.flags == 0 && info.packageName == null) return false;
+        if (pkg != null && info.packageName != null && !pkg.equals(info.packageName)) {
+            return false;
+        }
+        return (info.flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+    }
+
+    /**
+     * Install a typed-return fixture (String, int, long, object and so on).
+     *
+     * Separate from the boolean installer so each fixture kind has one auditable entry
+     * point. An unconvertible literal is refused rather than applied, because returning a
+     * wrong type would crash the target.
+     */
+    private void installDeveloperTypedReturnHook(final String pkg, final ClassLoader loader,
+                                                 final DeveloperHookRule rule) {
+        if (rule == null || rule.action == null) return;
+        if (rule.action == DeveloperHookRule.Action.RETURN_TRUE
+                || rule.action == DeveloperHookRule.Action.RETURN_FALSE
+                || rule.action == DeveloperHookRule.Action.OBSERVE
+                || rule.action == DeveloperHookRule.Action.DISABLED
+                || rule.action == DeveloperHookRule.Action.NO_OP_VOID) {
+            return;
+        }
+        try {
+            Class<?> owner = resolveRuleOwner(rule, loader);
+            if (owner == null) return;
+            Method method = findRuleMethod(owner, rule, loader);
+            if (method == null) return;
+            final DeveloperHookRule selected = rule;
+            hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> applyDeveloperRule(selected, chain, method));
+            logFx(Log.INFO, "developer typed fixture installed: " + rule.descriptor);
+        } catch (Throwable unavailable) {
+            logFx(Log.WARN, "typed fixture unavailable: " + rule.descriptor);
+        }
+    }
+
+    /** Split `Lcom/example/Foo;->bar(I)V` and load the owning class. */
+    private Class<?> resolveRuleOwner(DeveloperHookRule rule, ClassLoader loader) {
+        if (rule == null || rule.descriptor == null) return null;
+        int arrow = rule.descriptor.indexOf("->");
+        if (arrow < 0) return null;
+        String owner = rule.descriptor.substring(0, arrow);
+        if (!owner.startsWith("L") || owner.length() < 3) return null;
+        String className = owner.substring(1).replace('/', '.');
+        try {
+            return Class.forName(className, false, loader);
+        } catch (Throwable missing) {
+            return null;
+        }
+    }
+
+    /** Match the exact method by name plus its JVM parameter descriptors. */
+    private Method findRuleMethod(Class<?> owner, DeveloperHookRule rule, ClassLoader loader) {
+        String descriptor = rule.descriptor;
+        int arrow = descriptor.indexOf("->");
+        int open = descriptor.indexOf('(', arrow);
+        int close = descriptor.indexOf(')', open);
+        if (arrow < 0 || open < 0 || close < 0) return null;
+        String name = descriptor.substring(arrow + 2, open);
+        Class<?>[] types = jvmParameterTypes(descriptor.substring(open + 1, close), loader);
+        if (types == null) return null;
+        try {
+            Method method = owner.getDeclaredMethod(name, types);
+            method.setAccessible(true);
+            return method;
+        } catch (Throwable noMatch) {
+            return null;
+        }
+    }
+
+    /** Translate a JVM parameter descriptor list into Class objects. */
+    private Class<?>[] jvmParameterTypes(String params, ClassLoader loader) {
+        if (params == null || params.isEmpty()) return new Class<?>[0];
+        List<Class<?>> types = new ArrayList<>();
+        int index = 0;
+        while (index < params.length()) {
+            char marker = params.charAt(index);
+            switch (marker) {
+                case 'Z': types.add(boolean.class); index++; break;
+                case 'B': types.add(byte.class); index++; break;
+                case 'C': types.add(char.class); index++; break;
+                case 'S': types.add(short.class); index++; break;
+                case 'I': types.add(int.class); index++; break;
+                case 'J': types.add(long.class); index++; break;
+                case 'F': types.add(float.class); index++; break;
+                case 'D': types.add(double.class); index++; break;
+                case 'V': return null;
+                case 'L': {
+                    int semi = params.indexOf(';', index);
+                    if (semi < 0) return null;
+                    String className = params.substring(index + 1, semi).replace('/', '.');
+                    try {
+                        types.add(Class.forName(className, false, loader));
+                    } catch (Throwable missing) {
+                        return null;
+                    }
+                    index = semi + 1;
+                    break;
+                }
+                case '[': {
+                    int dims = 0;
+                    int cursor = index;
+                    while (cursor < params.length() && params.charAt(cursor) == '[') {
+                        dims++;
+                        cursor++;
+                    }
+                    if (cursor >= params.length()) return null;
+                    Class<?> component;
+                    if (params.charAt(cursor) == 'L') {
+                        int semi = params.indexOf(';', cursor);
+                        if (semi < 0) return null;
+                        String className = params.substring(cursor + 1, semi)
+                                .replace('/', '.');
+                        try {
+                            component = Class.forName(className, false, loader);
+                        } catch (Throwable missing) {
+                            return null;
+                        }
+                        index = semi + 1;
+                    } else {
+                        component = primitiveFor(params.charAt(cursor));
+                        if (component == null) return null;
+                        index = cursor + 1;
+                    }
+                    int[] lengths = new int[dims];
+                    types.add(java.lang.reflect.Array.newInstance(component, lengths)
+                            .getClass());
+                    break;
+                }
+                default:
+                    return null;
+            }
+        }
+        return types.toArray(new Class<?>[0]);
+    }
+
+    private Class<?> primitiveFor(char marker) {
+        switch (marker) {
+            case 'Z': return boolean.class;
+            case 'B': return byte.class;
+            case 'C': return char.class;
+            case 'S': return short.class;
+            case 'I': return int.class;
+            case 'J': return long.class;
+            case 'F': return float.class;
+            case 'D': return double.class;
+            default: return null;
+        }
+    }
+
+    /**
+     * Apply one resolved rule to the intercepted call.
+     *
+     * The chain is handled through the single operation this needs (proceed) and through
+     * argument extraction, both read reflectively, so this executor does not depend on
+     * the concrete libxposed chain type.
+     */
+    private Object applyDeveloperRule(final DeveloperHookRule rule, final Object chain,
+                                      final Method method) throws Throwable {
+        DeveloperHookRule.Action action = rule.action;
+        // Observe rules are installed, not skipped: they are the non-invasive default
+        // and the user relies on them to see which methods are actually reached.
+        if (rule.action == DeveloperHookRule.Action.OBSERVE
+                || rule.action == DeveloperHookRule.Action.DISABLED) {
+            logFx(Log.DEBUG, "observe " + rule.descriptor);
+            return proceedChain(chain);
+        }
+        switch (action) {
+            // Debug-only boolean fixture: returns a fixed value for a method the user
+            // owns. DeveloperHookRule refuses these actions for non-debuggable targets.
+            case RETURN_TRUE: return Boolean.TRUE;
+            case RETURN_FALSE: return Boolean.FALSE;
+            case RETURN_NULL: return null;
+            case RETURN_ZERO: return zeroFor(method.getReturnType());
+            case RETURN_EMPTY_STRING: return "";
+            case RETURN_LITERAL: return literalFor(rule, method.getReturnType());
+            case RETURN_ARGUMENT_0: {
+                Object[] args = chainArguments(chain);
+                return args.length > 0 ? args[0] : null;
+            }
+            case RETURN_THIS: {
+                Object[] args = chainArguments(chain);
+                return args.length > 0 ? args[0] : null;
+            }
+            case NO_OP_VOID:
+                return method.getReturnType() == void.class ? null : proceedChain(chain);
+            default:
+                return proceedChain(chain);
+        }
+    }
+
+    /** Invoke the chain's proceed(), reflectively typed. */
+    private Object proceedChain(Object chain) throws Throwable {
+        Method proceed = chain.getClass().getMethod("proceed");
+        proceed.setAccessible(true);
+        return proceed.invoke(chain);
+    }
+
+    /** Extract the intercepted call's arguments from the chain, reflectively. */
+    private Object[] chainArguments(Object chain) {
+        try {
+            Method getArgs = chain.getClass().getMethod("getArgs");
+            getArgs.setAccessible(true);
+            Object args = getArgs.invoke(chain);
+            if (args instanceof List) return ((List<?>) args).toArray();
+        } catch (Throwable unavailable) {
+            // A rule that needs argument 0 simply cannot apply.
+        }
+        return new Object[0];
+    }
+
+    private Object zeroFor(Class<?> type) {
+        if (type == boolean.class) return Boolean.FALSE;
+        if (type == byte.class) return Byte.valueOf((byte) 0);
+        if (type == char.class) return Character.valueOf('\0');
+        if (type == short.class) return Short.valueOf((short) 0);
+        if (type == int.class) return Integer.valueOf(0);
+        if (type == long.class) return Long.valueOf(0L);
+        if (type == float.class) return Float.valueOf(0f);
+        if (type == double.class) return Double.valueOf(0d);
+        return null;
+    }
+
+    /**
+     * Convert the rule's literal into the method's return type.
+     *
+     * An unconvertible literal is not applied: returning the wrong type would crash the
+     * target, so the call proceeds untouched.
+     */
+    private Object literalFor(DeveloperHookRule rule, Class<?> type) {
+        if (rule.literalValue == null) return zeroFor(type);
+        String value = rule.literalValue;
+        try {
+            if (type == String.class) return value;
+            if (type == boolean.class) return Boolean.valueOf(
+                    "true".equalsIgnoreCase(value) || "1".equals(value));
+            if (type == byte.class) return Byte.valueOf(value);
+            if (type == short.class) return Short.valueOf(value);
+            if (type == int.class) return Integer.valueOf(value);
+            if (type == long.class) return Long.valueOf(value);
+            if (type == float.class) return Float.valueOf(value);
+            if (type == double.class) return Double.valueOf(value);
+            if (type == char.class) return Character.valueOf((char) Integer.parseInt(value));
+        } catch (Throwable unconvertible) {
+            return zeroFor(type);
+        }
+        return null;
+    }
+
     private void installVendorAntiFraudSuppressionHooks(final String pkg,
                                                        final ClassLoader loader) {
         if (!VendorAntiFraudCatalog.shouldSuppressCollectorReporting(pkg)) return;

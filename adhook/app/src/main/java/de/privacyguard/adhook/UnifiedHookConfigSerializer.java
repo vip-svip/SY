@@ -174,6 +174,26 @@ public final class UnifiedHookConfigSerializer {
             // per-target features with real hook implementations, so they must
             // round-trip like every other switch.
             if (target.vipUnlock) out.append(",vip_unlock=1");
+            // Developer rules must round-trip: the parser reads dev_rule_N and
+            // dev_rule_b64_N, so a save that omits them silently drops every custom rule
+            // the user configured.
+            for (int slot = 0; slot < target.developerRules.size(); slot++) {
+                DeveloperHookRule rule = target.developerRules.get(slot);
+                if (rule == null) continue;
+                String body = rule.toEncodedString();
+                int index = slot + 1;
+                // The row is comma-separated, and a typed JVM signature contains commas,
+                // so any body with a comma must go through the encoded slot.
+                if (body.indexOf(',') < 0) {
+                    out.append(",dev_rule_").append(index).append('=').append(body);
+                } else {
+                    out.append(",dev_rule_b64_").append(index).append('=')
+                            .append(java.util.Base64.getUrlEncoder().withoutPadding()
+                                    .encodeToString(body.getBytes(
+                                            java.nio.charset.StandardCharsets.UTF_8)));
+                }
+            }
+
             if (target.antiFraudBlock) out.append(",anti_fraud_block=1");
             if (target.carrierCollectionBlock) out.append(",carrier_collection_block=1");
             if (target.policeReconBlock) out.append(",police_recon_block=1");
